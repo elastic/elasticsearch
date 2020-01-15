@@ -53,6 +53,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -75,6 +77,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -88,6 +91,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final AtomicInteger activeOperations = new AtomicInteger();
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -136,6 +140,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }), listener, threadPool
         );
+    }
+
+    @Override
+    protected Runnable beforePrimary() {
+        int active = activeOperations.incrementAndGet();
+        ThreadPool.Info info = threadPool.info(ThreadPool.Names.WRITE);
+        // todo: deterministic task queue does not obey this: assert info.getQueueSize() != null;
+        long max = info.getQueueSize() != null ? info.getQueueSize().singles() + info.getMax() : Long.MAX_VALUE;
+        if (active > max) {
+            activeOperations.decrementAndGet();
+            throw new EsRejectedExecutionException("rejected executing primary bulk operation on " + ThreadPool.Names.WRITE
+                + " has " + (active - 1) + " active operations");
+        }
+        return new RunOnce(activeOperations::decrementAndGet);
     }
 
     public static void performOnPrimary(

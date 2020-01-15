@@ -250,9 +250,31 @@ public abstract class TransportReplicationAction<
         execute(task, request, new ChannelActionListener<>(channel, actionName, request));
     }
 
-    protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        new AsyncPrimaryAction(
-            request, new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
+    final void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
+        ActionListener<Response> onCompletionListener = new ChannelActionListener<>(channel, transportPrimaryAction, request);
+        try {
+            Runnable afterPrimary = beforePrimary();
+            if (afterPrimary != null) {
+                onCompletionListener = ActionListener.runAfter(onCompletionListener, afterPrimary);
+            }
+        } catch (RuntimeException e) {
+            onCompletionListener.onFailure(e);
+            return;
+        }
+        try {
+            new AsyncPrimaryAction(
+                request, onCompletionListener, (ReplicationTask) task).run();
+        } catch (RuntimeException e) {
+            onCompletionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Override this to execute code before (and after) primary action.
+     * @return runnable to invoke after completion of primary action. Returning null means no action to perform after.
+     */
+    protected Runnable beforePrimary() {
+        return null;
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {

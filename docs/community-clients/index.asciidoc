@@ -73,6 +73,8 @@ a number of clients that have been contributed by the community for various lang
   http://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
   environment.
 
+* https://github.com/sashman/elasticsearch_elixir_bulk_processor[Elixir Bulk Processor]:
+  Dynamically configurable Elixir port of the [Bulk Processor](https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/java-docs-bulk-processor.html). Implemented using GenStages to handle backpressure.
 
 [[go]]
 == Go

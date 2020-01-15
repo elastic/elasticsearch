@@ -53,7 +53,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultConfiguration() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("location")
                     .field("type", "geo_shape")
                     .field("strategy", "recursive")
@@ -61,7 +61,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+            .parse("_doc", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         assertEquals(mapping, defaultMapper.mappingSource().toString());

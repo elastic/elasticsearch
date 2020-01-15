@@ -6,20 +6,13 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-import java.util.List;
 import java.util.Map;
 
 public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accountable {
-
-    /**
-     * @return List of featureNames expected by the model. In the order that they are expected
-     */
-    List<String> getFeatureNames();
 
     /**
      * Infer against the provided fields
@@ -35,12 +28,6 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
      * @return {@link TargetType} for the model.
      */
     TargetType targetType();
-
-    /**
-     * @return Ordinal encoded list of classification labels.
-     */
-    @Nullable
-    List<String> classificationLabels();
 
     /**
      * Runs validations against the model.

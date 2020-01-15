@@ -82,10 +82,10 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     static void givenJobs(Client client, List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
 
-        doAnswer(invocationOnMock -> {
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
-            return null;
+            doAnswer(invocationOnMock -> {
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+                listener.onResponse(response);
+                return null;
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
     }
 

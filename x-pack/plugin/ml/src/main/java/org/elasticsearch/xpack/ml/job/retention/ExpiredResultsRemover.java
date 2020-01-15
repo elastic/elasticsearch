@@ -136,8 +136,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                 MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
         latestBucketTime(jobId, ActionListener.wrap(
                 latestTime -> {
-                    long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                    threadedActionListener.onResponse(cutoff);
+                    if (latestTime == null) {
+                        threadedActionListener.onResponse(null);
+                    } else {
+                        long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+                        threadedActionListener.onResponse(cutoff);
+                    }
                 },
                 listener::onFailure
         ));

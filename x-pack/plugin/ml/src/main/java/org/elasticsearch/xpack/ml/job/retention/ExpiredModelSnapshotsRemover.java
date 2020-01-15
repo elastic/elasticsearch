@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
-import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
@@ -84,8 +82,12 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
         latestSnapshotTimeStamp(jobId, ActionListener.wrap(
                 latestTime -> {
-                    long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                    threadedActionListener.onResponse(cutoff);
+                    if (latestTime == null) {
+                        threadedActionListener.onResponse(null);
+                    } else {
+                        long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+                        threadedActionListener.onResponse(cutoff);
+                    }
                 },
                 listener::onFailure
         ));
@@ -93,11 +95,12 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
     private void latestSnapshotTimeStamp(String jobId, ActionListener<Long> listener) {
         SortBuilder<?> sortBuilder = new FieldSortBuilder(ModelSnapshot.TIMESTAMP.getPreferredName()).order(SortOrder.DESC);
-        QueryBuilder bucketType = QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE);
+        QueryBuilder snapshotQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()));
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.sort(sortBuilder);
-        searchSourceBuilder.query(bucketType);
+        searchSourceBuilder.query(snapshotQuery);
         searchSourceBuilder.size(1);
         searchSourceBuilder.trackTotalHits(false);
 

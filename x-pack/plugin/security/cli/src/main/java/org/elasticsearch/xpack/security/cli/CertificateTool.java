@@ -922,7 +922,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     }
 
     static PEMEncryptor getEncrypter(char[] password) {
-        return new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).build(password);
+        return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
     }
 
     private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,

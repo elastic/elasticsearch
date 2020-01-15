@@ -272,7 +272,7 @@ setup:
 "Test put config given dest index contains uppercase chars":
 
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
+      catch: /.*Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
       ml.put_data_frame_analytics:
         id: "config-given-dest-index-uppercase"
         body: >
@@ -308,7 +308,7 @@ setup:
 "Test put config with missing concrete source index":
 
   - do:
-      catch: /.*reason=Validation Failed.* no such index \[missing\]/
+      catch: /.*Validation Failed.* no such index \[missing\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-concrete-source-index"
         body: >
@@ -344,7 +344,7 @@ setup:
 "Test put config with dest index same as source index":
 
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
+      catch: /.*Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
       ml.put_data_frame_analytics:
         id: "config-with-same-source-dest-index"
         body: >
@@ -380,7 +380,7 @@ setup:
         name: multiple-dest-index
 
   - do:
-      catch: /.*reason=Validation Failed.* no write index is defined for alias \[multiple-dest-index\].*/
+      catch: /.*Validation Failed.* no write index is defined for alias \[multiple-dest-index\].*/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-matching-multiple-indices"
         body: >
@@ -407,7 +407,7 @@ setup:
         name: dest-alias
 
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[another-source-index\] is included in source expression \[another-source-index\]/
+      catch: /.*Validation Failed.* Destination index \[another-source-index\] is included in source expression \[another-source-index\]/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-included-in-source-via-alias"
         body: >
@@ -425,7 +425,7 @@ setup:
 "Test put config with remote source index":
 
   - do:
-      catch: /.*reason=Validation Failed.* remote source indices are not supported/
+      catch: /.*Validation Failed.* remote source indices are not supported/
       ml.put_data_frame_analytics:
         id: "config-with-missing-concrete-source-index"
         body: >

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -31,6 +32,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -122,19 +124,30 @@ public final class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
+    public void verify(String seed, DiscoveryNode localNode) {
+        if (consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
+            super.verify(seed, localNode);
+        } else {
+            // the repository has a different password on the local node compared to the master node
+            throw new RepositoryVerificationException(metadata.name(), "Repository password mismatch. The local node's [" + localNode +
+                    "] value of the keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's");
+        }
+    }
+
+    @Override
     public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
         super.cleanup(repositoryStateId, writeShardGens, ActionListener.wrap(repositoryCleanupResult -> {
-            EncryptedBlobContainerDecorator encryptedBlobContainer = (EncryptedBlobContainerDecorator) blobContainer();
+            EncryptedBlobContainer encryptedBlobContainer = (EncryptedBlobContainer) blobContainer();
             cleanUpOrphanedMetadataRecursively(encryptedBlobContainer);
             listener.onResponse(repositoryCleanupResult);
         }, listener::onFailure));
     }
 
-    private void cleanUpOrphanedMetadataRecursively(EncryptedBlobContainerDecorator encryptedBlobContainer) throws IOException{
+    private void cleanUpOrphanedMetadataRecursively(EncryptedBlobContainer encryptedBlobContainer) throws IOException{
         encryptedBlobContainer.cleanUpOrphanedMetadata();
         for (BlobContainer childEncryptedBlobContainer : encryptedBlobContainer.children().values()) {
             try {
-                cleanUpOrphanedMetadataRecursively((EncryptedBlobContainerDecorator) childEncryptedBlobContainer);
+                cleanUpOrphanedMetadataRecursively((EncryptedBlobContainer) childEncryptedBlobContainer);
             } catch(IOException e) {
                 logger.warn("Exception while cleaning up [" + childEncryptedBlobContainer.path() + "]", e);
             }
@@ -143,7 +156,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() {
-        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
+        return new EncryptedBlobStore(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
                 secureRandom);
     }
 
@@ -165,15 +178,15 @@ public final class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
-    private static class EncryptedBlobStoreDecorator implements BlobStore {
+    private static class EncryptedBlobStore implements BlobStore {
 
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
 
-        EncryptedBlobStoreDecorator(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
-                                    PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom) {
+        EncryptedBlobStore(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
+                           PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
@@ -187,12 +200,11 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            return new EncryptedBlobContainerDecorator(delegatedBlobStore, path, dataEncryptionKeyGenerator, metadataEncryptor,
-                    secureRandom);
+            return new EncryptedBlobContainer(delegatedBlobStore, path, dataEncryptionKeyGenerator, metadataEncryptor, secureRandom);
         }
     }
 
-    private static class EncryptedBlobContainerDecorator implements BlobContainer {
+    private static class EncryptedBlobContainer implements BlobContainer {
 
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
@@ -201,9 +213,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
 
-        EncryptedBlobContainerDecorator(BlobStore delegatedBlobStore, BlobPath path,
-                                        KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryptor metadataEncryptor,
-                                        SecureRandom nonceGenerator) {
+        EncryptedBlobContainer(BlobStore delegatedBlobStore, BlobPath path, KeyGenerator dataEncryptionKeyGenerator,
+                               PasswordBasedEncryptor metadataEncryptor, SecureRandom nonceGenerator) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
@@ -309,7 +320,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             Map<String, BlobContainer> result = new HashMap<>(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> encryptedBlobContainer : childEncryptedBlobContainers.entrySet()) {
                 // get an encrypted blob container for each
-                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainerDecorator(delegatedBlobStore,
+                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainer(delegatedBlobStore,
                         encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryptor, nonceGenerator));
             }
             return result;

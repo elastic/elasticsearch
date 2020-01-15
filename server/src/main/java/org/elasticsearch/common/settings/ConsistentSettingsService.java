@@ -189,7 +189,7 @@ public final class ConsistentSettingsService {
         ClusterState state = clusterService.state();
         if (state.metaData() == null || state.metaData().hashesOfConsistentSettings() == null) {
             throw new IllegalStateException("Hashes of consistent secure settings are not yet published by the master node. Cannot " +
-                    "check consistency at this time");
+                    "check consistency at this time.");
         }
         return state.metaData().hashesOfConsistentSettings();
     }

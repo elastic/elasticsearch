@@ -78,6 +78,14 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
             exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, other));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
+            // other and user cannot access the result from direct get calls
+           AsyncSearchId searchId = AsyncSearchId.decode(id);
+           for (String runAs : new String[] {user, other}) {
+               exc = expectThrows(ResponseException.class, () -> get(searchId.getIndexName(), searchId.getDocId(), runAs));
+               assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+               assertThat(exc.getMessage(), containsString("unauthorized"));
+           }
+
             Response delResp = deleteAsyncSearch(id, user);
             assertOK(delResp);
         }
@@ -105,6 +113,12 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
 
     static void refresh(String index) throws IOException {
         assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
+    }
+
+    static Response get(String index, String id, String user) throws IOException {
+        final Request request = new Request("GET", "/" + index + "/_doc/" + id);
+        setRunAsHeader(request, user);
+        return client().performRequest(request);
     }
 
     static Response submitAsyncSearch(String indexName, String query, String user) throws IOException {

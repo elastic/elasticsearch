@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -191,8 +192,6 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     }
 
     public void testDeleteCleanupIndex() throws Exception {
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { indexName });
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         AsyncSearchResponse response = it.next();
@@ -219,8 +218,6 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     }
 
     public void testInvalidId() throws Exception {
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { indexName });
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         AsyncSearchResponse response = it.next();
@@ -233,5 +230,23 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
             response = it.next();
         }
         assertFalse(response.isRunning());
+    }
+
+    public void testNoIndex() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { "invalid-*" });
+        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertTrue(response.hasResponse());
+        assertFalse(response.isRunning());
+        assertThat(response.getSearchResponse().getTotalShards(), equalTo(0));
+
+        request = new SubmitAsyncSearchRequest(new String[] { "invalid" });
+        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        response = submitAsyncSearch(request);
+        assertFalse(response.hasResponse());
+        assertTrue(response.hasFailed());
+        assertFalse(response.isRunning());
+        ElasticsearchException exc = response.getFailure();
+        assertThat(exc.getMessage(), containsString("no such index"));
     }
 }

@@ -32,7 +32,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Test harness for verifying {@link IndexInput} implementations.

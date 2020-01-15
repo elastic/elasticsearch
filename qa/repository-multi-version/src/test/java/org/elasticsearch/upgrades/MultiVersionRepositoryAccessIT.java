@@ -19,6 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -60,8 +63,6 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the old version cluster from the first step: {@link TestStep#STEP3_OLD_CLUSTER}</li>
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
- * TODO: Add two more steps: delete all old version snapshots from the repository, then downgrade again and verify that the repository
- *       is not being corrupted. This requires first merging the logic for reading the min_version field in RepositoryData back to 7.6.
  */
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
@@ -98,7 +99,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    protected static final TestStep TEST_STEP = TestStep.parse(System.getProperty("tests.rest.suite"));
+    private static final TestStep TEST_STEP = TestStep.parse(System.getProperty("tests.rest.suite"));
 
     @Override
     protected boolean preserveSnapshotsUponCompletion() {
@@ -192,31 +193,46 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
-        if (TEST_STEP.ordinal() > 1) {
-            // Only testing the first 2 steps here
-            return;
-        }
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             createIndex(client, "test-index", shards);
             createRepository(client, repoName, false);
-            createSnapshot(client, repoName, "snapshot-" + TEST_STEP);
-            final List<Map<String, Object>> snapshots = listSnapshots(repoName);
-            // Every step creates one snapshot
-            assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
-            assertSnapshotStatusSuccessful(client, repoName,
-                snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
-            if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+            // only create some snapshots in the first two steps
+            if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP2_NEW_CLUSTER) {
+                createSnapshot(client, repoName, "snapshot-" + TEST_STEP);
+                final List<Map<String, Object>> snapshots = listSnapshots(repoName);
+                // Every step creates one snapshot
+                assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
+                assertSnapshotStatusSuccessful(client, repoName,
+                    snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
+                if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                } else {
+                    deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                    createSnapshot(client, repoName, "snapshot-1");
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
+                    deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
+                    createSnapshot(client, repoName, "snapshot-2");
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                }
             } else {
-                deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
-                createSnapshot(client, repoName, "snapshot-1");
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
-                deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
-                createSnapshot(client, repoName, "snapshot-2");
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                if (minimumNodeVersion().before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                    assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
+                    final List<Class<? extends Exception>> expectedExceptions =
+                        List.of(ResponseException.class, ElasticsearchStatusException.class);
+                    expectThrowsAnyOf(expectedExceptions, () -> listSnapshots(repoName));
+                    expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-1"));
+                    expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-2"));
+                    expectThrowsAnyOf(expectedExceptions, () -> createSnapshot(client, repoName, "snapshot-impossible"));
+                } else {
+                    assertThat(listSnapshots(repoName), hasSize(2));
+                    if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
+                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
+                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                    }
+                }
             }
         } finally {
             deleteRepository(repoName);

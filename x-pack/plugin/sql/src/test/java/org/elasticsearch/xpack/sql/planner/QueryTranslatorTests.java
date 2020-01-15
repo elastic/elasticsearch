@@ -249,15 +249,15 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testDateRangeWithCurrentDate() {
         testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
         testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_DATE()", DATE_FORMAT,
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(2L)),
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)));
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
     }
 
     public void testDateRangeWithToday() {
         testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
         testDateRangeWithCurrentFunctions_AndRangeOptimization("TODAY()", DATE_FORMAT,
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(2L)),
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)));
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
     }
 
     public void testDateRangeWithNow() {

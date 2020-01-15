@@ -100,7 +100,7 @@ public class QueryStringWithAnalyzersTests extends ESSingleNodeTestCase {
                         .put("analysis.analyzer.my_analyzer.filter", "custom_synonym")
                         .put("analysis.filter.custom_synonym.type", "synonym")
                         .putList("analysis.filter.custom_synonym.synonyms", "car, auto"))
-                .addMapping("_doc",
+                .setMapping(
                         "field1", "type=text,analyzer=standard,search_analyzer=my_analyzer"));
 
         client().prepareIndex("test").setId("1").setSource("field1", "fast car").get();
@@ -166,7 +166,7 @@ public class QueryStringWithAnalyzersTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("test", settings, "doc", mapping);
+        IndexService indexService = createIndex("test", settings, mapping);
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
                 randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
 

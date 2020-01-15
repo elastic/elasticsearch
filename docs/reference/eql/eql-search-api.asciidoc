@@ -1,0 +1,181 @@
+[role="xpack"]
+[testenv="basic"]
+:eql-ref: https://eql.readthedocs.io/en/latest/query-guide
+
+[[eql-search-api]]
+=== EQL search API
+++++
+<titleabbrev>EQL search</titleabbrev>
+++++
+
+experimental::[]
+
+Returns search results for an {eql-ref}/index.html[Event Query Language (EQL)]
+query.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "rule": """
+    process where process.name = "regsvr32.exe"
+  """
+}
+----
+// TEST[s/^/PUT sec_logs\n/]
+
+[[eql-search-api-request]]
+==== {api-request-title}
+
+`GET <index>/_eql/search`
+
+`POST <index>/_eql/search`
+
+[[eql-search-api-prereqs]]
+==== {api-prereq-title}
+
+The EQL search API assumes each document in an index corresponds to an event.
+To work properly, each document must contain the following field archetypes:
+
+Event type::
+A field containing the event classification, such as `process`, `file`, or
+`network`. This is typically mapped as a <<keyword,`keyword`>> field.
+
+Timestamp::
+A field containing the date and/or time the event occurred. This is typically
+mapped as a <<date,`date`>> field.
+
+[TIP]
+====
+While no schema is required to use the EQL search API, we recommend the
+{ecs-ref}[Elastic Common Schema (ECS)]. The API is designed to work with core ECS
+fields, such as `event.category` and `@timestamp`, by default.
+====
+
+
+[[eql-search-api-desc]]
+==== {api-description-title}
+
+Use the EQL search API to run {eql-ref}/index.html[Event Query Language (EQL)]
+queries on logs and other event-based data in {es}.
+
+You can use EQL to quickly match events with shared properties. EQL is often
+used for security use cases, such as threat detection and log monitoring.
+
+[[eql-search-api-desc-limitations]]
+===== Limitations
+
+The EQL search API cannot run EQL queries that contain the following syntax:
+
+* Array {eql-ref}/functions.html[functions]:
+** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+
+* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
+** `child of`
+** `descendant of`
+** `event of`
+
+* {eql-ref}/pipes.html[Pipes] or related keywords:
+** `count`
+** `filter`
+** `head`
+** `sort`
+** `tail`
+** `unique`
+** `unique_count`
+
+* {eql-ref}/sequences.html[Sequences] or related keywords:
+** `sequence`
+** `maxspan`
+
+[[eql-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
++
+--
+(Required, string)
+Comma-separated list of index names or <<indices-aliases,index aliases>> used to
+limit the request. Accepts wildcard expressions.
+
+To search all indices, use `_all`.
+--
+
+[[eql-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+[[eql-search-api-request-body]]
+==== {api-request-body-title}
+
+`rule`::
++
+--
+(Required, string)
+{eql-ref}/index.html[EQL] query you wish to run.
+
+IMPORTANT: This parameter supports a subset of EQL syntax. See
+<<eql-search-api-desc-limitations>>.
+--
+
+`event_type_field`::
++
+--
+(Required*, string)
+Field containing the event classification, such as `process`, `file`, or
+`network`.
+
+Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[ECS].
+If an index does not contain the `event.category` field, this value is
+required.
+--
+
+`timestamp_field`::
++
+--
+(Required*, string)
+Field containing event timestamp.
+
+Defaults to `@timestamp`, as defined in the {ecs-ref}/ecs-base.html[ECS]. If an
+index does not contain the `@timestamp` field, this value is required.
+--
+
+`implicit_join_key_field`::
++
+--
+(Required*, string)
+Default field used for {eql-ref}/joins.html[EQL joins].
+
+You can override this value by explicitly specifying one or more join key fields
+in the EQL query.
+
+Defaults to `agent.id`, as defined in the {ecs-ref}/ecs-agent.html[ECS]. If an
+index does not contain the `agent.id` field, this value is required.
+--
+
+`query`::
+(Optional, <<query-dsl,query DSL object>>)
+Query, written in query DSL, used to filter the documents on which the EQL query
+runs.
+
+`search_after`::
+(Optional, string)
+{eql-ref}/joins.html[Join key] field value used to offset returned documents in
+the response. Documents returned _before_ this value are excluded from the
+response.
+
+`size`::
+(Optional, integer)
+Maximum number of matching documents to return.
+Defaults to `50`. Values must be greater than `0`.

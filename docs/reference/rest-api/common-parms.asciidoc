@@ -39,7 +39,7 @@ end::target-index-aliases[]
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`,
-the request does *not* return an error
+the request does not return an error
 if a wildcard expression
 or `_all` value retrieves only missing or closed indices.
 +
@@ -167,26 +167,23 @@ end::enrich-policy[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
-+
---
-(Optional, string) Controls what kind of indices that wildcard
-expressions can expand to. Valid values are:
+(Optional, string) Types of indices that wildcard expressions can select.
+Valid values are:
 
-`all`::
-Expand to open and closed indices.
+  `all`:::
+  Expand to open and closed indices.
 
-`open`::
-Expand only to open indices.
+  `open`:::
+  Expand only to open indices.
 
-`closed`::
-Expand only to closed indices.
+  `closed`:::
+  Expand only to closed indices.
 
-`hidden`::
-Expansion of wildcards will include hidden indices.
+  `hidden`:::
+  Expand to include hidden indices.
 
-`none`::
-Wildcard expressions are not accepted.
---
+  `none`:::
+  Wildcard expressions are not accepted.
 end::expand-wildcards[]
 
 tag::field_statistics[]

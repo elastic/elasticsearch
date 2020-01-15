@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.tree;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.LiteralTests;
@@ -48,7 +47,6 @@ import java.util.List;
  * node of that type is called for.
  * </ul>
  */
-@AwaitsFix(bugUrl = "classpath inside tests is different")
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = CollectionUtils.combine(

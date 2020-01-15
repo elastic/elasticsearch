@@ -1,5 +1,5 @@
 tag::ssl-certificate[]
-Specifies the path to the PEM encoded certificate (or certificate chain) that is
+Specifies the path for the PEM encoded certificate (or certificate chain) that is
 associated with the key.
 //TBD: This setting can be used only if `ssl.key` is set.
 end::ssl-certificate[]
@@ -38,10 +38,11 @@ Java Cryptography Architecture documentation]. The default is `TLS_AES_256_GCM_S
 `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 end::ssl-cipher-suites-values-java8[]
 
-tag::ssl-key[]
+tag::ssl-key-pem[]
 Path to a PEM encoded file containing the private key.
 //TBD: You cannot use this setting and `ssl.keystore.path` at the same time.
-end::ssl-key[]
+end::ssl-key-pem[]
+//TBD: Is it correct that this setting only applies to PEM files or can it support other types?
 
 tag::ssl-key-passphrase[]
 The passphrase that is used to decrypt the private key. Since the key might not
@@ -55,12 +56,12 @@ The password for the key in the keystore. The default is the keystore password.
 end::ssl-keystore-key-password[]
 
 tag::ssl-keystore-password[]
-The password to the keystore.
+The password for the keystore.
 //TBD: You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 end::ssl-keystore-password[]
 
 tag::ssl-keystore-path[]
-The path to the keystore file that contains a private key and certificate.
+The path for the keystore file that contains a private key and certificate.
 //TBD: It must be either a Java keystore (jks) or a PKCS#12 file.
 //TBD: You cannot use this setting and `ssl.key` at the same time.
 end::ssl-keystore-path[]
@@ -71,7 +72,7 @@ The password for the key in the keystore. The default is the keystore password.
 end::ssl-keystore-secure-key-password[]
 
 tag::ssl-keystore-secure-password[]
-The password to the keystore.
+The password for the keystore.
 //TBD: You cannot use this setting and `ssl.keystore.password` at the same time.
 end::ssl-keystore-secure-password[]
 
@@ -117,22 +118,22 @@ defaults is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is
 end::ssl-supported-protocols-2[]
 
 tag::ssl-truststore-password[]
-The password to the truststore.
+The password for the truststore.
 //TBD: You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 end::ssl-truststore-password[]
 
 tag::ssl-truststore-path[]
-The path to the keystore that contains the certificates to trust. It must be
+The path for the keystore that contains the certificates to trust. It must be
 either a Java keystore (jks) or a PKCS#12 file.
 //TBD: You cannot use this setting and `ssl.certificate_authorities` at the same time.
 end::ssl-truststore-path[]
 
 tag::ssl-truststore-path-jks[]
-The path to the Java keystore file that contains the certificates to trust.
+The path for the Java keystore file that contains the certificates to trust.
 end::ssl-truststore-path-jks[]
 
 tag::ssl-truststore-secure-password[]
-Password to the truststore.
+Password for the truststore.
 //TBD: You cannot use this setting and `ssl.truststore.password` at the same time.
 end::ssl-truststore-secure-password[]
 

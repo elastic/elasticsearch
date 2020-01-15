@@ -460,7 +460,7 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.key`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 +
 If the LDAP server requires client authentication, it uses this file. You cannot
 use this setting and `ssl.keystore.path` at the same time.
@@ -722,7 +722,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.key`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 +
 If the Active Directory server requires client authentication, it uses this file.
 You cannot use this setting and `ssl.keystore.path` at the same time.
@@ -1108,7 +1108,7 @@ NOTE: These settings are not used for any purpose other than loading metadata
 over https.
 
 `ssl.key`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 +
 If HTTP client authentication is required, it uses this file. You cannot use
 this setting and `ssl.keystore.path` at the same time.
@@ -1385,7 +1385,7 @@ NOTE: These settings are _only_ used for the back-channel communication between
 {es} and the OpenID Connect Provider
 
 `ssl.key`::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key]
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 +
 If HTTP client authentication is required, it uses this file. You cannot use
 this setting and `ssl.keystore.path` at the same time.

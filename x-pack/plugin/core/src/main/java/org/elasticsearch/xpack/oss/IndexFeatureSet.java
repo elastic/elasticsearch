@@ -32,7 +32,7 @@ public class IndexFeatureSet implements XPackFeatureSet {
 
     @Inject
     public IndexFeatureSet(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         this.clusterService = clusterService;
     }
 
@@ -58,7 +58,6 @@ public class IndexFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<Usage> listener) {
-        ClusterState state = clusterService.state();
         final Set<String> usedFieldTypes = new HashSet<>();
         final Set<String> usedCharFilters = new HashSet<>();
         final Set<String> usedTokenizers = new HashSet<>();
@@ -69,51 +68,55 @@ public class IndexFeatureSet implements XPackFeatureSet {
         final Set<String> usedBuiltInTokenFilters = new HashSet<>();
         final Set<String> usedBuiltInAnalyzers = new HashSet<>();
 
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            MappingMetaData mappingMetaData = indexMetaData.mapping();
-            if (mappingMetaData != null) {
-                visitMapping(mappingMetaData.getSourceAsMap(), fieldMapping -> {
-                    Object type = fieldMapping.get("type");
-                    if (type != null) {
-                        usedFieldTypes.add(type.toString());
-                    } else if (fieldMapping.containsKey("properties")) {
-                        usedFieldTypes.add("object");
-                    }
+        ClusterState state = clusterService.state();
+        if (state != null) {
 
-                    for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
-                        Object analyzer = fieldMapping.get(key);
-                        if (analyzer != null) {
-                            usedBuiltInAnalyzers.add(analyzer.toString());
+            for (IndexMetaData indexMetaData : state.metaData()) {
+                MappingMetaData mappingMetaData = indexMetaData.mapping();
+                if (mappingMetaData != null) {
+                    visitMapping(mappingMetaData.getSourceAsMap(), fieldMapping -> {
+                        Object type = fieldMapping.get("type");
+                        if (type != null) {
+                            usedFieldTypes.add(type.toString());
+                        } else if (fieldMapping.containsKey("properties")) {
+                            usedFieldTypes.add("object");
                         }
-                    }
-                });
-            }
 
-            Settings indexSettings = indexMetaData.getSettings();
-
-            Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
-            usedBuiltInAnalyzers.removeAll(analyzerSettings.keySet());
-            for (Settings analyzerSetting : analyzerSettings.values()) {
-                usedAnalyzers.add(analyzerSetting.get("type", "custom"));
-                usedBuiltInCharFilters.addAll(analyzerSetting.getAsList("char_filter"));
-                String tokenizer = analyzerSetting.get("tokenizer");
-                if (tokenizer != null) {
-                    usedBuiltInTokenizers.add(tokenizer);
+                        for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
+                            Object analyzer = fieldMapping.get(key);
+                            if (analyzer != null) {
+                                usedBuiltInAnalyzers.add(analyzer.toString());
+                            }
+                        }
+                    });
                 }
-                usedBuiltInTokenFilters.addAll(analyzerSetting.getAsList("filter"));
+
+                Settings indexSettings = indexMetaData.getSettings();
+
+                Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
+                usedBuiltInAnalyzers.removeAll(analyzerSettings.keySet());
+                for (Settings analyzerSetting : analyzerSettings.values()) {
+                    usedAnalyzers.add(analyzerSetting.get("type", "custom"));
+                    usedBuiltInCharFilters.addAll(analyzerSetting.getAsList("char_filter"));
+                    String tokenizer = analyzerSetting.get("tokenizer");
+                    if (tokenizer != null) {
+                        usedBuiltInTokenizers.add(tokenizer);
+                    }
+                    usedBuiltInTokenFilters.addAll(analyzerSetting.getAsList("filter"));
+                }
+
+                Map<String, Settings> charFilterSettings = indexSettings.getGroups("index.analysis.char_filter");
+                usedBuiltInCharFilters.removeAll(charFilterSettings.keySet());
+                aggregateAnalysisTypes(charFilterSettings.values(), usedCharFilters);
+
+                Map<String, Settings> tokenizerSettings = indexSettings.getGroups("index.analysis.tokenizer");
+                usedBuiltInTokenizers.removeAll(tokenizerSettings.keySet());
+                aggregateAnalysisTypes(tokenizerSettings.values(), usedTokenizers);
+
+                Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
+                usedBuiltInTokenFilters.removeAll(tokenFilterSettings.keySet());
+                aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilters);
             }
-
-            Map<String, Settings> charFilterSettings = indexSettings.getGroups("index.analysis.char_filter");
-            usedBuiltInCharFilters.removeAll(charFilterSettings.keySet());
-            aggregateAnalysisTypes(charFilterSettings.values(), usedCharFilters);
-
-            Map<String, Settings> tokenizerSettings = indexSettings.getGroups("index.analysis.tokenizer");
-            usedBuiltInTokenizers.removeAll(tokenizerSettings.keySet());
-            aggregateAnalysisTypes(tokenizerSettings.values(), usedTokenizers);
-
-            Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
-            usedBuiltInTokenFilters.removeAll(tokenFilterSettings.keySet());
-            aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilters);
         }
 
         listener.onResponse(new IndexFeatureSetUsage(usedFieldTypes, usedCharFilters, usedTokenizers, usedTokenFilters,

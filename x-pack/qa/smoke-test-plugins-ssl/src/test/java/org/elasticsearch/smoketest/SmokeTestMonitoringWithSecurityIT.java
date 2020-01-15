@@ -18,6 +18,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
@@ -160,7 +161,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
             .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
         assertTrue(response.isAcknowledged());
     }
 
@@ -177,8 +178,15 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
         assertTrue(response.isAcknowledged());
+    }
+
+    private RequestOptions getRequestOptions() {
+        String deprecationWarning = "[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.";
+        return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.size() != 1 ||
+            warnings.get(0).equals(deprecationWarning) == false).build();
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {

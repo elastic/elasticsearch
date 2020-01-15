@@ -1118,10 +1118,9 @@ Number of compatible differences between published cluster states.
 [[cluster-nodes-stats-api-response-body-adaptive-selection]]
 ===== `adaptive_selection` section
 
-The `adaptive_selection` statistics are keyed by node. For each node:
-
 [%collapsible]
 ====
+The `adaptive_selection` statistics are keyed by node. For each node:
 
 `adaptive_selection.outgoing_searches`::
     The number of outstanding search requests from the node these stats are for 

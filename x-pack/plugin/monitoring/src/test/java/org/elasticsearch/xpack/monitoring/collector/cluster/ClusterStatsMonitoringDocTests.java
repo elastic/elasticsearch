@@ -367,6 +367,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"expiry_date\":\"2017-08-07T12:03:22.133Z\","
                     + "\"expiry_date_in_millis\":1502107402133,"
                     + "\"max_nodes\":2,"
+                    + "\"max_resource_units\":null,"
                     + "\"issued_to\":\"customer\","
                     + "\"issuer\":\"elasticsearch\","
                     + "\"start_date_in_millis\":-1"

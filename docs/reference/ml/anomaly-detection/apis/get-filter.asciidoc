@@ -32,7 +32,8 @@ You can get a single filter or all filters. For more information, see
 ==== {api-path-parms-title}
 
 `<filter_id>`::
-  (Optional, string) Identifier for the filter.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-get-filter-query-parms]]
 ==== {api-query-parms-title}
@@ -53,7 +54,8 @@ properties:
 (string) A description of the filter.
 
 `filter_id`::
-(string) A string that uniquely identifies the filter.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
   
 `items`::
 (array of strings) An array of strings which is the filter item list.

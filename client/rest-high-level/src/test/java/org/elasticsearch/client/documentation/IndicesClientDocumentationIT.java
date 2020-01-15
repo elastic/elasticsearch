@@ -1018,7 +1018,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::flush-synced-request-indicesOptions
 
             // tag::flush-synced-execute
-            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, RequestOptions.DEFAULT);
+            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+            ));
             // end::flush-synced-execute
 
             // tag::flush-synced-response
@@ -1062,7 +1064,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::flush-synced-execute-async
-            client.indices().flushSyncedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().flushSyncedAsync(request, expectWarnings(
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+            ), listener); // <1>
             // end::flush-synced-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

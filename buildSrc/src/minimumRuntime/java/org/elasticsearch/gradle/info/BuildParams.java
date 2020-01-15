@@ -124,8 +124,8 @@ public class BuildParams {
 
             String message = "Build parameter '" + propertyName(callingMethod) + "' has not been initialized. ";
             if (executionTime) {
-                message += "This property is initialized at execution time, " +
-                    "please ensure you are not attempting to access it during project configuration.";
+                message += "This property is initialized at execution time, "
+                    + "please ensure you are not attempting to access it during project configuration.";
             } else {
                 message += "Perhaps the plugin responsible for initializing this property has not been applied.";
             }
@@ -144,24 +144,22 @@ public class BuildParams {
     public static class MutableBuildParams {
         private static MutableBuildParams INSTANCE = new MutableBuildParams();
 
-        private MutableBuildParams() { }
+        private MutableBuildParams() {}
 
         /**
          * Resets any existing values from previous initializations.
          */
         public void reset() {
-            Arrays.stream(BuildParams.class.getDeclaredFields())
-                .filter(f -> Modifier.isStatic(f.getModifiers()))
-                .forEach(f -> {
-                    try {
-                        // Since we are mutating private static fields from a public static inner class we need to suppress
-                        // accessibility controls here.
-                        f.setAccessible(true);
-                        f.set(null, null);
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+            Arrays.stream(BuildParams.class.getDeclaredFields()).filter(f -> Modifier.isStatic(f.getModifiers())).forEach(f -> {
+                try {
+                    // Since we are mutating private static fields from a public static inner class we need to suppress
+                    // accessibility controls here.
+                    f.setAccessible(true);
+                    f.set(null, null);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         public void setCompilerJavaHome(File compilerJavaHome) {
@@ -233,8 +231,9 @@ public class BuildParams {
      * Indicates that a build parameter is initialized at task execution time and is not available at project configuration time.
      * Attempts to read an uninitialized parameter wil result in an {@link IllegalStateException}.
      */
-    @Target({ElementType.METHOD, ElementType.FIELD})
+    @Target({ ElementType.METHOD, ElementType.FIELD })
     @Retention(RetentionPolicy.RUNTIME)
     @Documented
-    public @interface ExecutionTime {}
+    public @interface ExecutionTime {
+    }
 }

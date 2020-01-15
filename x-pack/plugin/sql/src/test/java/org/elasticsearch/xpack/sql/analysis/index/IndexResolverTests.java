@@ -157,6 +157,31 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, esIndex.mapping().get("another_field").getProperties().get("_keyed").getDataType());
     }
     
+    public void testPropagateUnsupportedTypeToSubFields() throws Exception {
+        // generate a field type having the name of the format "foobar43"
+        String esFieldType = randomAlphaOfLengthBetween(5, 10) + randomIntBetween(-100, 100);
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "a", "string", false, false);
+        addFieldCaps(fieldCaps, "a.b", esFieldType, false, false);
+        addFieldCaps(fieldCaps, "a.b.c", "object", true, false);
+        addFieldCaps(fieldCaps, "a.b.c.d", "keyword", true, false);
+        addFieldCaps(fieldCaps, "a.b.c.e", "foo", true, true);
+        
+        String wildcard = "*";
+        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertEquals(DataType.TEXT, esIndex.mapping().get("a").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c")
+                .getProperties().get("d").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c")
+                .getProperties().get("e").getDataType());
+    }
+    
     public void testRandomMappingFieldTypeMappedAsUnsupported() throws Exception {
         // generate a field type having the name of the format "foobar43"
         String esFieldType = randomAlphaOfLengthBetween(5, 10) + randomIntBetween(-100, 100);

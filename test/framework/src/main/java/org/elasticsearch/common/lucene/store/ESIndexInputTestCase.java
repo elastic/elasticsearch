@@ -152,7 +152,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                         public void onRejection(Exception e) {
                             // all threads are busy, and queueing can lead this test to deadlock, so we need take no action
                             countDownLatch.countDown();
-                            clonedBytesFuture.onResponse(new byte[0]); // cloneReadLen == 0 indicating we read nothing from the clone
+                            clonedBytesFuture.onResponse(new byte[0]); // cloneReadStart == cloneReadEnd so no bytes are expected
                         }
                     });
                     try {

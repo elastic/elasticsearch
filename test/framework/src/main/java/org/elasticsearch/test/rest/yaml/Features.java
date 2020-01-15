@@ -70,14 +70,14 @@ public final class Features {
                 if (ESRestTestCase.hasXPack()) {
                     return false;
                 }
-            } else if (false == isRegisteredFeature(feature)) {
+            } else if (false == isSupported(feature)) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean isRegisteredFeature(String feature) {
+    private static boolean isSupported(String feature) {
         if(feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) &&
             JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             return true;

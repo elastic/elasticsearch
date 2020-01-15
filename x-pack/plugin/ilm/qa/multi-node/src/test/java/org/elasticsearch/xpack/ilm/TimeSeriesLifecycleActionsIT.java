@@ -1084,7 +1084,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true);
 
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
@@ -1104,18 +1105,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index document to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        assertBusy(() -> assertTrue(indexExists(originalIndex)));
 
-        waitUntil(() -> {
-            try {
-                Map<String, Object> explainIndex = explainIndex(index);
-                assertThat(explainIndex.get("step"), is(WaitForActiveShardsStep.NAME));
-                assertThat((Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1));
-                return true;
-            } catch (IOException e) {
-                return false;
-            }
-        });
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex).getName(), equalTo(WaitForActiveShardsStep.NAME)));
 
         // reset the number of replicas to 0 so that the second index wait for active shard condition can be met
         updateIndexSettings(secondIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));

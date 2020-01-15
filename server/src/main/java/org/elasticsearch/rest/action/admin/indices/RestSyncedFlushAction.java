@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -71,35 +70,27 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     }
 
     static final class SimulateSyncedFlushResponseListener extends RestToXContentListener<FlushResponse> {
+
         SimulateSyncedFlushResponseListener(RestChannel channel) {
             super(channel);
         }
 
         @Override
         public RestResponse buildResponse(FlushResponse flushResponse, XContentBuilder builder) throws Exception {
-            final RestStatus restStatus = flushResponse.getFailedShards() > 0 ? RestStatus.OK : RestStatus.CONFLICT;
-            final SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(flushResponse);
-            syncedFlushResponse.toXContent(builder, channel.request());
+            builder.startObject();
+            buildSyncedFlushResponse(builder, flushResponse);
+            builder.endObject();
+            final RestStatus restStatus = flushResponse.getFailedShards() == 0 ? RestStatus.OK : RestStatus.CONFLICT;
             return new BytesRestResponse(restStatus, builder);
         }
-    }
 
-    static final class SyncedFlushResponse implements ToXContent {
-        private final FlushResponse flushResponse;
-
-        SyncedFlushResponse(FlushResponse flushResponse) {
-            this.flushResponse = flushResponse;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void buildSyncedFlushResponse(XContentBuilder builder, FlushResponse flushResponse) throws IOException {
             builder.startObject("_shards");
             builder.field("total", flushResponse.getTotalShards());
             builder.field("successful", flushResponse.getSuccessfulShards());
             builder.field("failed", flushResponse.getFailedShards());
-            // We can't serialize the detail of each index as we don't have the shard count per index.
+            // can't serialize the detail of each index as we don't have the shard count per index.
             builder.endObject();
-            return builder;
         }
     }
 }

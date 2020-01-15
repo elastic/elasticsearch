@@ -1213,23 +1213,54 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    protected static Response performSyncedFlush(String indexName) throws IOException {
-        final String deprecationMessage = "Synced flush is deprecated and will be removed in 8.0. " +
-            "Use flush at _/flush or /{index}/_flush instead.";
-        final String transitionMessage = "Synced flush was removed and a normal flush was performed instead. " +
-            "This transition will be removed in a future version.";
-        final Request request = new Request("POST", indexName + "/_flush/synced");
+    protected void syncedFlush(String indexName) throws Exception {
+        final List<String> deprecationMessages = List.of(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
+        final List<String> transitionMessages = List.of(
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
+        final WarningsHandler warningsHandler;
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.equals(transitionMessage) == false);
-            request.setOptions(options);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.isEmpty() == false
-                && warnings.contains(deprecationMessage) == false
-                && warnings.contains(transitionMessage));
-            request.setOptions(options);
+            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
+        } else {
+            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
         }
-        return client().performRequest(request);
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                final Request request = new Request("POST", indexName + "/_flush/synced");
+                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
+                if (nodeVersions.stream().anyMatch(v -> v.onOrAfter(Version.V_8_0_0))) {
+                    request.addParameter("ignore", Integer.toString(RestStatus.CONFLICT.getStatus()));
+                }
+                Response resp =  client().performRequest(request);
+                if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("failed"), equalTo(0));
+                }
+            } catch (ResponseException ex) {
+                throw new AssertionError(ex); // cause assert busy to retry
+            }
+        });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(indexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
     }
 }

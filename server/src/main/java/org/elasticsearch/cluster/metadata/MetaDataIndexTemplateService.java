@@ -203,7 +203,7 @@ public class MetaDataIndexTemplateService {
      *
      * @param metaData The {@link MetaData} containing all of the {@link IndexTemplateMetaData} values
      * @param indexName The name of the index that templates are being found for
-     * @param isHidden Whether or not the index is know to be hidden. May be {@code null} if the index
+     * @param isHidden Whether or not the index is known to be hidden. May be {@code null} if the index
      *                 being hidden has not been explicitly requested. When {@code null} if the result
      *                 of template application results in a hidden index, then global templates will
      *                 not be returned
@@ -240,7 +240,7 @@ public class MetaDataIndexTemplateService {
         }
         CollectionUtil.timSort(matchedTemplates, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
 
-        // this is complex but if the index is not hidden in the create request but hidden is the result of template application,
+        // this is complex but if the index is not hidden in the create request but is hidden as the result of template application,
         // then we need to exclude global templates
         if (isHidden == null) {
             final Optional<IndexTemplateMetaData> templateWithHiddenSetting = matchedTemplates.stream()

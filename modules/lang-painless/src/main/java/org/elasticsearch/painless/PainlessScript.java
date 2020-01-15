@@ -66,7 +66,7 @@ public interface PainlessScript {
                 if (originalOffset == -1) {
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
-                    int offset = originalOffset--; // offset is 1 based, line numbers must be!
+                    int offset = --originalOffset; // offset is 1 based, line numbers must be!
                     int startOffset = getPreviousStatement(offset);
                     if (startOffset == -1) {
                         assert false; // should never happen unless we hit exc in ctor prologue...

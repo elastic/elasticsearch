@@ -89,8 +89,7 @@ public class ScriptException extends ElasticsearchException {
         scriptStack = Arrays.asList(in.readStringArray());
         script = in.readString();
         lang = in.readString();
-        // TODO(stu): change to 7.7
-        if (in.getVersion().onOrAfter(Version.V_7_6_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.readBoolean()) {
             pos = new Position(in);
         } else {
             pos = null;
@@ -103,8 +102,7 @@ public class ScriptException extends ElasticsearchException {
         out.writeStringArray(scriptStack.toArray(new String[0]));
         out.writeString(script);
         out.writeString(lang);
-        // TODO(stu): change to 7.7
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             if (pos == null) {
                 out.writeBoolean(false);
             } else {

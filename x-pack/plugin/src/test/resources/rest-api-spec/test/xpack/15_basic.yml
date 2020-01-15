@@ -166,4 +166,90 @@
   - is_true:    features.monitoring.available
   - is_false:   tagline
 
+---
+"Usage stats for mappings":
+  - do:
+      xpack.usage: {}
 
+  - match: { index.mappings.field_types: [] }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                properties:
+                  quux:
+                    type: integer
+
+  - do:
+      xpack.usage: {}
+
+  - match: { index.mappings.field_types: [ "integer", "keyword", "object" ] }
+
+---
+"Usage stats for analysis":
+  - do:
+      xpack.usage: {}
+
+  - match: { index.analysis.char_filter_types: [] }
+  - match: { index.analysis.tokenizer_types: [] }
+  - match: { index.analysis.filter_types: [] }
+  - match: { index.analysis.analyzer_types: [] }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            analysis:
+              char_filter:
+                c:
+                  type: mapping
+                  mappings: [ "a => b" ]
+              tokenizer:
+                tok:
+                  type: pattern
+                  pattern: ","
+              filter:
+                st:
+                  type: stop
+                  stopwords: [ "a" ]
+              analyzer:
+                en:
+                  type: standard
+                  stopwords: "_english_"
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                properties:
+                  quux:
+                    type: integer
+
+  - do:
+      xpack.usage: {}
+
+  - match: { index.analysis.char_filter_types: [ "mapping" ] }
+  - match: { index.analysis.tokenizer_types: [ "pattern" ] }
+  - match: { index.analysis.filter_types: [ "stop" ] }
+  - match: { index.analysis.analyzer_types: [ "standard" ] }

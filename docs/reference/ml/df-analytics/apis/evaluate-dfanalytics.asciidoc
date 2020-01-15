@@ -42,14 +42,6 @@ result field to be present.
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`index`::
-(Required, object) Defines the `index` in which the evaluation will be
-performed.
-
-`query`::
-(Optional, object) A query clause that retrieves a subset of data from the
-source index. See <<query-dsl>>.
-
 `evaluation`::
 (Required, object) Defines the type of evaluation you want to perform.
 See <<ml-evaluate-dfanalytics-resources>>.
@@ -62,6 +54,14 @@ Available evaluation types:
 * `classification`
 
 --
+
+`index`::
+(Required, object) Defines the `index` in which the evaluation will be
+performed.
+
+`query`::
+(Optional, object) A query clause that retrieves a subset of data from the
+source index. See <<query-dsl>>.
 
 [[ml-evaluate-dfanalytics-resources]]
 ==== {dfanalytics-cap} evaluation resources
@@ -93,6 +93,12 @@ document is an outlier.
     operating characteristic) score and optionally the curve. Default value is 
     {"includes_curve": false}.
     
+  `confusion_matrix`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where
+    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true
+    negative, `fn` - false negative) are calculated. Default value is
+    {"at": [0.25, 0.50, 0.75]}.
+
   `precision`:::
     (Optional, object) Set the different thresholds of the {olscore} at where 
     the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
@@ -100,12 +106,6 @@ document is an outlier.
   `recall`:::
     (Optional, object) Set the different thresholds of the {olscore} at where 
     the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
-  
-  `confusion_matrix`:::
-    (Optional, object) Set the different thresholds of the {olscore} at where 
-    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true 
-    negative, `fn` - false negative) are calculated. Default value is 
-    {"at": [0.25, 0.50, 0.75]}.
 
     
 [[regression-evaluation-resources]]
@@ -128,11 +128,11 @@ which outputs a prediction of values.
 
   `mean_squared_error`:::
     (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
-    Read more on https://en.wikipedia.org/wiki/Mean_squared_error[Wikipedia]
+    For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
 
   `r_squared`:::
     (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
-    Read more on https://en.wikipedia.org/wiki/Coefficient_of_determination[Wikipedia]
+    For more information, read https://en.wikipedia.org/wiki/Coefficient_of_determination[this wiki article].
 
 
   
@@ -160,16 +160,16 @@ belongs.
   Available metrics:
 
   `accuracy`:::
-    (Optional, object) Accuracy of predictions (per-class and overall)
-
-  `precision`:::
-    (Optional, object) Precision of predictions (per-class and average)
-
-  `recall`:::
-    (Optional, object) Recall of predictions (per-class and average)
+    (Optional, object) Accuracy of predictions (per-class and overall).
 
   `multiclass_confusion_matrix`:::
-    (Optional, object) Multiclass confusion matrix
+    (Optional, object) Multiclass confusion matrix.
+
+  `precision`:::
+    (Optional, object) Precision of predictions (per-class and average).
+
+  `recall`:::
+    (Optional, object) Recall of predictions (per-class and average).
 
 
 ////

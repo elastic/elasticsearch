@@ -5,7 +5,7 @@ esplugin {
   name 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
   classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
-  extendedPlugins = ['x-pack-core', 'lang-painless']
+  extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
 ext {
@@ -44,14 +44,15 @@ dependencies {
   }
   compile project('sql-action')
   compile project(':modules:aggs-matrix-stats')
-  compile "org.antlr:antlr4-runtime:4.5.3"
+  compile "org.antlr:antlr4-runtime:${antlrVersion}"
+  compileOnly project(path: xpackModule('ql'), configuration: 'default')
   testCompile project(':test:framework')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-
   bin(project(path: xpackModule('sql:sql-cli'), configuration: 'shadow'))
 }
 

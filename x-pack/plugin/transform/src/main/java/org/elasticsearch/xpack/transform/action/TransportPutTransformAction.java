@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -74,6 +76,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final IngestService ingestService;
 
     @Inject
     public TransportPutTransformAction(
@@ -85,7 +88,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TransformServices transformServices,
-        Client client
+        Client client,
+        IngestService ingestService
     ) {
         this(
             PutTransformAction.NAME,
@@ -97,7 +101,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             clusterService,
             licenseState,
             transformServices,
-            client
+            client,
+            ingestService
         );
     }
 
@@ -111,7 +116,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TransformServices transformServices,
-        Client client
+        Client client,
+        IngestService ingestService
     ) {
         super(
             name,
@@ -138,6 +144,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.ingestService = ingestService;
     }
 
     static HasPrivilegesRequest buildPrivilegeCheck(
@@ -226,7 +233,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
-            request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
+            request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source
@@ -335,6 +342,16 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         if (request.isDeferValidation()) {
             pivotValidationListener.onResponse(true);
         } else {
+            if (config.getDestination().getPipeline() != null) {
+                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                        RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+            }
             pivot.validateQuery(client, config.getSource(), pivotValidationListener);
         }
     }

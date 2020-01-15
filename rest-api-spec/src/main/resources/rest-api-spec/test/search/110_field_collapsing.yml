@@ -348,8 +348,8 @@ setup:
 ---
 "field collapsing on a field alias":
   - skip:
-      version: " - 7.4.99"
-      reason: the bug fix was introduced in 7.5
+      version: " - 7.5.1"
+      reason: the bug fix was introduced in 7.5.2
   - do:
       indices.create:
         index:  alias-test

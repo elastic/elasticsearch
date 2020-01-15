@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
@@ -145,7 +146,7 @@ public class MetaDataIndexUpgradeService {
                 @Override
                 public TriFunction<Settings, Version, ScriptService, Similarity> get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return SimilarityService.BUILT_IN.get(SimilarityService.DEFAULT_SIMILARITY);
+                    return (settings, version, scriptService) -> new BM25Similarity();
                 }
 
                 // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate

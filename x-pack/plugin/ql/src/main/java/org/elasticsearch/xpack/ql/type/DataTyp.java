@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.xpack.sql.type.ExtTypes;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
@@ -43,10 +44,7 @@ public enum DataTyp {
     TEXT(          "text",           JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
     OBJECT(        "object",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(        "nested",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
-    BINARY(        "binary",         JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
-    // since ODBC and JDBC interpret precision for Date as display size
-    // the precision is 23 (number of chars in ISO8601 with millis) + 6 chars for the timezone (e.g.: +05:00)
-    // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
+    BINARY(        "binary",         JDBCType.BINARY, -1,                Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
     DATE(                            JDBCType.DATE,      Long.BYTES,        3,                 29, false, false, true),
     TIME(                            JDBCType.TIME,      Long.BYTES,        3,                 18, false, false, true),
     DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        3,                 29, false, false, true),

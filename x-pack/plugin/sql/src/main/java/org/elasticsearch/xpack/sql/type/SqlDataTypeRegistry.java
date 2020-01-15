@@ -4,11 +4,14 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ql.type;
+package org.elasticsearch.xpack.sql.type;
+
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 
 import java.util.Collection;
 
-public class DefaultTypeRegistry implements DataTypeRegistry {
+public class SqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
@@ -36,12 +39,8 @@ public class DefaultTypeRegistry implements DataTypeRegistry {
     }
 
     @Override
-    public boolean areCompatible(DataType left, DataType right) {
-        return false;
-    }
-
-    @Override
     public DataType commonType(DataType left, DataType right) {
         return null;
     }
+
 }

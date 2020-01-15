@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ql.type;
+package org.elasticsearch.xpack.sql.type;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;

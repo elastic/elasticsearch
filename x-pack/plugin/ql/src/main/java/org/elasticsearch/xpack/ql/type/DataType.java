@@ -31,11 +31,11 @@ public class DataType {
      */
     private final boolean docValues;
 
-    protected DataType(int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
+    public DataType(int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
         this(null, size, isInteger, isRational, hasDocValues);
     }
 
-    protected DataType(String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
+    public DataType(String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
         this.typeName = getClass().getSimpleName().toLowerCase(Locale.ROOT);
         this.esType = esType;
         this.size = size;

@@ -161,7 +161,7 @@ public class IndexResolverTests extends ESTestCase {
         // generate a field type having the name of the format "foobar43"
         String esFieldType = randomAlphaOfLengthBetween(5, 10) + randomIntBetween(-100, 100);
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
-        addFieldCaps(fieldCaps, "a", "string", false, false);
+        addFieldCaps(fieldCaps, "a", "text", false, false);
         addFieldCaps(fieldCaps, "a.b", esFieldType, false, false);
         addFieldCaps(fieldCaps, "a.b.c", "object", true, false);
         addFieldCaps(fieldCaps, "a.b.c.d", "keyword", true, false);

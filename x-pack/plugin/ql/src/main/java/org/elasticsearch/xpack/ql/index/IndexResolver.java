@@ -389,9 +389,19 @@ public class IndexResolver {
 
         EsField esField = field.apply(fieldName);
 
-        if (parent != null && parent.getDataType() == DataType.UNSUPPORTED) {
-            esField = new EsField(esField.getName(), DataType.UNSUPPORTED, esField.getProperties(), esField.isAggregatable(),
-                    esField.isAlias());
+        if (parent != null && parent instanceof UnsupportedEsField) {
+            UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
+            String inherited = unsupportedParent.getInherited();
+            String type = unsupportedParent.getOriginalType();
+            
+            if (inherited == null) {
+                // mark the sub-field as unsupported, just like its parent, setting the first unsupported parent as the current one
+                esField = new UnsupportedEsField(esField.getName(), type, unsupportedParent.getName(), esField.getProperties());
+            } else {
+                // mark the sub-field as unsupported, just like its parent, but setting the first unsupported parent
+                // as the parent's first unsupported grandparent
+                esField = new UnsupportedEsField(esField.getName(), type, inherited, esField.getProperties());
+            }
         }
 
         parentProps.put(fieldName, esField);
@@ -414,7 +424,7 @@ public class IndexResolver {
             case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
-                return new UnsupportedEsField(fieldName, typeName, props);
+                return new UnsupportedEsField(fieldName, typeName, null, props);
             default:
                 return new EsField(fieldName, esType, props, isAggregateable, isAlias);
         }
@@ -501,7 +511,6 @@ public class IndexResolver {
                 if (typeEntry.getKey().startsWith("_") && typeCap.getType().startsWith("_")) {
                     continue;
                 }
-                
 
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;

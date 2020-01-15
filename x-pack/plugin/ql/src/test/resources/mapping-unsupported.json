@@ -6,6 +6,9 @@
         "time_frame" : {
             "type" : "date_range",
             "format" : "yyyy-MM-dd"
+        },
+        "flat" : {
+            "type" : "flattened"
         }
     }
 }

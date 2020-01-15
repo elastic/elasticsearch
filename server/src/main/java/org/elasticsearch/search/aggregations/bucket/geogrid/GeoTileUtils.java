@@ -43,7 +43,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  */
 public final class GeoTileUtils {
 
-    private static final Double PI_DIV_2 = Math.PI / 2;
+    private static final double PI_DIV_2 = Math.PI / 2;
 
     private GeoTileUtils() {}
 

@@ -125,6 +125,24 @@ teardown:
   - match: { hits.hits.1._source.avg_stars: 2.0 }
   - match: { hits.hits.1._source.user: b }
 
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      transform.update_transform:
+        transform_id: "simple-remote-transform"
+        body: >
+          {
+            "source": { "index": ["my_remote_cluster:test_index", "my_remote_cluster:test_index_2"] }
+          }
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      transform.get_transform_stats:
+        transform_id: "simple-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "simple-remote-transform" }
+  - match: { transforms.0.state: "stopped" }
+  # we added test_index_2, which has 2 more docs:
+  - match: { transforms.0.checkpointing.operations_behind: 2 }
+
 ---
 "Batch transform from local and remote cluster":
   - do:

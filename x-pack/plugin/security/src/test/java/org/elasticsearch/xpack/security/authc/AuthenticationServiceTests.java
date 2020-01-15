@@ -753,8 +753,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         Settings anonymousEnabledSettings = builder.build();
         final AnonymousUser anonymousUser = new AnonymousUser(anonymousEnabledSettings);
-        service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService);
+        service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrail,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, tokenService, apiKeyService);
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -776,8 +776,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         Settings anonymousEnabledSettings = builder.build();
         final AnonymousUser anonymousUser = new AnonymousUser(anonymousEnabledSettings);
-        service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService);
+        service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrail,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, tokenService, apiKeyService);
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];

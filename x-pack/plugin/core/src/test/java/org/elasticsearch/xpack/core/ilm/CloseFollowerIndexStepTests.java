@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Stubber;
 
 import java.util.Collections;
 
@@ -29,50 +30,25 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
+public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<CloseFollowerIndexStep> {
 
-    public void testMasterTimeout() {
-        checkMasterTimeout(TimeValue.timeValueSeconds(30), null);
-        checkMasterTimeout(TimeValue.timeValueSeconds(30),
-            ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
-        checkMasterTimeout(TimeValue.timeValueSeconds(10),
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metaData(MetaData.builder()
-                    .persistentSettings(Settings.builder().put(ILM_STEP_MASTER_TIMEOUT, "10s").build())
-                    .build())
-                .build());
-    }
-
-    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+    }
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        Mockito.doAnswer(invocation -> {
-            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
-            assertThat(closeIndexRequest.masterNodeTimeout(), equalTo(timeValue));
-            return null;
-        }).when(indicesClient).close(Mockito.any(), Mockito.any());
-        CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, currentClusterState, null, new NoOpActionListener());
+    @Override
+    protected void mockRequestCall(Stubber checkTimeout) {
+        checkTimeout.when(indicesClient).close(Mockito.any(), Mockito.any());
     }
 
     public void testCloseFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Client client = Mockito.mock(Client.class);
         AdminClient adminClient = Mockito.mock(AdminClient.class);
@@ -108,12 +84,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
     }
 
     public void testCloseFollowingIndexFailed() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         // Mock pause follow api call:
         Client client = Mockito.mock(Client.class);
@@ -179,7 +150,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
     protected CloseFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new CloseFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new CloseFollowerIndexStep(stepKey, nextStepKey, client);
     }
 
     @Override

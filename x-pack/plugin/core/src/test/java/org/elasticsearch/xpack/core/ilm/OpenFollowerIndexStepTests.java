@@ -7,29 +7,37 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Stubber;
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.ilm.Step.ILM_STEP_MASTER_TIMEOUT;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowerIndexStep> {
+public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<OpenFollowerIndexStep> {
 
     @Override
     protected OpenFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new OpenFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new OpenFollowerIndexStep(stepKey, nextStepKey, client);
     }
 
     @Override
@@ -51,14 +59,24 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         return new OpenFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .state(IndexMetaData.State.OPEN)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+    }
+
+    @Override
+    protected void mockRequestCall(Stubber checkTimeout) {
+        checkTimeout.when(indicesClient).open(Mockito.any(), Mockito.any());
+    }
+
+    public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
+        IndexMetaData indexMetadata = getIndexMetaData();
         Client client = Mockito.mock(Client.class);
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {

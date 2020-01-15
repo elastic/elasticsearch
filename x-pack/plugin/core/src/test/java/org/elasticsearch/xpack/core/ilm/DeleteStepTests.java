@@ -9,73 +9,20 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.mockito.stubbing.Stubber;
 
-import java.util.Collections;
-
-import static org.elasticsearch.xpack.core.ilm.Step.ILM_STEP_MASTER_TIMEOUT;
-import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
-
-    public void testMasterTimeout() {
-        checkMasterTimeout(TimeValue.timeValueSeconds(30), null);
-        checkMasterTimeout(TimeValue.timeValueSeconds(30),
-            ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
-        checkMasterTimeout(TimeValue.timeValueSeconds(10),
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metaData(MetaData.builder()
-                    .persistentSettings(Settings.builder().put(ILM_STEP_MASTER_TIMEOUT, "10s").build())
-                    .build())
-                .build());
-    }
-
-    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        Mockito.doAnswer(invocation -> {
-            DeleteIndexRequest deleteIndexRequest = (DeleteIndexRequest) invocation.getArguments()[0];
-            assertThat(deleteIndexRequest.masterNodeTimeout(), equalTo(timeValue));
-            return null;
-        }).when(indicesClient).close(Mockito.any(), Mockito.any());
-        DeleteStep step = new DeleteStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, currentClusterState, null, new NoOpActionListener());
-    }
+public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
 
     @Override
     public DeleteStep createRandomInstance() {
@@ -109,13 +56,23 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
+    @Override
+    protected void mockRequestCall(Stubber checkTimeout) {
+        checkTimeout.when(indicesClient).delete(Mockito.any(), Mockito.any());
+    }
+
     public void testIndexSurvives() {
         assertFalse(createRandomInstance().indexSurvives());
     }
 
     public void testDeleted() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -156,8 +113,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
     }
 
     public void testExceptionThrown() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
         Exception exception = new RuntimeException();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);

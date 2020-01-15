@@ -21,17 +21,11 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.mockito.stubbing.Stubber;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
+public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeStep> {
 
     @Override
     public FreezeStep createRandomInstance() {
@@ -65,13 +59,23 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         return new FreezeStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
+    @Override
+    protected void mockRequestCall(Stubber checkTimeout) {
+        checkTimeout.when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
     public void testIndexSurvives() {
         assertTrue(createRandomInstance().indexSurvives());
     }
 
     public void testFreeze() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -113,8 +117,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
     }
 
     public void testExceptionThrown() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
         Exception exception = new RuntimeException();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);

@@ -30,15 +30,15 @@ public abstract class AsyncWaitStep extends Step {
     }
 
     public void evaluateCondition(Settings settings, IndexMetaData indexMetaData, Listener listener){
-        evaluateCondition(indexMetaData, listener);
-    }
-
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener){
         try {
             throw new UnsupportedOperationException();
         } catch (UnsupportedOperationException e) {
             listener.onFailure(e);
         }
+    }
+
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener){
+        evaluateCondition(Settings.EMPTY, indexMetaData, listener);
     }
 
     public interface Listener {

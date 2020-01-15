@@ -23,6 +23,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.mockito.stubbing.Stubber;
 
 import java.util.Collections;
 import java.util.Locale;
@@ -30,14 +31,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
-public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
+public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<RolloverStep> {
 
     @Override
     public RolloverStep createRandomInstance() {
@@ -72,6 +66,23 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         return new RolloverStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
+    private IndexMetaData getIndexMetaData(String alias) {
+        return IndexMetaData.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetaData.builder(alias))
+            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return getIndexMetaData(randomAlphaOfLength(5));
+    }
+
+    @Override
+    protected void mockRequestCall(Stubber checkTimeout) {
+        checkTimeout.when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
     private static void assertRolloverIndexRequest(RolloverRequest request, String alias) {
         assertNotNull(request);
         assertEquals(1, request.indices().length);
@@ -83,10 +94,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
     public void testPerformAction() {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putAlias(AliasMetaData.builder(alias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData(alias);
 
         RolloverStep step = createRandomInstance();
 
@@ -193,10 +201,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
     public void testPerformActionFailure() {
         String alias = randomAlphaOfLength(5);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putAlias(AliasMetaData.builder(alias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData(alias);
         Exception exception = new RuntimeException();
         RolloverStep step = createRandomInstance();
 

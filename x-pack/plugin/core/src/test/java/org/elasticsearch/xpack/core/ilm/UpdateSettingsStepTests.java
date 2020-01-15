@@ -22,17 +22,11 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.mockito.stubbing.Stubber;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
+public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<UpdateSettingsStep> {
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
@@ -71,9 +65,19 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
     }
 
-    public void testPerformAction() throws Exception {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+    @Override
+    protected void mockRequestCall(Stubber checkTimeout) {
+        checkTimeout.when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
+    public void testPerformAction() throws Exception {
+        IndexMetaData indexMetaData = getIndexMetaData();
 
         UpdateSettingsStep step = createRandomInstance();
 
@@ -121,8 +125,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
     }
 
     public void testPerformActionFailure() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
         Exception exception = new RuntimeException();
         UpdateSettingsStep step = createRandomInstance();
 

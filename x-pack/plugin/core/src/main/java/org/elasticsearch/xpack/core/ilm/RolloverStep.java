@@ -71,7 +71,7 @@ public class RolloverStep extends AsyncActionStep {
 
         // Calling rollover with no conditions will always roll over the index
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
-        rolloverRequest.setWaitForActiveShards(ActiveShardCount.ONE);
+        rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";

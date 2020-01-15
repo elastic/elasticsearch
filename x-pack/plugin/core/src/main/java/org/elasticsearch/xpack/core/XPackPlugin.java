@@ -246,9 +246,9 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
         if (transportClientMode) {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
+        } else {
+            modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexFeatureSet.class));
         }
-
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexFeatureSet.class));
         return modules;
     }
 

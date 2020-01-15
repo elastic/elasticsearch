@@ -209,7 +209,8 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     private void checkDependencies(Map<String, Boolean> licenses, Map<String, Boolean> notices, Set<File> shaFiles)
-        throws NoSuchAlgorithmException, IOException {
+        throws NoSuchAlgorithmException,
+        IOException {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
@@ -223,8 +224,8 @@ public class DependencyLicensesTask extends DefaultTask {
         }
     }
 
-    private void validateSha(Set<File> shaFiles, File dependency, String jarName, String depName)
-        throws NoSuchAlgorithmException, IOException {
+    private void validateSha(Set<File> shaFiles, File dependency, String jarName, String depName) throws NoSuchAlgorithmException,
+        IOException {
         if (ignoreShas.contains(depName)) {
             // local deps should not have sha files!
             if (getShaFile(jarName).exists()) {
@@ -270,9 +271,18 @@ public class DependencyLicensesTask extends DefaultTask {
 
         if (expectedSha.equals(sha) == false) {
             throw new GradleException(
-                "SHA has changed! Expected " + expectedSha + " for " + jarName + " but got " + sha + ". " +
-                    "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream." +
-                    "\nEither wipe your cache, fix the upstream artifact, or delete " + shaFile + " and run updateShas");
+                "SHA has changed! Expected "
+                    + expectedSha
+                    + " for "
+                    + jarName
+                    + " but got "
+                    + sha
+                    + ". "
+                    + "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream."
+                    + "\nEither wipe your cache, fix the upstream artifact, or delete "
+                    + shaFile
+                    + " and run updateShas"
+            );
         }
         shaFiles.remove(shaFile);
     }
@@ -314,13 +324,11 @@ public class DependencyLicensesTask extends DefaultTask {
             throw new GradleException("\"" + licensesDir.getPath() + "\" isn't a valid directory");
         }
 
-        return Arrays.stream(array)
-            .filter(file -> file.getName().endsWith(SHA_EXTENSION))
-            .collect(Collectors.toSet());
+        return Arrays.stream(array).filter(file -> file.getName().endsWith(SHA_EXTENSION)).collect(Collectors.toSet());
     }
 
     String getSha1(File file) throws IOException, NoSuchAlgorithmException {
-        byte[] bytes =  Files.readAllBytes(file.toPath());
+        byte[] bytes = Files.readAllBytes(file.toPath());
 
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         char[] encoded = Hex.encodeHex(digest.digest(bytes));

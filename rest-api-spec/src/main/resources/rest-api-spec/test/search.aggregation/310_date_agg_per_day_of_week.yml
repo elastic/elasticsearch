@@ -5,7 +5,6 @@ setup:
       reason:  "Start of the week Monday was backported to 7.6"
       features: "spi_on_classpath_jdk9"
 
-
   - do:
       indices.create:
         index: test

@@ -20,13 +20,16 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -51,6 +54,67 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         request.patterns(Collections.singletonList("test-*"));
         ActionRequestValidationException noError = request.validate();
         assertThat(noError, is(nullValue()));
+    }
+
+    public void testMappingKeyedByType() throws IOException {
+        PutIndexTemplateRequest request1 = new PutIndexTemplateRequest("foo");
+        PutIndexTemplateRequest request2 = new PutIndexTemplateRequest("bar");
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+            request1.mapping(builder);
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject("_doc")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+            request2.mapping(builder);
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+        {
+            request1 = new PutIndexTemplateRequest("foo");
+            request2 = new PutIndexTemplateRequest("bar");
+            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
+            request1.mapping(nakedMapping, XContentType.JSON);
+            request2.mapping("{\"_doc\": " + nakedMapping + "}", XContentType.JSON);
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+        {
+            request1 = new PutIndexTemplateRequest("foo");
+            request2 = new PutIndexTemplateRequest("bar");
+            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
+                .put("properties", MapBuilder.<String, Object>newMapBuilder()
+                    .put("bar", MapBuilder.<String, Object>newMapBuilder()
+                        .put("type", "scaled_float")
+                        .put("scaling_factor", 100)
+                        .map())
+                    .map())
+                .map();
+            request1.mapping(nakedMapping);
+            request2.mapping(Map.of("_doc", nakedMapping));
+            assertEquals(request1.mappings(), request2.mappings());
+        }
     }
 
     public void testSourceParsing() throws IOException {

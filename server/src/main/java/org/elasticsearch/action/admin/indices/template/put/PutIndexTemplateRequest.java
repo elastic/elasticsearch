@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -78,6 +79,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Settings settings = EMPTY_SETTINGS;
 
+    @Nullable
     private String mappings;
 
     private final Set<Alias> aliases = new HashSet<>();

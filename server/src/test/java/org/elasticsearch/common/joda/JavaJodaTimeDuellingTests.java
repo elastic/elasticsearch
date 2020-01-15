@@ -50,8 +50,10 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     @BeforeClass
     public static void checkJvmProperties(){
-        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers")))
-            : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
+        boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
+        assert (runtimeJdk8 && ("SPI,JRE".equals(System.getProperty("java.locale.providers"))))
+            || (false == runtimeJdk8 && ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))))
+            : "`-Djava.locale.providers` needs to be set";
     }
 
     public void testTimezoneParsing() {

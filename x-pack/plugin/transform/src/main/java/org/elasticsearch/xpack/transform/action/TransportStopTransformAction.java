@@ -186,21 +186,26 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
                     request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
                     super.doExecute(task, request, finalListener);
-                }, e-> {
+                }, e -> {
                     if (e instanceof ResourceNotFoundException) {
                         Tuple<Set<String>, Set<String>> runningTasks = findTasksWithoutConfig(state, request.getId());
                         if (runningTasks.v1().isEmpty()) {
                             listener.onFailure(e);
-                        // found transforms without a config
-                        } else  if (request.isForce()) {
+                            // found transforms without a config
+                        } else if (request.isForce()) {
                             request.setExpandedIds(runningTasks.v1());
                             request.setNodes(runningTasks.v2().toArray(new String[0]));
                             super.doExecute(task, request, finalListener);
                         } else {
-                            listener.onFailure(new ElasticsearchStatusException(
-                                        TransformMessages.getMessage(TransformMessages.REST_STOP_TRANSFORM_WITHOUT_CONFIG,
-                                                Strings.arrayToCommaDelimitedString(runningTasks.v1().toArray(new String[0]))),
-                                        RestStatus.CONFLICT));
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    TransformMessages.getMessage(
+                                        TransformMessages.REST_STOP_TRANSFORM_WITHOUT_CONFIG,
+                                        Strings.arrayToCommaDelimitedString(runningTasks.v1().toArray(new String[0]))
+                                    ),
+                                    RestStatus.CONFLICT
+                                )
+                            );
                         }
                     } else {
                         listener.onFailure(e);

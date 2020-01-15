@@ -111,12 +111,10 @@ class AsyncSearchTask extends SearchTask {
 
         AsyncSearchResponse resp = response;
         // return a not-modified response
-        AsyncSearchResponse newResp = createFinalResponse(resp);
-            //resp.getVersion() > minimumVersion ? createFinalResponse(resp) :
-            // new AsyncSearchResponse(resp.getId(), resp.getVersion(), resp.isRunning());
-        // not-modified response
+        AsyncSearchResponse newResp = resp.getVersion() > minimumVersion ? createFinalResponse(resp) :
+            new AsyncSearchResponse(resp.getId(), resp.getVersion(), resp.isRunning()); // not-modified response
         newResp.setTaskInfo(taskInfo(searchId.getTaskId().getNodeId(), false));
-        return createFinalResponse(resp);
+        return newResp;
     }
 
     private AsyncSearchResponse createFinalResponse(AsyncSearchResponse resp) {

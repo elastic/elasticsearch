@@ -23,8 +23,10 @@ import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
@@ -32,6 +34,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -48,7 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-public class EncryptedRepository extends BlobStoreRepository {
+public final class EncryptedRepository extends BlobStoreRepository {
 
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
     static final int GCM_TAG_LENGTH_IN_BYTES = 16;
@@ -92,13 +95,30 @@ public class EncryptedRepository extends BlobStoreRepository {
                 super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
             } else {
                 listener.onFailure(new RepositoryException(metadata.name(),
-                        "The local node's value for the keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] does not " +
-                                "match the master's"));
+                        "Password mismatch for repository [" + metadata.name() + "]. The local node's value of the " +
+                                "keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's"));
             }
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(
                     EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
         }
+    }
+
+    @Override
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                             RecoveryState recoveryState, ActionListener<Void> listener) {
+        if (false == consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
+            // the repository has a different password on the local node compared to the master node
+            // even though restoring the shard will surely fail (because we know that, by now, the master's password
+            // must be correct, otherwise this method will not get called) we let it pass-through in order to avoid
+            // having to manipulate the {@code recoveryState} argument
+            logger.error("Password mismatch for repository [" + metadata.name() + "]. The local node's value of the " +
+                    "keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's");
+        }
+        super.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, ActionListener.delegateResponse(listener,
+                (l, e) -> l.onFailure(new RepositoryException(metadata.name(), "Password mismatch for repository [" + metadata.name() +
+                        "]. The local node's value of the keystore secure setting [" +
+                        passwordSettingForThisRepo.getKey() + "] is different from the master's"))));
     }
 
     @Override
@@ -177,50 +197,53 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryptor metadataEncryptor;
-        private final SecureRandom secureRandom;
+        private final SecureRandom nonceGenerator;
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
 
         EncryptedBlobContainerDecorator(BlobStore delegatedBlobStore, BlobPath path,
                                         KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryptor metadataEncryptor,
-                                        SecureRandom secureRandom) {
+                                        SecureRandom nonceGenerator) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
-            this.secureRandom = secureRandom;
+            this.nonceGenerator = nonceGenerator;
             this.delegatedBlobContainer = delegatedBlobStore.blobContainer(path);
-            BlobPath encryptionMetadataBlobPath = path.prepend(ENCRYPTION_METADATA_PREFIX);
-            this.encryptionMetadataBlobContainer = delegatedBlobStore.blobContainer(encryptionMetadataBlobPath);
+            this.encryptionMetadataBlobContainer = delegatedBlobStore.blobContainer(path.prepend(ENCRYPTION_METADATA_PREFIX));
         }
 
         @Override
         public BlobPath path() {
-            return this.delegatedBlobContainer.path();
+            return delegatedBlobContainer.path();
         }
 
         @Override
         public InputStream readBlob(String blobName) throws IOException {
             // read metadata
-            BytesReference encryptedMetadataBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
+            BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(blobName));
             final byte[] decryptedMetadata;
             try {
                 decryptedMetadata = metadataEncryptor.decrypt(BytesReference.toBytes(encryptedMetadataBytes));
             } catch (ExecutionException | GeneralSecurityException e) {
-                throw new IOException("Exception while decrypting metadata", e);
+                String failureMessage = "Failure to decrypt metadata for blob [" + blobName + "]";
+                if (e.getCause() instanceof AEADBadTagException) {
+                    failureMessage = failureMessage + ". The repository password is probably wrong.";
+                }
+                throw new IOException(failureMessage, e);
             }
             final BlobEncryptionMetadata metadata = BlobEncryptionMetadata.deserializeMetadataFromByteArray(decryptedMetadata);
             // decrypt metadata
             SecretKey dataDecryptionKey = new SecretKeySpec(metadata.getDataEncryptionKeyMaterial(), 0,
                     metadata.getDataEncryptionKeyMaterial().length, "AES");
             // read and decrypt blob
-            return new DecryptionPacketsInputStream(this.delegatedBlobContainer.readBlob(blobName), dataDecryptionKey,
+            return new DecryptionPacketsInputStream(delegatedBlobContainer.readBlob(blobName), dataDecryptionKey,
                     metadata.getNonce(), metadata.getPacketLengthInBytes());
         }
 
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
             SecretKey dataEncryptionKey = dataEncryptionKeyGenerator.generateKey();
-            int nonce = secureRandom.nextInt();
+            int nonce = nonceGenerator.nextInt();
             // this is the metadata required to decrypt back the encrypted blob
             BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(dataEncryptionKey.getEncoded(), nonce, PACKET_LENGTH_IN_BYTES);
             // encrypt metadata
@@ -228,18 +251,18 @@ public class EncryptedRepository extends BlobStoreRepository {
             try {
                 encryptedMetadata = metadataEncryptor.encrypt(BlobEncryptionMetadata.serializeMetadataToByteArray(metadata));
             } catch (ExecutionException | GeneralSecurityException e) {
-                throw new IOException("Exception while encrypting metadata", e);
+                throw new IOException("Failure to encrypt metadata for blob [" + blobName + "]", e);
             }
             // first write the encrypted metadata
             try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
-                this.encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length,
+                encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length,
                         failIfAlreadyExists);
             }
             // afterwards write the encrypted data blob
             long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
             try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
                     dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
-                this.delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
+                delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
         }
 
@@ -254,18 +277,18 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public DeleteResult delete() throws IOException {
             // first delete the encrypted data blob
-            DeleteResult deleteResult = this.delegatedBlobContainer.delete();
+            DeleteResult deleteResult = delegatedBlobContainer.delete();
             // then delete metadata
-            this.encryptionMetadataBlobContainer.delete();
+            encryptionMetadataBlobContainer.delete();
             return deleteResult;
         }
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
             // first delete the encrypted data blob
-            this.delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+            delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
             // then delete metadata
-            this.encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+            encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
         }
 
         @Override
@@ -274,7 +297,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             // the metadata blob container mirrors its structure, but in some failure cases it might contain
             // additional orphaned metadata blobs
             // can list blobs that cannot be decrypted (because metadata is missing or corrupted)
-            return this.delegatedBlobContainer.listBlobs();
+            return delegatedBlobContainer.listBlobs();
         }
 
         @Override
@@ -282,12 +305,12 @@ public class EncryptedRepository extends BlobStoreRepository {
             // the encrypted data blob container is the source-of-truth for child container operations
             // the metadata blob container mirrors its structure, but in some failure cases it might contain
             // additional orphaned metadata blobs
-            Map<String, BlobContainer> childEncryptedBlobContainers = this.delegatedBlobContainer.children();
+            Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
             Map<String, BlobContainer> result = new HashMap<>(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> encryptedBlobContainer : childEncryptedBlobContainers.entrySet()) {
                 // get an encrypted blob container for each
-                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainerDecorator(this.delegatedBlobStore,
-                        encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryptor, secureRandom));
+                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainerDecorator(delegatedBlobStore,
+                        encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryptor, nonceGenerator));
             }
             return result;
         }
@@ -298,23 +321,23 @@ public class EncryptedRepository extends BlobStoreRepository {
             // the metadata blob container mirrors its structure, but in some failure cases it might contain
             // additional orphaned metadata blobs
             // can list blobs that cannot be decrypted (because metadata is missing or corrupted)
-            return this.delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
+            return delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
         }
 
         public void cleanUpOrphanedMetadata() throws IOException{
             // delete encryption metadata blobs which don't pair with any data blobs
-            Set<String> foundEncryptedBlobs = this.delegatedBlobContainer.listBlobs().keySet();
-            Set<String> foundMetadataBlobs = this.encryptionMetadataBlobContainer.listBlobs().keySet();
+            Set<String> foundEncryptedBlobs = delegatedBlobContainer.listBlobs().keySet();
+            Set<String> foundMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
             List<String> orphanedMetadataBlobs = new ArrayList<>(foundMetadataBlobs);
             orphanedMetadataBlobs.removeAll(foundEncryptedBlobs);
             try {
-                this.encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(orphanedMetadataBlobs);
+                encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(orphanedMetadataBlobs);
             } catch (IOException e) {
                 logger.warn("Exception while deleting orphaned metadata blobs " + orphanedMetadataBlobs, e);
             }
             // delete Encryption metadata blob containers which don't par with any data blob containers
-            Set<String> foundEncryptedBlobContainers = this.delegatedBlobContainer.children().keySet();
-            Map<String, BlobContainer> foundMetadataBlobContainers = this.encryptionMetadataBlobContainer.children();
+            Set<String> foundEncryptedBlobContainers = delegatedBlobContainer.children().keySet();
+            Map<String, BlobContainer> foundMetadataBlobContainers = encryptionMetadataBlobContainer.children();
             for (Map.Entry<String, BlobContainer> metadataBlobContainer : foundMetadataBlobContainers.entrySet()) {
                 if (false == foundEncryptedBlobContainers.contains(metadataBlobContainer.getKey())) {
                     try {

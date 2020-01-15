@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
 import javax.security.auth.login.LoginException;

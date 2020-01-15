@@ -160,7 +160,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
-    public void assertStartedAndStop() throws IOException {
+    public void assertStartedAndStop() throws Exception {
         ServerUtils.waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
 
@@ -191,7 +191,7 @@ public class WindowsServiceTests extends PackagingTestCase {
             "}");
     }
 
-    public void test30StartStop() throws IOException {
+    public void test30StartStop() throws Exception {
         sh.run(serviceScript + " install");
         assertCommand(serviceScript + " start");
         assertStartedAndStop();
@@ -209,7 +209,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         assertThat(result.stdout, containsString("The service '" + DEFAULT_ID + "' has been stopped"));
     }
 
-    public void test33JavaChanged() throws IOException {
+    public void test33JavaChanged() throws Exception {
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
         try {

@@ -8,10 +8,10 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -31,7 +31,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchableSnapshotIndexInputTests extends ESTestCase {
+public class SearchableSnapshotIndexInputTests extends ESIndexInputTestCase {
 
     private SearchableSnapshotIndexInput createIndexInput(final byte[] input) throws IOException {
         final long partSize = (long) (randomBoolean() ? input.length : randomIntBetween(1, input.length));
@@ -111,60 +111,4 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
         }
     }
 
-    private byte[] randomReadAndSlice(IndexInput indexInput, int length) throws IOException {
-        int readPos = (int) indexInput.getFilePointer();
-        byte[] output = new byte[length];
-        while (readPos < length) {
-            switch (randomIntBetween(0, 4)) {
-                case 0:
-                    // Read by one byte at a time
-                    output[readPos++] = indexInput.readByte();
-                    break;
-                case 1:
-                    // Read several bytes into target
-                    int len = randomIntBetween(1, length - readPos);
-                    indexInput.readBytes(output, readPos, len);
-                    readPos += len;
-                    break;
-                case 2:
-                    // Read several bytes into 0-offset target
-                    len = randomIntBetween(1, length - readPos);
-                    byte[] temp = new byte[len];
-                    indexInput.readBytes(temp, 0, len);
-                    System.arraycopy(temp, 0, output, readPos, len);
-                    readPos += len;
-                    break;
-                case 3:
-                    // Read using slice
-                    len = randomIntBetween(1, length - readPos);
-                    IndexInput slice = indexInput.slice("slice (" + readPos + ", " + len + ") of " + indexInput.toString(), readPos, len);
-                    temp = randomReadAndSlice(slice, len);
-                    // assert that position in the original input didn't change
-                    assertEquals(readPos, indexInput.getFilePointer());
-                    System.arraycopy(temp, 0, output, readPos, len);
-                    readPos += len;
-                    indexInput.seek(readPos);
-                    assertEquals(readPos, indexInput.getFilePointer());
-                    break;
-                case 4:
-                    // Seek at a random position and read a single byte,
-                    // then seek back to original position
-                    final int lastReadPos = readPos;
-                    readPos = randomIntBetween(0, length - 1);
-                    indexInput.seek(readPos);
-                    assertEquals(readPos, indexInput.getFilePointer());
-                    final int bytesToRead = 1;
-                    temp = randomReadAndSlice(indexInput, readPos + bytesToRead);
-                    System.arraycopy(temp, readPos, output, readPos, bytesToRead);
-                    readPos = lastReadPos;
-                    indexInput.seek(readPos);
-                    assertEquals(readPos, indexInput.getFilePointer());
-                    break;
-                default:
-                    fail();
-            }
-            assertEquals(readPos, indexInput.getFilePointer());
-        }
-        return output;
-    }
 }

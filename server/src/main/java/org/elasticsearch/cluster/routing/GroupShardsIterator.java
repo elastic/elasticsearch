@@ -38,7 +38,16 @@ public final class GroupShardsIterator<ShardIt extends ShardIterator> implements
      * Constructs a enw GroupShardsIterator from the given list.
      */
     public GroupShardsIterator(List<ShardIt> iterators) {
-        CollectionUtil.timSort(iterators);
+        this(iterators, true);
+    }
+
+    /**
+     * Constructs a new GroupShardsIterator from the given list.
+     */
+    public GroupShardsIterator(List<ShardIt> iterators, boolean useSort) {
+        if (useSort) {
+            CollectionUtil.timSort(iterators);
+        }
         this.iterators = iterators;
     }
 

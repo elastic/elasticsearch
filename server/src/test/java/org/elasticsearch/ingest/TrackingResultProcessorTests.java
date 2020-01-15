@@ -40,6 +40,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
+import static org.elasticsearch.ingest.PipelineProcessorTests.createIngestService;
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -47,7 +48,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -195,7 +195,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualPipelineProcessor() throws Exception {
         String pipelineId = "pipeline1";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
@@ -220,6 +220,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService,  Mockito.atLeast(1)).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(3));
@@ -240,7 +241,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithTrueConditional() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig0 = new HashMap<>();
         pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
@@ -287,6 +288,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId1);
 
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId2);
@@ -308,7 +310,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithFalseConditional() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig0 = new HashMap<>();
         pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
@@ -355,6 +357,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId1);
 
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
         verify(ingestService, Mockito.never()).getPipeline(pipelineId2);
@@ -377,7 +380,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("processor failed");
 
         String pipelineId = "pipeline1";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
@@ -406,6 +409,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService, Mockito.atLeast(2)).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(4));
@@ -430,7 +434,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithCycle() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig0 = new HashMap<>();
         pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
@@ -462,7 +466,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualPipelineProcessorRepeatedInvocation() throws Exception {
         String pipelineId = "pipeline1";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
@@ -482,6 +486,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService,  Mockito.atLeast(2)).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(2));

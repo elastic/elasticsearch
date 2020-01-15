@@ -182,7 +182,7 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     @Override
-    public InternalStringStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalStringStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         long totalLength = 0;
         int minLength = Integer.MAX_VALUE;

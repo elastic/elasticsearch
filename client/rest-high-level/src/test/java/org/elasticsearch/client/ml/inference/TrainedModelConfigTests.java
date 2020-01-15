@@ -37,23 +37,7 @@ import java.util.stream.Stream;
 
 public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
 
-    @Override
-    protected TrainedModelConfig doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelConfig.fromXContent(parser).build();
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
-    }
-
-    @Override
-    protected TrainedModelConfig createTestInstance() {
+    public static TrainedModelConfig createTestTrainedModelConfig() {
         return new TrainedModelConfig(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -69,7 +53,26 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomFrom("platinum", "basic"));
+    }
 
+    @Override
+    protected TrainedModelConfig doParseInstance(XContentParser parser) throws IOException {
+        return TrainedModelConfig.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
+    }
+
+    @Override
+    protected TrainedModelConfig createTestInstance() {
+        return createTestTrainedModelConfig();
     }
 
     @Override

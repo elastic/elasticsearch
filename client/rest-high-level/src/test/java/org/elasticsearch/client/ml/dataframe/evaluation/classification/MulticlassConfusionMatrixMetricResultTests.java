@@ -40,8 +40,7 @@ public class MulticlassConfusionMatrixMetricResultTests extends AbstractXContent
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    @Override
-    protected Result createTestInstance() {
+    public static Result randomResult() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
         List<ActualClass> actualClasses = new ArrayList<>(numClasses);
@@ -58,6 +57,11 @@ public class MulticlassConfusionMatrixMetricResultTests extends AbstractXContent
                     randomBoolean() ? randomNonNegativeLong() : null));
         }
         return new Result(actualClasses, randomBoolean() ? randomNonNegativeLong() : null);
+    }
+
+    @Override
+    protected Result createTestInstance() {
+        return randomResult();
     }
 
     @Override

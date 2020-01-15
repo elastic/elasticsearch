@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -49,7 +50,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class);
+        return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class, MustachePlugin.class);
     }
 
     @Override
@@ -295,6 +296,43 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             assertThat(source.size(), equalTo(2));
             assertThat(source.get("target"), equalTo(Map.of("key", "key", "value", "val1")));
         }
+    }
+
+    public void testTemplating() throws Exception {
+        List<String> keys = createSourceMatchIndex(1, 1);
+        String policyName = "my-policy";
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS)
+        );
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
+
+        String pipelineName = "my-pipeline";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
+            + policyName
+            + "\", \"field\": \"{{indirection1}}\", \"target_field\": \"{{indirection2}}\""
+            + "}}]}";
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
+
+        IndexRequest indexRequest = new IndexRequest("my-index").id("1")
+            .setPipeline(pipelineName)
+            .source(Map.of("indirection1", MATCH_FIELD, "indirection2", "users", MATCH_FIELD, keys.get(0)));
+        client().index(indexRequest).get();
+        GetResponse getResponse = client().get(new GetRequest("my-index", "1")).actionGet();
+        Map<String, Object> source = getResponse.getSourceAsMap();
+        Map<?, ?> userEntry = (Map<?, ?>) source.get("users");
+        assertThat(userEntry.size(), equalTo(DECORATE_FIELDS.length + 1));
+        for (int j = 0; j < 3; j++) {
+            String field = DECORATE_FIELDS[j];
+            assertThat(userEntry.get(field), equalTo(keys.get(0) + j));
+        }
+        assertThat(keys.contains(userEntry.get(MATCH_FIELD)), is(true));
     }
 
     private List<String> createSourceMatchIndex(int numKeys, int numDocsPerKey) {

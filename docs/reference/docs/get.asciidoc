@@ -206,7 +206,7 @@ The explicit routing, if set.
 '_source'::
 If `found` is `true`, contains the document data formatted in JSON.
 Excluded if the `_source` parameter is set to `false` or the `stored_fields`
-paramter is set to `true`.
+parameter is set to `true`.
 
 '_fields'::
 If the `stored_fields` parameter is set to `true` and `found` is

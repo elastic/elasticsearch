@@ -10,7 +10,7 @@ The buckets field is optional, and will default to 10 buckets if not specified.
 
 Requesting a target of 10 buckets.
 
-[source,console]
+[source,console,id=autodatehistogram-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -36,7 +36,7 @@ date string using the format specified with the `format` parameter:
 TIP: If no `format` is specified, then it will use the first date
 <<mapping-date-format,format>> specified in the field mapping.
 
-[source,console]
+[source,console,id=autodatehistogram-aggregation-format-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -117,7 +117,7 @@ Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
 
 Consider the following example:
 
-[source,console]
+[source,console,id=autodatehistogram-aggregation-timezone-example]
 ---------------------------------
 PUT my_index/_doc/1?refresh
 {
@@ -269,7 +269,7 @@ The accepted units for `minimum_interval` are:
 * minute
 * second
 
-[source,console]
+[source,console,id=autodatehistogram-aggregation-minimum-interval-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -292,7 +292,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,console]
+[source,console,id=autodatehistogram-aggregation-missing-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

@@ -383,9 +383,9 @@ public class CertificateToolTests extends ESTestCase {
             Path keyFile = zipRoot.resolve(filename + "/" + filename + ".key");
             assertTrue(Files.exists(keyFile));
             if (keyPassword != null) {
-                assertTrue(Files.readString(keyFile).contains("DEK-Info: AES-128-CBC"));
+                assertTrue(new String(Files.readAllBytes(keyFile), StandardCharsets.US_ASCII).contains("DEK-Info: AES-128-CBC"));
             } else {
-                assertFalse(Files.readString(keyFile).contains("DEK-Info:"));
+                assertFalse(new String(Files.readAllBytes(keyFile), StandardCharsets.US_ASCII).contains("DEK-Info:"));
             }
             final Path p12 = zipRoot.resolve(filename + "/" + filename + ".p12");
             try (InputStream input = Files.newInputStream(cert)) {

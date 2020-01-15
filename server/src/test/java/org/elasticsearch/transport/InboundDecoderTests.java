@@ -23,17 +23,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Matchers.any;
@@ -43,16 +38,9 @@ import static org.mockito.Mockito.verify;
 
 public class InboundDecoderTests extends ESTestCase {
 
-    private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final ThreadContext threadContext = threadPool.getThreadContext();
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private final AtomicInteger releasedCount = new AtomicInteger(0);
     private final Releasable releasable = releasedCount::incrementAndGet;
-
-    @After
-    public void tearDown() throws Exception {
-        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        super.tearDown();
-    }
 
     public void testDecode() throws IOException {
         String action = "test-request";
@@ -146,44 +134,5 @@ public class InboundDecoderTests extends ESTestCase {
         int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
         assertEquals(bytes.length() - totalHeaderSize, bytesConsumed2);
         verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
-    }
-
-    private static class TestRequest extends TransportRequest {
-
-        String value;
-
-        private TestRequest(String value) {
-            this.value = value;
-        }
-
-        private TestRequest(StreamInput in) throws IOException {
-            super(in);
-            this.value = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(value);
-        }
-    }
-
-    private static class TestResponse extends TransportResponse {
-
-        String value;
-
-        private TestResponse(String value) {
-            this.value = value;
-        }
-
-        private TestResponse(StreamInput in) throws IOException {
-            super(in);
-            this.value = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
-        }
     }
 }

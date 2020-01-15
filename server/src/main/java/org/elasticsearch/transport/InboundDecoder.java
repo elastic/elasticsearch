@@ -32,7 +32,8 @@ import java.io.IOException;
 
 public class InboundDecoder implements Releasable {
 
-    static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
+    static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {
+    });
 
     private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
@@ -50,58 +51,56 @@ public class InboundDecoder implements Releasable {
     }
 
     public int handle(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        try (reference) {
-            if (isOnHeader()) {
-                int messageLength = TcpTransport.readMessageLength(reference);
-                if (messageLength == -1) {
+        if (isOnHeader()) {
+            int messageLength = TcpTransport.readMessageLength(reference);
+            if (messageLength == -1) {
+                return 0;
+            } else if (messageLength == 0) {
+                aggregator.pingReceived(channel);
+                return 6;
+            } else {
+                int headerBytesToRead = headerBytesToRead(reference);
+                if (headerBytesToRead == 0) {
                     return 0;
-                } else if (messageLength == 0) {
-                    aggregator.pingReceived(channel);
-                    return 6;
                 } else {
-                    int headerBytesToRead = headerBytesToRead(reference);
-                    if (headerBytesToRead == 0) {
-                        return 0;
-                    } else {
-                        totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
+                    totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                        Header header = readHeader(messageLength, reference);
-                        bytesConsumed += headerBytesToRead;
-                        if (header.isCompressed()) {
-                            decompressor = new TransportDecompressor(recycler);
-                        }
-                        aggregator.headerReceived(header);
-
-                        if (isDone()) {
-                            finishMessage(channel);
-                        }
-                        return bytesConsumed;
+                    Header header = readHeader(messageLength, reference);
+                    bytesConsumed += headerBytesToRead;
+                    if (header.isCompressed()) {
+                        decompressor = new TransportDecompressor(recycler);
                     }
+                    aggregator.headerReceived(header);
+
+                    if (isDone()) {
+                        finishMessage(channel);
+                    }
+                    return bytesConsumed;
+                }
+            }
+        } else {
+            int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
+            bytesConsumed += bytesToConsume;
+            ReleasableBytesReference retainedContent;
+            if (isDone()) {
+                retainedContent = reference.retainedSlice(0, bytesToConsume);
+            } else {
+                retainedContent = reference.retain();
+            }
+            if (decompressor != null) {
+                decompress(retainedContent);
+                ReleasableBytesReference decompressed;
+                while ((decompressed = decompressor.pollDecompressedPage()) != null) {
+                    forwardNonEmptyContent(channel, decompressed);
                 }
             } else {
-                int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
-                bytesConsumed += bytesToConsume;
-                ReleasableBytesReference retainedContent;
-                if (isDone()) {
-                    retainedContent = reference.retainedSlice(0, bytesToConsume);
-                } else {
-                    retainedContent = reference.retain();
-                }
-                if (decompressor != null) {
-                    decompress(retainedContent);
-                    ReleasableBytesReference decompressed;
-                    while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                        forwardNonEmptyContent(channel, decompressed);
-                    }
-                } else {
-                    forwardNonEmptyContent(channel, retainedContent);
-                }
-                if (isDone()) {
-                    finishMessage(channel);
-                }
-
-                return bytesToConsume;
+                forwardNonEmptyContent(channel, retainedContent);
             }
+            if (isDone()) {
+                finishMessage(channel);
+            }
+
+            return bytesToConsume;
         }
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -72,124 +71,94 @@ public class InboundHandlerTests extends ESTestCase {
         super.tearDown();
     }
 
-//    public void testPing() throws Exception {
-//        AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
-//        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>("test-request", TestRequest::new, taskManager,
-//            (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
-//        handler.registerRequestHandler(registry);
-//
-//        handler.inboundMessage(channel, BytesArray.EMPTY);
-//        assertEquals(1, handler.getReadBytes().count());
-//        assertEquals(6, handler.getReadBytes().sum());
-//        if (channel.isServerChannel()) {
-//            BytesReference ping = channel.getMessageCaptor().get();
-//            assertEquals('E', ping.get(0));
-//            assertEquals(6, ping.length());
-//        }
-//    }
+    public void testPing() throws Exception {
+        AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>("test-request", TestRequest::new, taskManager,
+            (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
+        handler.registerRequestHandler(registry);
 
-//    public void testRequestAndResponse() throws Exception {
-//        String action = "test-request";
-//        boolean isCompressed = randomBoolean();
-//        boolean isError = randomBoolean();
-//        AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
-//        AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
-//        AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
-//        AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
-//
-//        long requestId = handler.getResponseHandlers().add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
-//            @Override
-//            public void handleResponse(TestResponse response) {
-//                responseCaptor.set(response);
-//            }
-//
-//            @Override
-//            public void handleException(TransportException exp) {
-//                exceptionCaptor.set(exp);
-//            }
-//
-//            @Override
-//            public String executor() {
-//                return ThreadPool.Names.SAME;
-//            }
-//
-//            @Override
-//            public TestResponse read(StreamInput in) throws IOException {
-//                return new TestResponse(in);
-//            }
-//        }, null, action));
-//        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(action, TestRequest::new, taskManager,
-//            (request, channel, task) -> {
-//                channelCaptor.set(channel);
-//                requestCaptor.set(request);
-//            }, ThreadPool.Names.SAME, false, true);
-//        handler.registerRequestHandler(registry);
-//        String requestValue = randomAlphaOfLength(10);
-//        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
-//            new TestRequest(requestValue), version, action, requestId, false, isCompressed);
-//
-//        BytesReference bytes = request.serialize(new BytesStreamOutput());
-//        handler.inboundMessage(channel, bytes.slice(6, bytes.length() - 6));
-//
-//        TransportChannel transportChannel = channelCaptor.get();
-//        assertEquals(Version.CURRENT, transportChannel.getVersion());
-//        assertEquals("transport", transportChannel.getChannelType());
-//        assertEquals(requestValue, requestCaptor.get().value);
-//
-//        String responseValue = randomAlphaOfLength(10);
-//        if (isError) {
-//            transportChannel.sendResponse(new ElasticsearchException("boom"));
-//        } else {
-//            transportChannel.sendResponse(new TestResponse(responseValue));
-//        }
-//        BytesReference serializedResponse = channel.getMessageCaptor().get();
-//        handler.inboundMessage(channel, serializedResponse.slice(6, serializedResponse.length() - 6));
-//
-//        if (isError) {
-//            assertTrue(exceptionCaptor.get() instanceof RemoteTransportException);
-//            assertTrue(exceptionCaptor.get().getCause() instanceof ElasticsearchException);
-//            assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
-//        } else {
-//            assertEquals(responseValue, responseCaptor.get().value);
-//        }
-//    }
-
-    private static class TestRequest extends TransportRequest {
-
-        String value;
-
-        private TestRequest(String value) {
-            this.value = value;
-        }
-
-        private TestRequest(StreamInput in) throws IOException {
-            super(in);
-            this.value = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(value);
+        handler.inboundMessage(channel, new AggregatedMessage(null, BytesArray.EMPTY, true));
+        assertEquals(1, handler.getReadBytes().count());
+        assertEquals(6, handler.getReadBytes().sum());
+        if (channel.isServerChannel()) {
+            BytesReference ping = channel.getMessageCaptor().get();
+            assertEquals('E', ping.get(0));
+            assertEquals(6, ping.length());
         }
     }
 
-    private static class TestResponse extends TransportResponse {
+    public void testRequestAndResponse() throws Exception {
+        String action = "test-request";
+        int headerSize = TcpHeader.headerSize(version);
+        boolean isError = randomBoolean();
+        AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
+        AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
+        AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
+        AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
-        String value;
+        long requestId = handler.getResponseHandlers().add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+            @Override
+            public void handleResponse(TestResponse response) {
+                responseCaptor.set(response);
+            }
 
-        private TestResponse(String value) {
-            this.value = value;
+            @Override
+            public void handleException(TransportException exp) {
+                exceptionCaptor.set(exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        }, null, action));
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(action, TestRequest::new, taskManager,
+            (request, channel, task) -> {
+                channelCaptor.set(channel);
+                requestCaptor.set(request);
+            }, ThreadPool.Names.SAME, false, true);
+        handler.registerRequestHandler(registry);
+        String requestValue = randomAlphaOfLength(10);
+        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
+            new TestRequest(requestValue), version, action, requestId, false, false);
+
+        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
+        BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
+        Header requestHeader = new Header(fullRequestBytes.length(), requestId, TransportStatus.setRequest((byte) 0), version);
+        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, requestContent, false);
+        handler.inboundMessage(channel, requestMessage);
+
+        TransportChannel transportChannel = channelCaptor.get();
+        assertEquals(Version.CURRENT, transportChannel.getVersion());
+        assertEquals("transport", transportChannel.getChannelType());
+        assertEquals(requestValue, requestCaptor.get().value);
+
+        String responseValue = randomAlphaOfLength(10);
+        byte responseStatus = TransportStatus.setResponse((byte) 0);
+        if (isError) {
+            responseStatus = TransportStatus.setError((byte) 0);
+            transportChannel.sendResponse(new ElasticsearchException("boom"));
+        } else {
+            transportChannel.sendResponse(new TestResponse(responseValue));
         }
 
-        private TestResponse(StreamInput in) throws IOException {
-            super(in);
-            this.value = in.readString();
-        }
+        BytesReference fullResponseBytes = channel.getMessageCaptor().get();
+        BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
+        Header responseHeader = new Header(fullRequestBytes.length(), requestId, responseStatus, version);
+        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, responseContent, false);
+        handler.inboundMessage(channel, responseMessage);
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
+        if (isError) {
+            assertTrue(exceptionCaptor.get() instanceof RemoteTransportException);
+            assertTrue(exceptionCaptor.get().getCause() instanceof ElasticsearchException);
+            assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
+        } else {
+            assertEquals(responseValue, responseCaptor.get().value);
         }
     }
 }

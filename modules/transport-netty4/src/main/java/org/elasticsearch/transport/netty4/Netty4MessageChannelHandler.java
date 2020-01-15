@@ -68,9 +68,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
             int bytesHandled = Integer.MAX_VALUE;
             while (bytesHandled != 0) {
-                ByteBuf duplicate = buffer.retainedSlice();
-                ReleasableBytesReference reference = new ReleasableBytesReference(Netty4Utils.toBytesReference(duplicate),
-                    duplicate::release);
+                ReleasableBytesReference reference = new ReleasableBytesReference(Netty4Utils.toBytesReference(buffer), buffer::release);
                 bytesHandled = decoder.handle(channel, reference);
                 buffer.readerIndex(buffer.readerIndex() + bytesHandled);
             }

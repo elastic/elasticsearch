@@ -288,7 +288,9 @@ public class MockNioTransport extends TcpTransport {
                 references[i] = new ByteBufferReference(pages[i].byteBuffer());
             }
             Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-            return decoder.handle(channel, new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
+            try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {
+                return decoder.handle(channel, reference);
+            }
         }
 
         @Override

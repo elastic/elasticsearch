@@ -1,9 +1,12 @@
 tag::ssl-certificate[]
-Specifies the path to the PEM encoded certificate (or certificate chain) that is associated with the key.
+Specifies the path to the PEM encoded certificate (or certificate chain) that is
+associated with the key.
+//TBD: This setting can be used only if `ssl.key` is set.
 end::ssl-certificate[]
 
 tag::ssl-certificate-authorities[]
 List of paths to PEM encoded certificate files that should be trusted.
+//TBD: You cannot use this setting and `ssl.truststore.path` at the same time.
 end::ssl-certificate-authorities[]
 
 tag::ssl-cipher-suites-values[]
@@ -20,7 +23,7 @@ The default is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
 `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`,
 `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 end::ssl-cipher-suites-values[]
-
+//TBD: Are these two different definitions (with different Oracle URLs) for cipher_suites required?
 tag::ssl-cipher-suites-values-java8[]
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. The default is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
@@ -37,31 +40,39 @@ end::ssl-cipher-suites-values-java8[]
 
 tag::ssl-key[]
 Path to a PEM encoded file containing the private key.
+//TBD: You cannot use this setting and `ssl.keystore.path` at the same time.
 end::ssl-key[]
 
 tag::ssl-key-passphrase[]
 The passphrase that is used to decrypt the private key. Since the key might not
 be encrypted, this value is optional.
+//TBD: You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 end::ssl-key-passphrase[]
 
 tag::ssl-keystore-key-password[]
-The password for the key in the keystore.
+The password for the key in the keystore. The default is the keystore password.
+//TBD: You cannot use this setting and `ssl.keystore.secure_key_password` at the same time.
 end::ssl-keystore-key-password[]
 
 tag::ssl-keystore-password[]
 The password to the keystore.
+//TBD: You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 end::ssl-keystore-password[]
 
 tag::ssl-keystore-path[]
-The path to the Java keystore file that contains a private key and certificate.
+The path to the keystore file that contains a private key and certificate.
+//TBD: It must be either a Java keystore (jks) or a PKCS#12 file.
+//TBD: You cannot use this setting and `ssl.key` at the same time.
 end::ssl-keystore-path[]
 
 tag::ssl-keystore-secure-key-password[]
-The password for the key in the keystore.
+The password for the key in the keystore. The default is the keystore password.
+//TBD: You cannot use this setting and `ssl.keystore.key_password` at the same time.
 end::ssl-keystore-secure-key-password[]
 
 tag::ssl-keystore-secure-password[]
 The password to the keystore.
+//TBD: You cannot use this setting and `ssl.keystore.password` at the same time.
 end::ssl-keystore-secure-password[]
 
 tag::ssl-keystore-type-pkcs11[]
@@ -78,7 +89,8 @@ end::ssl-keystore-type-pkcs12[]
 
 tag::ssl-secure-key-passphrase[]
 The passphrase that is used to decrypt the private key. Since the key might not
-be encrypted, this value is optional.
+be encrypted, this value is optional. 
+//TBD: You cannot use this setting and `ssl.key_passphrase` at the same time.
 end::ssl-secure-key-passphrase[]
 
 tag::ssl-supported-protocols[]
@@ -93,7 +105,7 @@ or `SSLv3`. See <<fips-140-compliance>>.
 
 --
 end::ssl-supported-protocols[]
-
+//TBD: Are these three different definitions for supported protocols valid?
 tag::ssl-supported-protocols-1[]
 Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 end::ssl-supported-protocols-1[]
@@ -106,16 +118,35 @@ end::ssl-supported-protocols-2[]
 
 tag::ssl-truststore-password[]
 The password to the truststore.
+//TBD: You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 end::ssl-truststore-password[]
 
 tag::ssl-truststore-path[]
 The path to the keystore that contains the certificates to trust. It must be
 either a Java keystore (jks) or a PKCS#12 file.
+//TBD: You cannot use this setting and `ssl.certificate_authorities` at the same time.
 end::ssl-truststore-path[]
 
 tag::ssl-truststore-path-jks[]
 The path to the Java keystore file that contains the certificates to trust.
 end::ssl-truststore-path-jks[]
+
+tag::ssl-truststore-secure-password[]
+Password to the truststore.
+//TBD: You cannot use this setting and `ssl.truststore.password` at the same time.
+end::ssl-truststore-secure-password[]
+
+tag::ssl-truststore-type[]
+The format of the truststore file. It must be either `jks` or `PKCS12`. If the
+file name ends in ".p12", ".pfx" or "pkcs12", the default is `PKCS12`.
+Otherwise, it defaults to `jks`.
+end::ssl-truststore-type[]
+
+tag::ssl-truststore-type-pkcs11[]
+The format of the truststore file. For the Java keystore format, use `jks`. For
+PKCS#12 files, use `PKCS12`. For a PKCS#11 token, use `PKCS11`. The default is
+`jks`.
+end::ssl-truststore-type-pkcs11[]
 
 tag::ssl-verification-mode-values[]
 Valid values are:
@@ -132,3 +163,4 @@ production clusters is strongly discouraged.
 +
 The default value is `full`.
 end::ssl-verification-mode-values[]
+

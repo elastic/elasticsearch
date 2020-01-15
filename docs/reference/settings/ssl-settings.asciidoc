@@ -80,10 +80,6 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password
 
 +{ssl-prefix}.ssl.keystore.key_password+::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
-+
---
-Defaults to the same value as +{ssl-prefix}.ssl.keystore.password+.
---
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
@@ -95,7 +91,7 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path-jks]
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
-Password to the truststore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 [#{ssl-context}-pkcs12-files]
 ===== PKCS#12 files
@@ -106,7 +102,7 @@ that contain the private key, certificate and certificates that should be truste
 PKCS#12 files are configured in the same way as Java Keystore Files:
 
 +{ssl-prefix}.ssl.keystore.path+::
-Path to the PKCS#12 file that holds the private key and certificate.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.type+::
 Set this to `PKCS12` to indicate that the keystore is a PKCS#12 file.

@@ -31,7 +31,7 @@
         index: missing
 
   - do:
-      catch: /.*reason=Validation Failed.* no such index \[missing\]/
+      catch: /.*Validation Failed.* no such index \[missing\]/
       ml.start_data_frame_analytics:
         id: "missing_index"
 

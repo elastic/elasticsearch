@@ -839,7 +839,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         // looking like it doesn't have a valid implementatation when it does.
         apiUnsupported.remove("indices.get_template");
 
-
+        // Synced flush is deprecated
+        apiUnsupported.remove("indices.flush_synced");
 
         for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();

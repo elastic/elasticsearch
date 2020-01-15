@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -32,7 +35,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -45,6 +52,8 @@ import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -55,12 +64,14 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PersistedClusterStateServiceTests extends ESTestCase {
@@ -69,7 +80,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(),
             usually()
                 ? BigArrays.NON_RECYCLING_INSTANCE
-                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()));
+                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L);
     }
 
     public void testPersistsAndReloadsTerm() throws IOException {
@@ -215,7 +228,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         // verify that loadBestOnDiskState has same check
         final String message = expectThrows(IllegalStateException.class,
             () -> new PersistedClusterStateService(combinedPaths, nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                randomBoolean()).loadBestOnDiskState()).getMessage();
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L, randomBoolean()).loadBestOnDiskState()).getMessage();
         assertThat(message,
             allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
@@ -342,7 +356,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -379,7 +394,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -424,7 +440,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -754,6 +771,123 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(indexMetaData.getIndexUUID(), equalTo(index.getUUID()));
             }
         }
+    }
+
+    @TestLogging(value = "org.elasticsearch.gateway:WARN", reason = "to ensure that we log gateway events on WARN level")
+    public void testSlowLogging() throws IOException, IllegalAccessException {
+        final long slowWriteLoggingThresholdMillis;
+        final Settings settings;
+        if (randomBoolean()) {
+            slowWriteLoggingThresholdMillis = PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD.get(Settings.EMPTY).millis();
+            settings = Settings.EMPTY;
+        } else {
+            slowWriteLoggingThresholdMillis = randomLongBetween(2, 100000);
+            settings = Settings.builder()
+                .put(PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), slowWriteLoggingThresholdMillis + "ms")
+                .build();
+        }
+
+        final DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
+
+        final long startTimeMillis = randomLongBetween(0L, Long.MAX_VALUE - slowWriteLoggingThresholdMillis * 10);
+        final AtomicLong currentTime = new AtomicLong(startTimeMillis);
+        final AtomicLong writeDurationMillis = new AtomicLong(slowWriteLoggingThresholdMillis);
+
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(nodeEnvironment,
+                xContentRegistry(),
+                usually()
+                    ? BigArrays.NON_RECYCLING_INSTANCE
+                    : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                clusterSettings,
+                () -> currentTime.getAndAdd(writeDurationMillis.get()));
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.SeenEventExpectation(
+                    "should see warning at threshold",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                        "wrote full state with [0] indices"));
+
+                writeDurationMillis.set(randomLongBetween(slowWriteLoggingThresholdMillis, slowWriteLoggingThresholdMillis * 2));
+                assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.SeenEventExpectation(
+                    "should see warning above threshold",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                        "wrote full state with [0] indices"));
+
+                writeDurationMillis.set(randomLongBetween(1, slowWriteLoggingThresholdMillis - 1));
+                assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.UnseenEventExpectation(
+                    "should not see warning below threshold",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"));
+
+                clusterSettings.applySettings(Settings.builder()
+                    .put(PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), writeDurationMillis.get() + "ms")
+                    .build());
+                assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.SeenEventExpectation(
+                    "should see warning at reduced threshold",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                        "wrote full state with [0] indices"));
+
+                final ClusterState newClusterState = ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .version(clusterState.version())
+                        .put(IndexMetaData.builder("test")
+                            .settings(Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetaData.SETTING_INDEX_UUID, "test-uuid"))))
+                    .incrementVersion().build();
+
+                assertExpectedLogs(1L, clusterState, newClusterState, writer, new MockLogAppender.SeenEventExpectation(
+                    "should see warning at threshold",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                        "wrote global metadata [false] and metadata for [1] indices and skipped [0] unchanged indices"));
+
+                writeDurationMillis.set(randomLongBetween(1, writeDurationMillis.get() - 1));
+                assertExpectedLogs(1L, clusterState, newClusterState, writer, new MockLogAppender.UnseenEventExpectation(
+                    "should not see warning below threshold",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"));
+
+                assertThat(currentTime.get(), lessThan(startTimeMillis + 14 * slowWriteLoggingThresholdMillis)); // ensure no overflow
+            }
+        }
+    }
+
+    private void assertExpectedLogs(long currentTerm, ClusterState previousState, ClusterState clusterState,
+                                    PersistedClusterStateService.Writer writer, MockLogAppender.LoggingExpectation expectation)
+        throws IllegalAccessException, IOException {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(expectation);
+        Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
+        Loggers.addAppender(classLogger, mockAppender);
+
+        try {
+            if (previousState == null) {
+                writer.writeFullStateAndCommit(currentTerm, clusterState);
+            } else {
+                writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
+            }
+        } finally {
+            Loggers.removeAppender(classLogger, mockAppender);
+            mockAppender.stop();
+        }
+        mockAppender.assertAllExpectationsMatched();
     }
 
     @Override

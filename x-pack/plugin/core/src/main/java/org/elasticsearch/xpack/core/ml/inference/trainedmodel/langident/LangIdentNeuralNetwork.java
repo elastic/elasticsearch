@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -25,13 +26,10 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
@@ -106,11 +104,6 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
-    public List<String> getFeatureNames() {
-        return Collections.singletonList(embeddedVectorFeatureName);
-    }
-
-    @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
         if (config instanceof ClassificationConfig == false) {
             throw ExceptionsHelper.badRequestException("[{}] model only supports classification",
@@ -134,31 +127,23 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
 
         List<Double> probabilities = softMax(Arrays.stream(scores).boxed().collect(Collectors.toList()));
 
-        int maxIndex = IntStream.range(0, probabilities.size())
-            .boxed()
-            .max(Comparator.comparing(probabilities::get))
-            .orElseThrow(() -> ExceptionsHelper.serverError("Unexpected null value while searching for max probability"));
-
-        assert maxIndex >= 0 && maxIndex < LANGUAGE_NAMES.size() : "Invalid language predicted. Predicted language index " + maxIndex;
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
-        List<ClassificationInferenceResults.TopClassEntry> topClasses = InferenceHelpers.topClasses(
+        Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,
+            null,
             classificationConfig.getNumTopClasses());
-        return new ClassificationInferenceResults(maxIndex,
-            LANGUAGE_NAMES.get(maxIndex),
-            topClasses,
+        assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
+            "Invalid language predicted. Predicted language index " + topClasses.v1();
+        return new ClassificationInferenceResults(topClasses.v1(),
+            LANGUAGE_NAMES.get(topClasses.v1()),
+            topClasses.v2(),
             classificationConfig);
     }
 
     @Override
     public TargetType targetType() {
         return TargetType.CLASSIFICATION;
-    }
-
-    @Override
-    public List<String> classificationLabels() {
-        return LANGUAGE_NAMES;
     }
 
     @Override

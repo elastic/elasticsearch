@@ -1,0 +1,53 @@
+--
+:api: put-trained-model
+:request: PutTrainedModelRequest
+:response: PutTrainedModelResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put Trained Model API
+
+Creates a new trained model for inference.
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put Trained Model request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {infer} Trained Model to create
+
+[id="{upid}-{api}-config"]
+==== Trained Model configuration
+
+The `TrainedModelConfig` object contains all the details about the trained model
+configuration and contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The {infer} definition for the model
+<2> Optionally, if the {infer} definition is large, you may choose to compress it for transport.
+    Do not supply both the compressed and uncompressed definitions.
+<3> The unique model id
+<4> The input field names for the model definition
+<5> Optionally, a human-readable description
+<6> Optionally, an object map contain metadata about the model
+<7> Optionally, an array of tags to organize the model
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the newly created trained model.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

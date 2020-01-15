@@ -142,7 +142,10 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     }
 
-    public void testIssue51034() throws Exception {
+    /**
+     * Test scoring the entire set of documents, which uses a slightly different logic when creating scorers.
+     */
+    public void testExhaustiveScoring() throws Exception {
         assertAcked(prepareCreate("test")
                 .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("analyzer", "whitespace").field("type", "text").endObject()

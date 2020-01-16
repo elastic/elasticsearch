@@ -57,11 +57,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
         ensureGreen(indexName);
-        if (randomBoolean()) {
-            client().admin().indices().prepareFlush(indexName).get();
-        } else {
-            client().admin().indices().prepareSyncedFlush(indexName).get();
-        }
+        client().admin().indices().prepareFlush(indexName).get();
         // index more documents while one shard copy is offline
         internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
             @Override

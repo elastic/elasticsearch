@@ -86,14 +86,18 @@ public abstract class DataTypeConversion {
 
         // interval and dates
         if (left == DATE) {
-            if (right.isInterval()) {
+            if (right.isYearMonthInterval()) {
                 return left;
             }
+            // promote
+            return DATETIME;
         }
         if (right == DATE) {
-            if (left.isInterval()) {
+            if (left.isYearMonthInterval()) {
                 return right;
             }
+            // promote
+            return DATETIME;
         }
         if (left == TIME) {
             if (right == DATE) {

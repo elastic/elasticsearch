@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -45,6 +48,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     static {
         PARSER = new ObjectParser<>(GeoTileGridValuesSourceBuilder.TYPE);
         PARSER.declareInt(GeoTileGridValuesSourceBuilder::precision, new ParseField("precision"));
+        PARSER.declareField(((p, builder, context) -> builder.geoBoundingBox(GeoBoundingBox.parseBoundingBox(p))),
+            GeoBoundingBox.BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
     }
 
@@ -53,6 +58,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
+    private GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
 
     GeoTileGridValuesSourceBuilder(String name) {
         super(name);
@@ -61,10 +67,18 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     GeoTileGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            this.geoBoundingBox = new GeoBoundingBox(in);
+        }
     }
 
     public GeoTileGridValuesSourceBuilder precision(int precision) {
         this.precision = GeoTileUtils.checkPrecisionRange(precision);
+        return this;
+    }
+
+    public GeoTileGridValuesSourceBuilder geoBoundingBox(GeoBoundingBox geoBoundingBox) {
+        this.geoBoundingBox = geoBoundingBox;
         return this;
     }
 
@@ -76,11 +90,17 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            geoBoundingBox.writeTo(out);
+        }
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("precision", precision);
+        if (geoBoundingBox.isUnbounded() == false) {
+            geoBoundingBox.toXContent(builder, params);
+        }
     }
 
     @Override
@@ -88,9 +108,13 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         return TYPE;
     }
 
+    GeoBoundingBox geoBoundingBox() {
+        return geoBoundingBox;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precision);
+        return Objects.hash(super.hashCode(), precision, geoBoundingBox);
     }
 
     @Override
@@ -99,7 +123,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         GeoTileGridValuesSourceBuilder other = (GeoTileGridValuesSourceBuilder) obj;
-        return precision == other.precision;
+        return Objects.equals(precision,other.precision)
+            && Objects.equals(geoBoundingBox, other.geoBoundingBox);
     }
 
     @Override
@@ -112,7 +137,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, GeoTileUtils::longEncode);
+            CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, geoBoundingBox, GeoTileUtils::longEncode);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
                 missingBucket(), script() != null);
         } else {

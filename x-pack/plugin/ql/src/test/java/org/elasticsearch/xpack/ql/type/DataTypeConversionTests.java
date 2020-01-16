@@ -640,8 +640,8 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(DATETIME, commonType(randomInterval(), DATETIME));
         assertEquals(DATETIME, commonType(DATE, TIME));
         assertEquals(DATETIME, commonType(TIME, DATE));
-        assertEquals(DATE, commonType(DATE, randomInterval()));
-        assertEquals(DATE, commonType(randomInterval(), DATE));
+        assertEquals(DATE, commonType(DATE, INTERVAL_YEAR));
+        assertEquals(DATETIME, commonType(DATE, INTERVAL_HOUR_TO_MINUTE));
         assertEquals(TIME, commonType(TIME, randomInterval()));
         assertEquals(TIME, commonType(randomInterval(), TIME));
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -60,10 +61,11 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
         String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-        QueryShardContext queryShardContext, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metaData) throws IOException {
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,
-            subFactoriesBuilder, metaData);
+            GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
+            queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,

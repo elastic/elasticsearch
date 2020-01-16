@@ -201,6 +201,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
             IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
+            MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
             MetaData.SETTING_READ_ONLY_SETTING,
             MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
             MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,

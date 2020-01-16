@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -19,9 +22,12 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -33,6 +39,8 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.mockito.stubbing.Answer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -45,7 +53,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -250,19 +261,19 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPersistDatafeedTimingStats() {
-        Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
+        ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(bulkRequestCaptor);
         JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
         DatafeedTimingStats timingStats =
             new DatafeedTimingStats(
                 "foo", 6, 66, 666.0, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
         persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        ArgumentCaptor<BulkRequest> indexRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client, times(1)).bulk(indexRequestCaptor.capture());
+        verify(client, times(1)).bulk(bulkRequestCaptor.capture());
 
         // Refresh policy is set on the bulk request, not the individual index requests
-        assertThat(indexRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
-        IndexRequest indexRequest = (IndexRequest)indexRequestCaptor.getValue().requests().get(0);
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+        IndexRequest indexRequest = (IndexRequest)bulkRequestCaptor.getValue().requests().get(0);
         assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
         assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
         assertThat(
@@ -281,6 +292,88 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testPersistQuantilesSync(SearchHits searchHits, String expectedIndexOrAlias) {
+        ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(bulkRequestCaptor);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        ActionFuture<SearchResponse> searchActionFuture = mock(ActionFuture.class);
+        when(searchActionFuture.actionGet()).thenReturn(searchResponse);
+        doReturn(searchActionFuture).when(client).search(any());
+
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
+        Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
+        persister.persistQuantiles(quantiles, () -> false);
+
+        InOrder inOrder = inOrder(client);
+        inOrder.verify(client).search(any());
+        inOrder.verify(client).bulk(bulkRequestCaptor.capture());
+        inOrder.verifyNoMoreInteractions();
+
+        BulkRequest bulkRequest = bulkRequestCaptor.getValue();
+        assertThat(bulkRequest.requests().size(), equalTo(1));
+        IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+
+        assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
+        assertThat(indexRequest.id(), equalTo("foo_quantiles"));
+    }
+
+    public void testPersistQuantilesSync_QuantilesDocumentCreated() {
+        testPersistQuantilesSync(SearchHits.empty(), ".ml-state-write");
+    }
+
+    public void testPersistQuantilesSync_QuantilesDocumentUpdated() {
+        testPersistQuantilesSync(
+            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testPersistQuantilesAsync(SearchHits searchHits, String expectedIndexOrAlias) {
+        ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
+        Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        doAnswer(withResponse(searchResponse)).when(client).search(any(), any());
+        IndexResponse indexResponse = mock(IndexResponse.class);
+        doAnswer(withResponse(indexResponse)).when(client).index(any(), any());
+
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
+        Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
+        ActionListener<IndexResponse> indexResponseListener = mock(ActionListener.class);
+        persister.persistQuantiles(quantiles, WriteRequest.RefreshPolicy.IMMEDIATE, indexResponseListener);
+
+        InOrder inOrder = inOrder(client);
+        inOrder.verify(client).search(any(), any());
+        inOrder.verify(client).index(indexRequestCaptor.capture(), any());
+        inOrder.verifyNoMoreInteractions();
+
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+
+        assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
+        assertThat(indexRequest.id(), equalTo("foo_quantiles"));
+    }
+
+    public void testPersistQuantilesAsync_QuantilesDocumentCreated() {
+        testPersistQuantilesAsync(SearchHits.empty(), ".ml-state-write");
+    }
+
+    public void testPersistQuantilesAsync_QuantilesDocumentUpdated() {
+        testPersistQuantilesAsync(
+            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Response> Answer<Response> withResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[1];
+            listener.onResponse(response);
+            return null;
+        };
     }
 
     private Client mockClient(ArgumentCaptor<BulkRequest> captor) {

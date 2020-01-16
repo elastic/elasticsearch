@@ -354,7 +354,7 @@ public class DockerTests extends PackagingTestCase {
         final String symlinkFilename = "password_symlink";
 
         // ELASTIC_PASSWORD_FILE
-        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes());
 
         // Link to the password file. We can't use an absolute path for the target, because
         // it won't resolve inside the container.

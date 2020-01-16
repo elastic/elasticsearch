@@ -1290,14 +1290,20 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             boolean changed = false;
 
             List<Expression> andExps = Predicates.splitAnd(and);
-            // Ranges need to show up before BinaryComparisons in list, to allow the latter be optimized away into a Range, if possible
+            // Ranges need to show up before BinaryComparisons in list, to allow the latter be optimized away into a Range, if possible.
+            // NotEquals need to be last in list, to have a complete set of Ranges (ranges) and BinaryComparisons (bcs) and allow these to
+            // optimize the NotEquals away.
             andExps.sort((o1, o2) -> {
                 if (o1 instanceof Range && o2 instanceof Range) {
                     return 0; // keep ranges' order
                 } else if (o1 instanceof Range || o2 instanceof Range) {
-                    return o2 instanceof Range ? 1 : -1;
+                    return o2 instanceof Range ? 1 : -1; // push Ranges down
+                } else if (o1 instanceof NotEquals && o2 instanceof NotEquals) {
+                    return 0; // kep NotEquals' order
+                } else if (o1 instanceof NotEquals || o2 instanceof NotEquals) {
+                    return o1 instanceof NotEquals ? 1 : -1; // push NotEquals up
                 } else {
-                    return 0; // keep non-ranges' order
+                    return 0; // keep non-Ranges' and non-NotEquals order
                 }
             });
             for (Expression ex : andExps) {
@@ -1308,13 +1314,21 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof BinaryComparison && !(ex instanceof Equals)) {
+                } else if (ex instanceof BinaryComparison && !(ex instanceof Equals || ex instanceof NotEquals)) {
                     BinaryComparison bc = (BinaryComparison) ex;
 
                     if (bc.right().foldable() && (findConjunctiveComparisonInRange(bc, ranges) || findExistingComparison(bc, bcs, true))) {
                         changed = true;
                     } else {
                         bcs.add(bc);
+                    }
+                } else if (ex instanceof NotEquals) {
+                    NotEquals neq = (NotEquals) ex;
+                    if (neq.right().foldable() && notEqualsIsRemovableFromConjunction(neq, ranges, bcs)) {
+                        // the non-equality can simply be dropped: either superfluous or has been merged with an updated range/inequality
+                        changed = true;
+                    } else { // not foldable OR not overlapping
+                        exps.add(ex);
                     }
                 } else {
                     exps.add(ex);
@@ -1367,6 +1381,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private Expression combine(Or or) {
             List<BinaryComparison> bcs = new ArrayList<>();
             List<Range> ranges = new ArrayList<>();
+            List<NotEquals> notEquals = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
@@ -1379,6 +1394,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     } else {
                         ranges.add(r);
                     }
+                } else if (ex instanceof NotEquals) {
+                    notEquals.add((NotEquals) ex);
                 } else if (ex instanceof BinaryComparison) {
                     BinaryComparison bc = (BinaryComparison) ex;
                     if (bc.right().foldable() && findExistingComparison(bc, bcs, false)) {
@@ -1391,7 +1408,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            return changed ? Predicates.combineOr(CollectionUtils.combine(exps, bcs, ranges)) : or;
+            Boolean updated = filterDisjunctionByNotEquals(notEquals, bcs, ranges);
+            if (updated == null) {
+                return new Literal(or.source(), Boolean.TRUE, DataType.BOOLEAN);
+            } else if (updated) {
+                changed = true;
+            }
+
+            return changed ? Predicates.combineOr(CollectionUtils.combine(exps, bcs, ranges, notEquals)) : or;
         }
 
         private static boolean findExistingRange(Range main, List<Range> ranges, boolean conjunctive) {
@@ -1642,6 +1666,137 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return false;
+        }
+
+        private static boolean notEqualsIsRemovableFromConjunction(NotEquals notEquals, List<Range> ranges, List<BinaryComparison> bcs) {
+            Object neqVal = notEquals.right().fold();
+            Integer comp;
+
+            // check on "condition-overlapping" ranges:
+            // a != 2 AND 3 < a < 5 -> 3 < a < 5; a != 2 AND 0 < a < 1 -> 0 < a < 1 (discard NotEquals)
+            // a != 2 AND 2 <= a < 3 -> 2 < a < 3; a != 3 AND 2 < a <= 3 -> 2 < a < 3 (discard NotEquals, plus update Range)
+            // a != 2 AND 1 < a < 3 -> nop (do nothing)
+            for (int i = 0; i < ranges.size(); i ++) {
+                Range range = ranges.get(i);
+
+                if (notEquals.left().semanticEquals(range.value())) {
+                    comp = range.lower().foldable() ? BinaryComparison.compare(neqVal, range.lower().fold()) : null;
+                    if (comp != null) {
+                        if (comp <= 0) {
+                            if (comp == 0 && range.includeLower()) { // a != 2 AND 2 <= a < ? -> 2 < a < ?
+                                ranges.set(i, new Range(range.source(), range.value(), range.lower(), false, range.upper(),
+                                    range.includeUpper()));
+                            }
+                            // else: !.includeLower() : a != 2 AND 2 < a < 3 -> 2 < a < 3; or:
+                            // else: comp < 0 : a != 2 AND 3 < a < ? ->  3 < a < ?
+
+                            return true;
+                        } else { // comp > 0 : a != 4 AND 2 < a < ? : can only remove NotEquals if outside the range
+                            comp = range.upper().foldable() ? BinaryComparison.compare(neqVal, range.upper().fold()) : null;
+                            if (comp != null && comp >= 0) {
+                                if (comp == 0 && range.includeUpper()) { // a != 4 AND 2 < a <= 4 -> 2 < a < 4
+                                    ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
+                                        range.upper(), false));
+                                }
+                                // else: !.includeUpper() : a != 4 AND 2 < a < 4 -> 2 < a < 4
+                                // else: comp > 0 : a != 4 AND 2 < a < 3 -> 2 < a < 3
+
+                                return true;
+                            }
+                            // else: comp < 0 : a != 4 AND 2 < a < 5 -> nop; or:
+                            // else: comp == null : upper bound not comparable -> nop
+                        }
+                    } // else: comp == null : lower bound not comparable: evaluate upper bound, in case non-equality value is ">="
+
+                    comp = range.upper().foldable() ? BinaryComparison.compare(neqVal, range.upper().fold()) : null;
+                    if (comp != null && comp >= 0) {
+                        if (comp == 0 && range.includeUpper()) { // a != 3 AND ?? < a <= 3 -> ?? < a < 3
+                            ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(), range.upper(),
+                                false));
+                        }
+                        // else: !.includeUpper() : a != 3 AND ?? < a < 3 -> ?? < a < 3
+                        // else: comp > 0 : a != 3 and ?? < a < 2 -> ?? < a < 2
+
+                        return true;
+                    }
+                    // else: comp < 0 : a != 3 AND ?? < a < 4 -> nop, as a decision can't be drawn; or:
+                    // else: comp == null : a != 3 AND ?? < a < ?? -> nop
+                }
+            }
+
+            // check on "condition-overlapping" inequalities:
+            // a != 2 AND a > 3 -> a > 3 (discard NotEquals)
+            // a != 2 AND a >= 2 -> a > 2 (discard NotEquals plus update inequality)
+            // a != 2 AND a > 1 -> nop (do nothing)
+            //
+            // a != 2 AND a < 3 -> nop
+            // a != 2 AND a <= 2 -> a < 2
+            // a != 2 AND a < 1 -> a < 1
+            for (int i = 0; i < bcs.size(); i ++) {
+                BinaryComparison bc = bcs.get(i);
+
+                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                    if (comp != null) {
+                        if (comp >= 0) {
+                            if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
+                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right()));
+                            } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
+                            return true;
+                        } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
+                    } // else: non-comparable, nop
+                } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                    if (comp != null) {
+                        if (comp <= 0) {
+                            if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
+                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right()));
+                            } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
+                            return true;
+                        } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
+                    } // else: non-comparable, nop
+                } // else: other non-relevant type
+            }
+
+            return false;
+        }
+
+        // a != X OR Y < a < Z -> a != X (plus equivalent inequalities)
+        // a != X OR X <= a < Z -> TRUE (plus equality on upper bound, plus equivalent inequalities)
+        private static Boolean filterDisjunctionByNotEquals(List<NotEquals> notEquals, List<BinaryComparison> bcs, List<Range> ranges) {
+            Boolean updated = false;
+
+            for (NotEquals neq : notEquals) {
+                for (Iterator<BinaryComparison> bcIterator = bcs.iterator(); bcIterator.hasNext(); ) {
+                    BinaryComparison bc = bcIterator.next();
+                    if (neq.left().semanticEquals(bc.left())) {
+                        if (bc instanceof LessThan || bc instanceof GreaterThan) { // a != 2 OR a < 3 -> a != 2 (plus LessThen)
+                            bcIterator.remove();
+                            updated = true;
+                        } else if (bc instanceof LessThanOrEqual || bc instanceof GreaterThanOrEqual) {
+                            if (neq.right().semanticEquals(bc.right())) { // a != X or a <= X -> TRUE (plus GreaterThenOrEqual)
+                                return null;
+                            }
+                        }
+                    }
+                }
+
+                for (Iterator<Range> rangeIterator = ranges.iterator(); rangeIterator.hasNext(); ) {
+                    Range range = rangeIterator.next();
+                    if (neq.left().semanticEquals(range.value())) {
+                        if (range.includeLower() && neq.right().semanticEquals(range.lower())) { // a != X OR X <= a < ? -> TRUE
+                            return null;
+                        }
+                        if (range.includeUpper() && neq.right().semanticEquals(range.upper())) { // a != X OR ? <= a < X -> TRUE
+                            return null;
+                        }
+                        rangeIterator.remove();
+                        updated = true;
+                    }
+                }
+            }
+
+            return updated;
         }
     }
 

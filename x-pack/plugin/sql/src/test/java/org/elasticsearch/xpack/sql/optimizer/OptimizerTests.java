@@ -1241,6 +1241,173 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(r1, exp);
     }
 
+    // a != 2 AND 3 < a < 5 -> 3 < a < 5
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGt3Lt5() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, THREE, false, FIVE, false);
+        And and = new And(EMPTY, range, neq);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(THREE, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(FIVE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 2 AND 0 < a < 1 -> 0 < a < 1
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGt0Lt1() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, L(0), false, ONE, false);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(L(0), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(ONE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 2 AND 2 <= a < 3 -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGte2Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, TWO, true, THREE, false);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(TWO, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 3 AND 2 < a <= 3 -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunction_Neq3AndRangeGt2Lte3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        Range range = new Range(EMPTY, fa, TWO, false, THREE, true);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(TWO, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != 2 AND 1 < a < 3
+    public void testCombineBinaryComparisonsConjunction_Neq2AndRangeGt1Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, ONE, false, THREE, false);
+        And and = new And(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(And.class, exp.getClass()); // can't optimize
+    }
+
+    // a != 2 AND a > 3 -> a > 3
+    public void testCombineBinaryComparisonsConjunction_Neq2AndGt3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, THREE);
+        And and = new And(EMPTY, neq, gt);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(gt, exp);
+    }
+
+    // a != 2 AND a >= 2 -> a > 2
+    public void testCombineBinaryComparisonsConjunction_Neq2AndGte2() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, TWO);
+        And and = new And(EMPTY, neq, gte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(GreaterThan.class, exp.getClass());
+        GreaterThan gt = (GreaterThan) exp;
+        assertEquals(TWO, gt.right());
+    }
+
+    // a != 2 AND a >= 1 -> nop
+    public void testCombineBinaryComparisonsConjunction_Neq2AndGte1() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, ONE);
+        And and = new And(EMPTY, neq, gte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(And.class, exp.getClass()); // can't optimize
+    }
+
+    // a != 2 AND a <= 3 -> nop
+    public void testCombineBinaryComparisonsConjunction_Neq2AndLte3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, THREE);
+        And and = new And(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(And.class, exp.getClass()); // can't optimize
+    }
+
+    // a != 2 AND a <= 2 -> a < 2
+    public void testCombineBinaryComparisonsConjunction_Neq2AndLte2() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, TWO);
+        And and = new And(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(LessThan.class, exp.getClass());
+        LessThan lt = (LessThan) exp;
+        assertEquals(TWO, lt.right());
+    }
+
+    // a != 2 AND a <= 1 -> a <= 1
+    public void testCombineBinaryComparisonsConjunction_Neq2AndLte1() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, ONE);
+        And and = new And(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(lte, exp);
+    }
+
     // Disjunction
 
     public void testCombineBinaryComparisonsDisjunctionNotComparable() {
@@ -1477,6 +1644,96 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(r2, exp);
     }
 
+    // a != 3 OR 2 < a < 4 -> a != 3
+    public void testCombineBinaryComparisonsDisjunction_Ne3OrRangeGt2Lt4() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        Range range = new Range(EMPTY, fa, TWO, false, FOUR, false);
+        Or or = new Or(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(neq, exp);
+    }
+
+    // a != 3 OR 2 < a -> a != 3
+    public void testCombineBinaryComparisonsDisjunction_Ne3OrGt2() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, TWO);
+        Or or = new Or(EMPTY, neq, gt);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(neq, exp);
+    }
+
+    // a != 3 OR a <= 3 -> TRUE
+    public void testCombineBinaryComparisonsDisjunction_Ne3OrLte3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, THREE);
+        Or or = new Or(EMPTY, neq, lte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(TRUE, exp);
+    }
+
+    // a != 3 OR a >= 3 -> TRUE
+    public void testCombineBinaryComparisonsDisjunction_Ne3OrGte3() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, THREE);
+        Or or = new Or(EMPTY, neq, gte);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(TRUE, exp);
+    }
+
+    // a != 3 OR 3 < a < 4 -> a != 3
+    public void testCombineBinaryComparisonsDisjunction_Ne3OrRangeGt3Lt4() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        Range range = new Range(EMPTY, fa, THREE, false, FOUR, false);
+        Or or = new Or(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(neq, exp);
+    }
+
+    // a != 3 OR 3 <= a < 4 -> TRUE
+    public void testCombineBinaryComparisonsDisjunction_Ne3OrRangeGte3Lt4() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        Range range = new Range(EMPTY, fa, THREE, true, FOUR, false);
+        Or or = new Or(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(TRUE, exp);
+    }
+
+    // a != 4 OR 3 <= a <= 4 -> TRUE
+    public void testCombineBinaryComparisonsDisjunction_Ne4OrRangeGte3Lte4() {
+        FieldAttribute fa = getFieldAttribute();
+
+        NotEquals neq = new NotEquals(EMPTY, fa, FOUR);
+        Range range = new Range(EMPTY, fa, THREE, true, FOUR, true);
+        Or or = new Or(EMPTY, neq, range);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(TRUE, exp);
+    }
 
     // Equals & NullEquals
 

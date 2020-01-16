@@ -49,6 +49,11 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+        evaluateCondition(Settings.EMPTY, indexMetaData, listener);
+    }
+
+    @Override
     public void evaluateCondition(Settings settings, IndexMetaData indexMetaData, Listener listener) {
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 

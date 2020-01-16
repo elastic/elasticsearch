@@ -534,7 +534,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
                  StringWriter out = new StringWriter();
                  PrintWriter writer = new PrintWriter(out)) {
                 HttpCertificateCommand.copyWithSubstitutions(in, writer, subs);
-                return out.toString();
+                return out.toString().replace("\r\n", "\n");
             }
         };
         assertThat(copy.apply("abc\n", Map.of()), is("abc\n"));

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -64,10 +65,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public Nullability nullable() {
-        if (from().isNull()) {
-            return Nullability.TRUE;
-        }
-        return Nullability.UNKNOWN;
+        return Expressions.isNull(field()) ? Nullability.TRUE : Nullability.UNKNOWN;
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.backwards;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -315,13 +316,11 @@ public class IndexingIT extends ESRestTestCase {
         try (RestClient newNodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
             Request request = new Request("POST", index + "/_flush/synced");
+            List<String> warningMsg = List.of("Synced flush was removed and a normal flush was performed instead. " +
+                "This transition will be removed in a future version.");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(warningMsg) == false));
             assertBusy(() -> {
-                ResponseException responseException = expectThrows(ResponseException.class, () -> newNodeClient.performRequest(request));
-                assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-                assertThat(responseException.getResponse().getWarnings(),
-                    contains("Synced flush was removed and a normal flush was performed instead. " +
-                        "This transition will be removed in a future version."));
-                Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
+                Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));
                 assertThat(result.get("successful"), equalTo(totalShards));
                 assertThat(result.get("failed"), equalTo(0));

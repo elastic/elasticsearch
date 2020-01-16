@@ -18,7 +18,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
 
@@ -53,7 +52,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         indexData(sourceIndex, 300, 50);
 
-        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Regression(
+                DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null)
+        );
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -78,6 +84,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.containsKey("variable_prediction"), is(true));
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+            assertThat(resultsObject.containsKey("feature_importance." + NUMERICAL_FEATURE_FIELD), is(true));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -141,7 +148,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParamsTests.createRandom(), null, 50.0, null));
+                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -244,7 +251,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
 
-        BoostedTreeParams boostedTreeParams = new BoostedTreeParams(1.0, 1.0, 1.0, 1, 1.0);
+        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
+            .setLambda(1.0)
+            .setGamma(1.0)
+            .setEta(1.0)
+            .setFeatureBagFraction(1.0)
+            .setMaximumNumberTrees(1)
+            .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null));

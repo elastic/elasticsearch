@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -26,10 +25,6 @@ import java.util.Objects;
  * Represents one part of the execution of a {@link LifecycleAction}.
  */
 public abstract class Step {
-
-    public static final String ILM_STEP_MASTER_TIMEOUT = "ilm.step.master.timeout";
-    public static final Setting<TimeValue> ILM_STEP_MASTER_TIMEOUT_SETTING = Setting.positiveTimeSetting(ILM_STEP_MASTER_TIMEOUT,
-        TimeValue.timeValueSeconds(30), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final StepKey key;
     private final StepKey nextStepKey;
@@ -79,9 +74,9 @@ public abstract class Step {
 
     protected TimeValue getMasterTimeout(ClusterState clusterState){
         if(clusterState == null){
-            return ILM_STEP_MASTER_TIMEOUT_SETTING.get(Settings.EMPTY);
+            return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(Settings.EMPTY);
         }
-        return ILM_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());
+        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());
     }
 
     public static final class StepKey implements Writeable, ToXContentObject {

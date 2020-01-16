@@ -19,7 +19,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Stubber;
 
-import static org.elasticsearch.xpack.core.ilm.Step.ILM_STEP_MASTER_TIMEOUT;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionStep> extends AbstractStepTestCase<T> {
@@ -43,7 +43,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
         checkMasterTimeout(TimeValue.timeValueSeconds(10),
             ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(MetaData.builder()
-                    .persistentSettings(Settings.builder().put(ILM_STEP_MASTER_TIMEOUT, "10s").build())
+                    .persistentSettings(Settings.builder().put(LIFECYCLE_STEP_MASTER_TIMEOUT, "10s").build())
                     .build())
                 .build());
     }

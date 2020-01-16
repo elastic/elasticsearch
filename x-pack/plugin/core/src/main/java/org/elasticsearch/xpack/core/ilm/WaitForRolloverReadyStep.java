@@ -115,7 +115,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         }
 
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null)
-            .masterNodeTimeout(ILM_STEP_MASTER_TIMEOUT_SETTING.get(settings));
+            .masterNodeTimeout(LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(settings));
         rolloverRequest.dryRun(true);
         if (maxAge != null) {
             rolloverRequest.addMaxIndexAgeCondition(maxAge);

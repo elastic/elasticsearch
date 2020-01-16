@@ -17,25 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.flush;
+package org.elasticsearch.example.customsigheuristic;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-public class SyncedFlushRequestBuilder extends ActionRequestBuilder<SyncedFlushRequest, SyncedFlushResponse> {
-
-    public SyncedFlushRequestBuilder(ElasticsearchClient client, SyncedFlushAction action) {
-        super(client, action, new SyncedFlushRequest());
+public class CustomSignificanceHeuristicClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public CustomSignificanceHeuristicClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    public SyncedFlushRequestBuilder setIndices(String[] indices) {
-        super.request().indices(indices);
-        return this;
-    }
-
-    public SyncedFlushRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
-        super.request().indicesOptions(indicesOptions);
-        return this;
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }

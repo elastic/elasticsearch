@@ -296,8 +296,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
                         .source(
                             new SearchSourceBuilder()
-                                .query(new IdsQueryBuilder().addIds(progressDocId))
-                                .size(1));
+                                .size(1)
+                                .query(new IdsQueryBuilder().addIds(progressDocId)));
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
             },
             e -> {

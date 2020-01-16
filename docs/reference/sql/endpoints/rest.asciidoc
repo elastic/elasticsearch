@@ -470,6 +470,8 @@ POST /_sql?format=txt
 --------------------------------------------------
 // TEST[setup:library]
 
+[IMPORTANT]
+The recommended way of passing values to a query is with question mark placeholders, to avoid any attempts of hacking or SQL injection.
 
 [[sql-rest-fields]]
 === Supported REST parameters

@@ -16,7 +16,7 @@ import org.elasticsearch.script.TemplateScript;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class MatchProcessor extends AbstractEnrichProcessor {
+public final class MatchProcessor extends AbstractEnrichProcessor {
 
     MatchProcessor(
         String tag,
@@ -50,7 +50,7 @@ public class MatchProcessor extends AbstractEnrichProcessor {
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
         if (fieldValue instanceof List) {
-            return new TermsQueryBuilder(matchField, (List) fieldValue);
+            return new TermsQueryBuilder(matchField, (List<?>) fieldValue);
         } else {
             return new TermQueryBuilder(matchField, fieldValue);
         }

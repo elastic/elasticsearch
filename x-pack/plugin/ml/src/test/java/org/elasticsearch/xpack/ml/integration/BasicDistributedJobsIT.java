@@ -148,7 +148,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
 
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
 
         IndexRequest indexRequest = new IndexRequest("data");

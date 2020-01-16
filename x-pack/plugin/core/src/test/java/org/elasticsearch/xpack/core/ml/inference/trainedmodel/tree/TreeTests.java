@@ -93,14 +93,13 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             }
             childNodes = nextNodes;
         }
+        TargetType targetType = randomFrom(TargetType.values());
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
+        if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
 
-        return builder.setTargetType(randomFrom(TargetType.values()))
-            .setClassificationLabels(categoryLabels)
-            .build();
+        return builder.setTargetType(targetType).setClassificationLabels(categoryLabels).build();
     }
 
     @Override
@@ -325,7 +324,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
+        String msg = "[target_type] should be [classification] if [classification_labels] are provided";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)
@@ -334,18 +333,6 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                         .setThreshold(randomDouble()))
                 .setFeatureNames(featureNames)
                 .setClassificationLabels(Arrays.asList("label1", "label2"))
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo(msg));
-        ex = expectThrows(ElasticsearchException.class, () -> {
-            Tree.builder()
-                .setRoot(TreeNode.builder(0)
-                    .setLeftChild(1)
-                    .setSplitFeature(1)
-                    .setThreshold(randomDouble()))
-                .setFeatureNames(featureNames)
-                .setTargetType(TargetType.CLASSIFICATION)
                 .build()
                 .validate();
         });

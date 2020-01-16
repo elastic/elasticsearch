@@ -35,15 +35,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ForEachProcessorTests extends ESTestCase {
-
-    private final ExecutorService direct = EsExecutors.newDirectExecutorService();
 
     public void testExecuteWithAsyncProcessor() throws Exception {
         List<String> values = new ArrayList<>();
@@ -171,11 +170,9 @@ public class ForEachProcessorTests extends ESTestCase {
                     return null;
                 }
         };
-        int numValues = randomIntBetween(10000, 10000);
-        List<String> values = new ArrayList<>(numValues);
-        for (int i = 0; i < numValues; i++) {
-            values.add("");
-        }
+        int numValues = randomIntBetween(1, 10000);
+        List<String> values = IntStream.range(0, numValues).mapToObj(i->"").collect(Collectors.toList());
+
         IngestDocument ingestDocument = new IngestDocument(
             "_index", "_id", null, null, null, Collections.singletonMap("values", values)
         );
@@ -186,9 +183,7 @@ public class ForEachProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<String> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.size(), equalTo(numValues));
-        for (String r : result) {
-            assertThat(r, equalTo("."));
-        }
+        result.forEach(r -> assertThat(r, equalTo(".")));
     }
 
     public void testModifyFieldsOutsideArray() throws Exception {

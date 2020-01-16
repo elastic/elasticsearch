@@ -12,4 +12,4 @@
         body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }
   - match: { error.root_cause.0.position.offset: 13 }
   - match: { error.root_cause.0.position.start: 0 }
-  - match: { error.root_cause.0.position.end: 39 }
+  - match: { error.root_cause.0.position.end: 38 }

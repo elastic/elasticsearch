@@ -20,7 +20,7 @@ bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-versio
 [float]
 === Description
 
-This tool has five modes:
+This tool has a number of modes:
 
 * `elasticsearch-node repurpose` can be used to delete unwanted data from a
   node if it used to be a <<data-node,data node>> or a
@@ -28,8 +28,12 @@ This tool has five modes:
   or other of these roles.
 
 * `elasticsearch-node remove-settings` can be used to remove persistent settings
-   from the cluster state in case where it contains incompatible settings that
-   prevent the cluster from forming.
+  from the cluster state in case where it contains incompatible settings that
+  prevent the cluster from forming.
+
+* `elasticsearch-node remove-customs` can be used to remove custom metadata
+  from the cluster state in case where it contains broken metadata that
+  prevents the cluster state from being loaded.
 
 * `elasticsearch-node unsafe-bootstrap` can be used to perform _unsafe cluster
   bootstrapping_.  It forces one of the nodes to form a brand-new cluster on
@@ -97,6 +101,24 @@ The intended use is:
 
 * Stop the node
 * Run `elasticsearch-node remove-settings name-of-setting-to-remove` on the node
+* Repeat for all other master-eligible nodes
+* Start the nodes
+
+[float]
+==== Removing custom metadata from the cluster state
+
+There may be situations where a node contains custom metadata, typically
+provided by plugins, that prevent the node from starting up and loading
+the cluster from disk.
+
+The `elasticsearch-node remove-customs` tool allows you to forcefully remove
+the problematic custom metadata. The tool takes a list of custom metadata names
+as parameters that should be removed, and also supports wildcard patterns.
+
+The intended use is:
+
+* Stop the node
+* Run `elasticsearch-node remove-customs name-of-custom-to-remove` on the node
 * Repeat for all other master-eligible nodes
 * Start the nodes
 
@@ -405,6 +427,33 @@ You can also use wildcards to remove multiple settings, for example using
 [source,txt]
 ----
 node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
+----
+
+[float]
+==== Removing custom metadata from the cluster state
+
+If the on-disk cluster state contains custom metadata that prevents the node
+from starting up and loading the cluster state, you can run the following
+commands to remove this custom metadata.
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-customs snapshot_lifecycle
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+The following customs will be removed:
+snapshot_lifecycle
+
+You should only run this tool if you have broken custom metadata in the
+cluster state that prevents the cluster state from being loaded.
+This tool can cause data loss and its use should be your last resort.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+
+Customs were successfully removed from the cluster state
 ----
 
 [float]

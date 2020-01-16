@@ -114,6 +114,19 @@ public class Installation {
         );
     }
 
+    /**
+     * Returns the user that owns this installation.
+     *
+     * For packages this is root, and for archives it is the user doing the installation.
+     */
+    public String getOwner() {
+        if (Platforms.WINDOWS) {
+            // windows is always administrator, since there is no sudo
+            return "BUILTIN\\Administrators";
+        }
+        return distribution.isArchive() ? ARCHIVE_OWNER : "root";
+    }
+
     public Path bin(String executableName) {
         return bin.resolve(executableName);
     }
@@ -147,7 +160,7 @@ public class Installation {
 
         public Shell.Result run(String args, String input) {
             String command = path + " " + args;
-            if (distribution.isArchive() && distribution.platform != Distribution.Platform.WINDOWS) {
+            if (distribution.isArchive() && Platforms.WINDOWS == false) {
                 command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
             }
             if (input != null) {
@@ -163,6 +176,8 @@ public class Installation {
         public final Executable pluginTool = new Executable("elasticsearch-plugin");
         public final Executable keystoreTool = new Executable("elasticsearch-keystore");
         public final Executable certutilTool = new Executable("elasticsearch-certutil");
+        public final Executable certgenTool = new Executable("elasticsearch-certgen");
+        public final Executable cronevalTool = new Executable("elasticsearch-croneval");
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");

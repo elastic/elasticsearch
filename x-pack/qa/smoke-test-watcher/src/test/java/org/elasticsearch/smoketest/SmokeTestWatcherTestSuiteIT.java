@@ -109,7 +109,6 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32299")
     public void testMonitorClusterHealth() throws Exception {
         String watchId = "cluster_health_watch";
 
@@ -125,7 +124,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         assertThat(address, is(notNullValue()));
         String[] splitAddress = address.split(":", 2);
         String host = splitAddress[0];
-        int port = Integer.valueOf(splitAddress[1]);
+        int port = Integer.parseInt(splitAddress[1]);
 
         // put watch
         try (XContentBuilder builder = jsonBuilder()) {
@@ -161,7 +160,12 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         assertThat(conditionMet, is(true));
 
         deleteWatch(watchId);
-        assertWatchCount(0);
+        // Wrap inside an assertBusy(...), because watch may execute just after being deleted,
+        // This tries to re-add the watch which fails, because of version conflict,
+        // but for a moment the watch count from watcher stats api may be incorrect.
+        // (via WatcherIndexingListener#preIndex)
+        // The WatcherIndexingListener#postIndex() detects this version conflict and corrects the watch count.
+        assertBusy(() -> assertWatchCount(0));
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {

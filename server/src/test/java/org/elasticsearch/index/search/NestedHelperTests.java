@@ -335,7 +335,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         Query expectedChildQuery = new BooleanQuery.Builder()
                 .add(new MatchAllDocsQuery(), Occur.MUST)
                 // we automatically add a filter since the inner query might match non-nested docs
-                .add(new TermQuery(new Term("nested_path", "__nested1")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "__nested1")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 

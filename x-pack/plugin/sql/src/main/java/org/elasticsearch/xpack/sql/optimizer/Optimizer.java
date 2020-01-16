@@ -1299,7 +1299,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 } else if (o1 instanceof Range || o2 instanceof Range) {
                     return o2 instanceof Range ? 1 : -1; // push Ranges down
                 } else if (o1 instanceof NotEquals && o2 instanceof NotEquals) {
-                    return 0; // kep NotEquals' order
+                    return 0; // keep NotEquals' order
                 } else if (o1 instanceof NotEquals || o2 instanceof NotEquals) {
                     return o1 instanceof NotEquals ? 1 : -1; // push NotEquals up
                 } else {

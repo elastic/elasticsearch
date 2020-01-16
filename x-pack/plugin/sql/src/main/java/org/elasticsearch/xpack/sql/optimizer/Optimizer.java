@@ -1083,12 +1083,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     if (eq.left().semanticEquals(neq.left())) {
                         Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
-                            if (comp == 0) {
-                                return FALSE; // clashing and conflicting: a = 1 AND a != 1
-                            } else {
-                                iter.remove(); // clashing and redundant: a = 1 AND a != 2
+                            if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                            } else { // clashing and redundant: a = 1 AND a != 2
+                                iter.remove();
                                 changed = true;
-            }
+                            }
                         }
                     }
                 }
@@ -1102,13 +1102,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                     0 < compare) { // a = 2 AND a </<= 1
-                                    return FALSE;
-        }
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                     compare < 0) { // a = 2 AND a >/>= 3
-                                    return FALSE;
-    }
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                }
                             }
 
                             iter.remove();
@@ -1338,7 +1338,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // finally try combining any left BinaryComparisons into possible Ranges
             // this could be a different rule but it's clearer here wrt the order of comparisons
 
-            for (int i = 0; i < bcs.size() - 1; i++) {
+            for (int i = 0, step = 1; i < bcs.size() - 1; i += step, step = 1) {
                 BinaryComparison main = bcs.get(i);
 
                 for (int j = i + 1; j < bcs.size(); j++) {
@@ -1347,27 +1347,31 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     if (main.left().semanticEquals(other.left())) {
                         // >/>= AND </<=
                         if ((main instanceof GreaterThan || main instanceof GreaterThanOrEqual)
-                                && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
+                            && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
 
                             ranges.add(new Range(and.source(), main.left(),
-                                    main.right(), main instanceof GreaterThanOrEqual,
-                                    other.right(), other instanceof LessThanOrEqual));
+                                main.right(), main instanceof GreaterThanOrEqual,
+                                other.right(), other instanceof LessThanOrEqual));
 
                             changed = true;
+                            step = 0;
+                            break;
                         }
                         // </<= AND >/>=
                         else if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual)
-                                && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
-                                    bcs.remove(j);
-                                    bcs.remove(i);
+                            && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
+                            bcs.remove(j);
+                            bcs.remove(i);
 
                             ranges.add(new Range(and.source(), main.left(),
-                                    other.right(), other instanceof GreaterThanOrEqual,
-                                    main.right(), main instanceof LessThanOrEqual));
+                                other.right(), other instanceof GreaterThanOrEqual,
+                                main.right(), main instanceof LessThanOrEqual));
 
-                                    changed = true;
+                            changed = true;
+                            step = 0;
+                            break;
                         }
                     }
                 }

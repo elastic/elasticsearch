@@ -1122,6 +1122,32 @@ public class OptimizerTests extends ESTestCase {
         assertFalse(r.includeUpper());
     }
 
+    // 1 < a AND a < 3 AND 2 < b AND b < 4 AND c < 4 -> (1 < a < 3) AND (2 < b < 4) AND c < 4
+    public void testCombineMultipleComparisonsIntoRange() {
+        FieldAttribute fa = getFieldAttribute("a");
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+
+        GreaterThan agt1 = new GreaterThan(EMPTY, fa, ONE);
+        LessThan alt3 = new LessThan(EMPTY, fa, THREE);
+        GreaterThan bgt2 = new GreaterThan(EMPTY, fb, TWO);
+        LessThan blt4 = new LessThan(EMPTY, fb, FOUR);
+        LessThan clt4 = new LessThan(EMPTY, fc, FOUR);
+
+        Expression inputAnd = Predicates.combineAnd(Arrays.asList(agt1, alt3, bgt2, blt4, clt4));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression outputAnd = rule.rule(inputAnd);
+
+        Range agt1lt3 = new Range(EMPTY, fa, ONE, false, THREE, false);
+        Range bgt2lt4 = new Range(EMPTY, fb, TWO, false, FOUR, false);
+
+        // The actual outcome is (c < 4) AND (1 < a < 3) AND (2 < b < 4), due to the way the Expression types are combined in the Optimizer
+        Expression expectedAnd = Predicates.combineAnd(Arrays.asList(clt4, agt1lt3, bgt2lt4));
+
+        assertTrue(outputAnd.semanticEquals(expectedAnd));
+    }
+
     // a != NULL AND a > 1 AND a < 5 AND a == 10  -> (a != NULL AND a == 10) AND 1 <= a < 5
     public void testCombineUnbalancedComparisonsMixedWithEqualsIntoRange() {
         FieldAttribute fa = getFieldAttribute();

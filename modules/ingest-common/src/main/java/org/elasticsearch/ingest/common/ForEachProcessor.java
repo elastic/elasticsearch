@@ -27,7 +27,6 @@ import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

@@ -38,19 +38,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
+public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValuesSourceAggregationBuilder<AB>>
     extends AbstractAggregationBuilder<AB> {
 
     public static final ParseField MULTIVALUE_MODE_FIELD = new ParseField("mode");
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
-        extends ArrayValuesSourceAggregationBuilder<VS, AB> {
+    public abstract static class LeafOnly<AB extends ArrayValuesSourceAggregationBuilder<AB>>
+        extends ArrayValuesSourceAggregationBuilder<AB> {
 
-        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, valuesSourceType, targetValueType);
+        protected LeafOnly(String name) {
+            super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
             super(clone, factoriesBuilder, metaData);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
@@ -59,18 +59,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
 
         /**
-         * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+         * Read from a stream
          */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, valuesSourceType, targetValueType);
-        }
-
-        /**
-         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
-         */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, valuesSourceType);
+        protected LeafOnly(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
@@ -80,28 +72,19 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
     }
 
-    private final ValuesSourceType valuesSourceType;
-    private final ValueType targetValueType;
     private List<String> fields = Collections.emptyList();
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
 
-    protected ArrayValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ArrayValuesSourceAggregationBuilder(String name) {
         super(name);
-        if (valuesSourceType == null) {
-            throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
-        }
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
     }
 
-    protected ArrayValuesSourceAggregationBuilder(ArrayValuesSourceAggregationBuilder<VS, AB> clone,
+    protected ArrayValuesSourceAggregationBuilder(ArrayValuesSourceAggregationBuilder<AB> clone,
                                                   Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
-        this.valuesSourceType = clone.valuesSourceType;
-        this.targetValueType = clone.targetValueType;
         this.fields = new ArrayList<>(clone.fields);
         this.valueType = clone.valueType;
         this.format = clone.format;
@@ -109,20 +92,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.missing = clone.missing;
     }
 
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in)
         throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
-        read(in);
-    }
-
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
-        super(in);
-        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
     }
 
@@ -139,9 +111,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
-            out.writeOptionalWriteable(targetValueType);
-        }
         out.writeGenericValue(fields);
         out.writeOptionalWriteable(valueType);
         out.writeOptionalString(format);
@@ -178,9 +147,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
      */
     @SuppressWarnings("unchecked")
     public AB valueType(ValueType valueType) {
-        if (valueType == null) {
-            throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
-        }
         this.valueType = valueType;
         return (AB) this;
     }
@@ -256,17 +222,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
     public ValuesSourceConfig config(QueryShardContext queryShardContext, String field, Script script) {
 
-        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
         return ValuesSourceConfig.resolve(queryShardContext, valueType, field, script, missingMap.get(field), null, format,
             s -> CoreValuesSourceType.BYTES, "");
-    }
-
-    /**
-     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true
-     * should use the three argument read constructor rather than the four argument version.
-     */
-    protected boolean serializeTargetValueType() {
-        return false;
     }
 
     @Override
@@ -294,7 +251,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, format, missing, targetValueType, valueType, valuesSourceType);
+        return Objects.hash(super.hashCode(), fields, format, missing, valueType);
     }
 
     @Override
@@ -302,12 +259,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
+        ArrayValuesSourceAggregationBuilder<?> other = (ArrayValuesSourceAggregationBuilder<?>) obj;
         return Objects.equals(fields, other.fields)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)
-            && Objects.equals(targetValueType, other.targetValueType)
-            && Objects.equals(valueType, other.valueType)
-            && Objects.equals(valuesSourceType, other.valuesSourceType);
+            && Objects.equals(valueType, other.valueType);
     }
 }

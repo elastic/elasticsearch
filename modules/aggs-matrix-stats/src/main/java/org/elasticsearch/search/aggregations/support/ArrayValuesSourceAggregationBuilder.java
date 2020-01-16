@@ -18,18 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -263,63 +257,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     public ValuesSourceConfig config(QueryShardContext queryShardContext, String field, Script script) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-
-        if (field == null) {
-            if (script == null) {
-                ValuesSourceConfig config = new ValuesSourceConfig(CoreValuesSourceType.ANY);
-                return config.format(resolveFormat(null, valueType));
-            }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            if (valuesSourceType == null || valuesSourceType == CoreValuesSourceType.ANY) {
-                // the specific value source type is undefined, but for scripts,
-                // we need to have a specific value source
-                // type to know how to handle the script values, so we fallback
-                // on Bytes
-                valuesSourceType = CoreValuesSourceType.BYTES;
-            }
-            ValuesSourceConfig config = new ValuesSourceConfig(valuesSourceType);
-            config.missing(missingMap.get(field));
-            return config.format(resolveFormat(format, valueType));
-        }
-
-        MappedFieldType fieldType = queryShardContext.getMapperService().fullName(field);
-        if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            ValuesSourceConfig config = new ValuesSourceConfig(valuesSourceType);
-            config.missing(missingMap.get(field));
-            config.format(resolveFormat(format, valueType));
-            return config.unmapped(true);
-        }
-
-        IndexFieldData<?> indexFieldData = queryShardContext.getForField(fieldType);
-
-        ValuesSourceConfig config;
-        if (valuesSourceType == CoreValuesSourceType.ANY) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig(CoreValuesSourceType.NUMERIC);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig(CoreValuesSourceType.GEOPOINT);
-            } else {
-                config = new ValuesSourceConfig(CoreValuesSourceType.BYTES);
-            }
-        } else {
-            config = new ValuesSourceConfig(valuesSourceType);
-        }
-
-        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
-        config.missing(missingMap.get(field));
-        return config.format(fieldType.docValueFormat(format, null));
-    }
-
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
-        if (valueType == null) {
-            return DocValueFormat.RAW; // we can't figure it out
-        }
-        DocValueFormat valueFormat = valueType.defaultFormat();
-        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
-            valueFormat = new DocValueFormat.Decimal(format);
-        }
-        return valueFormat;
+        return ValuesSourceConfig.resolve(queryShardContext, valueType, field, script, missingMap.get(field), null, format,
+            s -> CoreValuesSourceType.BYTES, "");
     }
 
     /**

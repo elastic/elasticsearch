@@ -107,8 +107,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getType().shouldExtract()) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(distribution.getExtracted().configuration.getName(),
-                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution)));
+                dependencies.add(
+                    distribution.getExtracted().configuration.getName(),
+                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution))
+                );
                 // ensure a root level download task exists
                 setupRootDownload(project.getRootProject(), distribution);
             }
@@ -141,7 +143,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             TaskProvider<Sync> extractTask = rootProject.getTasks().register(extractTaskName, Sync.class, syncTask -> {
                 syncTask.dependsOn(downloadConfig);
                 syncTask.into(extractDir);
-                syncTask.from((Callable<FileTree>)() -> {
+                syncTask.from((Callable<FileTree>) () -> {
                     File archiveFile = archiveGetter.get();
                     String archivePath = archiveFile.toString();
                     if (archivePath.endsWith(".zip")) {
@@ -160,9 +162,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     }
                 });
             });
-            rootProject.getArtifacts().add(extractedConfigName,
-                rootProject.getLayout().getProjectDirectory().dir(extractDir),
-                artifact -> artifact.builtBy(extractTask));
+            rootProject.getArtifacts()
+                .add(
+                    extractedConfigName,
+                    rootProject.getLayout().getProjectDirectory().dir(extractDir),
+                    artifact -> artifact.builtBy(extractTask)
+                );
         }
     }
 
@@ -228,7 +233,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
             return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
-
 
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
@@ -302,7 +306,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 Platform platform = distribution.getPlatform();
                 projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
             } else {
-                projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ?"zip" : "oss-zip";
+                projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ? "zip" : "oss-zip";
             }
         } else if (distribution.getType() == Type.DOCKER) {
             projectName += "docker-export";
@@ -313,9 +317,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private static String configName(String prefix, ElasticsearchDistribution distribution) {
-        return prefix + "_" + distribution.getVersion() + "_" + distribution.getType() + "_" +
-            (distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_")
-            + distribution.getFlavor() + (distribution.getBundledJdk() ? "" : "_nojdk");
+        return String.format(
+            "%s_%s_%s_%s%s%s",
+            prefix,
+            distribution.getVersion(),
+            distribution.getType(),
+            distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
+            distribution.getFlavor(),
+            distribution.getBundledJdk() ? "" : "_nojdk"
+        );
     }
 
     private static String capitalize(String s) {

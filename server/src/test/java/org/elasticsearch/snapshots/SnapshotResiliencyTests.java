@@ -154,7 +154,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -1202,7 +1201,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NodeMappingRefreshAction(transportService, metaDataMappingService),
                     repositoriesService,
                     mock(SearchService.class),
-                    new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
                     new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(

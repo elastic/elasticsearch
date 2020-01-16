@@ -55,7 +55,7 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-The Above example configures a policy that moves the index into the warm
+The above example configures a policy that moves the index into the warm
 phase after one day. Until then, the index is in a waiting state. After
 moving into the warm phase, it will wait until 30 days have elapsed before
 moving to the delete phase and deleting the index.
@@ -76,10 +76,14 @@ check occurs.
 === Phase Execution
 
 The current phase definition, of an index's policy being executed, is stored
-in the index's metadata. The phase and its actions are compiled into a series
-of discrete steps that are executed sequentially. Since some {ilm-init} actions
-are more complex and involve multiple operations against an index, each of these
-operations are done in isolation in a unit called a "step". The
+in the index's metadata. This phase definition is cached to prevent changes to
+the policy from putting the index in a state where it cannot proceed from its
+current step. When the policy is updated we check to see if this phase
+definition can be safely updated, and if so, update the cached definition in
+indices using the updated policy. The phase and its actions are compiled into a
+series of discrete steps that are executed sequentially. Since some {ilm-init}
+actions are more complex and involve multiple operations against an index, each
+of these operations are done in isolation in a unit called a "step". The
 <<ilm-explain-lifecycle,Explain Lifecycle API>> exposes this information to us
 to see which step our index is either to execute next, or is currently
 executing.
@@ -666,7 +670,9 @@ PUT _ilm/policy/my_policy
 [IMPORTANT]
 This action may be used explicitly, as shown below, but this action is also run
 before <<ilm-rollover-action,the Rollover action>> and <<ilm-shrink-action,the
-Shrink action>> as described in the documentation for those actions.
+Shrink action>> as described in the documentation for those actions. This is
+expected and safe for non-CCR indices to run, as the steps are skipped when CCR
+is not in use.
 
 This action turns a {ref}/ccr-apis.html[ccr] follower index
 into a regular index. This can be desired when moving follower

@@ -960,6 +960,78 @@ Current number of open HTTP connections for the node.
 (integer)
 Total number of HTTP connections opened for the node.
 
+[[cluster-nodes-stats-api-response-body-breakers]]
+===== `breakers` section
+
+`breakers.<circuit_breaker_name>.limit_size_in_bytes`::
+(integer)
+Memory limit, in bytes, for the circuit breaker.
+
+`breakers.<circuit_breaker_name>.limit_size`::
+(<<byte-units,byte value>>)
+Memory limit for the circuit breaker.
+
+`breakers.<circuit_breaker_name>.estimated_size_in_bytes`::
+(integer)
+Estimated memory used, in bytes, for the operation.
+
+`breakers.<circuit_breaker_name>.estimated_size`::
+(<<byte-units,byte value>>)
+Estimated memory used for the operation.
+
+`breakers.<circuit_breaker_name>.overhead`::
+(float)
+A constant that all estimates for the circuit breaker are multiplied with to
+calculate a final estimate.
+
+`breakers.<circuit_breaker_name>.tripped`::
+(integer)
+Total number of times the circuit breaker has been triggered and prevented an
+out of memory error.
+
+[[cluster-nodes-stats-api-response-body-script]]
+===== `script` section
+
+`script.compilations`::
+(integer)
+Total number of inline script compilations performed by the node.
+
+`script.cache_evictions`::
+(integer)
+Total number of times the script cache has evicted old data.
+
+`script.compilation_limit_triggered`::
+(integer)
+Total number of times the <<script-compilation-circuit-breaker,script
+compilation>> circuit breaker has limited inline script compilations.
+
+[[cluster-nodes-stats-api-response-body-discovery]]
+===== `discovery` section
+
+`discovery.cluster_state_queue.total`::
+(integer)
+Total number of cluster states in queue.
+
+`discovery.cluster_state_queue.pending`::
+(integer)
+Number of pending cluster states in queue.
+
+`discovery.cluster_state_queue.committed`::
+(integer)
+Number of committed cluster states in queue.
+
+`discovery.published_cluster_states.full_states`::
+(integer)
+Number of published cluster states.
+
+`discovery.published_cluster_states.incompatible_diffs`::
+(integer)
+Number of incompatible differences between published cluster states.
+
+`discovery.published_cluster_states.compatible_diffs`::
+(integer)
+Number of compatible differences between published cluster states.
+
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section
 

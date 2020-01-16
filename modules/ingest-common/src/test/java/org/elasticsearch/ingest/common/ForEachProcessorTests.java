@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;

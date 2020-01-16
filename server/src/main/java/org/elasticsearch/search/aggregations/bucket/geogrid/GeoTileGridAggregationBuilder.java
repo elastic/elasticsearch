@@ -54,12 +54,6 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
-        return CoreValuesSourceType.BYTES;
-    }
-
-    @Override
     public GeoGridAggregationBuilder precision(int precision) {
         this.precision = GeoTileUtils.checkPrecisionRange(precision);
         return this;

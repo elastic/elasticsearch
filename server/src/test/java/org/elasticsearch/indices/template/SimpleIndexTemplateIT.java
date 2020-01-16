@@ -778,7 +778,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 + "less than the number of shards [5]"));
 
         // provide an invalid mapping for a partitioned index
-        MapperParsingException eBadMapping = expectThrows(MapperParsingException.class,
+        IllegalArgumentException eBadMapping = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("te*"))
                 .setMapping("{\"_doc\":{\"_routing\":{\"required\":false}}}", XContentType.JSON)

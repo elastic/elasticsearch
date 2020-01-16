@@ -5,22 +5,34 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
@@ -32,8 +44,21 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
     @Before
     public void createComponents() {
         Settings settings = nodeSettings(0);
+        ThreadPool tp = mock(ThreadPool.class);
+        ClusterSettings clusterSettings = new ClusterSettings(settings,
+            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ClusterService.USER_DEFINED_META_DATA,
+                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client(), clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings);
-        jobResultsPersister = new JobResultsPersister(client());
+        jobResultsPersister = new JobResultsPersister(client(),
+            resultsPersisterService,
+            new AnomalyDetectionAuditor(client(), "test_node"));
     }
 
     public void testEstablishedMem_givenNoResults() throws Exception {
@@ -222,7 +247,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
     }
 
     private void createBuckets(String jobId, int count) {
-        JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId);
+        JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId, () -> true);
         for (int i = 1; i <= count; ++i) {
             Bucket bucket = new Bucket(jobId, new Date(bucketSpan * i), bucketSpan);
             builder.persistBucket(bucket);
@@ -235,7 +260,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
                 .setTimestamp(new Date(bucketSpan * bucketNum))
                 .setLogTime(new Date(bucketSpan * bucketNum + randomIntBetween(1, 1000)))
                 .setModelBytes(modelBytes).build();
-        jobResultsPersister.persistModelSizeStats(modelSizeStats);
+        jobResultsPersister.persistModelSizeStats(modelSizeStats, () -> true);
         return modelSizeStats;
     }
 

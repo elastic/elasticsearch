@@ -22,6 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -46,13 +47,15 @@ final class DfsQueryPhase extends SearchPhase {
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
+    private final SearchProgressListener progressListener;
 
     DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
                   SearchPhaseController searchPhaseController,
                   Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
                   SearchPhaseContext context) {
         super("dfs_query");
-        this.queryResult = searchPhaseController.newSearchPhaseResults(context.getRequest(), context.getNumShards());
+        this.progressListener = context.getTask().getProgressListener();
+        this.queryResult = searchPhaseController.newSearchPhaseResults(progressListener, context.getRequest(), context.getNumShards());
         this.searchPhaseController = searchPhaseController;
         this.dfsSearchResults = dfsSearchResults;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -69,6 +72,8 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult::consumeResult,
             resultList.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
+        final SearchSourceBuilder sourceBuilder = context.getRequest().source();
+        progressListener.notifyListShards(progressListener.searchShards(resultList), sourceBuilder == null || sourceBuilder.size() != 0);
         for (final DfsSearchResult dfsResult : resultList) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
@@ -92,6 +97,7 @@ final class DfsQueryPhase extends SearchPhase {
                         try {
                             context.getLogger().debug(() -> new ParameterizedMessage("[{}] Failed to execute query phase",
                                 querySearchRequest.id()), exception);
+                            progressListener.notifyQueryFailure(shardIndex, exception);
                             counter.onFailure(shardIndex, searchShardTarget, exception);
                         } finally {
                             // the query might not have been executed at all (for example because thread pool rejected

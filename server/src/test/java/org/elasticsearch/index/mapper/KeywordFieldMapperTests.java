@@ -46,6 +46,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -93,11 +94,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -130,11 +131,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIgnoreAbove() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").field("ignore_above", 5).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -160,11 +161,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNullValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
@@ -175,11 +176,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").field("null_value", "uri").endObject().endObject()
                 .endObject().endObject());
 
-        mapper = parser.parse("type", new CompressedXContent(mapping));
+        mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -205,11 +206,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnableStore() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").field("store", true).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -226,11 +227,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableIndex() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").field("index", false).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -248,11 +249,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableDocValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").field("doc_values", false).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -269,12 +270,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexOptions() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword")
                 .field("index_options", "freqs").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -301,17 +302,17 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testBoost() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "keyword").field("boost", 2f).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
     }
 
     public void testEnableNorms() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties")
                 .startObject("field")
                     .field("type", "keyword")
@@ -321,7 +322,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
@@ -340,12 +341,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNormalizer() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field")
                 .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -546,5 +547,31 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
         assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello world"});
+    }
+
+    public void testMeta() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "keyword")
+                .field("meta", Collections.singletonMap("foo", "bar"))
+                .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "keyword")
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping2, mapper.mappingSource().toString());
+
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "keyword")
+                .field("meta", Collections.singletonMap("baz", "quux"))
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping3, mapper.mappingSource().toString());
     }
 }

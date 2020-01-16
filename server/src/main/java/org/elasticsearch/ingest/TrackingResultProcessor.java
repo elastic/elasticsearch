@@ -45,10 +45,10 @@ public final class TrackingResultProcessor implements Processor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (actualProcessor instanceof PipelineProcessor) {
             PipelineProcessor pipelineProcessor = ((PipelineProcessor) actualProcessor);
-            Pipeline pipeline = pipelineProcessor.getPipeline();
+            Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
             //runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
-            ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline(), (result, e) -> {
+            ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline(ingestDocument), (result, e) -> {
                 // do nothing, let the tracking processors throw the exception while recording the path up to the failure
                 if (e instanceof ElasticsearchException) {
                     ElasticsearchException elasticsearchException = (ElasticsearchException) e;

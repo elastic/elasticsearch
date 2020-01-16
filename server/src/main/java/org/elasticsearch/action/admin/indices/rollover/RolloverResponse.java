@@ -23,18 +23,13 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 
 /**
@@ -50,20 +45,6 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     private static final ParseField DRY_RUN = new ParseField("dry_run");
     private static final ParseField ROLLED_OVER = new ParseField("rolled_over");
     private static final ParseField CONDITIONS = new ParseField("conditions");
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RolloverResponse, Void> PARSER = new ConstructingObjectParser<>("rollover",
-            true, args -> new RolloverResponse((String) args[0], (String) args[1], (Map<String,Boolean>) args[2],
-            (Boolean)args[3], (Boolean)args[4], (Boolean) args[5], (Boolean) args[6]));
-
-    static {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), OLD_INDEX, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), NEW_INDEX, ObjectParser.ValueType.STRING);
-        PARSER.declareObject(constructorArg(), (parser, context) -> parser.map(), CONDITIONS);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), DRY_RUN, ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ROLLED_OVER, ObjectParser.ValueType.BOOLEAN);
-        declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
-    }
 
     private final String oldIndex;
     private final String newIndex;
@@ -166,10 +147,6 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
-    }
-
-    public static RolloverResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

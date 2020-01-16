@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,8 +78,8 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
     }
 
-    public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static TrainedModelConfig fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null).build();
     }
 
     private final String modelId;
@@ -111,7 +112,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
-        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.definition = definition;
         this.compressedDefinition = compressedDefinition;
         this.description = description;
@@ -320,6 +321,10 @@ public class TrainedModelConfig implements ToXContentObject {
         public Builder setTags(List<String> tags) {
             this.tags = tags;
             return this;
+        }
+
+        public Builder setTags(String... tags) {
+            return setTags(Arrays.asList(tags));
         }
 
         public Builder setMetadata(Map<String, Object> metadata) {

@@ -244,7 +244,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             statsResponse -> {
                 GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
                 IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-                indexRequest.id(progressDocId(taskParams.getId()));
+                indexRequest.id(StoredProgress.documentId(taskParams.getId()));
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     new StoredProgress(stats.getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
@@ -308,10 +308,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 LOGGER.warn("[{}] Unexpected progress phase [{}]", jobId, lastIncompletePhase.getPhase());
                 return StartingState.FIRST_TIME;
         }
-    }
-
-    public static String progressDocId(String id) {
-        return "data_frame_analytics-" + id + "-progress";
     }
 
     public static class ProgressTracker {

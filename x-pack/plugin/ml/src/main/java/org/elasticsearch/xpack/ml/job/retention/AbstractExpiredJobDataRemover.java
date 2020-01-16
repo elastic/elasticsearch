@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
  */
 abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
-    private final Client client;
+    private final OriginSettingClient client;
 
-    AbstractExpiredJobDataRemover(Client client) {
+    AbstractExpiredJobDataRemover(OriginSettingClient client) {
         this.client = client;
     }
 

@@ -1,0 +1,9 @@
+"Action to get script languages":
+  - skip:
+      version: " - 7.6.0"
+      reason: "get_script_languages introduced in 7.6.0"
+  - do:
+      get_script_languages: {}
+
+  - match: { types_allowed.0: "inline" }
+  - match: { types_allowed.1: "stored" }

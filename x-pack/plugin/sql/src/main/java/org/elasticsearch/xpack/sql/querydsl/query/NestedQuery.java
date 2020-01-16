@@ -12,7 +12,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;

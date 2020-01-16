@@ -146,7 +146,14 @@ public class LongGCDisruptionTests extends ESTestCase {
                 threads[i].start();
             }
             // make sure some threads are under lock
-            disruption.startDisrupting();
+            try {
+                disruption.startDisrupting();
+            } catch (RuntimeException e) {
+                if (e.getMessage().contains("suspending node threads took too long") && disruption.sawSlowSuspendBug()) {
+                    return;
+                }
+                throw new AssertionError(e);
+            }
             long first = ops.get();
             assertThat(lockedExecutor.lock.isLocked(), equalTo(false)); // no threads should own the lock
             Thread.sleep(100);
@@ -154,6 +161,7 @@ public class LongGCDisruptionTests extends ESTestCase {
             disruption.stopDisrupting();
             assertBusy(() -> assertThat(ops.get(), greaterThan(first)));
         } finally {
+            disruption.stopDisrupting();
             stop.set(true);
             for (final Thread thread : threads) {
                 thread.join();

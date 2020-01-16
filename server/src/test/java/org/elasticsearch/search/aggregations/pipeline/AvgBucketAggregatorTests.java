@@ -77,7 +77,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
      * it is fixed.
      *
      * Note: we have this test inside of the `avg_bucket` package so that we can get access to the package-private
-     * `doReduce()` needed for testing this
+     * `reduce()` needed for testing this
      */
     public void testSameAggNames() throws IOException {
         Query query = new MatchAllDocsQuery();

@@ -74,25 +74,22 @@ public class DocumentMapperParser {
         if (source != null) {
             Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
-            type = t.v1();
             mapping = t.v2();
         }
         if (mapping == null) {
             mapping = new HashMap<>();
         }
-        return parse(type, mapping);
+        return parse(mapping);
     }
 
     @SuppressWarnings({"unchecked"})
-    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
-        if (type == null) {
-            throw new MapperParsingException("Failed to derive type");
-        }
+    private DocumentMapper parse(Map<String, Object> mapping) throws MapperParsingException {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
-                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+            (RootObjectMapper.Builder) rootObjectTypeParser.parse(MapperService.SINGLE_MAPPING_NAME, mapping, parserContext),
+            mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

@@ -4,6 +4,15 @@
 == Preface
 :client: https://www.elastic.co/guide/en/elasticsearch/client
 
+[NOTE]
+====
+This is a list of clients submitted by members of the Elastic community.
+Elastic does not support or endorse these clients.
+
+If you'd like to add a new client to this list, please
+https://github.com/elastic/elasticsearch/blob/master/CONTRIBUTING.md#contributing-code-and-documentation-changes[open a pull request].
+====
+
 Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
@@ -41,9 +50,9 @@ a number of clients that have been contributed by the community for various lang
 [[clojure]]
 == Clojure
 
-* https://github.com/mpenet/spandex[Spandex]: 
+* https://github.com/mpenet/spandex[Spandex]:
   Clojure client, based on the new official low level rest-client.
-  
+
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
@@ -64,6 +73,8 @@ a number of clients that have been contributed by the community for various lang
   http://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
   environment.
 
+* https://github.com/sashman/elasticsearch_elixir_bulk_processor[Elixir Bulk Processor]:
+  Dynamically configurable Elixir port of the [Bulk Processor](https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/java-docs-bulk-processor.html). Implemented using GenStages to handle backpressure.
 
 [[go]]
 == Go
@@ -75,7 +86,7 @@ Also see the {client}/go-api/current/index.html[official Elasticsearch Go client
 
 * https://github.com/olivere/elastic[elastic]:
   Elasticsearch client for Google Go.
-  
+
 * https://github.com/softctrl/elk[elk]
   Golang lib for Elasticsearch client.
 
@@ -106,8 +117,8 @@ Also see the {client}/javascript-api/current/index.html[official Elasticsearch J
 
 * https://github.com/mbuhot/eskotlin[ES Kotlin]:
   Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
-  
-* https://github.com/jillesvangurp/es-kotlin-wrapper-client[ES Kotlin Wrapper Client]: 
+
+* https://github.com/jillesvangurp/es-kotlin-wrapper-client[ES Kotlin Wrapper Client]:
   Kotlin extension functions and abstractions for the {client}/java-api/current/index.html[official Elasticsearch Highlevel Client]. Aims to reduce the amount of boilerplate needed to do searches, bulk indexing and other common things users do with the client.
 
 [[lua]]
@@ -154,7 +165,7 @@ Also see the {client}/python-api/current/index.html[official Elasticsearch Pytho
 
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
-  
+
 * https://github.com/uptake/uptasticsearch[uptasticsearch]:
   An R client tailored to data science workflows.
 
@@ -178,12 +189,14 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
 [[rust]]
 == Rust
 
+Also see the {client}/rust-api/current/index.html[official Elasticsearch Rust client].
+
 * https://github.com/benashford/rs-es[rs-es]:
   A REST API client with a strongly-typed Query DSL.
 
 * https://github.com/elastic-rs/elastic[elastic]:
   A modular REST API client that supports freeform queries.
-  
+
 [[scala]]
 == Scala
 
@@ -192,7 +205,7 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
 
 * https://github.com/gphat/wabisabi[wabisabi]:
   Asynchronous REST API Scala client.
-  
+
 * https://github.com/workday/escalar[escalar]:
   Type-safe Scala wrapper for the REST API.
 

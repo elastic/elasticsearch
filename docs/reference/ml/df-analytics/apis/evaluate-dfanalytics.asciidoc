@@ -22,7 +22,8 @@ experimental[]
 [[ml-evaluate-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following privileges:
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
 
 * cluster: `monitor_ml`
   
@@ -42,15 +43,16 @@ result field to be present.
 ==== {api-request-body-title}
 
 `evaluation`::
-(Required, object) Defines the type of evaluation you want to perform. The 
-value of this object can be different depending on the type of evaluation you 
-want to perform. See <<ml-evaluate-dfanalytics-resources>>.
+(Required, object) Defines the type of evaluation you want to perform.
+See <<ml-evaluate-dfanalytics-resources>>.
 +
 --
 Available evaluation types:
+
 * `binary_soft_classification`
 * `regression`
 * `classification`
+
 --
 
 `index`::
@@ -58,14 +60,14 @@ Available evaluation types:
 performed.
 
 `query`::
-(Optional, object) A query clause that retrieves a subset of data from the 
+(Optional, object) A query clause that retrieves a subset of data from the
 source index. See <<query-dsl>>.
 
 [[ml-evaluate-dfanalytics-resources]]
 ==== {dfanalytics-cap} evaluation resources
 
 [[binary-sc-resources]]
-===== Binary soft classification configuration objects
+===== Binary soft classification evaluation objects
 
 Binary soft classification evaluates the results of an analysis which outputs 
 the probability that each document belongs to a certain class. For example, in 
@@ -86,24 +88,24 @@ document is an outlier.
   (Optional, object) Specifies the metrics that are used for the evaluation. 
   Available metrics:
   
-  `auc_roc`::
+  `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver 
     operating characteristic) score and optionally the curve. Default value is 
     {"includes_curve": false}.
     
-  `precision`::
-    (Optional, object) Set the different thresholds of the {olscore} at where 
-    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
-  
-  `recall`::
-    (Optional, object) Set the different thresholds of the {olscore} at where 
-    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
-  
-  `confusion_matrix`::
-    (Optional, object) Set the different thresholds of the {olscore} at where 
-    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true 
-    negative, `fn` - false negative) are calculated. Default value is 
+  `confusion_matrix`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where
+    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true
+    negative, `fn` - false negative) are calculated. Default value is
     {"at": [0.25, 0.50, 0.75]}.
+
+  `precision`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `recall`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
 
     
 [[regression-evaluation-resources]]
@@ -121,9 +123,18 @@ which outputs a prediction of values.
   in other words the results of the {regression} analysis.
   
 `metrics`::
-  (Required, object) Specifies the metrics that are used for the evaluation. 
-  Available metrics are `r_squared` and `mean_squared_error`.
-  
+  (Optional, object) Specifies the metrics that are used for the evaluation.
+  Available metrics:
+
+  `mean_squared_error`:::
+    (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
+    For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
+
+  `r_squared`:::
+    (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
+    For more information, read https://en.wikipedia.org/wiki/Coefficient_of_determination[this wiki article].
+
+
   
 [[classification-evaluation-resources]]
 ==== {classification-cap} evaluation objects
@@ -133,20 +144,28 @@ outputs a prediction that identifies to which of the classes each document
 belongs.
 
 `actual_field`::
-  (Required, string) The field of the `index` which contains the ground truth. 
-  The data type of this field must be keyword.
-  
-`metrics`::
-  (Required, object) Specifies the metrics that are used for the evaluation. 
-  Available metric is `multiclass_confusion_matrix`.
+  (Required, string) The field of the `index` which contains the `ground truth`.
+  The data type of this field must be categorical.
   
 `predicted_field`::
   (Required, string) The field in the `index` that contains the predicted value, 
-  in other words the results of the {classanalysis}. The data type of this field 
-  is string. You need to add `.keyword` to the predicted field name (the name 
-  you put in the {classanalysis} object as `prediction_field_name` or the 
-  default value of the same field if you didn't specified explicitly). For 
-  example, `predicted_field` : `ml.animal_class_prediction.keyword`.
+  in other words the results of the {classanalysis}.
+
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation.
+  Available metrics:
+
+  `accuracy`:::
+    (Optional, object) Accuracy of predictions (per-class and overall).
+
+  `multiclass_confusion_matrix`:::
+    (Optional, object) Multiclass confusion matrix.
+
+  `precision`:::
+    (Optional, object) Precision of predictions (per-class and average).
+
+  `recall`:::
+    (Optional, object) Recall of predictions (per-class and average).
 
 
 ////
@@ -359,7 +378,7 @@ POST _ml/data_frame/_evaluate
    "evaluation": {
       "classification": { <1>
          "actual_field": "animal_class", <2>
-         "predicted_field": "ml.animal_class_prediction.keyword", <3>
+         "predicted_field": "ml.animal_class_prediction", <3>
          "metrics": {  
            "multiclass_confusion_matrix" : {} <4>
          }
@@ -373,8 +392,7 @@ POST _ml/data_frame/_evaluate
 <2> The field that contains the ground truth value for the actual animal 
 classification. This is required in order to evaluate results.
 <3> The field that contains the predicted value for animal classification by 
-the {classanalysis}. Since the field storing predicted class is dynamically 
-mapped as text and keyword, you need to add the `.keyword` suffix to the name.
+the {classanalysis}.
 <4> Specifies the metric for the evaluation.
 
 

@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -239,14 +238,9 @@ public class MetaDataIndexTemplateService {
             templateBuilder.settings(request.settings);
 
             if (request.mappings != null) {
-                try {
-                    templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
-                    dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                        MapperService.parseMapping(xContentRegistry, request.mappings), MergeReason.MAPPING_UPDATE);
-                }
-                catch (Exception e) {
-                    throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, request.mappings, e.getMessage());
-                }
+                templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
+                    MapperService.parseMapping(xContentRegistry, request.mappings), MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

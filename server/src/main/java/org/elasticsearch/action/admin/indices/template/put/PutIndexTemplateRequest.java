@@ -230,16 +230,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param source The mapping source
-     * @param xContentType The type of content contained within the source
-     */
-    public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
-        return mapping(new BytesArray(source), xContentType);
-    }
-
-    /**
      * The cause for this index template creation.
      */
     public PutIndexTemplateRequest cause(String cause) {
@@ -249,6 +239,16 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     public String cause() {
         return this.cause;
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     * @param xContentType The type of content contained within the source
+     */
+    public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
+        return mapping(new BytesArray(source), xContentType);
     }
 
     /**

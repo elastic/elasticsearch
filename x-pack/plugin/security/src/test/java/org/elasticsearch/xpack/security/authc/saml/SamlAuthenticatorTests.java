@@ -59,12 +59,26 @@ import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.xml.crypto.dsig.CanonicalizationMethod;
+import javax.xml.crypto.dsig.DigestMethod;
+import javax.xml.crypto.dsig.Reference;
+import javax.xml.crypto.dsig.SignatureMethod;
+import javax.xml.crypto.dsig.SignedInfo;
+import javax.xml.crypto.dsig.Transform;
+import javax.xml.crypto.dsig.XMLSignature;
+import javax.xml.crypto.dsig.XMLSignatureFactory;
+import javax.xml.crypto.dsig.dom.DOMSignContext;
+import javax.xml.crypto.dsig.keyinfo.KeyInfo;
+import javax.xml.crypto.dsig.keyinfo.KeyInfoFactory;
+import javax.xml.crypto.dsig.spec.C14NMethodParameterSpec;
+import javax.xml.crypto.dsig.spec.TransformParameterSpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -78,13 +92,15 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;;
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE;
+import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE_WITH_COMMENTS;
+import static javax.xml.crypto.dsig.Transform.ENVELOPED;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -109,6 +125,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     private static final String SP_ENTITY_ID = "https://sp.saml.elastic.test/";
     private static final String IDP_ENTITY_ID = "https://idp.saml.elastic.test/";
     private static final String SP_ACS_URL = SP_ENTITY_ID + "sso/post";
+    private static final String UID_OID = "urn:oid:0.9.2342.19200300.100.1.1";
 
     private static Tuple<X509Certificate, PrivateKey> idpSigningCertificatePair;
     private static Tuple<X509Certificate, PrivateKey> spSigningCertificatePair;
@@ -236,7 +253,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         assertThat(uid, iterableWithSize(1));
         assertThat(attributes.name(), notNullValue());
@@ -253,14 +270,14 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
 
         final List<String> groups = attributes.getAttributeValues("urn:oid:1.3.6.1.4.1.5923.1.5.1.1");
         assertThat(groups, containsInAnyOrder("defenders", "netflix"));
 
         assertThat(attributes.name(), notNullValue());
-        assertThat(attributes.name().format, equalTo(NameID.TRANSIENT));
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
         assertThat(attributes.name().value, equalTo(nameId));
         assertThat(attributes.name().idpNameQualifier, equalTo(IDP_ENTITY_ID));
         assertThat(attributes.name().spNameQualifier, equalTo(SP_ENTITY_ID));
@@ -283,7 +300,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
 
         final List<String> groups = attributes.getAttributeValues("urn:oid:1.3.6.1.4.1.5923.1.5.1.1");
@@ -303,7 +320,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
 
         final List<String> groups = attributes.getAttributeValues("urn:oid:1.3.6.1.4.1.5923.1.5.1.1");
@@ -337,7 +354,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
 
         final List<String> groups = attributes.getAttributeValues("urn:oid:1.3.6.1.4.1.5923.1.5.1.1");
@@ -432,7 +449,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         assertThat(uid, iterableWithSize(1));
         assertThat(attributes.name(), notNullValue());
@@ -806,7 +823,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 1 - Mangle the contents of the response to be
@@ -841,7 +858,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 2 - Mangle the contents of the response to be
@@ -878,7 +895,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 3 - Mangle the contents of the response to be
@@ -916,7 +933,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 4 - Mangle the contents of the response to be
@@ -952,7 +969,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 5 - Mangle the contents of the response to be
@@ -987,7 +1004,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 6 - Mangle the contents of the response to be
@@ -1028,7 +1045,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 7 - Mangle the contents of the response to be
@@ -1065,7 +1082,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(2));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
         assertThat(uid, contains("daredevil"));
         /*
         Permutation 8 - Mangle the contents of the response to be
@@ -1138,12 +1155,23 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     public void testIgnoredCommentsInLegitimateResponses() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't manually sign XML documents", inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
+        assumeFalse("Can't run in Azul Zulu JVM",System.getProperty("java.vendor", "").contains("Azul"));
+
         final String nameId = "user<!-- this is a comment -->admin@example.com";
         final String sanitizedNameId = "useradmin@example.com";
-        final String xml = getSimpleResponseAsString(clock.instant(), sanitizedNameId, randomId());
-        xml.replace(sanitizedNameId, nameId);
-        final SamlToken token = token(signResponse(xml));
+        String xml = getSimpleResponseAsString(clock.instant(), sanitizedNameId, randomId());
+        // Need to do this as #getSimpleResponseAsString will escape `<!--` and `-->`
+        xml = xml.replace(sanitizedNameId, nameId);
+        final Document doc = parseDocument(xml);
+        /**
+         * If we attempt to parse this to a Response object so that we can sign with {@link #signResponse(String)},
+         * {@link SamlRequestHandler#buildXmlObject(Element, Class)} will throw an exception
+         * because opensaml's Unmarshaller will fail to unmarshall it because of the comment.
+         * So we sign manually with {@link #signElement(Element, String)} which can't be used in FIPS 140 and Azul
+         */
+        signElement(doc.getDocumentElement(), EXCLUSIVE);
+        final SamlToken token = token(SamlUtils.toString(doc.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes.name(), notNullValue());
         assertThat(attributes.name().format, equalTo(TRANSIENT));
@@ -1151,12 +1179,23 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     public void testIgnoredCommentsInResponseUsingCanonicalizationWithComments() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't manually sign XML documents", inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
+        assumeFalse("Can't run in Azul Zulu JVM",System.getProperty("java.vendor", "").contains("Azul"));
+
         final String nameId = "user<!-- this is a comment -->admin@example.com";
         final String sanitizedNameId = "useradmin@example.com";
-        final String xml = getSimpleResponseAsString(clock.instant(), sanitizedNameId, randomId());
-        xml.replace(sanitizedNameId, nameId);
-        final SamlToken token = token(signResponse(xml));
+        String xml = getSimpleResponseAsString(clock.instant(), sanitizedNameId, randomId());
+        // Need to do this as #getSimpleResponseAsString will escape `<!--` and `-->`
+        xml = xml.replace(sanitizedNameId, nameId);
+        final Document doc = parseDocument(xml);
+        /**
+         * If we attempt to parse this to a Response object so that we can sign with {@link #signResponse(String)},
+         * {@link SamlRequestHandler#buildXmlObject(Element, Class)} will throw an exception
+         * because opensaml's Unmarshaller will fail to unmarshall it because of the comment.
+         * So we sign manually with {@link #signElement(Element, String)} which can't be used in FIPS 140 and Azul
+         */
+        signElement(doc.getDocumentElement(), EXCLUSIVE_WITH_COMMENTS);
+        final SamlToken token = token(SamlUtils.toString(doc.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes.name(), notNullValue());
         assertThat(attributes.name().format, equalTo(TRANSIENT));
@@ -1276,6 +1315,40 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         XMLObjectProviderRegistrySupport.getMarshallerFactory().getMarshaller(response).marshall(response);
         Signer.signObject(signature);
         return SamlUtils.samlObjectToString(response, false);
+    }
+
+    private void signElement(Element parent, String c14nMethod) throws Exception {
+        //We need to explicitly set the Id attribute, "ID" is just our convention
+        parent.setIdAttribute("ID", true);
+        final String refID = "#" + parent.getAttribute("ID");
+        final X509Certificate certificate = idpSigningCertificatePair.v1();
+        final PrivateKey privateKey = idpSigningCertificatePair.v2();
+        final XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
+        final DigestMethod digestMethod = fac.newDigestMethod(randomFrom(DigestMethod.SHA256, DigestMethod.SHA512), null);
+        final Transform transform = fac.newTransform(ENVELOPED, (TransformParameterSpec) null);
+        // We don't "have to" set the reference explicitly since we're using enveloped signatures, but it helps with
+        // creating the XSW test cases
+        final Reference reference = fac.newReference(refID, digestMethod, singletonList(transform), null, null);
+        final SignatureMethod signatureMethod = fac.newSignatureMethod(getSignatureAlgorithmURI(privateKey), null);
+        final CanonicalizationMethod canonicalizationMethod = fac.newCanonicalizationMethod(c14nMethod, (C14NMethodParameterSpec) null);
+
+        final SignedInfo signedInfo = fac.newSignedInfo(canonicalizationMethod, signatureMethod, singletonList(reference));
+        KeyInfoFactory kif = fac.getKeyInfoFactory();
+        javax.xml.crypto.dsig.keyinfo.X509Data data = kif.newX509Data(Collections.singletonList(certificate));
+        final KeyInfo keyInfo = kif.newKeyInfo(singletonList(data));
+
+        final DOMSignContext dsc = new DOMSignContext(privateKey, parent);
+        dsc.setDefaultNamespacePrefix("ds");
+        // According to the schema, the signature needs to be placed after the <Issuer> if there is one in the document
+        // If there are more than one <Issuer> we are dealing with a <Response> so we sign the Response and add the
+        // Signature after the Response <Issuer>
+        NodeList issuersList = parent.getElementsByTagNameNS(SAML20_NS, "Issuer");
+        if (issuersList.getLength() > 0) {
+            dsc.setNextSibling(issuersList.item(0).getNextSibling());
+        }
+
+        final XMLSignature signature = fac.newXMLSignature(signedInfo, keyInfo);
+        signature.sign(dsc);
     }
 
     private Response encryptAssertions(String xml, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
@@ -1426,7 +1499,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
             AttributeStatement.DEFAULT_ELEMENT_NAME);
         final Attribute attribute1 = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
         attribute1.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
-        attribute1.setName("urn:oid:0.9.2342.19200300.100.1.1");
+        attribute1.setName(UID_OID);
         XSStringBuilder stringBuilder = new XSStringBuilder();
         XSString stringValue1 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
         stringValue1.setValue("daredevil");

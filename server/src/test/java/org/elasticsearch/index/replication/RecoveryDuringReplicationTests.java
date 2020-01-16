@@ -30,6 +30,8 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -135,24 +137,23 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int missingOnReplica = shards.indexDocs(randomInt(5));
             docs += missingOnReplica;
 
-            final boolean translogTrimmed;
+            final boolean peerRecoveryRetentionLeaseExpired;
             if (randomBoolean()) {
-                shards.flush();
-                translogTrimmed = randomBoolean();
-                if (translogTrimmed) {
-                    final Translog translog = getTranslog(shards.getPrimary());
-                    translog.getDeletionPolicy().setRetentionAgeInMillis(0);
-                    translog.trimUnreferencedReaders();
+                peerRecoveryRetentionLeaseExpired = randomBoolean();
+                if (peerRecoveryRetentionLeaseExpired) {
+                    PlainActionFuture<ReplicationResponse> listener = new PlainActionFuture<>();
+                    shards.getPrimary().removePeerRecoveryRetentionLease(originalReplica.routingEntry().currentNodeId(), listener);
+                    listener.actionGet();
                 }
             } else {
-                translogTrimmed = false;
+                peerRecoveryRetentionLeaseExpired = false;
             }
             originalReplica.close("disconnected", false);
             IOUtils.close(originalReplica.store());
             final IndexShard recoveredReplica =
                 shards.addReplicaWithExistingPath(originalReplica.shardPath(), originalReplica.routingEntry().currentNodeId());
             shards.recoverReplica(recoveredReplica);
-            if (translogTrimmed && missingOnReplica > 0) {
+            if (peerRecoveryRetentionLeaseExpired && missingOnReplica > 0) {
                 // replica has something to catch up with, but since we trimmed the primary translog, we should fall back to full recovery
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
             } else {

@@ -266,7 +266,8 @@ public class ActionListenerTests extends ESTestCase {
             }
         });
 
-        expectThrows(IllegalArgumentException.class, () -> mapped.onResponse(null));
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> mapped.onResponse(null));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
         mapped.onResponse(false);
         assertNull(exReference.get());

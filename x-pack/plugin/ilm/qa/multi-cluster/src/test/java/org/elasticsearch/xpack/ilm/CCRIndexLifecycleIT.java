@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
@@ -742,8 +743,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
         Map<String, Object> response = toMap(client.performRequest(request));
-        Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) response.get(index)).get("settings");
-        return settings.get(setting);
+        return Optional.ofNullable((Map<?, ?>) response.get(index))
+            .map(m -> (Map<?, ?>) m.get("settings"))
+            .map(m -> m.get(setting))
+            .orElse(null);
     }
 
     private void assertDocumentExists(RestClient client, String index, String id) throws IOException {

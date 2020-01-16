@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -150,10 +149,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
 
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(10, 100))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
-        assertBusy(() -> {
-            SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
-            assertThat(syncedFlushResponse.successfulShards(), equalTo(2));
-        });
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
         if (randomBoolean()) {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(10, 100))
@@ -357,10 +352,11 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertNoOpRecoveries(indexName);
     }
 
-    private void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
+    public static void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
+        final ClusterService clusterService = internalCluster().clusterService();
         assertBusy(() -> {
             Index index = resolveIndex(indexName);
-            Set<String> activeRetentionLeaseIds = clusterService().state().routingTable().index(index).shard(0).shards().stream()
+            Set<String> activeRetentionLeaseIds = clusterService.state().routingTable().index(index).shard(0).shards().stream()
                 .map(shardRouting -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId()))
                 .collect(Collectors.toSet());
             for (String node : internalCluster().nodesInclude(indexName)) {

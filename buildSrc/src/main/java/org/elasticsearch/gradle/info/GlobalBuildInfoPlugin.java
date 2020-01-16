@@ -66,8 +66,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
 
-        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo",
-            GenerateGlobalBuildInfoTask.class, task -> {
+        GenerateGlobalBuildInfoTask generateTask = project.getTasks()
+            .create("generateGlobalBuildInfo", GenerateGlobalBuildInfoTask.class, task -> {
                 task.setJavaVersions(javaVersions);
                 task.setMinimumCompilerVersion(minimumCompilerVersion);
                 task.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -105,14 +105,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(findDefaultParallel(project));
         });
 
-        project.allprojects(p -> {
-            // Make sure than any task execution generates and prints build info
-            p.getTasks().configureEach(task -> {
-                if (task != generateTask && task != printTask) {
-                    task.dependsOn(printTask);
-                }
-            });
-        });
+        project.allprojects(
+            p -> {
+                // Make sure than any task execution generates and prints build info
+                p.getTasks().configureEach(task -> {
+                    if (task != generateTask && task != printTask) {
+                        task.dependsOn(printTask);
+                    }
+                });
+            }
+        );
     }
 
     private static File findCompilerJavaHome() {
@@ -140,11 +142,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static String findJavaHome(String version) {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
-            throw new GradleException(
-                "$" + getJavaHomeEnvVarName(version) + " must be set to build Elasticsearch. " +
-                    "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                    "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+            final String exceptionMessage = String.format(
+                Locale.ROOT,
+                "$%s must be set to build Elasticsearch. "
+                    + "Note that if the variable was just set you "
+                    + "might have to run `./gradlew --stop` for "
+                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
+                getJavaHomeEnvVarName(version)
             );
+
+            throw new GradleException(exceptionMessage);
         }
         return versionedJavaHome;
     }
@@ -154,9 +161,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static String getResourceContents(String resourcePath) {
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath))
-        )) {
+        try (
+            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
+        ) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                 if (b.length() != 0) {
@@ -191,7 +198,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             if (name.equals("physical id")) {
                                 currentID = value;
                             }
-                            // Number  of cores not including hyper-threading
+                            // Number of cores not including hyper-threading
                             if (name.equals("cpu cores")) {
                                 assert currentID.isEmpty() == false;
                                 socketToCore.put("currentID", Integer.valueOf(value));
@@ -295,9 +302,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static String readFirstLine(final Path path) throws IOException {
         String firstLine;
         try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
-            firstLine = lines
-                .findFirst()
-                .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+            firstLine = lines.findFirst().orElseThrow(() -> new IOException("file [" + path + "] is empty"));
         }
         return firstLine;
     }

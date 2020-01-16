@@ -61,7 +61,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -359,22 +358,19 @@ public class DockerTests extends PackagingTestCase {
 
         // Link to the password file. We can't use an absolute path for the target, because
         // it won't resolve inside the container.
-        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
+        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Paths.get(passwordFilename));
 
-        Map<String, String> envVars = Map.of(
-            "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + symlinkFilename,
-            // Enable security so that we can test that the password has been used
-            "xpack.security.enabled",
-            "true"
-        );
+        // Enable security so that we can test that the password has been used
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
+        envVars.put("xpack.security.enabled", "true");
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values. The wrapper will resolve the symlink
         // and check the target's permissions.
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
 
         // Restart the container - this will check that Elasticsearch started correctly,
         // and didn't fail to follow the symlink and check the file permissions
@@ -451,24 +447,21 @@ public class DockerTests extends PackagingTestCase {
         final String symlinkFilename = "password_symlink";
 
         // ELASTIC_PASSWORD_FILE
-        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes());
 
         // Link to the password file. We can't use an absolute path for the target, because
         // it won't resolve inside the container.
-        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
+        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Paths.get(passwordFilename));
 
-        Map<String, String> envVars = Map.of(
-            "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + symlinkFilename,
-            // Enable security so that we can test that the password has been used
-            "xpack.security.enabled",
-            "true"
-        );
+        // Enable security so that we can test that the password has been used
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
+        envVars.put("xpack.security.enabled", "true");
 
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
 
         // Restart the container
         final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
@@ -494,7 +487,7 @@ public class DockerTests extends PackagingTestCase {
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());
 
-        runContainer(distribution(), null, Collections.singletonMap("http.host", "this.is.not.valid"));
+        runContainer(distribution(), null, singletonMap("http.host", "this.is.not.valid"));
 
         // This will fail if the env var above is passed as a -E argument
         final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");

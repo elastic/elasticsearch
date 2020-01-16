@@ -76,14 +76,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
-            task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
             task.setGlobalInfoListeners(extension.listeners);
         });
 
@@ -103,6 +101,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
             params.setDefaultParallel(findDefaultParallel(project));
+            params.setInFipsJvm(isInFipsJvm());
         });
 
         project.allprojects(p -> {
@@ -151,6 +150,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getJavaHomeEnvVarName(String version) {
         return "JAVA" + version + "_HOME";
+    }
+
+    private static boolean isInFipsJvm() {
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 
     private static String getResourceContents(String resourcePath) {
@@ -268,10 +271,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 Path refFile = gitDir.resolve(refName);
                 if (Files.exists(refFile)) {
                     revision = readFirstLine(refFile);
-                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                } else if (Files.exists(gitDir.resolve("packed-refs"))) {
                     // Check packed references for commit ID
                     Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
-                    try (Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"))) {
+                    try (Stream<String> lines = Files.lines(gitDir.resolve("packed-refs"))) {
                         revision = lines.map(p::matcher)
                             .filter(Matcher::matches)
                             .map(m -> m.group(1))

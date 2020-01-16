@@ -40,6 +40,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -71,9 +71,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-public class SyncedFlushService implements IndexEventListener {
+public class SyncedFlushService {
 
     private static final Logger logger = LogManager.getLogger(SyncedFlushService.class);
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+
+    public static final String SYNCED_FLUSH_DEPRECATION_MESSAGE =
+        "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.";
 
     private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
     private static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";
@@ -101,25 +106,6 @@ public class SyncedFlushService implements IndexEventListener {
             new InFlightOpCountTransportHandler());
     }
 
-    @Override
-    public void onShardInactive(final IndexShard indexShard) {
-        // we only want to call sync flush once, so only trigger it when we are on a primary
-        if (indexShard.routingEntry().primary()) {
-            attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
-                @Override
-                public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
-                    logger.trace("{} sync flush on inactive shard returned successfully for sync_id: {}",
-                        syncedFlushResult.getShardId(), syncedFlushResult.syncId());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
-                }
-            });
-        }
-    }
-
     /**
      * a utility method to perform a synced flush for all shards of multiple indices.
      * see {@link #attemptSyncedFlush(ShardId, ActionListener)}
@@ -129,6 +115,7 @@ public class SyncedFlushService implements IndexEventListener {
                                    IndicesOptions indicesOptions,
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
+        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();
         int numberOfShards = 0;

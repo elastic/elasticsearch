@@ -79,6 +79,10 @@ public class S3HttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
             if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();

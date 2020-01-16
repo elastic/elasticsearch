@@ -28,43 +28,36 @@ experimental[]
 [[ml-get-dfanalytics-stats-prereq]]
 ==== {api-prereq-title}
 
-* You must have `monitor_ml` privilege to use this API. For more 
-information, see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-get-dfanalytics-stats-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Optional, string)Identifier for the {dfanalytics-job}. If you do not specify
-  one of these options, the API returns information for the first hundred
-  {dfanalytics-jobs}.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 
 
 [[ml-get-dfanalytics-stats-query-params]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {dfanalytics-jobs} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns an empty `data_frame_analytics` array 
-when there are no matches and the subset of results when there are partial 
-matches. If this parameter is `false`, the request returns a `404` status code 
-when there are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
-  (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
-  default value is `0`.
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=from]
 
 `size`::
-  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to
-  obtain. The default value is `100`.
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
 
 [[ml-get-dfanalytics-stats-response-body]]
@@ -73,25 +66,8 @@ when there are no matches or only partial matches.
 The API returns the following information:
 
 `data_frame_analytics`::
-  (array) An array of statistics objects for {dfanalytics-jobs}, which are
-  sorted by the `id` value in ascending order.
-  
-  `id`::
-    (string) The unique identifier of the {dfanalytics-job}.
-    
-  `state`::
-    (string) Current state of the {dfanalytics-job}.
-    
-  `progress`::
-    (array) The progress report of the {dfanalytics-job} by phase.
-    
-    `phase`::
-      (string) Defines the phase of the {dfanalytics-job}. Possible phases: 
-      `reindexing`, `loading_data`, `analyzing`, and `writing_results`.
-      
-    `progress_percent`::
-      (integer) The progress that the {dfanalytics-job} has made expressed in 
-      percentage.
+(array) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=data-frame-analytics-stats]
 
 
 [[ml-get-dfanalytics-stats-response-codes]]

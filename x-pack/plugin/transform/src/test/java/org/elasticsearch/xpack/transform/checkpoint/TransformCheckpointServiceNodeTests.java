@@ -19,7 +19,10 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -39,12 +42,13 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -54,6 +58,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -73,7 +78,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
     private static MockClientForCheckpointing mockClientForCheckpointing = null;
 
     private IndexBasedTransformConfigManager transformsConfigManager;
-    private TransformCheckpointService transformsCheckpointService;
+    private TransformCheckpointService transformCheckpointService;
 
     private class MockClientForCheckpointing extends NoOpClient {
 
@@ -136,7 +141,13 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
         // use a mock for the checkpoint service
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
-        transformsCheckpointService = new TransformCheckpointService(mockClientForCheckpointing, transformsConfigManager, mockAuditor);
+        transformCheckpointService = new TransformCheckpointService(
+            mockClientForCheckpointing,
+            Settings.EMPTY,
+            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            transformsConfigManager,
+            mockAuditor
+        );
     }
 
     @AfterClass
@@ -255,11 +266,12 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformCheckpointingInfo checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
-            30L
+            30L,
+            Instant.ofEpochMilli(timestamp)
         );
 
         assertAsync(
-            listener -> transformsCheckpointService.getCheckpointingInfo(transformId, 1, position, progress, listener),
+            listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
             checkpointInfo,
             null,
             null
@@ -269,10 +281,11 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
-            63L
+            63L,
+            Instant.ofEpochMilli(timestamp)
         );
         assertAsync(
-            listener -> transformsCheckpointService.getCheckpointingInfo(transformId, 1, position, progress, listener),
+            listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
             checkpointInfo,
             null,
             null
@@ -283,10 +296,11 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
-            0L
+            0L,
+            Instant.ofEpochMilli(timestamp)
         );
         assertAsync(
-            listener -> transformsCheckpointService.getCheckpointingInfo(transformId, 1, position, progress, listener),
+            listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
             checkpointInfo,
             null,
             null
@@ -341,6 +355,27 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
         }
         return shardStats.toArray(new ShardStats[0]);
+    }
+
+    private static void getCheckpoint(
+        TransformCheckpointService transformCheckpointService,
+        String transformId,
+        long lastCheckpointNumber,
+        TransformIndexerPosition nextCheckpointPosition,
+        TransformProgress nextCheckpointProgress,
+        ActionListener<TransformCheckpointingInfo> listener
+    ) {
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(
+            infoBuilder -> { listener.onResponse(infoBuilder.build()); },
+            listener::onFailure
+        );
+        transformCheckpointService.getCheckpointingInfo(
+            transformId,
+            lastCheckpointNumber,
+            nextCheckpointPosition,
+            nextCheckpointProgress,
+            checkPointInfoListener
+        );
     }
 
 }

@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Function;
 
 /**
@@ -47,7 +46,7 @@ import java.util.function.Function;
  * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterService#REMOTE_NODE_ATTRIBUTE}.
  *
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
- * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
+ * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
 final class RemoteClusterConnection implements Closeable {
@@ -67,18 +66,13 @@ final class RemoteClusterConnection implements Closeable {
      * @param transportService the local nodes transport service
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
-        this(settings, clusterAlias, transportService,
-            createConnectionManager(RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings), transportService));
-    }
-
-    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService,
-                            ConnectionManager connectionManager) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
-        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
+        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
-        connectionManager.addListener(transportService);
+        this.remoteConnectionManager.getConnectionManager().addListener(transportService);
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.threadPool = transportService.threadPool;
@@ -206,24 +200,7 @@ final class RemoteClusterConnection implements Closeable {
      * Get the information about remote nodes to be rendered on {@code _remote/info} requests.
      */
     public RemoteConnectionInfo getConnectionInfo() {
-        if (connectionStrategy instanceof SniffConnectionStrategy) {
-            SniffConnectionStrategy sniffStrategy = (SniffConnectionStrategy) this.connectionStrategy;
-            return new RemoteConnectionInfo(
-                clusterAlias,
-                sniffStrategy.getSeedNodes(),
-                sniffStrategy.getMaxConnections(),
-                getNumNodesConnected(),
-                initialConnectionTimeout,
-                skipUnavailable);
-        } else {
-            return new RemoteConnectionInfo(
-                clusterAlias,
-                Collections.emptyList(),
-                0,
-                getNumNodesConnected(),
-                initialConnectionTimeout,
-                skipUnavailable);
-        }
+        return new RemoteConnectionInfo(clusterAlias, connectionStrategy.getModeInfo(), initialConnectionTimeout, skipUnavailable);
     }
 
     int getNumNodesConnected() {
@@ -238,7 +215,7 @@ final class RemoteClusterConnection implements Closeable {
         return remoteConnectionManager.getConnectionManager();
     }
 
-    public boolean shouldRebuildConnection(Settings newSettings) {
+    boolean shouldRebuildConnection(Settings newSettings) {
         return connectionStrategy.shouldRebuildConnection(newSettings);
     }
 }

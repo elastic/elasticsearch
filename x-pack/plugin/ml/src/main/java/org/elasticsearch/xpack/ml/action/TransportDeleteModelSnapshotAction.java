@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,6 +30,8 @@ import java.util.List;
 
 public class TransportDeleteModelSnapshotAction extends HandledTransportAction<DeleteModelSnapshotAction.Request,
     AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteModelSnapshotAction.class);
 
     private final Client client;
     private final JobManager jobManager;

@@ -64,6 +64,7 @@ import org.junit.Before;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -280,9 +281,17 @@ public class InstallPluginCommandTests extends ESTestCase {
         installPlugin(pluginUrl, home, skipJarHellCommand);
     }
 
+    void installPlugins(final List<String> pluginUrls, final Path home) throws Exception {
+        installPlugins(pluginUrls, home, skipJarHellCommand);
+    }
+
     void installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-        command.execute(terminal, pluginUrl, false, env);
+        installPlugins(pluginUrl == null ? List.of() : List.of(pluginUrl), home, command);
+    }
+
+    void installPlugins(final List<String> pluginUrls, final Path home, final InstallPluginCommand command) throws Exception {
+        final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
+        command.execute(terminal, pluginUrls, false, env);
     }
 
     void assertPlugin(String name, Path original, Environment env) throws IOException {
@@ -382,7 +391,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMissingPluginId() throws IOException {
         final Tuple<Path, Environment> env = createEnv(fs, temp);
         final UserException e = expectThrows(UserException.class, () -> installPlugin(null, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("plugin id is required"));
+        assertTrue(e.getMessage(), e.getMessage().contains("at least one plugin id is required"));
     }
 
     public void testSomethingWorks() throws Exception {
@@ -391,6 +400,37 @@ public class InstallPluginCommandTests extends ESTestCase {
         String pluginZip = createPluginUrl("fake", pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testMultipleWorks() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String fake1PluginZip = createPluginUrl("fake1", pluginDir);
+        String fake2PluginZip = createPluginUrl("fake2", pluginDir);
+        installPlugins(List.of(fake1PluginZip, fake2PluginZip), env.v1());
+        assertPlugin("fake1", pluginDir, env.v2());
+        assertPlugin("fake2", pluginDir, env.v2());
+    }
+
+    public void testDuplicateInstall() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        final UserException e = expectThrows(UserException.class, () -> installPlugins(List.of(pluginZip, pluginZip), env.v1()));
+        assertThat(e, hasToString(containsString("duplicate plugin id [" + pluginZip + "]")));
+    }
+
+    public void testTransaction() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        final FileNotFoundException e =
+            expectThrows(FileNotFoundException.class, () -> installPlugins(List.of(pluginZip, pluginZip + "does-not-exist"), env.v1()));
+        assertThat(e, hasToString(containsString("does-not-exist")));
+        final Path fakeInstallPath = env.v2().pluginsFile().resolve("fake");
+        // fake should have been removed when the file not found exception occurred
+        assertFalse(Files.exists(fakeInstallPath));
+        assertInstallCleaned(env.v2());
     }
 
     public void testInstallFailsIfPreviouslyRemovedPluginFailed() throws Exception {
@@ -769,7 +809,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         };
 
         final Environment environment = createEnv(fs, temp).v2();
-        final T exception = expectThrows(clazz, () -> flavorCommand.execute(terminal, "x-pack", false, environment));
+        final T exception = expectThrows(clazz, () -> flavorCommand.execute(terminal, List.of("x-pack"), false, environment));
         assertThat(exception, hasToString(containsString(expectedMessage)));
     }
 
@@ -830,7 +870,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             writePluginSecurityPolicy(pluginDir, "setFactory");
         }
         String pluginZip = createPlugin("fake", pluginDir).toUri().toURL().toString();
-        skipJarHellCommand.execute(terminal, pluginZip, isBatch, env.v2());
+        skipJarHellCommand.execute(terminal, List.of(pluginZip), isBatch, env.v2());
     }
 
     void assertInstallPluginFromUrl(

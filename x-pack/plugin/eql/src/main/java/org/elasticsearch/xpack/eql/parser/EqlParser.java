@@ -20,8 +20,8 @@ import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.eql.expression.Expression;
 import org.antlr.v4.runtime.ANTLRInputStream;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.Arrays;
 import java.util.BitSet;

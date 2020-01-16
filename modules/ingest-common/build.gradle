@@ -28,3 +28,9 @@ dependencies {
   compile project(':libs:elasticsearch-grok')
   compile project(':libs:elasticsearch-dissect')
 }
+
+testClusters.integTest {
+  // Needed in order to test ingest pipeline templating:
+  // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
+  module file(project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile)
+}

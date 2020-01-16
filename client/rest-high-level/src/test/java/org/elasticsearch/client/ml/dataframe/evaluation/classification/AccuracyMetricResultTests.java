@@ -19,7 +19,7 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric.PerClassResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric.Result;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,29 +31,33 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AccuracyMetricResultTests extends AbstractXContentTestCase<AccuracyMetric.Result> {
+public class AccuracyMetricResultTests extends AbstractXContentTestCase<Result> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    @Override
-    protected AccuracyMetric.Result createTestInstance() {
+    public static Result randomResult() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
-        List<ActualClass> actualClasses = new ArrayList<>(numClasses);
+        List<PerClassResult> classes = new ArrayList<>(numClasses);
         for (int i = 0; i < numClasses; i++) {
             double accuracy = randomDoubleBetween(0.0, 1.0, true);
-            actualClasses.add(new ActualClass(classNames.get(i), randomNonNegativeLong(), accuracy));
+            classes.add(new PerClassResult(classNames.get(i), accuracy));
         }
         double overallAccuracy = randomDoubleBetween(0.0, 1.0, true);
-        return new Result(actualClasses, overallAccuracy);
+        return new Result(classes, overallAccuracy);
     }
 
     @Override
-    protected AccuracyMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return AccuracyMetric.Result.fromXContent(parser);
+    protected Result createTestInstance() {
+        return randomResult();
+    }
+
+    @Override
+    protected Result doParseInstance(XContentParser parser) throws IOException {
+        return Result.fromXContent(parser);
     }
 
     @Override

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.node;
 
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -151,7 +150,6 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnOutstandingTask() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44256", Constants.WINDOWS);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
@@ -164,7 +162,7 @@ public class NodeTests extends ESTestCase {
         threadRunning.await();
         node.close();
         shouldRun.set(false);
-        assertTrue(node.awaitClose(1, TimeUnit.DAYS));
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
     }
 
     public void testCloseRaceWithTaskExecution() throws Exception {
@@ -210,7 +208,7 @@ public class NodeTests extends ESTestCase {
         closeThread.join();
 
         shouldRun.set(false);
-        assertTrue(node.awaitClose(1, TimeUnit.DAYS));
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
     }
 
     public void testAwaitCloseTimeoutsOnNonInterruptibleTask() throws Exception {
@@ -227,7 +225,7 @@ public class NodeTests extends ESTestCase {
         node.close();
         assertFalse(node.awaitClose(0, TimeUnit.MILLISECONDS));
         shouldRun.set(false);
-        assertTrue(node.awaitClose(1, TimeUnit.DAYS));
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
     }
 
     public void testCloseOnInterruptibleTask() throws Exception {
@@ -251,7 +249,7 @@ public class NodeTests extends ESTestCase {
         });
         threadRunning.await();
         node.close();
-        // close should not interrput ongoing tasks
+        // close should not interrupt ongoing tasks
         assertFalse(interrupted.get());
         // but awaitClose should
         node.awaitClose(0, TimeUnit.SECONDS);
@@ -270,7 +268,7 @@ public class NodeTests extends ESTestCase {
         Searcher searcher = shard.acquireSearcher("test");
         node.close();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         searcher.close();
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
@@ -286,7 +284,7 @@ public class NodeTests extends ESTestCase {
         shard.store().incRef();
         node.close();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         shard.store().decRef();
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }

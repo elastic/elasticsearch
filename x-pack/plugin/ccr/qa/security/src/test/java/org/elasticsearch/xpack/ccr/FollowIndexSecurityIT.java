@@ -169,7 +169,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(allowedIndex);
             verifyDocuments(allowedIndex, 5, "*:*");
-        });
+        }, 30, TimeUnit.SECONDS);
         assertThat(indexExists(disallowedIndex), is(false));
         assertBusy(() -> {
             verifyCcrMonitoring(allowedIndex, allowedIndex);
@@ -202,7 +202,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             assertOK(client().performRequest(new Request("POST", "/" + forgetFollower + "/_ccr/pause_follow")));
 
-            try (RestClient leaderClient = buildLeaderClient(restClientSettings())) {
+            try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
                 final String requestBody = "{" +
                         "\"follower_cluster\":\"follow-cluster\"," +

@@ -7,7 +7,7 @@
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "old_cluster_outlier_detection_job" }
   - match: { data_frame_analytics.0.source.index: ["bwc_ml_outlier_detection_job_source"] }
-  - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy" }} }
+  - match: { data_frame_analytics.0.source.query: {"term" : { "user.keyword" : "Kimchy" }} }
   - match: { data_frame_analytics.0.dest.index: "old_cluster_outlier_detection_job_results" }
   - match: { data_frame_analytics.0.analysis: {
     "outlier_detection":{
@@ -56,10 +56,11 @@
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "old_cluster_regression_job" }
   - match: { data_frame_analytics.0.source.index: ["bwc_ml_regression_job_source"] }
-  - match: { data_frame_analytics.0.source.query: {"term": { "user": "Kimchy" }} }
+  - match: { data_frame_analytics.0.source.query: {"term": { "user.keyword": "Kimchy" }} }
   - match: { data_frame_analytics.0.dest.index: "old_cluster_regression_job_results" }
   - match: { data_frame_analytics.0.analysis.regression.dependent_variable: "foo" }
   - match: { data_frame_analytics.0.analysis.regression.training_percent: 100.0 }
+  - is_true: data_frame_analytics.0.analysis.regression.randomize_seed
 
 ---
 "Get old regression job stats":
@@ -101,7 +102,7 @@
           {
             "source": {
               "index": "bwc_ml_outlier_detection_job_source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
             },
             "dest": {
               "index": "mixed_cluster_outlier_detection_job_results"
@@ -116,7 +117,7 @@
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "mixed_cluster_outlier_detection_job" }
   - match: { data_frame_analytics.0.source.index: ["bwc_ml_outlier_detection_job_source"] }
-  - match: { data_frame_analytics.0.source.query: {"term": { "user": "Kimchy" }} }
+  - match: { data_frame_analytics.0.source.query: {"term": { "user.keyword": "Kimchy" }} }
   - match: { data_frame_analytics.0.dest.index: "mixed_cluster_outlier_detection_job_results" }
   - match: { data_frame_analytics.0.analysis: {
     "outlier_detection":{
@@ -142,3 +143,26 @@
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "mixed_cluster_outlier_detection_job" }
   - match: { data_frame_analytics.0.state: "stopped" }
+
+---
+"Put and delete a job":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "mixed_cluster_job_to_delete"
+        body: >
+          {
+            "source": {
+              "index": "bwc_ml_outlier_detection_job_source"
+            },
+            "dest": {
+              "index": "mixed_cluster_job_to_delete_results"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "mixed_cluster_job_to_delete" }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: mixed_cluster_job_to_delete
+  - match: { acknowledged: true }

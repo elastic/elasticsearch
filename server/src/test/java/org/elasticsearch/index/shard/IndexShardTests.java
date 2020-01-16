@@ -2911,25 +2911,23 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(indexShard, "_doc", id);
             }
             // Need to update and sync the global checkpoint and the retention leases for the soft-deletes retention MergePolicy.
-            if (indexShard.indexSettings.isSoftDeleteEnabled()) {
-                final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
-                if (indexShard.routingEntry().primary()) {
-                    indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint());
-                    indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint());
-                    indexShard.syncRetentionLeases();
-                } else {
-                    indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
+            final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
+            if (indexShard.routingEntry().primary()) {
+                indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint());
+                indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint());
+                indexShard.syncRetentionLeases();
+            } else {
+                indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
 
-                    final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
-                    indexShard.updateRetentionLeasesOnReplica(new RetentionLeases(
-                        retentionLeases.primaryTerm(), retentionLeases.version() + 1,
-                        retentionLeases.leases().stream().map(lease -> new RetentionLease(lease.id(), newGlobalCheckpoint + 1,
-                            lease.timestamp(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE)).collect(Collectors.toList())));
-                }
-                indexShard.sync();
+                final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
+                indexShard.updateRetentionLeasesOnReplica(new RetentionLeases(
+                    retentionLeases.primaryTerm(), retentionLeases.version() + 1,
+                    retentionLeases.leases().stream().map(lease -> new RetentionLease(lease.id(), newGlobalCheckpoint + 1,
+                        lease.timestamp(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE)).collect(Collectors.toList())));
             }
+            indexShard.sync();
             // flush the buffered deletes
             final FlushRequest flushRequest = new FlushRequest();
             flushRequest.force(false);
@@ -3419,7 +3417,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
-        primary.checkIdle(0);
+        primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
@@ -3513,14 +3511,12 @@ public class IndexShardTests extends IndexShardTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its memory usage is freed.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            primary.updateGlobalCheckpointForShard(
-                primary.routingEntry().allocationId().getId(),
-                primary.getLastSyncedGlobalCheckpoint());
-            primary.syncRetentionLeases();
-            primary.sync();
-            flushShard(primary);
-        }
+        primary.updateGlobalCheckpointForShard(
+            primary.routingEntry().allocationId().getId(),
+            primary.getLastSyncedGlobalCheckpoint());
+        primary.syncRetentionLeases();
+        primary.sync();
+        flushShard(primary);
         primary.refresh("force refresh");
 
         ss = primary.segmentStats(randomBoolean(), randomBoolean());
@@ -3629,38 +3625,13 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testFlushOnInactive() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1).build();
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting(new ShardId(metaData.getIndex(), 0), "n1", true,
-                ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
-        final ShardId shardId = shardRouting.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        AtomicBoolean markedInactive = new AtomicBoolean();
-        AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null, new InternalEngineFactory(), () -> { },
-            RetentionLeaseSyncer.EMPTY, new IndexEventListener() {
-                @Override
-                public void onShardInactive(IndexShard indexShard) {
-                    markedInactive.set(true);
-                    primaryRef.get().flush(new FlushRequest());
-                }
-            });
-        primaryRef.set(primary);
-        recoverShardFromStore(primary);
+    public void testFlushOnIdle() throws Exception {
+        IndexShard shard = newStartedShard();
         for (int i = 0; i < 3; i++) {
-            indexDoc(primary, "_doc", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
-            primary.refresh("test"); // produce segments
+            indexDoc(shard, "_doc", Integer.toString(i));
+            shard.refresh("test"); // produce segments
         }
-        List<Segment> segments = primary.segments(false);
+        List<Segment> segments = shard.segments(false);
         Set<String> names = new HashSet<>();
         for (Segment segment : segments) {
             assertFalse(segment.committed);
@@ -3668,10 +3639,10 @@ public class IndexShardTests extends IndexShardTestCase {
             names.add(segment.getName());
         }
         assertEquals(3, segments.size());
-        primary.flush(new FlushRequest());
-        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
-        primary.refresh("test");
-        segments = primary.segments(false);
+        shard.flush(new FlushRequest());
+        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
+        shard.refresh("test");
+        segments = shard.segments(false);
         for (Segment segment : segments) {
             if (names.contains(segment.getName())) {
                 assertTrue(segment.committed);
@@ -3683,20 +3654,18 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(4, segments.size());
 
-        assertFalse(markedInactive.get());
-        assertBusy(() -> {
-            primary.checkIdle(0);
-            assertFalse(primary.isActive());
-        });
+        shard.flushOnIdle(0);
+        assertFalse(shard.isActive());
 
-        assertTrue(markedInactive.get());
-        segments = primary.segments(false);
-        assertEquals(1, segments.size());
-        for (Segment segment : segments) {
-            assertTrue(segment.committed);
-            assertTrue(segment.search);
-        }
-        closeShards(primary);
+        assertBusy(() -> { // flush happens in the background using the flush threadpool
+            List<Segment> segmentsAfterFlush = shard.segments(false);
+            assertEquals(1, segmentsAfterFlush.size());
+            for (Segment segment : segmentsAfterFlush) {
+                assertTrue(segment.committed);
+                assertTrue(segment.search);
+            }
+        });
+        closeShards(shard);
     }
 
     public void testOnCloseStats() throws IOException {

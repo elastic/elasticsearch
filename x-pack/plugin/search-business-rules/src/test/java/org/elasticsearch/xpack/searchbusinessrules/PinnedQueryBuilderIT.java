@@ -148,14 +148,14 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
      */
     public void testExhaustiveScoring() throws Exception {
         assertAcked(prepareCreate("test")
-                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                .addMapping("_doc", jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("analyzer", "whitespace").field("type", "text").endObject()
                         .startObject("field2").field("analyzer", "whitespace").field("type", "text").endObject()
                                 .endObject().endObject().endObject())
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test").setId("1").setSource("field1", "foo").get();
-        client().prepareIndex("test").setId("2").setSource("field1", "foo", "field2", "foo").get();
+        client().prepareIndex("test", "_doc").setId("1").setSource("field1", "foo").get();
+        client().prepareIndex("test", "_doc").setId("2").setSource("field1", "foo", "field2", "foo").get();
 
         refresh();
 

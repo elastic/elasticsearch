@@ -834,7 +834,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
-            + "Please do not specify value for setting [index.soft_deletes.enabled]."));
+            + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
     }
 
     private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {

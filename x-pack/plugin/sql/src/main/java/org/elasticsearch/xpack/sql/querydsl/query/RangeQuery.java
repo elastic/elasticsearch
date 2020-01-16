@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import java.util.Objects;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 

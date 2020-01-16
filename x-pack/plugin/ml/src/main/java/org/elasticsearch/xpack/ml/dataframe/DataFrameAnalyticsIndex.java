@@ -22,9 +22,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
@@ -87,7 +89,7 @@ public final class DataFrameAnalyticsIndex {
                                                   ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
-        ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
+        ActionListener<MappingMetaData> mappingsListener = ActionListener.wrap(
             mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
             listener::onFailure
         );
@@ -115,19 +117,15 @@ public final class DataFrameAnalyticsIndex {
     }
 
     private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
-                                                         ImmutableOpenMap<String, MappingMetaData> mappings) {
-        // There should only be 1 type
-        assert mappings.size() == 1;
-
+                                                         MappingMetaData mappings) {
         String destinationIndex = config.getDest().getIndex();
-        String type = mappings.keysIt().next();
-        Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+        Map<String, Object> mappingsAsMap = mappings.sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetaData(config.getId(), clock));
-        return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
+        return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
     private static Settings settings(GetSettingsResponse settingsResponse) {
@@ -160,19 +158,34 @@ public final class DataFrameAnalyticsIndex {
         return maxValue;
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
         Map<String, Object> properties = new HashMap<>();
-        properties.put(ID_COPY, Map.of("type", "keyword"));
+        properties.put(ID_COPY, Map.of("type", KeywordFieldMapper.CONTENT_TYPE));
         for (Map.Entry<String, String> entry
                 : config.getAnalysis().getExplicitlyMappedFields(config.getDest().getResultsField()).entrySet()) {
             String destFieldPath = entry.getKey();
             String sourceFieldPath = entry.getValue();
-            Object sourceFieldMapping = mappingsProperties.get(sourceFieldPath);
-            if (sourceFieldMapping != null) {
+            Object sourceFieldMapping = extractMapping(sourceFieldPath, mappingsProperties);
+            if (sourceFieldMapping instanceof Map) {
+                Map<String, Object> sourceFieldMappingAsMap = (Map) sourceFieldMapping;
+                // If the source field is an alias, fetch the concrete field that the alias points to.
+                if (FieldAliasMapper.CONTENT_TYPE.equals(sourceFieldMappingAsMap.get("type"))) {
+                    String path = (String) sourceFieldMappingAsMap.get(FieldAliasMapper.Names.PATH);
+                    sourceFieldMapping = extractMapping(path, mappingsProperties);
+                }
+            }
+            // We may have updated the value of {@code sourceFieldMapping} in the "if" block above.
+            // Hence, we need to check the "instanceof" condition again.
+            if (sourceFieldMapping instanceof Map) {
                 properties.put(destFieldPath, sourceFieldMapping);
             }
         }
         return properties;
+    }
+
+    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
+        return extractValue(String.join("." + PROPERTIES + ".", path.split("\\.")), mappingsProperties);
     }
 
     private static Map<String, Object> createMetaData(String analyticsId, Clock clock) {
@@ -232,4 +245,3 @@ public final class DataFrameAnalyticsIndex {
         }
     }
 }
-

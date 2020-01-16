@@ -19,44 +19,22 @@
 
 package org.elasticsearch.tasksplugin;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
-import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
-import org.elasticsearch.rest.action.admin.cluster.RestListTasksAction;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
+/**
+ * This plugin currently only exists to register `.tasks` as a system index and prevent deprecation warnings.
+ */
 public class TasksPlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Arrays.asList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
-    }
-
-    @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(
-            new RestListTasksAction(restController, nodesInCluster),
-            new RestGetTaskAction(restController),
-            new RestCancelTasksAction(restController, nodesInCluster)
-        );
     }
 }

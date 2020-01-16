@@ -72,7 +72,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     }
 
     private List<String> fields = Collections.emptyList();
-    private ValueType valueType = null;
+    /* The parser doesn't support setting userValueTypeHint (aka valueType), but we do serialize and deserialize it, so keeping it around
+    for now so as to not break BWC.  Future refactors should feel free to remove this field. --Tozzi 2020-01-16
+     */
+    private ValueType userValueTypeHint = null;
     private String format = null;
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
@@ -85,7 +88,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
                                                   Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.fields = new ArrayList<>(clone.fields);
-        this.valueType = clone.valueType;
+        this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;
         this.missingMap = new HashMap<>(clone.missingMap);
         this.missing = clone.missing;
@@ -103,7 +106,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = (ArrayList<String>)in.readGenericValue();
-        valueType = in.readOptionalWriteable(ValueType::readFromStream);
+        userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
         missingMap = in.readMap();
     }
@@ -111,7 +114,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericValue(fields);
-        out.writeOptionalWriteable(valueType);
+        out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         out.writeMap(missingMap);
         innerWriteTo(out);
@@ -139,22 +142,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
      */
     public List<String> fields() {
         return fields;
-    }
-
-    /**
-     * Sets the {@link ValueType} for the value produced by this aggregation
-     */
-    @SuppressWarnings("unchecked")
-    public AB valueType(ValueType valueType) {
-        this.valueType = valueType;
-        return (AB) this;
-    }
-
-    /**
-     * Gets the {@link ValueType} for the value produced by this aggregation
-     */
-    public ValueType valueType() {
-        return valueType;
     }
 
     /**
@@ -208,7 +195,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
         HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, valueType, field, null, missingMap.get(field), null,
+            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, userValueTypeHint, field, null, missingMap.get(field), null,
                 format, s -> CoreValuesSourceType.BYTES, "");
             configs.put(field, config);
         }
@@ -233,8 +220,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         if (format != null) {
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
-        if (valueType != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), valueType.getPreferredName());
+        if (userValueTypeHint != null) {
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -245,7 +232,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, format, missing, valueType);
+        return Objects.hash(super.hashCode(), fields, format, missing, userValueTypeHint);
     }
 
     @Override
@@ -257,6 +244,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         return Objects.equals(fields, other.fields)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)
-            && Objects.equals(valueType, other.valueType);
+            && Objects.equals(userValueTypeHint, other.userValueTypeHint);
     }
 }

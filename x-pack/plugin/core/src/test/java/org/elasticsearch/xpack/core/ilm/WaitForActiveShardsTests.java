@@ -15,8 +15,15 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActiveShardsStep> {
@@ -136,4 +143,44 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         assertThat("the index the alias is pointing to has both the primary and the replica shards started so the condition should be" +
             " met", createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState).isComplete(), is(true));
     }
+
+    public void testResultReportsMeaningfulMessage() throws IOException {
+        String alias = randomAlphaOfLength(5);
+        IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
+            .putAlias(AliasMetaData.builder(alias).writeIndex(false))
+            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(1)
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
+            .putAlias(AliasMetaData.builder(alias).writeIndex(true))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put("index.write.wait_for_active_shards", "3")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(2)
+            .build();
+        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(rolledIndex.getIndex());
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true,
+            ShardRoutingState.STARTED));
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false,
+            ShardRoutingState.STARTED));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(originalIndex, true)
+                .put(rolledIndex, true)
+                .build())
+            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
+            .build();
+
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState);
+        assertThat(result.isComplete(), is(false));
+
+        XContentBuilder expected = new WaitForActiveShardsStep.Info(2, "3", false).toXContent(JsonXContent.contentBuilder(),
+            ToXContent.EMPTY_PARAMS);
+        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        assertThat(actualResultAsString, is(Strings.toString(expected)));
+        assertThat(actualResultAsString, containsString("Waiting for [3] shards to become active, but only [2] are active."));
+    }
+
 }

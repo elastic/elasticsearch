@@ -581,9 +581,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(topClasses, hasSize(numTopClasses));
         List<T> classNames = new ArrayList<>(topClasses.size());
         List<Double> classProbabilities = new ArrayList<>(topClasses.size());
+        List<Double> classScores = new ArrayList<>(topClasses.size());
         for (Map<String, Object> topClass : topClasses) {
             classNames.add(getFieldValue(topClass, "class_name"));
             classProbabilities.add(getFieldValue(topClass, "class_probability"));
+            classScores.add(getFieldValue(topClass, "class_score"));
         }
         // Assert that all the predicted class names come from the set of dependent variable values.
         classNames.forEach(className -> assertThat(className, is(in(dependentVariableValues))));
@@ -591,8 +593,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(classNames.get(0), equalTo(resultsObject.get(dependentVariable + "_prediction")));
         // Assert that all the class probabilities lie within [0, 1] interval.
         classProbabilities.forEach(p -> assertThat(p, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
-        // Assert that the top classes are listed in the order of decreasing probabilities.
-        assertThat(Ordering.natural().reverse().isOrdered(classProbabilities), is(true));
+        // Assert that the top classes are listed in the order of decreasing scores.
+        assertThat(Ordering.natural().reverse().isOrdered(classScores), is(true));
     }
 
     private <T> void assertEvaluation(String dependentVariable, List<T> dependentVariableValues, String predictedClassField) {

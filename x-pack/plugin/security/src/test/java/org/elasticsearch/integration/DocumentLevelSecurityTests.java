@@ -149,7 +149,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -190,7 +190,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
@@ -255,7 +255,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
@@ -328,10 +328,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMSearch() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
         );
         assertAcked(client().admin().indices().prepareCreate("test2")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
         );
 
         client().prepareIndex("test1").setId("1").setSource("field1", "value1", "id", 1).get();
@@ -407,7 +407,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                        .setMapping("field1", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field2", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
@@ -472,7 +472,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                        .setMapping("field1", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field2", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
@@ -538,7 +538,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGlobalAggregation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text,fielddata=true", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text,fielddata=true", "field3", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -709,7 +709,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public void testScroll() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         final int numVisible = scaledRandomIntBetween(2, 10);
         final int numInVisible = scaledRandomIntBetween(2, 10);
@@ -762,7 +762,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public void testRequestCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .get();
@@ -805,7 +805,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testUpdateApiIsBlocked() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=text", "field2", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -853,7 +853,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testNestedInnerHits() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "nested_field", "type=nested")
+                .setMapping("field1", "type=text", "nested_field", "type=nested")
         );
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()
@@ -903,7 +903,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                 )
-                .addMapping("type1", "field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
+                .setMapping("field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );
 
         client().prepareIndex("test").setId("1")
@@ -1001,7 +1001,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                 )
-                .addMapping("type1", "field1", "type=text", "other_field", "type=text")
+                .setMapping("field1", "type=text", "other_field", "type=text")
         );
 
         client().prepareIndex("test").setId("1")

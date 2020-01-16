@@ -122,8 +122,8 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword"));
-        assertAcked(prepareCreate("field-collapsing").addMapping("type", "group", "type=keyword"));
+        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate("field-collapsing").setMapping("group", "type=keyword"));
         createIndex("empty");
         assertAcked(prepareCreate("articles").setMapping(
             jsonBuilder().startObject().startObject("_doc").startObject("properties")
@@ -1096,7 +1096,7 @@ public class TopHitsIT extends ESIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         try {
-            assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(
                     Settings.builder()
                         .put("requests.cache.enable", true)

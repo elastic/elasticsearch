@@ -81,7 +81,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> Job.STRICT_PARSER.apply(parser, null).build());
-        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today]", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {

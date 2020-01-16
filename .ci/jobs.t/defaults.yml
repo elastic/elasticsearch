@@ -39,6 +39,7 @@
       - inject:
           properties-file: '.ci/java-versions.properties'
           properties-content: |
+            WORKSPACE=/dev/shm/$JOB_NAME
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA7_HOME=$HOME/.java/java7

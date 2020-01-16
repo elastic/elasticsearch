@@ -65,16 +65,12 @@ import org.xml.sax.SAXException;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import javax.xml.crypto.dsig.XMLSignatureFactory;
-import javax.xml.crypto.dsig.keyinfo.KeyInfo;
-import javax.xml.crypto.dsig.keyinfo.KeyInfoFactory;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -158,7 +154,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public static void initCredentials() throws Exception {
         idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
         spSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
-        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("RSA_2048"), readKeyPair("RSA_4096"));
+        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("ENCRYPTION_RSA_2048"), readKeyPair("ENCRYPTION_RSA_4096"));
     }
 
     private static String randomSigningAlgorithm() {
@@ -352,7 +348,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponseAsString(now);
 
-        final Response encrypted = encryptAssertions(xml, readKeyPair("RSA_4096_updated"));
+        final Response encrypted = encryptAssertions(xml, readKeyPair("ENCRYPTION_RSA_4096_updated"));
         final String encryptedString = SamlUtils.samlObjectToString(encrypted, false);
         assertThat(encryptedString, not(equalTo(xml)));
 

@@ -166,7 +166,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
     public void testMarkAsCompleted_ProgressDocumentUpdated() {
         testMarkAsCompleted(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Collections.singletonMap("_index", ".ml-state-dummy")) }, null, 0.0f),
             ".ml-state-dummy");
     }
 

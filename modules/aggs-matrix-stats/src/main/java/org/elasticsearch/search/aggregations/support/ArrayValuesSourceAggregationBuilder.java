@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -209,7 +208,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
         HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig config = config(queryShardContext, field, null);
+            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, valueType, field, null, missingMap.get(field), null,
+                format, s -> CoreValuesSourceType.BYTES, "");
             configs.put(field, config);
         }
         return configs;
@@ -219,12 +219,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
                                                                      Map<String, ValuesSourceConfig> configs,
                                                                      AggregatorFactory parent,
                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
-
-    public ValuesSourceConfig config(QueryShardContext queryShardContext, String field, Script script) {
-
-        return ValuesSourceConfig.resolve(queryShardContext, valueType, field, script, missingMap.get(field), null, format,
-            s -> CoreValuesSourceType.BYTES, "");
-    }
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

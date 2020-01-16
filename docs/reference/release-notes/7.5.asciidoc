@@ -1,7 +1,7 @@
 [[release-notes-7.5.2]]
 == {es} version 7.5.2
 
-coming::[5.7.2]
+coming::[7.5.2]
 
 [[release-notes-7.5.1]]
 == {es} version 7.5.1

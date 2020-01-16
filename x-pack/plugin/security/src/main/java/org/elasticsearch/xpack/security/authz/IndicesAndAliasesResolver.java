@@ -129,7 +129,7 @@ class IndicesAndAliasesResolver {
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
+                        if (isIndexVisible("*", authorizedIndex, indicesOptions, metaData)) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
@@ -356,7 +356,8 @@ class IndicesAndAliasesResolver {
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     aliasOrIndex = dateMathName;
-                } else if (authorizedIndices.contains(dateMathName) && isIndexVisible(dateMathName, indicesOptions, metaData, true)) {
+                } else if (authorizedIndices.contains(dateMathName) &&
+                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metaData, true)) {
                     if (minus) {
                         finalIndices.remove(dateMathName);
                     } else {
@@ -373,7 +374,8 @@ class IndicesAndAliasesResolver {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : authorizedIndices) {
-                    if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) && isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
+                    if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) &&
+                        isIndexVisible(aliasOrIndex, authorizedIndex, indicesOptions, metaData)) {
                         resolvedIndices.add(authorizedIndex);
                     }
                 }
@@ -408,11 +410,12 @@ class IndicesAndAliasesResolver {
         return finalIndices;
     }
 
-    private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData) {
-        return isIndexVisible(index, indicesOptions, metaData, false);
+    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, MetaData metaData) {
+        return isIndexVisible(expression, index, indicesOptions, metaData, false);
     }
 
-    private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData, boolean dateMathExpression) {
+    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, MetaData metaData,
+                                          boolean dateMathExpression) {
         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(index);
         if (aliasOrIndex.isAlias()) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
@@ -423,7 +426,7 @@ class IndicesAndAliasesResolver {
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
         final boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(indexMetaData.getSettings());
-        if (isHidden && indicesOptions.expandWildcardsHidden() == false) {
+        if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
             return false;
         }
 
@@ -439,6 +442,10 @@ class IndicesAndAliasesResolver {
             return true;
         }
         return false;
+    }
+
+    private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
+        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
     }
 
     private static List<String> indicesList(String[] list) {

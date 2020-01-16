@@ -741,7 +741,7 @@ public class IndexNameExpressionResolver {
 
                 final IndexMetaData.State excludeState = excludeState(options);
                 final Map<String, AliasOrIndex> matches = matches(context, metaData, expression);
-                Set<String> expand = expand(context, excludeState, matches, options.expandWildcardsHidden());
+                Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
                 if (add) {
                     result.addAll(expand);
                 } else {
@@ -837,7 +837,7 @@ public class IndexNameExpressionResolver {
         }
 
         private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches,
-                                          boolean includeHidden) {
+                                          String expression, boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
                 AliasOrIndex aliasOrIndex = entry.getValue();
@@ -846,7 +846,12 @@ public class IndexNameExpressionResolver {
                 } else {
                     for (IndexMetaData meta : aliasOrIndex.getIndices()) {
                         if (excludeState == null || meta.getState() != excludeState) {
-                            if (includeHidden || IndexMetaData.INDEX_HIDDEN_SETTING.get(meta.getSettings()) == false) {
+                            if (includeHidden) {
+                                expand.add(meta.getIndex().getName());
+                            } else if (IndexMetaData.INDEX_HIDDEN_SETTING.get(meta.getSettings()) == false) {
+                                expand.add(meta.getIndex().getName());
+                            } else if (meta.getIndex().getName().startsWith(".") &&
+                                expression.startsWith(".") && Regex.isSimpleMatchPattern(expression)) {
                                 expand.add(meta.getIndex().getName());
                             }
                         }

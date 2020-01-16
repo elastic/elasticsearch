@@ -44,9 +44,9 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("hidden-index")
             .setSettings(Settings.builder().put("index.hidden", true).build())
             .get());
-
-        // default not visible
         client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+
+        // default not visible to wildcard expansion
         SearchResponse searchResponse =
             client().prepareSearch(randomFrom("*", "_all", "h*", "*index")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         boolean matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> "hidden-index".equals(hit.getIndex()));
@@ -64,6 +64,18 @@ public class HiddenIndexIT extends ESIntegTestCase {
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
             .get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> "hidden-index".equals(hit.getIndex()));
+        assertTrue(matchedHidden);
+
+        // implicit based on use of pattern starting with . and a wildcard
+        assertAcked(client().admin().indices().prepareCreate(".hidden-index")
+            .setSettings(Settings.builder().put("index.hidden", true).build())
+            .get());
+        client().prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        searchResponse = client().prepareSearch(randomFrom(".*", ".hidden-*"))
+            .setSize(1000)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .get();
+        matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);
     }
 

@@ -274,6 +274,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("bar"))
                 .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")))
                 .put(indexBuilder("hidden", Settings.builder().put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden", Settings.builder().put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-closed", Settings.builder().put("index.hidden", true).build()).state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("hidden-closed", Settings.builder().put("index.hidden", true).build()).state(IndexMetaData.State.CLOSE));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
@@ -293,6 +295,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
         // Only open
         options = IndicesOptions.fromOptions(false, true, true, false, false);
         context = new IndexNameExpressionResolver.Context(state, options);
@@ -307,6 +318,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
+
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden"));
 
         // Open and closed
         options = IndicesOptions.fromOptions(false, true, true, true, false);
@@ -334,12 +354,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
         assertEquals(0, results.length);
 
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden", ".hidden-closed"));
+
         // open closed and hidden
         options = IndicesOptions.fromOptions(false, true, true, true, true);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
-        assertEquals(5, results.length);
-        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo", "hidden", "hidden-closed"));
+        assertEquals(7, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
         assertEquals(2, results.length);
@@ -350,16 +379,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals("bar", results[0]);
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo*");
-        assertEquals(3, results.length);
-        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed"));
+        assertEquals(5, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "-foobar");
-        assertEquals(3, results.length);
-        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed"));
+        assertEquals(5, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "-foobar", "-hidden*");
-        assertEquals(1, results.length);
-        assertEquals("bar", results[0]);
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", ".hidden", ".hidden-closed"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "hidden*");
         assertEquals(2, results.length);
@@ -380,8 +409,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         options = IndicesOptions.fromOptions(false, true, true, false, true);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
-        assertEquals(3, results.length);
-        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "hidden"));
+        assertEquals(4, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "hidden", ".hidden"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
         assertEquals(1, results.length);
@@ -399,8 +428,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         options = IndicesOptions.fromOptions(false, true, false, true, true);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
-        assertEquals(2, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foo", "hidden-closed"));
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("foo", "hidden-closed", ".hidden-closed"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
         assertEquals(1, results.length);

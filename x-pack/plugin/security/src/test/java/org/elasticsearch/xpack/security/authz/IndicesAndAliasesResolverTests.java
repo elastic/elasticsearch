@@ -141,6 +141,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("logs-00002").putAlias(AliasMetaData.builder("logs-alias").writeIndex(false)).settings(settings))
                 .put(indexBuilder("logs-00003").putAlias(AliasMetaData.builder("logs-alias").writeIndex(true)).settings(settings))
                 .put(indexBuilder("hidden-open").settings(Settings.builder().put(settings).put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-open").settings(Settings.builder().put(settings).put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-closed").state(State.CLOSE)
+                    .settings(Settings.builder().put(settings).put("index.hidden", true).build()))
                 .put(indexBuilder("hidden-closed").state(State.CLOSE)
                     .settings(Settings.builder().put(settings).put("index.hidden", true).build()))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
@@ -155,7 +158,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         userNoIndices = new User("test", "test");
         rolesStore = mock(CompositeRolesStore.class);
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "missing", "foofoo-closed",
-            "hidden-open", "hidden-closed"};
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"};
         String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
         roleMap = new HashMap<>();
         roleMap.put("role", new RoleDescriptor("role", null,
@@ -1378,8 +1381,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, true, true));
         List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(),
-            containsInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "hidden-open", "hidden-closed"));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // open + hidden
@@ -1387,7 +1390,16 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar", "foofoobar", "foobarfoo", "foofoo", "hidden-open"));
+        assertThat(resolvedIndices.getLocal(),
+            containsInAnyOrder("bar", "foofoobar", "foobarfoo", "foofoo", "hidden-open", ".hidden-open"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // open + implicit hidden for . indices
+        searchRequest = new SearchRequest(randomFrom(".*", ".hid*"));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // closed + hidden, ignore aliases
@@ -1395,7 +1407,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed"));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // closed + implicit hidden for . indices
+        searchRequest = new SearchRequest(randomFrom(".*", ".hid*"));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, false));
+        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-closed"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // allow no indices, do not expand to open or closed, expand hidden, ignore aliases

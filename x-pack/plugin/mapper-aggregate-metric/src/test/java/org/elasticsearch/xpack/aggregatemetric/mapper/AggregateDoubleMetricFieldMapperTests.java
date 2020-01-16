@@ -458,6 +458,41 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     }
 
     /**
+     * Test inserting a document containing an array of metrics. An exception must be thrown.
+     */
+    public void testParseArrayValue() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"min", "max"})
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () ->defaultMapper.parse(new SourceToParse("test", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject().startArray("metric")
+                    .startObject()
+                        .field("min", 10.0)
+                        .field("max", 50.0)
+                    .endObject().startObject()
+                        .field("min", 11.0)
+                        .field("max", 51.0)
+                    .endObject()
+                    .endArray().endObject()),
+                XContentType.JSON)));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [metric] of type [aggregate_metric_double] doesn't not support " +
+                "indexing multiple values for the same field in the same document"));
+    }
+
+    /**
      * Test setting the default_metric explicitly
      */
     public void testExplicitDefaultMetric() throws Exception {

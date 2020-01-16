@@ -1400,10 +1400,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                     new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
-                if (randomBoolean()) {
-                    client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                        new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
-                }
+                client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
+                    new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
             } else if (rarely()) {
                 client().admin().indices().prepareForceMerge(indices)
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())

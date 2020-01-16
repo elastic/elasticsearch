@@ -40,6 +40,7 @@ buildScan {
     if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-]+,?)+$/) {
       def baseJobName = splitJobName.dropRight(1).join('/')
       tag baseJobName
+      tag splitJobName.last()
       value 'Job Name', baseJobName
       def matrixParams = splitJobName.last().split(',')
       matrixParams.collect { it.split('=') }.each { param ->

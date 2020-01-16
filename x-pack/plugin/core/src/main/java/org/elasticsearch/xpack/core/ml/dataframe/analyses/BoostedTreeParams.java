@@ -92,7 +92,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         eta = in.readOptionalDouble();
         maximumNumberTrees = in.readOptionalVInt();
         featureBagFraction = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             numTopFeatureImportanceValues = in.readOptionalInt();
         } else {
             numTopFeatureImportanceValues = null;
@@ -106,7 +106,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         out.writeOptionalDouble(eta);
         out.writeOptionalVInt(maximumNumberTrees);
         out.writeOptionalDouble(featureBagFraction);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalInt(numTopFeatureImportanceValues);
         }
     }

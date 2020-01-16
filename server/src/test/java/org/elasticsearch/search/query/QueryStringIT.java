@@ -308,7 +308,7 @@ public class QueryStringIT extends ESIntegTestCase {
         builder.endObject(); // type1
         builder.endObject();
 
-        assertAcked(prepareCreate("ignoreunmappedfields").addMapping("type1", builder));
+        assertAcked(prepareCreate("ignoreunmappedfields").setMapping(builder));
 
         client().prepareIndex("ignoreunmappedfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();

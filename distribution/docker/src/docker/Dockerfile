@@ -80,8 +80,8 @@ COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \
     chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
-# Ensure that there are no files with setuid, in order to mitigate "stackclash" attacks.
-RUN find / -xdev -perm -4000 -exec chmod u-s {} +
+# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+RUN find / -xdev -perm -4000 -exec chmod ug-s {} +
 
 EXPOSE 9200 9300
 

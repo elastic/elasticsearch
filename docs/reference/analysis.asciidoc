@@ -146,7 +146,7 @@ include::analysis/overview.asciidoc[]
 
 include::analysis/concepts.asciidoc[]
 
-include::analysis/testing.asciidoc[]
+include::analysis/configure-text-analysis.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
 

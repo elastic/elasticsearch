@@ -286,7 +286,7 @@ public class IndexingIT extends ESRestTestCase {
         // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes
         String newNodes = nodes.getNewNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
         int numShards = randomIntBetween(1, 10);
-        int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size());
+        int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
         int totalShards = numShards * (numOfReplicas + 1);
         final String index = "test_synced_flush";
         createIndex(index, Settings.builder()

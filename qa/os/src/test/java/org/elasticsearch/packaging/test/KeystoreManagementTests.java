@@ -32,7 +32,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
@@ -271,8 +274,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
+        Map<Path, Path> volumes = new HashMap<>();
+        volumes.put(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("KEYSTORE_PASSWORD", password);
         runContainer(distribution(), volumes, envVars);
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
@@ -290,8 +295,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
+        Map<Path, Path> volumes = new HashMap<>();
+        volumes.put(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("KEYSTORE_PASSWORD", "wrong");
         Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
         assertThat(r.stderr, containsString(PASSWORD_ERROR_MESSAGE));
     }
@@ -305,16 +312,17 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
         // Mount a temporary directory for copying the keystore
-        Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
+        Path dockerTemp = Paths.get("/usr/tmp/keystore-tmp");
         Path tempDirectory = Files.createTempDirectory(getTempDir(), KeystoreManagementTests.class.getSimpleName());
-        Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
+        Map<Path, Path> volumes = new HashMap<>();
+        volumes.put(tempDirectory, dockerTemp);
 
         // It's very tricky to properly quote a pipeline that you're passing to
         // a docker exec command, so we're just going to put a small script in the
         // temp folder.
         String setPasswordScript = "echo \"" + password + "\n" + password
             + "\n\" | " + installation.executables().keystoreTool.toString() + " passwd";
-        Files.writeString(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
+        Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript.getBytes(StandardCharsets.UTF_8));
 
         runContainer(distribution(), volumes, null);
         try {

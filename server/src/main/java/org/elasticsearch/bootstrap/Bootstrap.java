@@ -274,7 +274,7 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
-        try (password) {
+        try{
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
@@ -285,6 +285,8 @@ final class Bootstrap {
             }
         } catch (Exception e) {
             throw new BootstrapException(e);
+        } finally {
+            password.close();
         }
         return keystore;
     }

@@ -678,6 +678,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             flushRequest.addParameter("force", "true");
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
+            if (randomBoolean()) {
+                syncedFlush(index);
+            }
 
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog

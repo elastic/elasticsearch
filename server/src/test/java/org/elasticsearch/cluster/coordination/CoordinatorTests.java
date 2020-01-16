@@ -991,16 +991,17 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster1.runRandomly();
             cluster1.stabilise();
 
-            final ClusterNode newNode;
+            final ClusterNode nodeInOtherCluster;
             try (Cluster cluster2 = new Cluster(3)) {
                 cluster2.runRandomly();
                 cluster2.stabilise();
 
-                final ClusterNode nodeInOtherCluster = randomFrom(cluster2.clusterNodes);
-                newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
-                    nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
-                    Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings);
+                nodeInOtherCluster = randomFrom(cluster2.clusterNodes);
             }
+
+            final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
+                nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
+                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings);
 
             cluster1.clusterNodes.add(newNode);
 

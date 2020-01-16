@@ -15,9 +15,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZoneId;
@@ -60,7 +60,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
     public void testNoAggs() {
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(emptyList()));
         TopHitsAggExtractor extractor = randomTopHitsAggExtractor();
-        SqlException exception = expectThrows(SqlException.class, () -> extractor.extract(bucket));
+        SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class, () -> extractor.extract(bucket));
         assertEquals("Cannot find an aggregation named " + extractor.name(), exception.getMessage());
     }
 

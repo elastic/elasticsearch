@@ -51,6 +51,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -265,9 +266,11 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         fieldType.setName(FIELD_NAME);
 
         try {
-            GeoGridAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, circuitBreakerService, fieldType);
+            Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, circuitBreakerService, fieldType);
             aggregator.preCollection();
-            aggregator.preGetSubLeafCollectors();
+            if (aggregator instanceof GeoGridAggregator) {
+                ((GeoGridAggregator) aggregator).preGetSubLeafCollectors();
+            }
             indexSearcher.search(query, aggregator);
             aggregator.postCollection();
             verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));

@@ -128,22 +128,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             }
         }
 
-        public long getCurrentActiveShardsCount() {
-            return currentActiveShardsCount;
-        }
-
-        public String getTargetActiveShardsCount() {
-            return targetActiveShardsCount;
-        }
-
-        public boolean enoughShardsActive() {
-            return enoughShardsActive;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

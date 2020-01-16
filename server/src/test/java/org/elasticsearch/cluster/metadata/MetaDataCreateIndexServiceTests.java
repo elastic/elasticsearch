@@ -564,8 +564,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test-overlapping", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test-overlapping", "test-2"));
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -597,8 +597,12 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             checkerService.validateIndexName(".pattern-test-other-suffix", ClusterState.EMPTY_STATE);
 
             // Check that an exception is thrown if more than one descriptor matches the index name
-            expectThrows(IllegalStateException.class,
+            IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> checkerService.validateIndexName(".pattern-test-overlapping", ClusterState.EMPTY_STATE));
+            assertThat(exception.getMessage(),
+                containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
+            assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
+            assertThat(exception.getMessage(), containsString("pattern: [.pattern-test-overlapping], description: [test-2]"));
 
         } finally {
             testThreadPool.shutdown();

@@ -92,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
@@ -164,8 +165,14 @@ public class MetaDataCreateIndexService {
                 DEPRECATION_LOGGER.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
                     "names starting with a dot will fail as these names are reserved for system indices", index);
             } else if (matchingDescriptors.size() > 1) {
-                // TODO: Actually supply the name here
-                throw new IllegalStateException("index name [" + index + "] is claimed as a system index by multiple plugins");
+                StringBuilder errorMessage = new StringBuilder()
+                    .append("index name [")
+                    .append(index)
+                    .append("] is claimed as a system index by multiple system index patterns: [")
+                    .append(matchingDescriptors.stream()
+                        .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
+                            "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+                throw new IllegalStateException(errorMessage.toString());
             }
         }
         if (state.routingTable().hasIndex(index)) {

@@ -97,12 +97,14 @@ public class SystemIndexDescriptor {
      * @throws IllegalStateException Thrown if any of the index patterns detectably overlaps with another.
      */
     public static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
-        List<Tuple<String, SystemIndexDescriptor>> descriptors = sourceToDescriptors.entrySet().stream()
+        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet().stream()
             .flatMap(entry -> entry.getValue().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .collect(Collectors.toList());
 
-        descriptors.forEach(descriptorToCheck -> {
-            List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = descriptors.stream()
+        // This is O(n^2) with the number of system index descriptors, but each check is fast and the absolute number of
+        // system index descriptors should be quite small (~10s at most). If this assumption changes this might need to be reworked.
+        sourceDescriptorPair.forEach(descriptorToCheck -> {
+            List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = sourceDescriptorPair.stream()
                 .filter(d -> descriptorToCheck.v2() != d.v2()) // Exclude the pattern currently being checked
                 .filter(d -> descriptorToCheck.v2().matchesIndexPattern(d.v2().getIndexPattern()))
                 .collect(Collectors.toList());

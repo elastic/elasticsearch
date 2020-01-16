@@ -30,6 +30,7 @@ import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 public class SysVInitTests extends PackagingTestCase {
@@ -38,7 +39,7 @@ public class SysVInitTests extends PackagingTestCase {
     public static void filterDistros() {
         assumeTrue("rpm or deb", distribution.isPackage());
         assumeTrue(Platforms.isSysVInit());
-        assumeTrue(Platforms.isSystemd());
+        assumeFalse(Platforms.isSystemd());
     }
 
     @Override

@@ -411,6 +411,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
+
+                if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                        "] doesn't not support indexing multiple values for the same field in the same document");
+                }
+
                 delegateFieldMapper.parse(context);
 
                 if (Metric.value_count == metric) {

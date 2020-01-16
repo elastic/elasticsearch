@@ -57,6 +57,7 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -354,7 +355,7 @@ public class DockerTests extends PackagingTestCase {
         final String symlinkFilename = "password_symlink";
 
         // ELASTIC_PASSWORD_FILE
-        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes());
+        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes(StandardCharsets.UTF_8));
 
         // Link to the password file. We can't use an absolute path for the target, because
         // it won't resolve inside the container.
@@ -447,7 +448,7 @@ public class DockerTests extends PackagingTestCase {
         final String symlinkFilename = "password_symlink";
 
         // ELASTIC_PASSWORD_FILE
-        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes());
+        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes(StandardCharsets.UTF_8));
 
         // Link to the password file. We can't use an absolute path for the target, because
         // it won't resolve inside the container.

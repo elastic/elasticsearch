@@ -141,7 +141,6 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     @BeforeClass
     public static void init() throws Exception {
-        // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
         SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
         Init.init();

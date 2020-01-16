@@ -299,7 +299,7 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testLimitOnExpandedFieldsButIgnoreUnmappedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("type1");
+        builder.startObject("_doc");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();

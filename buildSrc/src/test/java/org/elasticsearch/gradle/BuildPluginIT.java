@@ -86,16 +86,15 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     private void runInsecureArtifactRepositoryTest(final String name, final String url, final List<String> lines) throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
         final Path projectDirPath = projectDir.toPath();
-        FileUtils.copyDirectory(projectDir, tmpDir.getRoot(),
-            file -> {
-                final Path relativePath = projectDirPath.relativize(file.toPath());
-                for (int i = 0; i < relativePath.getNameCount(); i++) {
-                    if (relativePath.getName(i).toString().equals("build")) {
-                        return false;
-                    }
+        FileUtils.copyDirectory(projectDir, tmpDir.getRoot(), file -> {
+            final Path relativePath = projectDirPath.relativize(file.toPath());
+            for (int i = 0; i < relativePath.getNameCount(); i++) {
+                if (relativePath.getName(i).toString().equals("build")) {
+                    return false;
                 }
-                return true;
-            });
+            }
+            return true;
+        });
         final List<String> buildGradleLines = Files.readAllLines(tmpDir.getRoot().toPath().resolve("build.gradle"), StandardCharsets.UTF_8);
         buildGradleLines.addAll(lines);
         Files.write(tmpDir.getRoot().toPath().resolve("build.gradle"), buildGradleLines, StandardCharsets.UTF_8);

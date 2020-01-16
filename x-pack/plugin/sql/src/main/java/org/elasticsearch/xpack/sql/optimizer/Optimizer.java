@@ -1303,7 +1303,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 } else if (o1 instanceof NotEquals || o2 instanceof NotEquals) {
                     return o1 instanceof NotEquals ? 1 : -1; // push NotEquals up
                 } else {
-                    return 0; // keep non-Ranges' and non-NotEquals order
+                    return 0; // keep non-Ranges' and non-NotEquals' order
                 }
             });
             for (Expression ex : andExps) {

@@ -28,7 +28,6 @@ import java.nio.file.Files;
 
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.hamcrest.CoreMatchers.anyOf;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -53,14 +52,6 @@ public class SysVInitTests extends PackagingTestCase {
     @Override
     public void stopElasticsearch() {
         sh.run("service elasticsearch stop");
-    }
-
-    public void assertStatus(int code, String msg) {
-        Shell.Result result = sh.runIgnoreExitCode("service elasticsearch status");
-        assertThat(result.exitCode, equalTo(code));
-        if (msg != null) {
-            assertThat(result.stdout, containsString(msg));
-        }
     }
 
     public void test10Install() throws Exception {

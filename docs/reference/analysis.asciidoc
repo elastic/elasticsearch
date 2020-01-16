@@ -144,7 +144,7 @@ looking for:
 
 include::analysis/overview.asciidoc[]
 
-include::analysis/anatomy.asciidoc[]
+include::analysis/concepts.asciidoc[]
 
 include::analysis/testing.asciidoc[]
 

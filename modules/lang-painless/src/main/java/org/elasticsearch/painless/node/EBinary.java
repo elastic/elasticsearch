@@ -109,7 +109,7 @@ public final class EBinary extends AExpression {
                 if (right instanceof EBinary && ((EBinary) right).operation == Operation.ADD && rightOutput.actual == String.class) {
                     ((EBinary) right).cat = true;
                 }
-            } else if (promote == def.class) {
+            } else if (promote == def.class || shiftDistance != null && shiftDistance == def.class) {
                 left.input.expected = leftOutput.actual;
                 right.input.expected = rightOutput.actual;
 

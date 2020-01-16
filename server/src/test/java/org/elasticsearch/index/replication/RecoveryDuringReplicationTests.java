@@ -109,8 +109,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRecoveryOfDisconnectedReplica() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
-        try (ReplicationGroup shards = createGroup(1, settings)) {
+        try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();

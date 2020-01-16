@@ -342,18 +342,36 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         } catch (AssertionError ae) {
             {
                 Request request = new Request("GET", "/_watcher/stats");
-                Response response = client().performRequest(request);
-                logger.info("watcher_stats: {}", EntityUtils.toString(response.getEntity()));
+                request.addParameter("metric", "_all");
+                request.addParameter("pretty", "true");
+                try {
+                    Response response = client().performRequest(request);
+                    logger.info("watcher_stats: {}", EntityUtils.toString(response.getEntity()));
+                } catch (IOException e) {
+                    logger.error("error while fetching watcher_stats", e);
+                }
             }
             {
                 Request request = new Request("GET", "/_cluster/state");
-                Response response = client().performRequest(request);
-                logger.info("cluster_state: {}", EntityUtils.toString(response.getEntity()));
+                request.addParameter("pretty", "true");
+                try {
+                    Response response = client().performRequest(request);
+                    logger.info("cluster_state: {}", EntityUtils.toString(response.getEntity()));
+                } catch (IOException e) {
+                    logger.error("error while fetching cluster_state", e);
+                }
             }
             {
                 Request request = new Request("GET", "/.watcher-history-*/_search");
-                Response response = client().performRequest(request);
-                logger.info("watcher_history_snippets: {}", EntityUtils.toString(response.getEntity()));
+                request.addParameter("size", "100");
+                request.addParameter("sort", "trigger_event.triggered_time:desc");
+                request.addParameter("pretty", "true");
+                try {
+                    Response response = client().performRequest(request);
+                    logger.info("watcher_history_snippets: {}", EntityUtils.toString(response.getEntity()));
+                } catch (IOException e) {
+                    logger.error("error while fetching watcher_history_snippets", e);
+                }
             }
             throw ae;
         }

@@ -32,8 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -202,47 +200,22 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
     }
 
     public void testAssertBlocked() {
-        {
-            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-            Set<ClusterBlock> clusterBlocks = new HashSet<>();
-            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_BLOCK);
-            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
-            indexLevelBlocks.put("test", clusterBlocks);
-            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
-            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
-            assertBlocked(broadcastResponse);
-        }
-        {
-            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-            Set<ClusterBlock> clusterBlocks = new HashSet<>();
-            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
-            indexLevelBlocks.put("test", clusterBlocks);
-            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
-            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
-            assertBlocked(broadcastResponse);
-        }
-        {
-            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-            Set<ClusterBlock> clusterBlocks = new HashSet<>();
-            clusterBlocks.add(IndexMetaData.INDEX_READ_BLOCK);
-            clusterBlocks.add(IndexMetaData.INDEX_METADATA_BLOCK);
-            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
-            indexLevelBlocks.put("test", clusterBlocks);
-            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
-            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
-            assertBlocked(broadcastResponse);
-        }
-        {
-            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-            Set<ClusterBlock> clusterBlocks = new HashSet<>();
-            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_BLOCK);
-            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
-            indexLevelBlocks.put("test", clusterBlocks);
-            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
-            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
-            assertBlocked(broadcastResponse);
-        }
+        Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
+
+        indexLevelBlocks.put("test", Set.of(IndexMetaData.INDEX_READ_ONLY_BLOCK));
+        assertBlocked(new BroadcastResponse(1, 0, 1, List.of(new DefaultShardOperationFailedException("test", 0,
+            new ClusterBlockException(indexLevelBlocks)))));
+
+        indexLevelBlocks.put("test", Set.of(IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+        assertBlocked(new BroadcastResponse(1, 0, 1, List.of(new DefaultShardOperationFailedException("test", 0,
+            new ClusterBlockException(indexLevelBlocks)))));
+
+        indexLevelBlocks.put("test", Set.of(IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_METADATA_BLOCK));
+        assertBlocked(new BroadcastResponse(1, 0, 1, List.of(new DefaultShardOperationFailedException("test", 0,
+            new ClusterBlockException(indexLevelBlocks)))));
+
+        indexLevelBlocks.put("test", Set.of(IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+        assertBlocked(new BroadcastResponse(1, 0, 1, List.of(new DefaultShardOperationFailedException("test", 0,
+            new ClusterBlockException(indexLevelBlocks)))));
     }
 }

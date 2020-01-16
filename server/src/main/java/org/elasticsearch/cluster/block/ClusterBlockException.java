@@ -113,7 +113,7 @@ public class ClusterBlockException extends ElasticsearchException {
         boolean onlyRetryableBlocks = true;
         for (ClusterBlock block : blocks) {
             boolean isRetryableBlock = block.status() == RestStatus.TOO_MANY_REQUESTS;
-            if (!isRetryableBlock) {
+            if (isRetryableBlock == false) {
                 if (status == null) {
                     status = block.status();
                 } else if (status.getStatus() < block.status().getStatus()) {

@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -417,11 +418,30 @@ public class TaskManager implements ClusterStateApplier {
         throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
+    public void registerChildNode(long taskId, DiscoveryNode node) {
+        CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            holder.registerChildNode(node);
+        }
+    }
+
+    public Set<DiscoveryNode> startBanOnChildrenNodes(long taskId) {
+        CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            return holder.startBan();
+        }
+        return Collections.emptySet();
+    }
+
     private static class CancellableTaskHolder {
 
         private static final String TASK_FINISHED_MARKER = "task finished";
 
         private final CancellableTask task;
+
+        private final Set<DiscoveryNode> nodes = new HashSet<>();
+
+        private volatile boolean banChildren = false;
 
         private volatile String cancellationReason = null;
 
@@ -429,6 +449,25 @@ public class TaskManager implements ClusterStateApplier {
 
         CancellableTaskHolder(CancellableTask task) {
             this.task = task;
+        }
+
+        public void registerChildNode(DiscoveryNode node) {
+            synchronized (this) {
+                if (banChildren) {
+                    throw new TaskCancelledException("The parent task was cancelled, shouldn't start any children tasks");
+                }
+                nodes.add(node);
+            }
+        }
+
+        public Set<DiscoveryNode> startBan() {
+            synchronized (this) {
+                if (banChildren) {
+                    throw new TaskCancelledException("The parent task was cancelled, shouldn't start any children tasks");
+                }
+                banChildren = true;
+            }
+            return nodes;
         }
 
         /**

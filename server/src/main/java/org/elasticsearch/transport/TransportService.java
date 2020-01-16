@@ -542,10 +542,15 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
         try {
+            if (request.getParentTask().isSet()) {
+                taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+            }
             asyncSender.sendRequest(connection, action, request, options, handler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
+        } catch (TaskCancelledException ex) {
+            handler.handleException(new TransportException(ex));
         }
     }
 

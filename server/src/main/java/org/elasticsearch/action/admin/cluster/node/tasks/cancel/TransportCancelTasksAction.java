@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -27,7 +26,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,7 +45,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -105,16 +106,17 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Override
     protected synchronized void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask,
             ActionListener<TaskInfo> listener) {
-        String nodeId = clusterService.localNode().getId();
+        DiscoveryNode localNode = clusterService.localNode();
+        String nodeId = localNode.getId();
         final boolean canceled;
         if (cancellableTask.shouldCancelChildrenOnCancellation()) {
-            DiscoveryNodes childNodes = clusterService.state().nodes();
-            final BanLock banLock = new BanLock(childNodes.getSize(), () -> removeBanOnNodes(cancellableTask, childNodes));
+            Set<DiscoveryNode> childNodes = withLocalNode(localNode, taskManager.startBanOnChildrenNodes(cancellableTask.getId()));
+            final BanLock banLock = new BanLock(childNodes.size(), () -> removeBanOnNodes(cancellableTask, childNodes));
             canceled = taskManager.cancel(cancellableTask, request.getReason(), banLock::onTaskFinished);
             if (canceled) {
                 // /In case the task has some child tasks, we need to wait for until ban is set on all nodes
-                logger.trace("cancelling task {} on child nodes", cancellableTask.getId());
-                AtomicInteger responses = new AtomicInteger(childNodes.getSize());
+                logger.info("cancelling task {} on child nodes", cancellableTask.getId());
+                AtomicInteger responses = new AtomicInteger(childNodes.size());
                 List<Exception> failures = new ArrayList<>();
                 setBanOnNodes(request.getReason(), cancellableTask, childNodes, new ActionListener<Void>() {
                     @Override
@@ -145,11 +147,12 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                     }
                 });
             }
+//            }
         }  else {
             canceled = taskManager.cancel(cancellableTask, request.getReason(),
                 () -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)));
             if (canceled) {
-                logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
+                logger.trace("task {} doesn't require child task cancellation", cancellableTask.getId());
             }
         }
         if (canceled == false) {
@@ -158,22 +161,36 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         }
     }
 
-    private void setBanOnNodes(String reason, CancellableTask task, DiscoveryNodes nodes, ActionListener<Void> listener) {
+    private static Set<DiscoveryNode> withLocalNode(DiscoveryNode localNode, Set<DiscoveryNode> nodes) {
+        if (nodes.contains(localNode) == false) {
+            if ( nodes.isEmpty()) {
+                return Collections.singleton(localNode);
+            } else {
+                Set<DiscoveryNode> nodesWithLocal = new HashSet<>(nodes);
+                nodes.add(localNode);
+                return nodesWithLocal;
+            }
+        } else {
+            return nodes;
+        }
+    }
+
+    private void setBanOnNodes(String reason, CancellableTask task, Set<DiscoveryNode> nodes, ActionListener<Void> listener) {
         sendSetBanRequest(nodes,
             BanParentTaskRequest.createSetBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId()), reason),
             listener);
     }
 
-    private void removeBanOnNodes(CancellableTask task, DiscoveryNodes nodes) {
+    private void removeBanOnNodes(CancellableTask task, Set<DiscoveryNode> nodes) {
         sendRemoveBanRequest(nodes,
             BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId())));
     }
 
-    private void sendSetBanRequest(DiscoveryNodes nodes, BanParentTaskRequest request, ActionListener<Void> listener) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getNodes()) {
-            logger.trace("Sending ban for tasks with the parent [{}] to the node [{}], ban [{}]", request.parentTaskId, node.key,
+    private void sendSetBanRequest(Set<DiscoveryNode> nodes, BanParentTaskRequest request, ActionListener<Void> listener) {
+        for (DiscoveryNode node : nodes) {
+            logger.trace("Sending ban for tasks with the parent [{}] to the node [{}], ban [{}]", request.parentTaskId, node.getId(),
                 request.ban);
-            transportService.sendRequest(node.value, BAN_PARENT_ACTION_NAME, request,
+            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request,
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
@@ -182,17 +199,17 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
                     @Override
                     public void handleException(TransportException exp) {
-                        logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.key);
+                        logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.getId());
                         listener.onFailure(exp);
                     }
                 });
         }
     }
 
-    private void sendRemoveBanRequest(DiscoveryNodes nodes, BanParentTaskRequest request) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getNodes()) {
-            logger.debug("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.key);
-            transportService.sendRequest(node.value, BAN_PARENT_ACTION_NAME, request, EmptyTransportResponseHandler
+    private void sendRemoveBanRequest(Set<DiscoveryNode> nodes, BanParentTaskRequest request) {
+        for (DiscoveryNode node : nodes) {
+            logger.debug("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.getId());
+            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, EmptyTransportResponseHandler
                 .INSTANCE_SAME);
         }
     }

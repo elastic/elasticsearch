@@ -48,7 +48,10 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        this.input = input;
+        output = new Output();
+
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
         getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
@@ -68,15 +71,18 @@ final class PSubListShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
-            index.expected = int.class;
-            index.analyze(scriptRoot, scope);
+        if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+            Input indexInput = new Input();
+            indexInput.expected = int.class;
+            index.analyze(scriptRoot, scope, indexInput);
             index.cast();
 
-            actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+            output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));
         }
+
+        return output;
     }
 
     @Override
@@ -86,7 +92,7 @@ final class PSubListShortcut extends AStoreable {
         listSubShortcutNode.setChildNode(index.cast(index.write(classNode)));
 
         listSubShortcutNode.setLocation(location);
-        listSubShortcutNode.setExpressionType(actual);
+        listSubShortcutNode.setExpressionType(output.actual);
         listSubShortcutNode.setGetter(getter);
         listSubShortcutNode.setSetter(setter);
 

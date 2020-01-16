@@ -85,6 +85,8 @@ public final class EBinary extends AExpression {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, false);
             } else if (operation == Operation.XOR) {
                 promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+            } else {
+                throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
             }
 
             if (promote == null) {

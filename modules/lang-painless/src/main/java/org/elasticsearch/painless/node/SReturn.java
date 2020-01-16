@@ -48,9 +48,10 @@ public final class SReturn extends AStatement {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
-            expression.expected = scope.getReturnType();
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = scope.getReturnType();
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
 

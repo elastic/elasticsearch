@@ -53,51 +53,66 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        prefix.analyze(scriptRoot, scope);
-        prefix.expected = prefix.actual;
+    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+        AStoreable.Input storeableInput = new AStoreable.Input();
+        storeableInput.read = input.read;
+        storeableInput.expected = input.expected;
+        storeableInput.explicit = input.explicit;
+        storeableInput.internal = input.internal;
+
+        return analyze(scriptRoot, scope, storeableInput);
+    }
+
+    @Override
+    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        this.input = input;
+        output = new Output();
+
+        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
+        prefix.input.expected = prefixOutput.actual;
         prefix.cast();
 
-        if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
-        } else if (prefix.actual == def.class) {
+        if (prefixOutput.actual.isArray()) {
+            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), value);
+        } else if (prefixOutput.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
+            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefix instanceof EStatic, value);
 
             if (field == null) {
                 PainlessMethod getter;
                 PainlessMethod setter;
 
-                getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                         "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter == null) {
-                    getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                    getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                             "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                         "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(
+                            location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(scriptRoot, scope);
+                    index.analyze(scriptRoot, scope, new Input());
 
-                    if (Map.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubMapShortcut(location, prefix.actual, index);
+                    if (Map.class.isAssignableFrom(prefixOutput.actual)) {
+                        sub = new PSubMapShortcut(location, prefixOutput.actual, index);
                     }
 
-                    if (List.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubListShortcut(location, prefix.actual, index);
+                    if (List.class.isAssignableFrom(prefixOutput.actual)) {
+                        sub = new PSubListShortcut(location, prefixOutput.actual, index);
                     }
                 }
 
                 if (sub == null) {
                     throw createError(new IllegalArgumentException(
-                            "field [" + typeToCanonicalTypeName(prefix.actual) + ", " + value + "] not found"));
+                            "field [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + value + "] not found"));
                 }
             } else {
                 sub = new PSubField(location, field);
@@ -108,12 +123,15 @@ public final class PField extends AStoreable {
             sub = new PSubNullSafeField(location, sub);
         }
 
-        sub.write = write;
-        sub.read = read;
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(scriptRoot, scope);
-        actual = sub.actual;
+        Input subInput = new Input();
+        subInput.write = input.write;
+        subInput.read = input.read;
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
+
+        return output;
     }
 
     @Override
@@ -124,7 +142,7 @@ public final class PField extends AStoreable {
         dotNode.setRightNode(sub.write(classNode));
 
         dotNode.setLocation(location);
-        dotNode.setExpressionType(actual);
+        dotNode.setExpressionType(output.actual);
 
         return dotNode;
     }
@@ -137,7 +155,7 @@ public final class PField extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         sub.updateActual(actual);
-        this.actual = actual;
+        this.output.actual = actual;
     }
 
     @Override

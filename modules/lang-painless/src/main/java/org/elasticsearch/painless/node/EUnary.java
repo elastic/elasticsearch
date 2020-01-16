@@ -51,88 +51,43 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        originallyExplicit = explicit;
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        originallyExplicit = input.explicit;
 
         if (operation == Operation.NOT) {
-            analyzeNot(scriptRoot, scope);
-        } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(scriptRoot, scope);
-        } else if (operation == Operation.ADD) {
-            analyzerAdd(scriptRoot, scope);
-        } else if (operation == Operation.SUB) {
-            analyzerSub(scriptRoot, scope);
+            Input childInput = new Input();
+            childInput.expected = boolean.class;
+            child.analyze(scriptRoot, scope, childInput);
+            child.cast();
+
+            output.actual = boolean.class;
+        } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
+            Output childOutput = child.analyze(scriptRoot, scope, new Input());
+
+            promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
+
+            if (promote == null) {
+                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                        "[" + operation.symbol + "] to the type " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
+            }
+
+            child.input.expected = promote;
+            child.cast();
+
+            if (promote == def.class && input.expected != null) {
+                output.actual = input.expected;
+            } else {
+                output.actual = promote;
+            }
         } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-    }
-
-    void analyzeNot(ScriptRoot scriptRoot, Scope variables) {
-        child.expected = boolean.class;
-        child.analyze(scriptRoot, variables);
-        child.cast();
-
-        actual = boolean.class;
-    }
-
-    void analyzeBWNot(ScriptRoot scriptRoot, Scope variables) {
-        child.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(child.actual, false);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply not [~] to type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(child.actual) + "]."));
+            throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
         }
 
-        child.expected = promote;
-        child.cast();
-
-        if (promote == def.class && expected != null) {
-            actual = expected;
-        } else {
-            actual = promote;
-        }
-    }
-
-    void analyzerAdd(ScriptRoot scriptRoot, Scope variables) {
-        child.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply positive [+] to type " +
-                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
-        }
-
-        child.expected = promote;
-        child.cast();
-
-        if (promote == def.class && expected != null) {
-            actual = expected;
-        } else {
-            actual = promote;
-        }
-    }
-
-    void analyzerSub(ScriptRoot scriptRoot, Scope variables) {
-        child.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply negative [-] to type " +
-                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
-        }
-
-        child.expected = promote;
-        child.cast();
-
-        if (promote == def.class && expected != null) {
-            actual = expected;
-        } else {
-            actual = promote;
-        }
+        return output;
     }
 
     @Override
@@ -142,7 +97,7 @@ public final class EUnary extends AExpression {
         unaryMathNode.setChildNode(child.cast(child.write(classNode)));
 
         unaryMathNode.setLocation(location);
-        unaryMathNode.setExpressionType(actual);
+        unaryMathNode.setExpressionType(output.actual);
         unaryMathNode.setUnaryType(promote);
         unaryMathNode.setOperation(operation);
         unaryMathNode.setOriginallExplicit(originallyExplicit);

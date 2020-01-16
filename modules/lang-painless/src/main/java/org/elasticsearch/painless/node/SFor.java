@@ -61,14 +61,15 @@ public final class SFor extends AStatement {
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
-                initializer.read = false;
-                initializer.analyze(scriptRoot, scope);
+                AExpression.Input initializerInput = new AExpression.Input();
+                initializerInput.read = false;
+                AExpression.Output initializerOutput = initializer.analyze(scriptRoot, scope, initializerInput);
 
-                if (!initializer.statement) {
+                if (initializerOutput.statement == false) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
 
-                initializer.expected = initializer.actual;
+                initializer.input.expected = initializerOutput.actual;
                 initializer.cast();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -76,8 +77,9 @@ public final class SFor extends AStatement {
         }
 
         if (condition != null) {
-            condition.expected = boolean.class;
-            condition.analyze(scriptRoot, scope);
+            AExpression.Input conditionInput = new AExpression.Input();
+            conditionInput.expected = boolean.class;
+            condition.analyze(scriptRoot, scope, conditionInput);
             condition.cast();
 
             if (condition instanceof EBoolean) {
@@ -96,14 +98,15 @@ public final class SFor extends AStatement {
         }
 
         if (afterthought != null) {
-            afterthought.read = false;
-            afterthought.analyze(scriptRoot, scope);
+            AExpression.Input afterthoughtInput = new AExpression.Input();
+            afterthoughtInput.read = false;
+            AExpression.Output afterthoughtOutput = afterthought.analyze(scriptRoot, scope, afterthoughtInput);
 
-            if (!afterthought.statement) {
+            if (afterthoughtOutput.statement == false) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
 
-            afterthought.expected = afterthought.actual;
+            afterthought.input.expected = afterthoughtOutput.actual;
             afterthought.cast();
         }
 

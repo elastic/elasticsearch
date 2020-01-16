@@ -48,17 +48,19 @@ public final class SExpression extends AStatement {
         Class<?> rtnType = scope.getReturnType();
         boolean isVoid = rtnType == void.class;
 
-        expression.read = lastSource && !isVoid;
-        expression.analyze(scriptRoot, scope);
+        AExpression.Input expressionInput = new AExpression.Input();
+        expressionInput.read = lastSource && !isVoid;
+        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, expressionInput);
 
-        if ((lastSource == false || isVoid) && expression.statement == false) {
+
+        if ((lastSource == false || isVoid) && expressionOutput.statement == false) {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
-        boolean rtn = lastSource && !isVoid && expression.actual != void.class;
+        boolean rtn = lastSource && isVoid == false && expressionOutput.actual != void.class;
 
-        expression.expected = rtn ? rtnType : expression.actual;
-        expression.internal = rtn;
+        expression.input.expected = rtn ? rtnType : expressionOutput.actual;
+        expression.input.internal = rtn;
         expression.cast();
 
         methodEscape = rtn;

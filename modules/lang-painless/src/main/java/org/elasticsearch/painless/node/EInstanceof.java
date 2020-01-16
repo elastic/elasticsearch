@@ -38,7 +38,7 @@ public final class EInstanceof extends AExpression {
     private final String type;
 
     private Class<?> resolvedType;
-    private Class<?> instanceType;
+    private Class<?> expressionType;
     private boolean primitiveExpression;
 
     public EInstanceof(Location location, AExpression expression, String type) {
@@ -48,7 +48,10 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         // ensure the specified type is part of the definition
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -61,17 +64,19 @@ public final class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        expression.analyze(scriptRoot, scope);
-        expression.expected = expression.actual;
+        Output expressionOutput = expression.analyze(scriptRoot, scope, new Input());
+        expression.input.expected = expressionOutput.actual;
         expression.cast();
 
         // record if the expression returns a primitive
-        primitiveExpression = expression.actual.isPrimitive();
+        primitiveExpression = expressionOutput.actual.isPrimitive();
         // map to wrapped type for primitive types
-        instanceType = expression.actual.isPrimitive() ?
-            PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
+        expressionType = expressionOutput.actual.isPrimitive() ?
+            PainlessLookupUtility.typeToBoxedType(expressionOutput.actual) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        actual = boolean.class;
+        output.actual = boolean.class;
+
+        return output;
     }
 
     @Override
@@ -81,8 +86,8 @@ public final class EInstanceof extends AExpression {
         instanceofNode.setChildNode(expression.cast(expression.write(classNode)));
 
         instanceofNode.setLocation(location);
-        instanceofNode.setExpressionType(actual);
-        instanceofNode.setInstanceType(instanceType);
+        instanceofNode.setExpressionType(output.actual);
+        instanceofNode.setInstanceType(expressionType);
         instanceofNode.setResolvedType(resolvedType);
         instanceofNode.setPrimitiveResult(primitiveExpression);
 

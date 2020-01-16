@@ -48,7 +48,10 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
         function = new SFunction(
                 location, type, scriptRoot.getNextSyntheticName("newarray"),
@@ -58,16 +61,18 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         function.analyze(scriptRoot);
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
 
-        if (expected == null) {
+        if (input.expected == null) {
             ref = null;
-            actual = String.class;
+            output.actual = String.class;
             defPointer = "Sthis." + function.name + ",0";
         } else {
             defPointer = null;
             ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, expected, "this", function.name, 0);
-            actual = expected;
+                    location, input.expected, "this", function.name, 0);
+            output.actual = input.expected;
         }
+
+        return output;
     }
 
     @Override
@@ -77,7 +82,7 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
 
         newArrayFuncRefNode.setLocation(location);
-        newArrayFuncRefNode.setExpressionType(actual);
+        newArrayFuncRefNode.setExpressionType(output.actual);
         newArrayFuncRefNode.setFuncRef(ref);
 
         return newArrayFuncRefNode;

@@ -49,34 +49,40 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        if (input.read == false) {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
-        actual = ArrayList.class;
+        output.actual = ArrayList.class;
 
-        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
+                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
         }
 
-        method = scriptRoot.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
+        method = scriptRoot.getPainlessLookup().lookupPainlessMethod(output.actual, false, "add", 1);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", add/1] not found"));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", add/1] not found"));
         }
 
         for (int index = 0; index < values.size(); ++index) {
             AExpression expression = values.get(index);
 
-            expression.expected = def.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
+            Input expressionInput = new Input();
+            expressionInput.expected = def.class;
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
+
+        return output;
     }
 
     @Override
@@ -88,7 +94,7 @@ public final class EListInit extends AExpression {
         }
 
         listInitializationNode.setLocation(location);
-        listInitializationNode.setExpressionType(actual);
+        listInitializationNode.setExpressionType(output.actual);
         listInitializationNode.setConstructor(constructor);
         listInitializationNode.setMethod(method);
 

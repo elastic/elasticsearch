@@ -63,14 +63,18 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+
         if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
         }
 
-        if (!read) {
+        if (input.read == false) {
             throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
         }
 
@@ -82,7 +86,9 @@ public final class ERegex extends AExpression {
         }
 
         name = scriptRoot.getNextSyntheticName("regex");
-        actual = Pattern.class;
+        output.actual = Pattern.class;
+
+        return output;
     }
 
     @Override

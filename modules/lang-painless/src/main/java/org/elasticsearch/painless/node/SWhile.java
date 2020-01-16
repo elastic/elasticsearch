@@ -48,8 +48,9 @@ public final class SWhile extends AStatement {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         scope = scope.newLocalScope();
 
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
         condition.cast();
 
         if (condition instanceof EBoolean) {

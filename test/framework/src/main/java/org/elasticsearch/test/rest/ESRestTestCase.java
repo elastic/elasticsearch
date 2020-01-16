@@ -1219,10 +1219,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         final List<String> transitionMessages = List.of(
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
         final WarningsHandler warningsHandler;
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
+        if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
             warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
-        } else {
+        } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
             warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
+        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
+            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
+        } else {
+            warningsHandler = warnings -> warnings.isEmpty() == false;
         }
         // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
@@ -1230,16 +1234,18 @@ public abstract class ESRestTestCase extends ESTestCase {
             try {
                 final Request request = new Request("POST", indexName + "/_flush/synced");
                 request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
-                if (nodeVersions.stream().anyMatch(v -> v.onOrAfter(Version.V_8_0_0))) {
-                    request.addParameter("ignore", Integer.toString(RestStatus.CONFLICT.getStatus()));
-                }
-                Response resp =  client().performRequest(request);
+                Response resp = client().performRequest(request);
                 if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
                     Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
                     assertThat(result.get("failed"), equalTo(0));
                 }
             } catch (ResponseException ex) {
-                throw new AssertionError(ex); // cause assert busy to retry
+                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
+                    && ex.getResponse().getWarnings().equals(transitionMessages)) {
+                    logger.info("a normal flush was performed instead");
+                } else {
+                    throw new AssertionError(ex); // cause assert busy to retry
+                }
             }
         });
         // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId

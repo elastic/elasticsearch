@@ -60,6 +60,8 @@ public class Docker {
 
     private static final Shell sh = new Shell();
     private static final DockerShell dockerShell = new DockerShell();
+    public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
+    public static final int STARTUP_ATTEMPTS_MAX = 10;
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
@@ -175,7 +177,7 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to crash out
-                Thread.sleep(1000);
+                Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
                 psOutput = dockerShell.run("ps -ww ax").stdout;
 
@@ -186,7 +188,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to start", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < STARTUP_ATTEMPTS_MAX);
 
         if (isElasticsearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();

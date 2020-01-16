@@ -67,7 +67,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     GeoTileGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             this.geoBoundingBox = new GeoBoundingBox(in);
         }
     }
@@ -90,7 +90,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             geoBoundingBox.writeTo(out);
         }
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.tree;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -52,10 +53,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -603,58 +608,91 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * Cache of subclasses. We use a cache because it significantly speeds up
      * the test.
      */
-    private static final Map<Class<?>, List<?>> subclassCache = new HashMap<>();
+    private static final Map<Class<?>, Set<?>> subclassCache = new HashMap<>();
+
     /**
      * Find all subclasses of a particular class.
      */
-    public static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
-        List<Class<? extends T>> lookup = (List<Class<? extends T>>) subclassCache.get(clazz);
+        Set<Class<? extends T>> lookup = (Set<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {
             return lookup;
         }
-        List<Class<? extends T>> results = new ArrayList<>();
+        Set<Class<? extends T>> results = new LinkedHashSet<>();
         String[] paths = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
         for (String path: paths) {
             Path root = PathUtils.get(path);
             int rootLength = root.toString().length() + 1;
-            Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
 
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
-                        String className = file.toString();
-                        // Chop off the root and file extension
-                        className = className.substring(rootLength, className.length() - ".class".length());
-                        // Go from "path" style to class style
-                        className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
-
-                        // filter the class that are not interested
-                        // (and IDE folders like eclipse)
-                        if (!className.startsWith("org.elasticsearch.xpack.ql") && !className.startsWith("org.elasticsearch.xpack.sql")) {
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        Class<?> c;
-                        try {
-                            c = Class.forName(className);
-                        } catch (ClassNotFoundException e) {
-                            throw new IOException("Couldn't find " + file, e);
-                        }
-
-                        if (false == Modifier.isAbstract(c.getModifiers())
-                                && false == c.isAnonymousClass()
-                                && clazz.isAssignableFrom(c)) {
-                            Class<? extends T> s = c.asSubclass(clazz);
-                            results.add(s);
+            // load classes from jar files
+            // NIO FileSystem API is not used since it trips the SecurityManager
+            // https://bugs.openjdk.java.net/browse/JDK-8160798
+            // so iterate the jar "by hand"
+            if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
+                try (JarInputStream jar = jarStream(root)) {
+                    JarEntry je = null;
+                    while ((je = jar.getNextJarEntry()) != null) {
+                        String name = je.getName();
+                        if (name.endsWith(".class")) {
+                            String className = name.substring(0, name.length() - ".class".length()).replace("/", ".");
+                            maybeLoadClass(clazz, className, root + "!/" + name, results);
                         }
                     }
-                    return FileVisitResult.CONTINUE;
                 }
-            });
+            }
+            // for folders, just use the FileSystems API
+            else {
+                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
+                            String fileName = file.toString();
+                            // Chop off the root and file extension
+                            String className = fileName.substring(rootLength, fileName.length() - ".class".length());
+                            // Go from "path" style to class style
+                            className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
+                            maybeLoadClass(clazz, className, fileName, results);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            }
         }
         subclassCache.put(clazz, results);
         return results;
+    }
+
+    @SuppressForbidden(reason = "test reads from jar")
+    private static JarInputStream jarStream(Path path) throws IOException {
+        return new JarInputStream(path.toUri().toURL().openStream());
+    }
+
+    /**
+     * Load classes from predefined packages (hack to limit the scope) and if they match the hierarchy, add them to the cache
+     */
+    private static <T> void maybeLoadClass(Class<T> clazz, String className, String location, Set<Class<? extends T>> results)
+            throws IOException {
+
+        // filter the class that are not interested
+        // (and IDE folders like eclipse)
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false) {
+            return;
+        }
+
+        Class<?> c;
+        try {
+            c = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Couldn't load " + location, e);
+        }
+
+        if (false == Modifier.isAbstract(c.getModifiers())
+                && false == c.isAnonymousClass()
+                && clazz.isAssignableFrom(c)) {
+            Class<? extends T> s = c.asSubclass(clazz);
+            results.add(s);
+        }
     }
 
     /**

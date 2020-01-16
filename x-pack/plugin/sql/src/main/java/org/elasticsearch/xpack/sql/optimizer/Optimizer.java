@@ -705,7 +705,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            return e.foldable() && (e instanceof Literal == false) ? Literal.of(e) : e;
+            return e.foldable() ? Literal.of(e) : e;
         }
     }
 
@@ -808,7 +808,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (FALSE.equals(l) || FALSE.equals(r)) {
-                    return FALSE;
+                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
                 if (l.semanticEquals(r)) {
                     return l;
@@ -838,7 +838,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             if (bc instanceof Or) {
                 if (TRUE.equals(l) || TRUE.equals(r)) {
-                    return TRUE;
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
                 if (FALSE.equals(l)) {
@@ -883,10 +883,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {
-                return FALSE;
+                return new Literal(n.source(), Boolean.FALSE, DataType.BOOLEAN);
             }
             if (FALSE.semanticEquals(c)) {
-                return TRUE;
+                return new Literal(n.source(), Boolean.TRUE, DataType.BOOLEAN);
             }
 
             if (c instanceof Negatable) {
@@ -919,12 +919,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return TRUE;
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
             }
             if (bc instanceof NullEquals) {
                 if (l.semanticEquals(r)) {
-                    return TRUE;
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
                 if (Expressions.isNull(r)) {
                     return new IsNull(bc.source(), l);
@@ -934,7 +934,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return FALSE;
+                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
             }
 
@@ -1006,19 +1006,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     if (otherEq.right().foldable()) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
-                                Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
-                                if (comp != null) {
-                                    // var cannot be equal to two different values at the same time
-                                    if (comp != 0) {
-                                        return FALSE;
+                                    Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
+                                    if (comp != null) {
+                                        // var cannot be equal to two different values at the same time
+                                        if (comp != 0) {
+                                            return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                        }
                                     }
                                 }
                             }
-                        }
                         equals.add(otherEq);
                     } else {
                         exps.add(otherEq);
-                    }
+                        }
                 } else if (ex instanceof GreaterThan || ex instanceof GreaterThanOrEqual ||
                     ex instanceof LessThan || ex instanceof LessThanOrEqual) {
                     BinaryComparison bc = (BinaryComparison) ex;
@@ -1031,12 +1031,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     NotEquals otherNotEq = (NotEquals) ex;
                     if (otherNotEq.right().foldable()) {
                         notEquals.add(otherNotEq);
-                    } else {
-                        exps.add(ex);
-                    }
                 } else {
                     exps.add(ex);
                 }
+                } else {
+                    exps.add(ex);
+            }
             }
 
             // check
@@ -1055,8 +1055,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                  compare > 0 ||
                                  // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeLower()))
-                                ) {
-                                return FALSE;
+                            ) {
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
                         if (range.upper().foldable()) {
@@ -1066,8 +1066,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                  compare < 0 ||
                                  // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeUpper()))
-                                ) {
-                                return FALSE;
+                            ) {
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
 
@@ -1088,7 +1088,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             } else {
                                 iter.remove(); // clashing and redundant: a = 1 AND a != 2
                                 changed = true;
-                            }
+            }
                         }
                     }
                 }
@@ -1103,12 +1103,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                     0 < compare) { // a = 2 AND a </<= 1
                                     return FALSE;
-                                }
+        }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                     compare < 0) { // a = 2 AND a >/>= 3
                                     return FALSE;
-                                }
+    }
                             }
 
                             iter.remove();
@@ -1950,7 +1950,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return Literal.NULL;
+                    return new Literal(expression.source(), null, DataType.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -1962,7 +1962,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (expression instanceof And) {
                 And and = (And) expression;
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return Literal.NULL;
+                    return new Literal(expression.source(), null, DataType.NULL);
                 }
             }
             return expression;

@@ -76,7 +76,10 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(stopTransformRequest));
 
         assertEquals(409, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Detected dangling transforms [" + transformId + "]. Use force to stop/delete them."));
+        assertThat(
+            e.getMessage(),
+            containsString("Detected transforms with no config [" + transformId + "]. Use force to stop/delete them.")
+        );
         stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(true));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));

@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -142,7 +143,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         Predicate<PersistentTask<?>> taskMatcher = Strings.isAllOrWildcard(new String[] { transformId }) ? t -> true : t -> {
             TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
-            return transformParams.getId().equals(transformId);
+            return Regex.simpleMatch(transformId, transformParams.getId());
         };
 
         for (PersistentTasksCustomMetaData.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
@@ -188,20 +189,20 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     super.doExecute(task, request, finalListener);
                 }, e -> {
                     if (e instanceof ResourceNotFoundException) {
-                        Tuple<Set<String>, Set<String>> runningTasks = findTasksWithoutConfig(state, request.getId());
-                        if (runningTasks.v1().isEmpty()) {
+                        Tuple<Set<String>, Set<String>> runningTasksAndNodes = findTasksWithoutConfig(state, request.getId());
+                        if (runningTasksAndNodes.v1().isEmpty()) {
                             listener.onFailure(e);
                             // found transforms without a config
                         } else if (request.isForce()) {
-                            request.setExpandedIds(runningTasks.v1());
-                            request.setNodes(runningTasks.v2().toArray(new String[0]));
+                            request.setExpandedIds(runningTasksAndNodes.v1());
+                            request.setNodes(runningTasksAndNodes.v2().toArray(new String[0]));
                             super.doExecute(task, request, finalListener);
                         } else {
                             listener.onFailure(
                                 new ElasticsearchStatusException(
                                     TransformMessages.getMessage(
                                         TransformMessages.REST_STOP_TRANSFORM_WITHOUT_CONFIG,
-                                        Strings.arrayToCommaDelimitedString(runningTasks.v1().toArray(new String[0]))
+                                        Strings.arrayToCommaDelimitedString(runningTasksAndNodes.v1().toArray(new String[0]))
                                     ),
                                     RestStatus.CONFLICT
                                 )

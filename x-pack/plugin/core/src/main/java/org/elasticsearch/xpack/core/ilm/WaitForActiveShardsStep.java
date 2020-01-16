@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -23,6 +25,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
     public static final String NAME = "wait-for-active-shards";
 
+    private static final Logger logger = LogManager.getLogger(WaitForActiveShardsStep.class);
+
     WaitForActiveShardsStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
@@ -35,6 +39,13 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData originalIndexMeta = clusterState.metaData().index(index);
+
+        if (originalIndexMeta == null) {
+            // Index must have been since deleted
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return new Result(false, null);
+        }
+
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
         if (Strings.isNullOrEmpty(rolloverAlias)) {
             throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS

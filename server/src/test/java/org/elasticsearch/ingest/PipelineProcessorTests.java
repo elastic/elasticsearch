@@ -237,7 +237,7 @@ public class PipelineProcessorTests extends ESTestCase {
             }
 
 
-            Pipeline pipeline = new Pipeline(pipelineId, null, null, new CompoundProcessor(false, processors, List.of()));
+            Pipeline pipeline = new Pipeline(pipelineId, null, null, new CompoundProcessor(false, processors, Collections.emptyList()));
             when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
             if (firstPipeline == null) {
                 firstPipeline = pipeline;

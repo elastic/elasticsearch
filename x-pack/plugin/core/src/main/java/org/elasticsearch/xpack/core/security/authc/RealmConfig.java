@@ -28,6 +28,12 @@ public class RealmConfig {
         this.settings = settings;
         this.env = env;
         this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
+        if (hasSetting(RealmSettings.ORDER_SETTING.apply(type())) == false) {
+            throw new IllegalArgumentException("'order' is a mandatory parameter for realm config. " +
+                "Found invalid realm config: '" + identifier.name + "'\n" +
+                "Please see the breaking changes documentation."
+            );
+        }
         this.order = getSetting(RealmSettings.ORDER_SETTING);
         this.threadContext = threadContext;
     }

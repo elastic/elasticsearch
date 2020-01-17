@@ -1,7 +1,8 @@
 [role="xpack"]
 [testenv="platinum"]
 [[xpack-autoscaling]]
-== Autoscaling
+[chapter]
+= Autoscaling
 
 experimental[]
 

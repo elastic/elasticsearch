@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 
@@ -139,6 +140,8 @@ class S3RetryingInputStream extends InputStream {
 
     private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
+            logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
+                blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
             throw addSuppressedExceptions(e);
         }
         logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
@@ -147,12 +150,23 @@ class S3RetryingInputStream extends InputStream {
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
         }
+        try {
+            Streams.consumeFully(currentStream);
+        } catch (Exception e2) {
+            e2.addSuppressed(e);
+            logger.trace("Failed to fully consume stream on close", e);
+        }
         IOUtils.closeWhileHandlingException(currentStream);
         currentStream = openStream();
     }
 
     @Override
     public void close() throws IOException {
+        try {
+            Streams.consumeFully(currentStream);
+        } catch (Exception e) {
+            logger.trace("Failed to fully consume stream on close", e);
+        }
         currentStream.close();
         closed = true;
     }

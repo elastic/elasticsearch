@@ -154,10 +154,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String blobName, long position, int length) throws IOException {
-        final InputStream inputStream = readBlob(blobName); // TODO: limit the consumable size of the input stream here to length
+        final InputStream inputStream = readBlob(blobName);
         long skipped = inputStream.skip(position); // NORELEASE
         assert skipped == position;
-        return inputStream;
+        return org.elasticsearch.common.io.Streams.limitStream(inputStream, length);
     }
 
     @Override

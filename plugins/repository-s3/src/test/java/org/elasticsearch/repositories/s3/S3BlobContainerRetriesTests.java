@@ -191,8 +191,28 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 500));
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
-            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
-            assertThat(countDown.isCountedDown(), is(true));
+            final int readLimit;
+            final InputStream wrappedStream;
+            if (randomBoolean()) {
+                // read stream only partly
+                readLimit = randomIntBetween(0, bytes.length);
+                wrappedStream = Streams.limitStream(inputStream, readLimit);
+            } else {
+                readLimit = bytes.length;
+                wrappedStream = inputStream;
+            }
+            final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(wrappedStream));
+            logger.info("maxRetries={}, readLimit={}, byteSize={}, bytesRead={}",
+                maxRetries, readLimit, bytes.length, bytesRead.length);
+            assertArrayEquals(Arrays.copyOfRange(bytes, 0, readLimit), bytesRead);
+            if (readLimit == 0) {
+                // we will not reach out to the service
+                assertFalse(countDown.isCountedDown());
+            }  else if (readLimit < bytes.length) {
+                // we might have completed things based on an incomplete response, and we're happy with that
+            } else {
+                assertTrue(countDown.isCountedDown());
+            }
         }
     }
 
@@ -234,9 +254,28 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
         try (InputStream inputStream = blobContainer.readBlob("read_range_blob_max_retries", position, length)) {
-            assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + length)),
-                BytesReference.toBytes(Streams.readFully(inputStream)));
-            assertThat(countDown.isCountedDown(), is(length > 0));
+            final int readLimit;
+            final InputStream wrappedStream;
+            if (randomBoolean()) {
+                // read stream only partly
+                readLimit = randomIntBetween(0, length);
+                wrappedStream = Streams.limitStream(inputStream, readLimit);
+            } else {
+                readLimit = length;
+                wrappedStream = inputStream;
+            }
+            final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(wrappedStream));
+            logger.info("maxRetries={}, position={}, length={}, readLimit={}, byteSize={}, bytesRead={}",
+                maxRetries, position, length, readLimit, bytes.length, bytesRead.length);
+            assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + readLimit)), bytesRead);
+            if (readLimit == 0) {
+                // we will not reach out to the service
+                assertFalse(countDown.isCountedDown());
+            }  else if (readLimit < length && readLimit == bytesRead.length) {
+                // we might have completed things based on an incomplete response, and we're happy with that
+            } else {
+                assertTrue(countDown.isCountedDown());
+            }
         }
     }
 

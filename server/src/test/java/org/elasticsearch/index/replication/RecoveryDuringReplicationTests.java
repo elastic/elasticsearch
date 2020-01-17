@@ -30,8 +30,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,7 +38,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -105,66 +102,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             docs += shards.indexDocs(randomInt(20));
             releaseRecovery.countDown();
             recoveryFuture.get();
-
-            shards.assertAllEqual(docs);
-        }
-    }
-
-    public void testRecoveryOfDisconnectedReplica() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
-            shards.startAll();
-            int docs = shards.indexDocs(randomInt(50));
-            shards.flush();
-            final IndexShard originalReplica = shards.getReplicas().get(0);
-            for (int i = 0; i < randomInt(2); i++) {
-                final int indexedDocs = shards.indexDocs(randomInt(5));
-                docs += indexedDocs;
-
-                final boolean flush = randomBoolean();
-                if (flush) {
-                    originalReplica.flush(new FlushRequest());
-                }
-            }
-
-            // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
-            shards.syncGlobalCheckpoint();
-            long globalCheckpointOnReplica = originalReplica.getLastSyncedGlobalCheckpoint();
-            Optional<SequenceNumbers.CommitInfo> safeCommitOnReplica =
-                originalReplica.store().findSafeIndexCommit(globalCheckpointOnReplica);
-            assertTrue(safeCommitOnReplica.isPresent());
-            shards.removeReplica(originalReplica);
-
-            final int missingOnReplica = shards.indexDocs(randomInt(5));
-            docs += missingOnReplica;
-
-            final boolean peerRecoveryRetentionLeaseExpired;
-            if (randomBoolean()) {
-                peerRecoveryRetentionLeaseExpired = randomBoolean();
-                if (peerRecoveryRetentionLeaseExpired) {
-                    PlainActionFuture<ReplicationResponse> listener = new PlainActionFuture<>();
-                    shards.getPrimary().removePeerRecoveryRetentionLease(originalReplica.routingEntry().currentNodeId(), listener);
-                    listener.actionGet();
-                }
-            } else {
-                peerRecoveryRetentionLeaseExpired = false;
-            }
-            originalReplica.close("disconnected", false);
-            IOUtils.close(originalReplica.store());
-            final IndexShard recoveredReplica =
-                shards.addReplicaWithExistingPath(originalReplica.shardPath(), originalReplica.routingEntry().currentNodeId());
-            shards.recoverReplica(recoveredReplica);
-            if (peerRecoveryRetentionLeaseExpired && missingOnReplica > 0) {
-                // replica has something to catch up with, but since we trimmed the primary translog, we should fall back to full recovery
-                assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            } else {
-                assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
-                assertThat(recoveredReplica.recoveryState().getTranslog().recoveredOperations(),
-                    equalTo(Math.toIntExact(docs - 1 - safeCommitOnReplica.get().localCheckpoint)));
-                assertThat(recoveredReplica.recoveryState().getTranslog().totalLocal(),
-                    equalTo(Math.toIntExact(globalCheckpointOnReplica - safeCommitOnReplica.get().localCheckpoint)));
-            }
-
-            docs += shards.indexDocs(randomInt(5));
 
             shards.assertAllEqual(docs);
         }

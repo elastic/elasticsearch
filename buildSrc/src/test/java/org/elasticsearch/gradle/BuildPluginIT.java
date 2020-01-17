@@ -88,8 +88,8 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         final Path projectDirPath = projectDir.toPath();
         FileUtils.copyDirectory(projectDir, tmpDir.getRoot(), file -> {
             final Path relativePath = projectDirPath.relativize(file.toPath());
-            for (int i = 0; i < relativePath.getNameCount(); i++) {
-                if (relativePath.getName(i).toString().equals("build")) {
+            for (Path segment : relativePath) {
+                if (segment.toString().equals("build")) {
                     return false;
                 }
             }

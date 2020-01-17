@@ -70,6 +70,8 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
         case 5:
             metricValue = randomValueOtherThan(metricValue, () -> randomDouble());
             break;
+        default:
+            throw new IllegalArgumentException("bad mutation");
         }
         return new InternalTopMetrics(name, sortFormat, sortOrder, sortValue, metricName, metricValue, emptyList(), null);
     }

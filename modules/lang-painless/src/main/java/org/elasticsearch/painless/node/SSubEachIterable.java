@@ -57,7 +57,10 @@ final class SSubEachIterable extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
         iterator = scope.defineInternalVariable(location, Iterator.class, "itr" + location.getOffset(), true);
@@ -74,6 +77,8 @@ final class SSubEachIterable extends AStatement {
         }
 
         cast = AnalyzerCaster.getLegalCast(location, def.class, variable.getType(), true, true);
+
+        return output;
     }
 
     @Override

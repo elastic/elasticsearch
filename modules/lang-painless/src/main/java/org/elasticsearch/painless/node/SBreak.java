@@ -35,15 +35,20 @@ public final class SBreak extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!inLoop) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        if (input.inLoop == false) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
-        loopEscape = true;
-        allEscape = true;
-        anyBreak = true;
-        statementCount = 1;
+        output.loopEscape = true;
+        output.allEscape = true;
+        output.anyBreak = true;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override

@@ -48,18 +48,23 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
         type = resolvedType;
 
         if (expression != null) {
-            Input expressionInput = new Input();
+            AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
             expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
+
+        return output;
     }
 
     @Override

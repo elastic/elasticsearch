@@ -52,12 +52,15 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         scope = scope.newLocalScope();
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(scriptRoot, scope);
+                ((SDeclBlock)initializer).analyze(scriptRoot, scope, new Input());
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -111,24 +114,27 @@ public final class SFor extends AStatement {
         }
 
         if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+            Input blockInput = new Input();
+            blockInput.beginLoop = true;
+            blockInput.inLoop = true;
 
-            block.analyze(scriptRoot, scope);
+            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
 
-            if (block.loopEscape && !block.anyContinue) {
+            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (continuous && blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
 
-            block.statementCount = Math.max(1, block.statementCount);
+            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override

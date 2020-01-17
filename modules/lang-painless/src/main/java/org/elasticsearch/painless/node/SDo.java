@@ -45,18 +45,22 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         scope = scope.newLocalScope();
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        block.beginLoop = true;
-        block.inLoop = true;
-        block.analyze(scriptRoot, scope);
+        Input blockInput = new Input();
+        blockInput.beginLoop = true;
+        blockInput.inLoop = true;
+        Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
 
-        if (block.loopEscape && !block.anyContinue) {
+        if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
@@ -72,13 +76,15 @@ public final class SDo extends AStatement {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));
             }
 
-            if (!block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override

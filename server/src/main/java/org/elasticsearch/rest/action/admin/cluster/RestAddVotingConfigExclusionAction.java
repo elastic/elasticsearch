@@ -36,7 +36,11 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
 
     public RestAddVotingConfigExclusionAction(RestController controller) {
+        // TODO This API is being deprecated.
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this);
+
+        controller.registerHandler(RestRequest.Method.POST,
+            "/_cluster/voting_config_exclusions/node_ids_or_names/{node_id_or_names}", this);
     }
 
     @Override
@@ -55,9 +59,20 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
-        String nodeName = request.param("node_name");
+        String nodeDescriptions;
+
+        // TODO This request param is being deprecated
+        if (request.hasParam("node_name")) {
+            nodeDescriptions = request.param("node_name");
+        }
+        else {
+            nodeDescriptions = request.param("node_ids_or_names");
+        }
+
+        assert !Strings.isNullOrEmpty(nodeDescriptions);
+
         return new AddVotingConfigExclusionsRequest(
-            Strings.splitStringByCommaToArray(nodeName),
+            Strings.splitStringByCommaToArray(nodeDescriptions),
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }

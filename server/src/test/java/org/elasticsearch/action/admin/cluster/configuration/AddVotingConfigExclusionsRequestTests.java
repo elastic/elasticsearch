@@ -35,7 +35,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -87,12 +86,6 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
 
         assertThat(makeRequest().resolveVotingConfigExclusions(clusterState),
                 containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
-        assertThat(makeRequest("_all").resolveVotingConfigExclusions(clusterState),
-                containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
-        assertThat(makeRequest("_local").resolveVotingConfigExclusions(clusterState),
-                contains(localNodeExclusion));
-        assertThat(makeRequest("other*").resolveVotingConfigExclusions(clusterState),
-                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
     }
 
     public void testResolveAndCheckMaximum() {
@@ -129,8 +122,6 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
 
         assertThat(makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 3, "setting.name"),
                 containsInAnyOrder(localNodeExclusion, otherNode2Exclusion));
-        assertThat(makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
-                contains(localNodeExclusion));
 
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),

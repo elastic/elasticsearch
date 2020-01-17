@@ -50,4 +50,19 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         String[] expected = {"node-1","node-2", "node-3"};
         assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
     }
+
+    public void testResolveVotingConfigExclusionsRequestNodeIdsOrNames() {
+        Map<String, String> params = new HashMap<>();
+        params.put("node_ids_or_names", "node-1,node-2,node-3");
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/_cluster/voting_config_exclusions/node_ids_or_names")
+            .withParams(params)
+            .build();
+
+        AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(deprecatedRequest);
+        String[] expected = {"node-1","node-2", "node-3"};
+        assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
+    }
+
 }

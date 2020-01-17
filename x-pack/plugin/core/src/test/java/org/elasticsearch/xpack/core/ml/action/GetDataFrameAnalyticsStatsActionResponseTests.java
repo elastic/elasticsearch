@@ -19,8 +19,7 @@ import java.util.stream.IntStream;
 
 public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
-    @Override
-    protected Response createTestInstance() {
+    public static Response randomResponse() {
         int listSize = randomInt(10);
         List<Response.Stats> analytics = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
@@ -34,6 +33,11 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
             analytics.add(stats);
         }
         return new Response(new QueryPage<>(analytics, analytics.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+    }
+
+    @Override
+    protected Response createTestInstance() {
+        return randomResponse();
     }
 
     @Override

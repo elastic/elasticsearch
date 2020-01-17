@@ -107,10 +107,8 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
-import org.elasticsearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -492,7 +490,6 @@ public class ActionModule extends AbstractModule {
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
-        actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);

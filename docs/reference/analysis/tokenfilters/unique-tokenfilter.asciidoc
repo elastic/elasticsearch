@@ -1,5 +1,8 @@
 [[analysis-unique-tokenfilter]]
-=== Unique Token Filter
+=== Unique token filter
+++++
+<titleabbrev>Unique</titleabbrev>
+++++
 
 The `unique` token filter can be used to only index unique tokens during
 analysis. By default it is applied on all the token stream. If

@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -177,7 +178,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 clusterState,
                 updatedConfig.getSource().getIndex(),
                 updatedConfig.getDestination().getIndex(),
-                request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
+                request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
                 ActionListener.wrap(
                     validationResponse -> {
                         checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);

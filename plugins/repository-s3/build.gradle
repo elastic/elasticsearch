@@ -141,7 +141,7 @@ task thirdPartyTest(type: Test) {
 }
 
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:minio-fixture')
+  testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
 
   def minioAddress = {
     int minioPort = project(':test:fixtures:minio-fixture').postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"

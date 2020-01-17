@@ -106,7 +106,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text")
+                        .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -146,7 +146,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testDLSIsAppliedBeforeFLS() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -174,7 +174,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testQueryCache() {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text")
+                        .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -235,7 +235,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetMappingsIsFiltered() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -275,7 +275,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetIndexMappingsIsFiltered() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -312,7 +312,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetFieldMappingsIsFiltered() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
@@ -365,7 +365,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testFieldCapabilitiesIsFiltered() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)

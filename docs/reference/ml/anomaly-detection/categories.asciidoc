@@ -4,32 +4,34 @@
 
 Categorization is a {ml} process that tokenizes a text field, clusters similar
 data together, and classifies it into categories. It works best on
-machine-written messages and application outputs that typically consist of
+machine-written messages and application output that typically consist of
 repeated elements. For example, it works well on logs that contain a finite set
 of possible messages:
 
 //Obtained from it_ops_new_app_logs.json
 [source,js]
 ----------------------------------
-{"@timestamp":1549596476000,"message":"org.jdbi.v2.exceptions.UnableToExecuteStatementException: com.mysql.jdbc.exceptions.MySQLTimeoutException: Statement cancelled due to timeout or client request [statement:\"SELECT id, customer_id, name, force_disabled, enabled FROM customers\"]","type":"logs"}
+{"@timestamp":1549596476000,
+"message":"org.jdbi.v2.exceptions.UnableToExecuteStatementException: com.mysql.jdbc.exceptions.MySQLTimeoutException: Statement cancelled due to timeout or client request [statement:\"SELECT id, customer_id, name, force_disabled, enabled FROM customers\"]",
+"type":"logs"}
 ----------------------------------
 //NOTCONSOLE
 
 Categorization is tuned to work best on data like log messages by taking token
-order into account, not considering synonyms, and including stop words in its 
-analysis. Complete sentences in human communication or literary text (for 
-example emails, wiki pages, prose, or other human generated content) can be 
+order into account, including stop words, and not considering synonyms in its
+analysis. Complete sentences in human communication or literary text (for
+example email, wiki pages, prose, or other human-generated content) can be 
 extremely diverse in structure. Since categorization is tuned for machine data, 
-it gives poor results for human-generated data; the categorization job would
-create so many categories that they couldn't be handled effectively.
-Categorization is _not_ natural language processing (NLP).
+it gives poor results for human-generated data. It would create so many
+categories that they couldn't be handled effectively. Categorization is _not_
+natural language processing (NLP).
 
 When you create a categorization {anomaly-job}, the {ml} model learns what
 volume and pattern is normal for each category over time. You can then detect
 anomalies and surface rare events or unusual types of messages by using
 <<ml-count-functions,count>> or <<ml-rare-functions,rare>> functions.
 
-In {kib}, you can use the categorization wizard when you create a new
+In {kib}, there is categorization wizard to help you create this type of 
 {anomaly-job}. For example, the following job generates categories from the
 contents of the `message` field and uses the count function to determine when
 certain categories are occurring at anomalous rates:
@@ -74,7 +76,7 @@ image::images/ml-category-anomalies.jpg["Categorization results in the Anomaly E
 For this type of job, the results contain extra information for each anomaly:
 the name of the category (for example, `mlcategory 2`) and examples of the
 messages in that category. You can use these details to investigate occurrences
-of unusually high message counts for specific message categories.
+of unusually high message counts.
 
 If you use the advanced {anomaly-job} wizard in {kib} or the
 {ref}/ml-put-job.html[create {anomaly-jobs} API], there are additional
@@ -119,11 +121,11 @@ token filters. In this example, adding a
 achieves exactly the same behavior as the `categorization_filters` job
 configuration option described earlier. For more details about these properties,
 see the
-{ref}/ml-put-job.html#ml-put-job-request-body[`analysis_config.categorization_analyzer` API object].
+{ref}/ml-put-job.html#ml-put-job-request-body[`categorization_analyzer` API object].
 
- If you use the default categorization analyzer in {kib} or omit the
- `categorization_analyzer` property from the API, the following default values
- are used:
+If you use the default categorization analyzer in {kib} or omit the
+`categorization_analyzer` property from the API, the following default values
+are used:
 
 [source,console]
 --------------------------------------------------

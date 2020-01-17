@@ -31,6 +31,11 @@ import java.util.List;
 import java.util.Map;
 
 class TopMetricsAggregator extends MetricsAggregator {
+    /**
+     * Field comparator for doing the sort. This comes from Lucene and it isn't quite what we need
+     * but it is pretty close. We'll likely revisit this but for now it is very good at letting us
+     * use the normal sorting infrastructure.
+     */
     private final FieldComparator<? extends Number> sortComparator;
     private final SortOrder sortOrder;
     private final DocValueFormat sortFormat;

@@ -104,12 +104,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     /**
-     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in < >)
+     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
      * <p>
      * Eg.
      * <p>
      * - For "logs-000002" it'll return 2
-     * - For "<logs-{now/d}-3>" it'll return 3
+     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
      */
     static int parseIndexNameCounter(String indexName) {
         int numberIndex = indexName.lastIndexOf("-");

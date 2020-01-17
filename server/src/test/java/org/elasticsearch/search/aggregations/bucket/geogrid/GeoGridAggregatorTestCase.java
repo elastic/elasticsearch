@@ -76,12 +76,21 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
-    public void testFieldMissing() throws IOException {
+    public void testUnmapped() throws IOException {
         testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
         }, iw -> {
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         });
+    }
+
+    public void testUnmappedMissing() throws IOException {
+        GeoGridAggregationBuilder builder = createBuilder("_name")
+            .field("wrong_field")
+            .missing("53.69437,6.475031");
+        testCase(new MatchAllDocsQuery(), randomPrecision(), null, geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
+            iw -> iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))), builder);
+
     }
 
     public void testWithSeveralDocs() throws IOException {
@@ -189,6 +198,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     private void testCase(Query query, String field, int precision, GeoBoundingBox geoBoundingBox,
                           Consumer<InternalGeoGrid<T>> verify,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex) throws IOException {
+        testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
+    }
+
+    private void testCase(Query query, int precision, GeoBoundingBox geoBoundingBox,
+                          Consumer<InternalGeoGrid<T>> verify,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          GeoGridAggregationBuilder aggregationBuilder) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -197,7 +213,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        GeoGridAggregationBuilder aggregationBuilder = createBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
         if (geoBoundingBox != null) {
             aggregationBuilder.setGeoBoundingBox(geoBoundingBox);

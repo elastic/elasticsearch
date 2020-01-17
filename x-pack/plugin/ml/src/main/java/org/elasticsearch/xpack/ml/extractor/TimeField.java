@@ -41,7 +41,15 @@ public class TimeField extends AbstractField {
             return value;
         }
         if (value[0] instanceof String) { // doc_value field with the epoch_millis format
-            value[0] = Long.parseLong((String) value[0]);
+            // Since nanosecond support was added epoch_millis timestamps may have a fractional component.
+            // We discard this, taking just whole milliseconds.  Arguably it would be better to retain the
+            // precision here and let the downstream component decide whether it wants the accuracy, but
+            // that makes it hard to pass around the value as a number.  The double type doesn't have
+            // enough digits of accuracy, and obviously long cannot store the fraction.  BigDecimal would
+            // work, but that isn't supported by the JSON parser if the number gets round-tripped through
+            // JSON.  So String is really the only format that could be used, but the ML consumers of time
+            // are expecting a number.
+            value[0] = Long.parseLong(((String) value[0]).replaceFirst("\\..*", ""));
         } else if (value[0] instanceof Long == false) { // pre-6.0 field
             throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
         }

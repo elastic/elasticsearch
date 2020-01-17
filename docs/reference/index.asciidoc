@@ -38,9 +38,9 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
-include::autoscaling/index.asciidoc[]
-
 include::ilm/index.asciidoc[]
+
+include::autoscaling/index.asciidoc[]
 
 include::sql/index.asciidoc[]
 

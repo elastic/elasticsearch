@@ -51,7 +51,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         InternalTopMetrics winner = metrics[0].getSortOrder() == SortOrder.ASC ? min : max; 
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getSortValue(), equalTo(7.0d));
+        assertThat(reduced.getSortValue(), equalTo(winner.getSortValue()));
         assertThat(reduced.getSortFormat(), equalTo(winner.getSortFormat()));
         assertThat(reduced.getSortOrder(), equalTo(metrics[0].getSortOrder()));
         assertThat(reduced.getMetricValue(), equalTo(winner.getMetricValue()));

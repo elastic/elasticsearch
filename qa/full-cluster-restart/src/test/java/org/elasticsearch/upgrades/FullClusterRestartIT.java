@@ -279,9 +279,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 mappingsAndSettings.startObject("settings");
                 {
                     mappingsAndSettings.field("index.number_of_shards", 5);
-                    if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
-                        mappingsAndSettings.field(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(randomBoolean()));
-                    }
                 }
                 mappingsAndSettings.endObject();
             }
@@ -353,9 +350,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("index.number_of_shards", 5);
-                if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
-                    mappingsAndSettings.field(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(randomBoolean()));
-                }
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();

@@ -951,3 +951,13 @@ process where length(between(process_name, 'g', 'e')) > 0
 
 process where length(between(process_name, 'g', 'z')) > 0
 ;
+
+
+// additional queries added for the elasticsearch specific implementation
+// dots will still be interpreted by ES per usual
+something where `my-hyphenated-field` == "value";
+something where `my-hyphenated-field.with.nested.dots` == "value";
+something where `@timestamp` == "2020-01-01 00:00:00";
+something where `some escaped identifier` == "blah";
+something where `some escaped identifier` == "blah";
+something where `some.escaped.identifier` == "blah";

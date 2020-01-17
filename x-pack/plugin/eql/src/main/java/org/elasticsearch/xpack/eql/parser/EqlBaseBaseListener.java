@@ -352,6 +352,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterIdentifierEscape(EqlBaseParser.IdentifierEscapeContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIdentifierEscape(EqlBaseParser.IdentifierEscapeContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterParenthesizedExpression(EqlBaseParser.ParenthesizedExpressionContext ctx) { }
   /**
    * {@inheritDoc}

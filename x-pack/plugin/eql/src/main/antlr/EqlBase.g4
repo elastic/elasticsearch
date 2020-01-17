@@ -103,6 +103,7 @@ primaryExpression
     : constant                                                                          #constantDefault
     | functionExpression                                                                #function
     | qualifiedName                                                                     #dereference
+    | ESCAPED_IDENTIFIER                                                                #identifierEscape
     | LP expression RP                                                                  #parenthesizedExpression
     ;
 
@@ -182,6 +183,11 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
+
+ESCAPED_IDENTIFIER
+    : '`' (~'`')* '`'
+    ;
+
 STRING
     : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
@@ -200,8 +206,9 @@ DECIMAL_VALUE
     | DOT DIGIT+ EXPONENT
     ;
 
+// make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
-    : (LETTER | '_') (LETTER | DIGIT | '_')*
+    : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
     ;
 
 fragment EXPONENT
@@ -232,7 +239,8 @@ WS
 // Catch-all for anything we can't recognize.
 // We use this to be able to ignore and recover all the text
 // when splitting statements with DelimiterLexer
+/*
 UNRECOGNIZED
     : .
     ;
-
+*/

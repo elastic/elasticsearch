@@ -310,6 +310,18 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitDereference(EqlBaseParser.DereferenceContext ctx);
   /**
+   * Enter a parse tree produced by the {@code identifierEscape}
+   * labeled alternative in {@link EqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterIdentifierEscape(EqlBaseParser.IdentifierEscapeContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code identifierEscape}
+   * labeled alternative in {@link EqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitIdentifierEscape(EqlBaseParser.IdentifierEscapeContext ctx);
+  /**
    * Enter a parse tree produced by the {@code parenthesizedExpression}
    * labeled alternative in {@link EqlBaseParser#primaryExpression}.
    * @param ctx the parse tree

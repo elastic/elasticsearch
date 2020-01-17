@@ -209,17 +209,9 @@ public class HttpExporter extends Exporter {
                                 final String namespace =
                                     HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
                                         HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
-                                final String password =
-                                    (String) settings.get(AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
 
                                 // password must be specified along with username for any auth
                                 if (Strings.isNullOrEmpty(username) == false) {
-                                    if (Strings.isNullOrEmpty(password)) {
-                                        throw new SettingsException(
-                                            "[" + AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is set " +
-                                            "but [" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is " +
-                                            "missing");
-                                    }
                                     final String type =
                                         (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
                                     if ("http".equals(type) == false) {
@@ -235,8 +227,7 @@ public class HttpExporter extends Exporter {
                                         HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
 
                                 final List<Setting<?>> settings = List.of(
-                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace),
-                                    HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
                                 return settings.iterator();
                             }
 

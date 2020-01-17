@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.MemberCallNode;
+import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -125,14 +126,27 @@ public class ECallLocal extends AExpression {
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             output.actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");
-            scriptRoot.getClassNode().addField(new SField(location,
-                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass()));
+
+            FieldNode fieldNode = new FieldNode();
+            fieldNode.setLocation(location);
+            fieldNode.setModifiers(Modifier.PRIVATE);
+            fieldNode.setFieldType(classBinding.javaConstructor.getDeclaringClass());
+            fieldNode.setName(bindingName);
+
+            classNode.addFieldNode(fieldNode);
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             output.actual = instanceBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("instance_binding");
-            scriptRoot.getClassNode().addField(new SField(location, Modifier.STATIC | Modifier.PUBLIC,
-                    bindingName, instanceBinding.targetInstance.getClass()));
+
+            FieldNode fieldNode = new FieldNode();
+            fieldNode.setLocation(location);
+            fieldNode.setModifiers(Modifier.PUBLIC | Modifier.STATIC);
+            fieldNode.setFieldType(instanceBinding.targetInstance.getClass());
+            fieldNode.setName(bindingName);
+
+            classNode.addFieldNode(fieldNode);
+
             scriptRoot.addStaticConstant(bindingName, instanceBinding.targetInstance);
         } else {
             throw new IllegalStateException("Illegal tree structure.");

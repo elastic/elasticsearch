@@ -144,17 +144,17 @@ looking for:
 
 include::analysis/overview.asciidoc[]
 
-include::analysis/anatomy.asciidoc[]
+include::analysis/concepts.asciidoc[]
 
-include::analysis/testing.asciidoc[]
+include::analysis/configure-text-analysis.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
-
-include::analysis/normalizers.asciidoc[]
 
 include::analysis/tokenizers.asciidoc[]
 
 include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
+
+include::analysis/normalizers.asciidoc[]
 

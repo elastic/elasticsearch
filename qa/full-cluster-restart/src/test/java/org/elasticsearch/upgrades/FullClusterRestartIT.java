@@ -279,6 +279,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 mappingsAndSettings.startObject("settings");
                 {
                     mappingsAndSettings.field("index.number_of_shards", 5);
+                    if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                        mappingsAndSettings.field(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(randomBoolean()));
+                    }
                 }
                 mappingsAndSettings.endObject();
             }
@@ -350,6 +353,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("index.number_of_shards", 5);
+                if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                    mappingsAndSettings.field(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(randomBoolean()));
+                }
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
@@ -1309,5 +1315,78 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEmptyTranslog(index);
             ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
+    }
+
+    public void testResize() throws Exception {
+        int numDocs;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+            }
+            createIndex(index, settings.build());
+            numDocs = randomIntBetween(10, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                indexDocument(Integer.toString(i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            saveInfoDocument("num_doc_" + index, Integer.toString(numDocs));
+            ensureGreen(index);
+        } else {
+            ensureGreen(index);
+            numDocs = Integer.parseInt(loadInfoDocument("num_doc_" + index));
+            int moreDocs = randomIntBetween(0, 100);
+            for (int i = 0; i < moreDocs; i++) {
+                indexDocument(Integer.toString(numDocs + i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            client().performRequest(updateSettingsRequest);
+            {
+                final String target = index + "_shrunken";
+                Request shrinkRequest = new Request("PUT", "/" + index + "/_shrink/" + target);
+                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+                if (randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
+                shrinkRequest.setJsonEntity("{\"settings\":" + Strings.toString(settings.build()) + "}");
+                client().performRequest(shrinkRequest);
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 1);
+            }
+            {
+                final String target = index + "_split";
+                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 6);
+                if (randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
+                Request splitRequest = new Request("PUT", "/" + index + "/_split/" + target);
+                splitRequest.setJsonEntity("{\"settings\":" + Strings.toString(settings.build()) + "}");
+                client().performRequest(splitRequest);
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 6);
+            }
+            {
+                final String target = index + "_cloned";
+                client().performRequest(new Request("PUT", "/" + index + "/_clone/" + target));
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 3);
+            }
+        }
+    }
+
+    private void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+        Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(resp);
+        assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
+        assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
+        assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 }

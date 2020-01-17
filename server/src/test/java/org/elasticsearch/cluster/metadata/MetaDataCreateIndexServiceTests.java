@@ -831,7 +831,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
             aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
-                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+                null, Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build(),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));

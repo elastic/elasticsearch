@@ -14,13 +14,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,9 +32,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class ResultsPersisterService {
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
@@ -52,10 +48,10 @@ public class ResultsPersisterService {
     // Having an exponent higher than this causes integer overflow
     private static final int MAX_RETRY_EXPONENT = 24;
 
-    private final Client client;
+    private final OriginSettingClient client;
     private volatile int maxFailureRetries;
 
-    public ResultsPersisterService(Client client, ClusterService clusterService, Settings settings) {
+    public ResultsPersisterService(OriginSettingClient client, ClusterService clusterService, Settings settings) {
         this.client = client;
         this.maxFailureRetries = PERSIST_RESULTS_MAX_RETRIES.get(settings);
         clusterService.getClusterSettings()
@@ -91,7 +87,7 @@ public class ResultsPersisterService {
         BulkResponse bulkResponse = null;
         final Random random = Randomness.get();
         while(currentAttempt <= maxFailureRetries) {
-            bulkResponse = bulkIndex(bulkRequest);
+            bulkResponse = client.bulk(bulkRequest).actionGet();
             if (bulkResponse.hasFailures() == false) {
                 return bulkResponse;
             }
@@ -147,12 +143,6 @@ public class ResultsPersisterService {
             jobId,
             currentAttempt,
             bulkFailureMessage);
-    }
-
-    private BulkResponse bulkIndex(BulkRequest bulkRequest) {
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            return client.bulk(bulkRequest).actionGet();
-        }
     }
 
     private BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {

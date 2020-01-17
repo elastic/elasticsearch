@@ -21,7 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,11 +76,11 @@ public class JobResultsPersister {
 
     private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
-    private final Client client;
+    private final OriginSettingClient client;
     private final ResultsPersisterService resultsPersisterService;
     private final AnomalyDetectionAuditor auditor;
 
-    public JobResultsPersister(Client client,
+    public JobResultsPersister(OriginSettingClient client,
                                ResultsPersisterService resultsPersisterService,
                                AnomalyDetectionAuditor auditor) {
         this.client = client;

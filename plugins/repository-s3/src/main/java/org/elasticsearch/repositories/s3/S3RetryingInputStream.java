@@ -68,8 +68,8 @@ class S3RetryingInputStream extends InputStream {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
-        if (end < 0L || end == Long.MAX_VALUE || end < start) {
-            throw new IllegalArgumentException("end must be non-negative and not Long.MAX_VALUE and >= start");
+        if (end < start || end == Long.MAX_VALUE) {
+            throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
         this.blobStore = blobStore;
         this.blobKey = blobKey;

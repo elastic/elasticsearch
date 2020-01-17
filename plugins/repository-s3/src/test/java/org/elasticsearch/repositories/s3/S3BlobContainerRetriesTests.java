@@ -85,6 +85,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "use a http server")
 public class S3BlobContainerRetriesTests extends ESTestCase {
 
+    private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
+
     private HttpServer httpServer;
     private S3Service service;
 
@@ -143,10 +145,17 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
-        Exception exception = expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob("read_nonexistent_blob"));
+        final long position = randomLongBetween(0, MAX_RANGE_VAL);
+        final int length = randomIntBetween(0, Math.toIntExact(Math.min(Integer.MAX_VALUE, MAX_RANGE_VAL - position)));
+        final Exception exception = expectThrows(NoSuchFileException.class,
+            () -> {
+                if (randomBoolean()) {
+                    blobContainer.readBlob("read_nonexistent_blob");
+                } else {
+                    blobContainer.readBlob("read_nonexistent_blob", 0, 1);
+                }
+            });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
-        final long position = randomLongBetween(0, Long.MAX_VALUE - 1);
-        final int length = randomIntBetween(0, Math.toIntExact(Math.min(Integer.MAX_VALUE, Long.MAX_VALUE - 1 - position)));
         assertThat(expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob("read_nonexistent_blob", position, length))
             .getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
     }
@@ -192,7 +201,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/bucket/read_blob_max_retries", exchange -> {
+        httpServer.createContext("/bucket/read_range_blob_max_retries", exchange -> {
             Streams.readFully(exchange.getRequestBody());
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
@@ -224,7 +233,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
-        try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries", position, length)) {
+        try (InputStream inputStream = blobContainer.readBlob("read_range_blob_max_retries", position, length)) {
             assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + length)),
                 BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDown.isCountedDown(), is(length > 0));
@@ -293,7 +302,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final Exception exception = expectThrows(ConnectionClosedException.class, () -> {
             try (InputStream stream = randomBoolean() ?
                     blobContainer.readBlob("read_blob_incomplete") :
-                    blobContainer.readBlob("read_blob_no_response", 0, 1)) {
+                    blobContainer.readBlob("read_blob_incomplete", 0, 1)) {
                 Streams.readFully(stream);
             }
         });
@@ -466,7 +475,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     private static Tuple<Long, Long> getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
-            return Tuple.tuple(0L, Long.MAX_VALUE - 1);
+            return Tuple.tuple(0L, MAX_RANGE_VAL);
         }
 
         final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(rangeHeader);
@@ -483,7 +492,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
 
     private static Optional<Integer> getRangeEnd(HttpExchange exchange) {
         final long rangeEnd = getRange(exchange).v2();
-        if (rangeEnd == Long.MAX_VALUE - 1) {
+        if (rangeEnd == MAX_RANGE_VAL) {
             return Optional.empty();
         }
         return Optional.of(Math.toIntExact(rangeEnd));

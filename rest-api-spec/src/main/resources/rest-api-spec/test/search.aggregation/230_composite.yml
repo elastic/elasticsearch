@@ -785,6 +785,9 @@ setup:
 
 ---
 "date_histogram with time_zone":
+  - skip:
+      version: " - 7.99.99"
+      reason: This will fail against 7.whatever until we backport the fix
   - do:
       index:
         index:   test

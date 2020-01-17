@@ -31,7 +31,7 @@ volume and pattern is normal for each category over time. You can then detect
 anomalies and surface rare events or unusual types of messages by using
 <<ml-count-functions,count>> or <<ml-rare-functions,rare>> functions.
 
-In {kib}, there is categorization wizard to help you create this type of 
+In {kib}, there is a categorization wizard to help you create this type of 
 {anomaly-job}. For example, the following job generates categories from the
 contents of the `message` field and uses the count function to determine when
 certain categories are occurring at anomalous rates:

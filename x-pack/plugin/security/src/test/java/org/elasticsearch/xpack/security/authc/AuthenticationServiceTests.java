@@ -782,7 +782,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(request.index(), request.id(),
+            listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1L, false, null,
                 Collections.emptyMap(), Collections.emptyMap())));
             return Void.TYPE;

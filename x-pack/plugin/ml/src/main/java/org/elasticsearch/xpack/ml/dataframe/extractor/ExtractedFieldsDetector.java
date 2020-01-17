@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -40,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ExtractedFieldsDetector {
 
@@ -82,6 +84,7 @@ public class ExtractedFieldsDetector {
         Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
         fields.removeAll(IGNORE_FIELDS);
         removeFieldsUnderResultsField(fields);
+        removeObjects(fields);
         applySourceFiltering(fields);
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
 
@@ -110,6 +113,17 @@ public class ExtractedFieldsDetector {
             }
         }
         fields.removeIf(field -> field.startsWith(resultsField + "."));
+    }
+
+    private void removeObjects(Set<String> fields) {
+        Iterator<String> fieldsIterator = fields.iterator();
+        while (fieldsIterator.hasNext()) {
+            String field = fieldsIterator.next();
+            Set<String> types = getMappingTypes(field);
+            if (isObject(types)) {
+                fieldsIterator.remove();
+            }
+        }
     }
 
     private void applySourceFiltering(Set<String> fields) {
@@ -178,6 +192,9 @@ public class ExtractedFieldsDetector {
         if (analyzedFields == null) {
             return;
         }
+
+        checkIncludesExcludesAreNotObjects(analyzedFields);
+
         String includes = analyzedFields.includes().length == 0 ? "*" : Strings.arrayToCommaDelimitedString(analyzedFields.includes());
         String excludes = Strings.arrayToCommaDelimitedString(analyzedFields.excludes());
 
@@ -202,6 +219,16 @@ public class ExtractedFieldsDetector {
         } catch (ResourceNotFoundException ex) {
             // Re-wrap our exception so that we throw the same exception type when there are no fields.
             throw ExceptionsHelper.badRequestException(ex.getMessage());
+        }
+    }
+
+    private void checkIncludesExcludesAreNotObjects(FetchSourceContext analyzedFields) {
+        List<String> objectFields = Stream.concat(Arrays.stream(analyzedFields.includes()), Arrays.stream(analyzedFields.excludes()))
+            .filter(field -> isObject(getMappingTypes(field)))
+            .collect(Collectors.toList());
+        if (objectFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("{} must not include or exclude object fields: {}",
+                DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(), objectFields);
         }
     }
 
@@ -393,5 +420,9 @@ public class ExtractedFieldsDetector {
 
     private static boolean isBoolean(Set<String> types) {
         return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
+    }
+
+    private boolean isObject(Set<String> types) {
+        return types.size() == 1 && types.contains(ObjectMapper.CONTENT_TYPE);
     }
 }

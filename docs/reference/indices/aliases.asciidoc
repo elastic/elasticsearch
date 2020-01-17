@@ -252,7 +252,45 @@ indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
 
-It is also possible to swap an index with an alias in one operation:
+It is also possible to swap an index with an alias in one, atomic operation:
+
+[source,console]
+--------------------------------------------------
+PUT test     <1>
+PUT test_2   <2>
+POST /_aliases
+{
+    "actions" : [
+        { "add":  { "index": "test_2", "alias": "test" } },
+        { "remove_index": { "index": "test" } }  <3>
+    ]
+}
+--------------------------------------------------
+
+<1> An index we've added by mistake
+<2> The index we should have added
+<3> `remove_index` is just like <<indices-delete-index>>
+
+In case the old index shouldn't be deleted to keep serving the 
+in-flight requests, it is also possible to use `remove` action instead:
+
+[source,console]
+--------------------------------------------------
+PUT test     <1>
+PUT test_2   <2>
+POST /_aliases
+{
+    "actions" : [
+        { "remove": { "index": "test", "alias": "test" } },  <3>
+        { "add":  { "index": "test_2", "alias": "test" } }   <4>
+    ]
+}
+--------------------------------------------------
+
+<1> An index which is currently active
+<2> The index we want to swap with
+<3> `remove` will dissociate `test` index from `test` alias
+<4> `add` will associate `test_2` index with `test` alias
 
 [source,console]
 --------------------------------------------------

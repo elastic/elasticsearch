@@ -78,10 +78,15 @@ public class AbstractQueryBuilderTests extends ESTestCase {
             assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
 
-        source = "{ \"foo\" : {} }";
+        source = "{ \"boool\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
-            assertEquals("no [query] registered for [foo]", exception.getMessage());
+            assertEquals("[query] unknown field [boool] did you mean [bool]?", exception.getMessage());
+        }
+        source = "{ \"match_\" : {} }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
+            assertEquals("[query] unknown field [match_] did you mean any of [match, match_all, match_none]?", exception.getMessage());
         }
     }
 

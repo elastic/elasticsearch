@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.s3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -265,7 +266,8 @@ class S3Repository extends BlobStoreRepository {
             public void onResponse(T response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(() -> wrappedListener.onResponse(response), coolDown, ThreadPool.Names.SNAPSHOT));
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
+                        coolDown, ThreadPool.Names.SNAPSHOT));
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
 
@@ -273,7 +275,7 @@ class S3Repository extends BlobStoreRepository {
             public void onFailure(Exception e) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(() -> wrappedListener.onFailure(e), coolDown, ThreadPool.Names.SNAPSHOT));
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, ThreadPool.Names.SNAPSHOT));
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
         };
@@ -317,7 +319,7 @@ class S3Repository extends BlobStoreRepository {
     protected void doClose() {
         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
         if (cancellable != null) {
-            logger.warn("Repository closed during cooldown period");
+            logger.debug("Repository [{}] closed during cool-down period", metadata.name());
             cancellable.cancel();
         }
         super.doClose();

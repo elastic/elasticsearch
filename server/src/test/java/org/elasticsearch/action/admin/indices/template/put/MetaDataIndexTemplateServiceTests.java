@@ -112,6 +112,17 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
     }
 
+    public void testBrokenMapping() throws Exception {
+        PutRequest request = new PutRequest("api", "broken_mapping");
+        request.patterns(Collections.singletonList("te*"));
+        request.mappings("abcde");
+
+        List<Throwable> errors = putTemplateDetail(request);
+        assertThat(errors.size(), equalTo(1));
+        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
+        assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping"));
+    }
+
     public void testAliasInvalidFilterInvalidJson() throws Exception {
         //invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");

@@ -53,6 +53,7 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<Analytic
     protected AnalyticsStatsAction.NodeResponse nodeOperation(AnalyticsStatsAction.NodeRequest request, Task task) {
         AnalyticsStatsAction.NodeResponse statsResponse = new AnalyticsStatsAction.NodeResponse(clusterService.localNode());
         statsResponse.setCumulativeCardinalityUsage(AnalyticsPlugin.cumulativeCardUsage.get());
+        statsResponse.setTopMetricsUsage(AnalyticsPlugin.topMetricsUsage.get());
         return statsResponse;
     }
 

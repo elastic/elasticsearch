@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.analytics.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -109,32 +110,46 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     }
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentObject {
-        static ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
-        private long cumulativeCardinalityUsage;
+        static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
+        static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
 
-        public NodeResponse(StreamInput in) throws IOException {
-            super(in);
-            cumulativeCardinalityUsage = in.readZLong();
-        }
+        private long cumulativeCardinalityUsage;
+        private long topMetricsUsage;
 
         public NodeResponse(DiscoveryNode node) {
             super(node);
         }
 
-        public void setCumulativeCardinalityUsage(long cumulativeCardinalityUsage) {
-            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
+        public NodeResponse(StreamInput in) throws IOException {
+            super(in);
+            cumulativeCardinalityUsage = in.readZLong();
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                topMetricsUsage = in.readVLong();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeZLong(cumulativeCardinalityUsage);
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeVLong(topMetricsUsage);
+            }
+        }
+
+        public void setCumulativeCardinalityUsage(long cumulativeCardinalityUsage) {
+            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
+        }
+
+        public void setTopMetricsUsage(long topMetricsUsage) {
+            this.topMetricsUsage = topMetricsUsage;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
+            builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
             builder.endObject();
             return builder;
         }

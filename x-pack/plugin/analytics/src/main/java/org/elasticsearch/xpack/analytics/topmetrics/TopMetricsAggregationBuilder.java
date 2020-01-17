@@ -90,7 +90,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new TopMetricsAggregationBuilder(this, factoriesBuilder, metaData);
     }
-    
+
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
@@ -157,5 +157,13 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     @Override
     public String getType() {
         return NAME;
+    }
+
+    List<SortBuilder<?>> getSortBuilders() {
+        return sortBuilders;
+    }
+
+    MultiValuesSourceFieldConfig getMetricField() {
+        return metricField;
     }
 }

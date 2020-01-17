@@ -9,9 +9,7 @@ best on machine-written messages and application outputs, typically on data that
 consists of repeated elements, for example log messages for the purpose of 
 system troubleshooting. Log categorization groups unstructured log messages into 
 categories, then you can use {anomaly-detect} to model and identify rare or 
-unusual counts of log message categories. For more information about the 
-process, see 
-{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
+unusual counts of log message categories.
 
 Categorization is tuned to work best on data like log messages by taking token
 order into account, not considering synonyms, and including stop words in its 
@@ -24,7 +22,7 @@ effectively.  Categorization is _not_ natural language processing (NLP).
 
 [float]
 [[ml-categorization-log-messages]]
-=== Categorizing log messages
+==== Categorizing log messages
 
 Application log events are often unstructured and contain variable data. For
 example:
@@ -103,7 +101,7 @@ NOTE: To add the `categorization_examples_limit` property, you must use the
 
 [float]
 [[ml-configuring-analyzer]]
-==== Customizing the categorization analyzer
+===== Customizing the categorization analyzer
 
 Categorization uses English dictionary words to identify log message categories.
 By default, it also uses English tokenization rules. For this reason, if you use
@@ -288,7 +286,7 @@ API examples above.
 
 [float]
 [[ml-viewing-categories]]
-==== Viewing categorization results
+===== Viewing categorization results
 
 After you open the job and start the {dfeed} or supply data to the job, you can
 view the categorization results in {kib}. For example:

@@ -48,15 +48,15 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitQuery(EqlBaseParser.QueryContext ctx);
   /**
-   * Enter a parse tree produced by {@link EqlBaseParser#withParams}.
+   * Enter a parse tree produced by {@link EqlBaseParser#sequenceParams}.
    * @param ctx the parse tree
    */
-  void enterWithParams(EqlBaseParser.WithParamsContext ctx);
+  void enterSequenceParams(EqlBaseParser.SequenceParamsContext ctx);
   /**
-   * Exit a parse tree produced by {@link EqlBaseParser#withParams}.
+   * Exit a parse tree produced by {@link EqlBaseParser#sequenceParams}.
    * @param ctx the parse tree
    */
-  void exitWithParams(EqlBaseParser.WithParamsContext ctx);
+  void exitSequenceParams(EqlBaseParser.SequenceParamsContext ctx);
   /**
    * Enter a parse tree produced by {@link EqlBaseParser#sequence}.
    * @param ctx the parse tree
@@ -87,16 +87,6 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitPipe(EqlBaseParser.PipeContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EqlBaseParser#namedParam}.
-   * @param ctx the parse tree
-   */
-  void enterNamedParam(EqlBaseParser.NamedParamContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EqlBaseParser#namedParam}.
-   * @param ctx the parse tree
-   */
-  void exitNamedParam(EqlBaseParser.NamedParamContext ctx);
   /**
    * Enter a parse tree produced by {@link EqlBaseParser#joinKeys}.
    * @param ctx the parse tree

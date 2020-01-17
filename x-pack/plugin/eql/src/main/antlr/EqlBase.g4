@@ -24,11 +24,13 @@ query
     | join
     | eventQuery
     ;
-withParams
-    : WITH namedParam (COMMA namedParam)*
+
+sequenceParams
+    : WITH (MAXSPAN EQ timeUnit)
     ;
+
 sequence
-    : SEQUENCE  (by=joinKeys withParams? | withParams by=joinKeys?)?
+    : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
       sequenceTerm sequenceTerm+
       (UNTIL sequenceTerm)?
     ;
@@ -44,8 +46,6 @@ pipe
     ;
 
 
-namedParam: key=IDENTIFIER EQ (expression | timeUnit);
-
 joinKeys
     : BY expression (COMMA expression)*
     ;
@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery namedParam* (by=joinKeys)?
+   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
    ;
 
 subquery
@@ -135,7 +135,7 @@ identifier
     ;
 
 timeUnit
-    : number unit=IDENTIFIER
+    : number unit=IDENTIFIER?
     ;
 
 number
@@ -150,8 +150,10 @@ string
 AND: 'and';
 BY: 'by';
 FALSE: 'false';
+FORK: 'fork';
 IN: 'in';
 JOIN: 'join';
+MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
 OF: 'of';

@@ -45,7 +45,7 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitWithParams(EqlBaseParser.WithParamsContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSequenceParams(EqlBaseParser.SequenceParamsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -67,13 +67,6 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitPipe(EqlBaseParser.PipeContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitNamedParam(EqlBaseParser.NamedParamContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

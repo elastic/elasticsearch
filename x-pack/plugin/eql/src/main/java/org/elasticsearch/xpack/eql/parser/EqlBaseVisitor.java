@@ -35,11 +35,11 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQuery(EqlBaseParser.QueryContext ctx);
   /**
-   * Visit a parse tree produced by {@link EqlBaseParser#withParams}.
+   * Visit a parse tree produced by {@link EqlBaseParser#sequenceParams}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitWithParams(EqlBaseParser.WithParamsContext ctx);
+  T visitSequenceParams(EqlBaseParser.SequenceParamsContext ctx);
   /**
    * Visit a parse tree produced by {@link EqlBaseParser#sequence}.
    * @param ctx the parse tree
@@ -58,12 +58,6 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitPipe(EqlBaseParser.PipeContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EqlBaseParser#namedParam}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitNamedParam(EqlBaseParser.NamedParamContext ctx);
   /**
    * Visit a parse tree produced by {@link EqlBaseParser#joinKeys}.
    * @param ctx the parse tree

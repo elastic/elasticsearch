@@ -64,13 +64,13 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterWithParams(EqlBaseParser.WithParamsContext ctx) { }
+  @Override public void enterSequenceParams(EqlBaseParser.SequenceParamsContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitWithParams(EqlBaseParser.WithParamsContext ctx) { }
+  @Override public void exitSequenceParams(EqlBaseParser.SequenceParamsContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -107,18 +107,6 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitPipe(EqlBaseParser.PipeContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterNamedParam(EqlBaseParser.NamedParamContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitNamedParam(EqlBaseParser.NamedParamContext ctx) { }
   /**
    * {@inheritDoc}
    *

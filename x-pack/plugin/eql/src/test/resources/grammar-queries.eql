@@ -253,13 +253,19 @@ sequence by f [file where true] by a,b [process where true] by c,d until [proces
 
 sequence by unique_pid [process where true] [file where true] fork=true;
 
-sequence by unique_pid [process where true] [file where true] fork=1;
+// no longer supported
+//sequence by unique_pid [process where true] [file where true] fork=1;
 
 sequence by unique_pid [process where true] [file where true] fork=false;
 
-sequence by unique_pid [process where true] [file where true] fork=0 [network where true];
+// no longer supported
+// sequence by unique_pid [process where true] [file where true] fork=0 [network where true];
+sequence by unique_pid [process where true] [file where true] fork [network where true];
 
-sequence by unique_pid [process where true] [file where true] fork=0;
+
+// no longer supported
+// sequence by unique_pid [process where true] [file where true] fork=0;
+sequence by unique_pid [process where true] [file where true] fork=true;
 
 
 /* TESTS FROM

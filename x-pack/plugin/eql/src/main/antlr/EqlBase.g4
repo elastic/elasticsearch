@@ -16,7 +16,7 @@ singleExpression
     ;
 
 statement
-    : query (PIPE pipe)*
+    : query pipe*
     ;
 
 query
@@ -42,7 +42,7 @@ join
     ;
 
 pipe
-    : kind=IDENTIFIER (booleanExpression (COMMA booleanExpression)*)?
+    : PIPE kind=IDENTIFIER (booleanExpression (COMMA booleanExpression)*)?
     ;
 
 
@@ -108,14 +108,14 @@ primaryExpression
     ;
 
 functionExpression
-    : identifier LP (expression (COMMA expression)*)? RP
+    : name=identifier LP (expression (COMMA expression)*)? RP
     ;
 
 constant
     : NULL                                                                              #nullLiteral
     | number                                                                            #numericLiteral
     | booleanValue                                                                      #booleanLiteral
-    | string                                                                           #stringLiteral
+    | string                                                                            #stringLiteral
     ;
 
 comparisonOperator

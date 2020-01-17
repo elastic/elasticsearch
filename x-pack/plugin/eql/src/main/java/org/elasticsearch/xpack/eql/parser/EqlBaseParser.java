@@ -203,10 +203,6 @@ class EqlBaseParser extends Parser {
     public QueryContext query() {
       return getRuleContext(QueryContext.class,0);
     }
-    public List<TerminalNode> PIPE() { return getTokens(EqlBaseParser.PIPE); }
-    public TerminalNode PIPE(int i) {
-      return getToken(EqlBaseParser.PIPE, i);
-    }
     public List<PipeContext> pipe() {
       return getRuleContexts(PipeContext.class);
     }
@@ -241,19 +237,17 @@ class EqlBaseParser extends Parser {
       {
       setState(62);
       query();
-      setState(67);
+      setState(66);
       _errHandler.sync(this);
       _la = _input.LA(1);
       while (_la==PIPE) {
         {
         {
         setState(63);
-        match(PIPE);
-        setState(64);
         pipe();
         }
         }
-        setState(69);
+        setState(68);
         _errHandler.sync(this);
         _la = _input.LA(1);
       }
@@ -303,26 +297,26 @@ class EqlBaseParser extends Parser {
     QueryContext _localctx = new QueryContext(_ctx, getState());
     enterRule(_localctx, 6, RULE_query);
     try {
-      setState(73);
+      setState(72);
       switch (_input.LA(1)) {
       case SEQUENCE:
         enterOuterAlt(_localctx, 1);
         {
-        setState(70);
+        setState(69);
         sequence();
         }
         break;
       case JOIN:
         enterOuterAlt(_localctx, 2);
         {
-        setState(71);
+        setState(70);
         join();
         }
         break;
       case IDENTIFIER:
         enterOuterAlt(_localctx, 3);
         {
-        setState(72);
+        setState(71);
         eventQuery();
         }
         break;
@@ -373,14 +367,14 @@ class EqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(75);
+      setState(74);
       match(WITH);
       {
-      setState(76);
+      setState(75);
       match(MAXSPAN);
-      setState(77);
+      setState(76);
       match(EQ);
-      setState(78);
+      setState(77);
       timeUnit();
       }
       }
@@ -438,19 +432,19 @@ class EqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(80);
+      setState(79);
       match(SEQUENCE);
-      setState(89);
+      setState(88);
       switch (_input.LA(1)) {
       case BY:
         {
-        setState(81);
+        setState(80);
         ((SequenceContext)_localctx).by = joinKeys();
-        setState(83);
+        setState(82);
         _la = _input.LA(1);
         if (_la==WITH) {
           {
-          setState(82);
+          setState(81);
           sequenceParams();
           }
         }
@@ -459,13 +453,13 @@ class EqlBaseParser extends Parser {
         break;
       case WITH:
         {
-        setState(85);
+        setState(84);
         sequenceParams();
-        setState(87);
+        setState(86);
         _la = _input.LA(1);
         if (_la==BY) {
           {
-          setState(86);
+          setState(85);
           ((SequenceContext)_localctx).by = joinKeys();
           }
         }
@@ -477,29 +471,29 @@ class EqlBaseParser extends Parser {
       default:
         throw new NoViableAltException(this);
       }
-      setState(91);
+      setState(90);
       sequenceTerm();
-      setState(93); 
+      setState(92); 
       _errHandler.sync(this);
       _la = _input.LA(1);
       do {
         {
         {
-        setState(92);
+        setState(91);
         sequenceTerm();
         }
         }
-        setState(95); 
+        setState(94); 
         _errHandler.sync(this);
         _la = _input.LA(1);
       } while ( _la==LB );
-      setState(99);
+      setState(98);
       _la = _input.LA(1);
       if (_la==UNTIL) {
         {
-        setState(97);
+        setState(96);
         match(UNTIL);
-        setState(98);
+        setState(97);
         sequenceTerm();
         }
       }
@@ -556,40 +550,40 @@ class EqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(101);
+      setState(100);
       match(JOIN);
-      setState(103);
+      setState(102);
       _la = _input.LA(1);
       if (_la==BY) {
         {
-        setState(102);
+        setState(101);
         ((JoinContext)_localctx).by = joinKeys();
         }
       }
 
-      setState(105);
+      setState(104);
       joinTerm();
-      setState(107); 
+      setState(106); 
       _errHandler.sync(this);
       _la = _input.LA(1);
       do {
         {
         {
-        setState(106);
+        setState(105);
         joinTerm();
         }
         }
-        setState(109); 
+        setState(108); 
         _errHandler.sync(this);
         _la = _input.LA(1);
       } while ( _la==LB );
-      setState(113);
+      setState(112);
       _la = _input.LA(1);
       if (_la==UNTIL) {
         {
-        setState(111);
+        setState(110);
         match(UNTIL);
-        setState(112);
+        setState(111);
         joinTerm();
         }
       }
@@ -609,6 +603,7 @@ class EqlBaseParser extends Parser {
 
   public static class PipeContext extends ParserRuleContext {
     public Token kind;
+    public TerminalNode PIPE() { return getToken(EqlBaseParser.PIPE, 0); }
     public TerminalNode IDENTIFIER() { return getToken(EqlBaseParser.IDENTIFIER, 0); }
     public List<BooleanExpressionContext> booleanExpression() {
       return getRuleContexts(BooleanExpressionContext.class);
@@ -646,6 +641,8 @@ class EqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
+      setState(114);
+      match(PIPE);
       setState(115);
       ((PipeContext)_localctx).kind = match(IDENTIFIER);
       setState(124);
@@ -1825,11 +1822,12 @@ class EqlBaseParser extends Parser {
   }
 
   public static class FunctionExpressionContext extends ParserRuleContext {
+    public IdentifierContext name;
+    public TerminalNode LP() { return getToken(EqlBaseParser.LP, 0); }
+    public TerminalNode RP() { return getToken(EqlBaseParser.RP, 0); }
     public IdentifierContext identifier() {
       return getRuleContext(IdentifierContext.class,0);
     }
-    public TerminalNode LP() { return getToken(EqlBaseParser.LP, 0); }
-    public TerminalNode RP() { return getToken(EqlBaseParser.RP, 0); }
     public List<ExpressionContext> expression() {
       return getRuleContexts(ExpressionContext.class);
     }
@@ -1867,7 +1865,7 @@ class EqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(231);
-      identifier();
+      ((FunctionExpressionContext)_localctx).name = identifier();
       setState(232);
       match(LP);
       setState(241);
@@ -2524,11 +2522,11 @@ class EqlBaseParser extends Parser {
     "\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
     "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
     "\4\32\t\32\4\33\t\33\4\34\t\34\4\35\t\35\3\2\3\2\3\2\3\3\3\3\3\3\3\4\3"+
-    "\4\3\4\7\4D\n\4\f\4\16\4G\13\4\3\5\3\5\3\5\5\5L\n\5\3\6\3\6\3\6\3\6\3"+
-    "\6\3\7\3\7\3\7\5\7V\n\7\3\7\3\7\5\7Z\n\7\5\7\\\n\7\3\7\3\7\6\7`\n\7\r"+
-    "\7\16\7a\3\7\3\7\5\7f\n\7\3\b\3\b\5\bj\n\b\3\b\3\b\6\bn\n\b\r\b\16\bo"+
-    "\3\b\3\b\5\bt\n\b\3\t\3\t\3\t\3\t\7\tz\n\t\f\t\16\t}\13\t\5\t\177\n\t"+
-    "\3\n\3\n\3\n\3\n\7\n\u0085\n\n\f\n\16\n\u0088\13\n\3\13\3\13\5\13\u008c"+
+    "\4\7\4C\n\4\f\4\16\4F\13\4\3\5\3\5\3\5\5\5K\n\5\3\6\3\6\3\6\3\6\3\6\3"+
+    "\7\3\7\3\7\5\7U\n\7\3\7\3\7\5\7Y\n\7\5\7[\n\7\3\7\3\7\6\7_\n\7\r\7\16"+
+    "\7`\3\7\3\7\5\7e\n\7\3\b\3\b\5\bi\n\b\3\b\3\b\6\bm\n\b\r\b\16\bn\3\b\3"+
+    "\b\5\bs\n\b\3\t\3\t\3\t\3\t\3\t\7\tz\n\t\f\t\16\t}\13\t\5\t\177\n\t\3"+
+    "\n\3\n\3\n\3\n\7\n\u0085\n\n\f\n\16\n\u0088\13\n\3\13\3\13\5\13\u008c"+
     "\n\13\3\f\3\f\3\f\3\f\5\f\u0092\n\f\5\f\u0094\n\f\3\f\5\f\u0097\n\f\3"+
     "\r\3\r\3\r\3\r\3\16\3\16\3\16\3\16\3\17\3\17\3\20\3\20\3\20\3\20\3\20"+
     "\3\20\3\20\3\20\5\20\u00ab\n\20\3\20\3\20\3\20\3\20\3\20\3\20\7\20\u00b3"+
@@ -2543,25 +2541,25 @@ class EqlBaseParser extends Parser {
     "\16\31\u010f\13\31\3\32\3\32\3\33\3\33\5\33\u0115\n\33\3\34\3\34\5\34"+
     "\u0119\n\34\3\35\3\35\3\35\2\4\36$\36\2\4\6\b\n\f\16\20\22\24\26\30\32"+
     "\34\36 \"$&(*,.\60\62\64\668\2\6\3\2\31\32\3\2\33\35\3\2\23\30\4\2\5\5"+
-    "\17\17\u012c\2:\3\2\2\2\4=\3\2\2\2\6@\3\2\2\2\bK\3\2\2\2\nM\3\2\2\2\f"+
-    "R\3\2\2\2\16g\3\2\2\2\20u\3\2\2\2\22\u0080\3\2\2\2\24\u0089\3\2\2\2\26"+
+    "\17\17\u012c\2:\3\2\2\2\4=\3\2\2\2\6@\3\2\2\2\bJ\3\2\2\2\nL\3\2\2\2\f"+
+    "Q\3\2\2\2\16f\3\2\2\2\20t\3\2\2\2\22\u0080\3\2\2\2\24\u0089\3\2\2\2\26"+
     "\u008d\3\2\2\2\30\u0098\3\2\2\2\32\u009c\3\2\2\2\34\u00a0\3\2\2\2\36\u00aa"+
     "\3\2\2\2 \u00b7\3\2\2\2\"\u00bc\3\2\2\2$\u00ce\3\2\2\2&\u00e7\3\2\2\2"+
     "(\u00e9\3\2\2\2*\u00fb\3\2\2\2,\u00fd\3\2\2\2.\u00ff\3\2\2\2\60\u0101"+
     "\3\2\2\2\62\u0110\3\2\2\2\64\u0112\3\2\2\2\66\u0118\3\2\2\28\u011a\3\2"+
     "\2\2:;\5\6\4\2;<\7\2\2\3<\3\3\2\2\2=>\5\34\17\2>?\7\2\2\3?\5\3\2\2\2@"+
-    "E\5\b\5\2AB\7$\2\2BD\5\20\t\2CA\3\2\2\2DG\3\2\2\2EC\3\2\2\2EF\3\2\2\2"+
-    "F\7\3\2\2\2GE\3\2\2\2HL\5\f\7\2IL\5\16\b\2JL\5\32\16\2KH\3\2\2\2KI\3\2"+
-    "\2\2KJ\3\2\2\2L\t\3\2\2\2MN\7\22\2\2NO\7\t\2\2OP\7\23\2\2PQ\5\64\33\2"+
-    "Q\13\3\2\2\2R[\7\16\2\2SU\5\22\n\2TV\5\n\6\2UT\3\2\2\2UV\3\2\2\2V\\\3"+
-    "\2\2\2WY\5\n\6\2XZ\5\22\n\2YX\3\2\2\2YZ\3\2\2\2Z\\\3\2\2\2[S\3\2\2\2["+
-    "W\3\2\2\2[\\\3\2\2\2\\]\3\2\2\2]_\5\26\f\2^`\5\26\f\2_^\3\2\2\2`a\3\2"+
-    "\2\2a_\3\2\2\2ab\3\2\2\2be\3\2\2\2cd\7\20\2\2df\5\26\f\2ec\3\2\2\2ef\3"+
-    "\2\2\2f\r\3\2\2\2gi\7\b\2\2hj\5\22\n\2ih\3\2\2\2ij\3\2\2\2jk\3\2\2\2k"+
-    "m\5\24\13\2ln\5\24\13\2ml\3\2\2\2no\3\2\2\2om\3\2\2\2op\3\2\2\2ps\3\2"+
-    "\2\2qr\7\20\2\2rt\5\24\13\2sq\3\2\2\2st\3\2\2\2t\17\3\2\2\2u~\7)\2\2v"+
-    "{\5\36\20\2wx\7\37\2\2xz\5\36\20\2yw\3\2\2\2z}\3\2\2\2{y\3\2\2\2{|\3\2"+
-    "\2\2|\177\3\2\2\2}{\3\2\2\2~v\3\2\2\2~\177\3\2\2\2\177\21\3\2\2\2\u0080"+
+    "D\5\b\5\2AC\5\20\t\2BA\3\2\2\2CF\3\2\2\2DB\3\2\2\2DE\3\2\2\2E\7\3\2\2"+
+    "\2FD\3\2\2\2GK\5\f\7\2HK\5\16\b\2IK\5\32\16\2JG\3\2\2\2JH\3\2\2\2JI\3"+
+    "\2\2\2K\t\3\2\2\2LM\7\22\2\2MN\7\t\2\2NO\7\23\2\2OP\5\64\33\2P\13\3\2"+
+    "\2\2QZ\7\16\2\2RT\5\22\n\2SU\5\n\6\2TS\3\2\2\2TU\3\2\2\2U[\3\2\2\2VX\5"+
+    "\n\6\2WY\5\22\n\2XW\3\2\2\2XY\3\2\2\2Y[\3\2\2\2ZR\3\2\2\2ZV\3\2\2\2Z["+
+    "\3\2\2\2[\\\3\2\2\2\\^\5\26\f\2]_\5\26\f\2^]\3\2\2\2_`\3\2\2\2`^\3\2\2"+
+    "\2`a\3\2\2\2ad\3\2\2\2bc\7\20\2\2ce\5\26\f\2db\3\2\2\2de\3\2\2\2e\r\3"+
+    "\2\2\2fh\7\b\2\2gi\5\22\n\2hg\3\2\2\2hi\3\2\2\2ij\3\2\2\2jl\5\24\13\2"+
+    "km\5\24\13\2lk\3\2\2\2mn\3\2\2\2nl\3\2\2\2no\3\2\2\2or\3\2\2\2pq\7\20"+
+    "\2\2qs\5\24\13\2rp\3\2\2\2rs\3\2\2\2s\17\3\2\2\2tu\7$\2\2u~\7)\2\2v{\5"+
+    "\36\20\2wx\7\37\2\2xz\5\36\20\2yw\3\2\2\2z}\3\2\2\2{y\3\2\2\2{|\3\2\2"+
+    "\2|\177\3\2\2\2}{\3\2\2\2~v\3\2\2\2~\177\3\2\2\2\177\21\3\2\2\2\u0080"+
     "\u0081\7\4\2\2\u0081\u0086\5\34\17\2\u0082\u0083\7\37\2\2\u0083\u0085"+
     "\5\34\17\2\u0084\u0082\3\2\2\2\u0085\u0088\3\2\2\2\u0086\u0084\3\2\2\2"+
     "\u0086\u0087\3\2\2\2\u0087\23\3\2\2\2\u0088\u0086\3\2\2\2\u0089\u008b"+
@@ -2614,7 +2612,7 @@ class EqlBaseParser extends Parser {
     "\5\66\34\2\u0113\u0115\7)\2\2\u0114\u0113\3\2\2\2\u0114\u0115\3\2\2\2"+
     "\u0115\65\3\2\2\2\u0116\u0119\7(\2\2\u0117\u0119\7\'\2\2\u0118\u0116\3"+
     "\2\2\2\u0118\u0117\3\2\2\2\u0119\67\3\2\2\2\u011a\u011b\7&\2\2\u011b9"+
-    "\3\2\2\2%EKUY[aeios{~\u0086\u008b\u0091\u0093\u0096\u00aa\u00b2\u00b4"+
+    "\3\2\2\2%DJTXZ`dhnr{~\u0086\u008b\u0091\u0093\u0096\u00aa\u00b2\u00b4"+
     "\u00b9\u00bc\u00c5\u00ce\u00da\u00dc\u00e7\u00f0\u00f3\u00fb\u0108\u010b"+
     "\u010d\u0114\u0118";
   public static final ATN _ATN =

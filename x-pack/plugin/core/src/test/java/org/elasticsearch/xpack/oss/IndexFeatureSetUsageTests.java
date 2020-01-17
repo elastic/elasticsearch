@@ -116,7 +116,7 @@ public class IndexFeatureSetUsageTests extends AbstractWireSerializingTestCase<I
                     instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers());
         case 4:
-            Set<String> analyzers = new HashSet<>(instance.getUsedAnalyzerTypes());
+           Set<String> analyzers = new HashSet<>(instance.getUsedAnalyzerTypes());
             if (analyzers.add("english") == false) {
                 analyzers.remove("english");
             }
@@ -125,7 +125,7 @@ public class IndexFeatureSetUsageTests extends AbstractWireSerializingTestCase<I
                     instance.getUsedBuiltInCharFilters(), instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers());
         case 5:
-            Set<String> builtInCharFilters = new HashSet<>();
+            Set<String> builtInCharFilters = new HashSet<>(instance.getUsedBuiltInCharFilters());
             if (builtInCharFilters.add("html_strip") == false) {
                 builtInCharFilters.remove("html_strip");
             }
@@ -135,7 +135,7 @@ public class IndexFeatureSetUsageTests extends AbstractWireSerializingTestCase<I
                     instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers());
         case 6:
-            Set<String> builtInTokenizers = new HashSet<>();
+            Set<String> builtInTokenizers = new HashSet<>(instance.getUsedBuiltInTokenizers());
             if (builtInTokenizers.add("keyword") == false) {
                 builtInTokenizers.remove("keyword");
             }
@@ -144,7 +144,7 @@ public class IndexFeatureSetUsageTests extends AbstractWireSerializingTestCase<I
                     instance.getUsedBuiltInCharFilters(), builtInTokenizers, instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers());
         case 7:
-            Set<String> builtInTokenFilters = new HashSet<>();
+            Set<String> builtInTokenFilters = new HashSet<>(instance.getUsedBuiltInTokenFilters());
             if (builtInTokenFilters.add("trim") == false) {
                 builtInTokenFilters.remove("trim");
             }
@@ -153,7 +153,7 @@ public class IndexFeatureSetUsageTests extends AbstractWireSerializingTestCase<I
                     instance.getUsedBuiltInCharFilters(), instance.getUsedBuiltInTokenizers(), builtInTokenFilters,
                     instance.getUsedBuiltInAnalyzers());
         case 8:
-            Set<String> builtInAnalyzers = new HashSet<>();
+            Set<String> builtInAnalyzers = new HashSet<>(instance.getUsedBuiltInAnalyzers());
             if (builtInAnalyzers.add("french") == false) {
                 builtInAnalyzers.remove("french");
             }

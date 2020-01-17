@@ -325,6 +325,35 @@ public abstract class TransportWriteAction<
         }
     }
 
+    private static class FsyncAfterWriteAction {
+
+        private final ActionListener<Void> listener;
+        private final Logger logger;
+        private final IndexShard indexShard;
+        private final Location location;
+
+        FsyncAfterWriteAction(final IndexShard indexShard,
+                              @Nullable final Translog.Location location,
+                              final ActionListener<Void> listener,
+                              final Logger logger) {
+            this.indexShard = indexShard;
+
+            this.location = location;
+            this.listener = listener;
+            this.logger = logger;
+        }
+
+        void sync() {
+            indexShard.sync(location, (ex) -> {
+                if (ex != null) {
+                    listener.onFailure(ex);
+                } else {
+                    listener.onResponse(null);
+                }
+            });
+        }
+    }
+
     /**
      * A proxy for <b>write</b> operations that need to be performed on the
      * replicas, where a failure to execute the operation should fail

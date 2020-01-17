@@ -74,6 +74,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -88,13 +90,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final ConcurrentHashMap<ShardId, ConcurrentLinkedQueue<ShardOp>> shardQueues = new ConcurrentHashMap<>();
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
+            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, false);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
@@ -109,9 +112,50 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return new BulkShardResponse(in);
     }
 
+    private ConcurrentLinkedQueue<ShardOp> getOrCreateShardQueue(ShardId shardId) {
+        ConcurrentLinkedQueue<ShardOp> queue = shardQueues.get(shardId);
+        if (queue == null) {
+            ConcurrentLinkedQueue<ShardOp> previous = shardQueues.putIfAbsent(shardId, new ConcurrentLinkedQueue<>());
+            if (previous != null) {
+                queue = previous;
+            }
+        }
+        return queue;
+    }
+
+    private static class ShardOp {
+        private final BulkShardRequest request;
+        private final IndexShard indexShard;
+        private final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener;
+
+        private ShardOp(BulkShardRequest request, IndexShard indexShard,
+                        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+            this.request = request;
+            this.indexShard = indexShard;
+            this.listener = listener;
+        }
+    }
+
     @Override
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+        ConcurrentLinkedQueue<ShardOp> shardQueue = getOrCreateShardQueue(request.shardId());
+        shardQueue.add(new ShardOp(request, primary, listener));
+
+        threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+            ConcurrentLinkedQueue<ShardOp> shardOps = shardQueues.get(request.shardId());
+            ShardOp shardOp;
+            while((shardOp = shardOps.poll()) != null) {
+                thing(shardOp);
+            }
+        });
+    }
+
+    private void thing(ShardOp shardOp) {
+        BulkShardRequest request = shardOp.request;
+        IndexShard primary = shardOp.indexShard;
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener = shardOp.listener;
+
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, mappingListener) -> {

@@ -44,6 +44,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     public static final ParseField METRIC_FIELD = new ParseField("metric");
 
     private final List<SortBuilder<?>> sortBuilders;
+    // TODO MultiValuesSourceFieldConfig has more things than we support and less things than we want to support
     private final MultiValuesSourceFieldConfig metricField;
 
     /**

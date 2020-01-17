@@ -58,7 +58,8 @@ class TopMetricsAggregator extends MetricsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        return sortNeedsScores || metricValueSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        boolean needs = sortNeedsScores || (metricValueSource != null && metricValueSource.needsScores());
+        return needs ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

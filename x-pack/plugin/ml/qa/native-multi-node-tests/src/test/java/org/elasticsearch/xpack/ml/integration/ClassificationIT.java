@@ -14,23 +14,30 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +48,7 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -65,13 +73,21 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
     private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
 
+    private RolloverThread rolloverThread;
     private String jobId;
     private String sourceIndex;
     private String destIndex;
     private boolean analysisUsesExistingDestIndex;
 
+    @Before
+    public void setUpRolloverThread() {
+        rolloverThread = new RolloverThread();
+        rolloverThread.start();
+    }
+
     @After
     public void cleanup() {
+        rolloverThread.deactivate();
         cleanUp();
     }
 
@@ -129,12 +145,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
-    public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
-        initialize("classification_only_training_data_and_training_percent_is_100");
+    private List<String> testWithOnlyTrainingRowsAndTrainingPercentIsHundred(String jobId) throws Exception {
+        initialize(jobId);
         String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);
 
-        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        DataFrameAnalysis analysis = new Classification(KEYWORD_FIELD);
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, analysis);
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -172,6 +189,33 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started writing results",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+        return List.of(analysis.getStateDocId(jobId), StoredProgress.documentId(jobId));
+    }
+
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred_WithoutRollover() throws Exception {
+        testWithOnlyTrainingRowsAndTrainingPercentIsHundred("classification_only_training_data_and_training_percent_is_100");
+    }
+
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred_WithRollover() throws Exception {
+        int numberOfJobs = 10;
+        List<String> expectedStateDocumentIds = new ArrayList<>();
+        for (int job_i = 0; job_i < numberOfJobs; ++job_i) {
+            expectedStateDocumentIds.addAll(testWithOnlyTrainingRowsAndTrainingPercentIsHundred("classification_with_rollover_" + job_i));
+        }
+
+        SearchResponse searchResponse =
+            client().search(
+                new SearchRequest()
+                    .indices(AnomalyDetectorsIndex.jobStateIndexPattern())
+                    .source(new SearchSourceBuilder().fetchSource(false).size(2 * numberOfJobs))).actionGet();
+        assertThat(
+            "Hits were: " + Strings.toString(searchResponse.getHits()),
+            searchResponse.getHits().getTotalHits().value,
+            equalTo(2L * numberOfJobs));
+        assertThat(
+            "Hits were: " + Strings.toString(searchResponse.getHits()),
+            Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(toList()),
+            containsInAnyOrder(expectedStateDocumentIds.toArray(new String[0])));
     }
 
     public <T> void testWithOnlyTrainingRowsAndTrainingPercentIsFifty(String jobId,

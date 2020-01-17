@@ -183,4 +183,11 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         assertThat(actualResultAsString, containsString("Waiting for [3] shards to become active, but only [2] are active."));
     }
 
+    public void testParseIndexNameReturnsCounter() {
+        assertThat(WaitForActiveShardsStep.parseIndexNameCounter("logs-000003"), is(3));
+    }
+
+    public void testParseIndexNameSupportsDateMathPattern() {
+        assertThat(WaitForActiveShardsStep.parseIndexNameCounter("<logs-{now/d}-1>"), is(1));
+    }
 }

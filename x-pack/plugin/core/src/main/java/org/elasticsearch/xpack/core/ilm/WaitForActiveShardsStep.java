@@ -72,14 +72,24 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             rolledIndexName = aliasWriteIndex.getIndex().getName();
             waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
         } else {
-            // if the rollover was not performed on a write index alias, the alias will be moved to the new index and it will be the only
-            // index this alias points to
             List<IndexMetaData> indices = alias.getIndices();
-            assert indices.size() == 1 : "when performing rollover on alias with is_write_index = false the alias must point to only " +
-                "one index";
-            IndexMetaData indexMetaData = indices.get(0);
-            rolledIndexName = indexMetaData.getIndex().getName();
-            waitForActiveShardsSettingValue = indexMetaData.getSettings().get("index.write.wait_for_active_shards");
+            int maxIndexCounter = -1;
+            IndexMetaData rolledIndexMeta = null;
+            for (IndexMetaData indexMetaData : indices) {
+                int indexNameCounter = parseIndexNameCounter(indexMetaData.getIndex().getName());
+                if (maxIndexCounter < indexNameCounter) {
+                    maxIndexCounter = indexNameCounter;
+                    rolledIndexMeta = indexMetaData;
+                }
+            }
+            if (rolledIndexMeta == null) {
+                // Index must have been since deleted
+                logger.debug("unable to find the index that was rolled over from [{}] as part of lifecycle action [{}]", index.getName(),
+                    getKey().getAction());
+                return new Result(false, null);
+            }
+            rolledIndexName = rolledIndexMeta.getIndex().getName();
+            waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
         }
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
@@ -91,6 +101,21 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             currentActiveShards += shardRouting.value.activeShards().size();
         }
         return new Result(enoughShardsActive, new Info(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
+    }
+
+    /**
+     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in < >)
+     * <p>
+     * Eg.
+     * <p>
+     * - For "logs-000002" it'll return 2
+     * - For "<logs-{now/d}-3>" it'll return 3
+     */
+    static int parseIndexNameCounter(String indexName) {
+        int numberIndex = indexName.lastIndexOf("-");
+        assert numberIndex != -1 : "no separator '-' found";
+        return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
+            indexName.length()));
     }
 
     public static final class Info implements ToXContentObject {

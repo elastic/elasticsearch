@@ -79,6 +79,7 @@ import org.mockito.ArgumentCaptor;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -359,7 +360,24 @@ public class TransportRolloverActionTests extends ESTestCase {
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName));
+            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testHiddenAffectsResolvedTemplates() {
+        final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
+            .patterns(Collections.singletonList("*"))
+            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
+            .build();
+        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+
+        // hidden shouldn't throw
+        TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, Boolean.TRUE);
+        // not hidden will throw
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 
 import java.time.Period;
 

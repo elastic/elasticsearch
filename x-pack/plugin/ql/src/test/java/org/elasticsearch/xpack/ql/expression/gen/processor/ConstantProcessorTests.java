@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 
 import java.io.IOException;
 import java.time.Duration;

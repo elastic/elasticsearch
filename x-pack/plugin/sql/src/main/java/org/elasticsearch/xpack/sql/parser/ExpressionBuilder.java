@@ -24,11 +24,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType;
-import org.elasticsearch.xpack.ql.expression.literal.Interval;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.ql.expression.literal.Intervals;
-import org.elasticsearch.xpack.ql.expression.literal.Intervals.TimeUnit;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfConditional;
@@ -64,6 +59,11 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.TimeUnit;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
@@ -128,7 +128,7 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.type.DataTypeConversion.conversionFor;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
@@ -716,7 +716,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-            return new Literal(source, conversionFor(sourceType, dataType).convert(param.value), dataType);
+            return new Literal(source, converterFor(sourceType, dataType).convert(param.value), dataType);
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }

@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -41,7 +41,7 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
         }
         // 2. 3. 4. intervals
         if (l.isInterval() || r.isInterval()) {
-            if (DataTypeConversion.commonType(l, r) == null) {
+            if (DataTypeConverter.commonType(l, r) == null) {
                 return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
                 return resolveWithIntervals();

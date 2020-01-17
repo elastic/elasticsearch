@@ -7,19 +7,26 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
-import org.elasticsearch.xpack.ql.expression.literal.Interval;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.time.OffsetTime;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -138,9 +145,47 @@ public class SqlDataTypes {
         SQL_TO_ES.put("INT", INTEGER);
         SQL_TO_ES.put("STRING", KEYWORD);
     }
+
+    public static final Collection<DataType> TYPES = Stream.concat(DataTypes.TYPES.stream(), Arrays.asList(
+            DATE,
+            TIME,
+            INTERVAL_YEAR,
+            INTERVAL_MONTH,
+            INTERVAL_DAY,
+            INTERVAL_HOUR,
+            INTERVAL_MINUTE,
+            INTERVAL_SECOND,
+            INTERVAL_YEAR_TO_MONTH,
+            INTERVAL_DAY_TO_HOUR,
+            INTERVAL_DAY_TO_MINUTE,
+            INTERVAL_DAY_TO_SECOND,
+            INTERVAL_HOUR_TO_MINUTE,
+            INTERVAL_HOUR_TO_SECOND,
+            INTERVAL_MINUTE_TO_SECOND,
+            GEO_SHAPE,
+            GEO_POINT,
+            SHAPE)
+            .stream())
+            .sorted(Comparator.comparing(DataType::typeName))
+            .collect(toUnmodifiableList());
+
+    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
+            .filter(e -> e.esType() != null)
+            .collect(toUnmodifiableMap(DataType::esType, t -> t));
+
     private SqlDataTypes() {}
 
-    static DataType fromJava(Object value) {
+
+    public static DataType fromEs(String name) {
+        return ES_TO_TYPE.get(name);
+    }
+
+    public static DataType fromJava(Object value) {
+        DataType type = DataTypes.fromJava(value);
+
+        if (type != null) {
+            return type;
+        }
         if (value instanceof OffsetTime) {
             return TIME;
         }

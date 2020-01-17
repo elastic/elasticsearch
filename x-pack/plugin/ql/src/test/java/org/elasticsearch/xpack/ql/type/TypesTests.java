@@ -13,12 +13,12 @@ import java.io.InputStream;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.ql.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataType.NESTED;
-import static org.elasticsearch.xpack.ql.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.ql.type.DataType.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 

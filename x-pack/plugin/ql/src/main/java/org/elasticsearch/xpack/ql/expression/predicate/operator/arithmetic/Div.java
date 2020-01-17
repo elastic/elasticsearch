@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Binar
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 /**
  * Division function ({@code a / b}).
@@ -33,6 +33,6 @@ public class Div extends ArithmeticOperation {
 
     @Override
     public DataType dataType() {
-        return DataTypeConversion.commonType(left().dataType(), right().dataType());
+        return DataTypeConverter.commonType(left().dataType(), right().dataType());
     }
 }

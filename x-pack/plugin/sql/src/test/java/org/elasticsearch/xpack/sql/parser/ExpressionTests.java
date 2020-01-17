@@ -9,7 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.literal.Interval;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullE
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 
 import java.time.Duration;
 import java.time.Period;

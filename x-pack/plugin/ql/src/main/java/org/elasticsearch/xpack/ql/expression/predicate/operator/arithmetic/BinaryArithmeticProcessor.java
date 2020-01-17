@@ -10,11 +10,11 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.literal.Interval;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.literal.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 
 import java.io.IOException;
 import java.time.OffsetTime;

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression.function.scalar.geo;
+package org.elasticsearch.xpack.sql.expression.literal.geo;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoUtils;

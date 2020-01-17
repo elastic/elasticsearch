@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
@@ -37,7 +37,7 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
     @Override
     public DataType dataType() {
         if (dataType == null) {
-            dataType = DataTypeConversion.commonType(left().dataType(), right().dataType());
+            dataType = DataTypeConverter.commonType(left().dataType(), right().dataType());
         }
         return dataType;
     }

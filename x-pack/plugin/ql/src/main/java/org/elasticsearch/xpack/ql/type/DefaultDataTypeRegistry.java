@@ -6,107 +6,32 @@
 
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.xpack.ql.expression.literal.Interval;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter.Converter;
 
-import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     public static final DataTypeRegistry INSTANCE = new DefaultDataTypeRegistry();
 
-    private static final Collection<DataType> TYPES = Arrays.asList(
-            UNSUPPORTED,
-            NULL,
-            BOOLEAN,
-            BYTE,
-            SHORT,
-            INTEGER,
-            LONG,
-            DOUBLE,
-            FLOAT,
-            HALF_FLOAT,
-            SCALED_FLOAT,
-            KEYWORD,
-            TEXT,
-            DATETIME,
-            IP,
-            BINARY,
-            OBJECT,
-            NESTED)
-            .stream()
-            .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toUnmodifiableList());
-    
+    private DefaultDataTypeRegistry() {}
+
     @Override
     public Collection<DataType> dataTypes() {
-        return TYPES;
-    }
-
-    @Override
-    public DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof Byte) {
-            return BYTE;
-        }
-        if (value instanceof Short) {
-            return SHORT;
-        }
-        if (value instanceof ZonedDateTime) {
-            return DATETIME;
-        }
-        if (value instanceof String || value instanceof Character) {
-            return KEYWORD;
-        }
-        if (value instanceof Interval) {
-            return ((Interval<?>) value).dataType();
-        }
-
-        return null;
+        return DataTypes.TYPES;
     }
 
     @Override
     public DataType fromEs(String typeName) {
-        return null;
+        return DataTypes.fromEs(typeName);
+    }
+
+    @Override
+    public DataType fromJava(Object value) {
+        return DataTypes.fromJava(value);
     }
 
     @Override
@@ -116,16 +41,27 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public boolean canConvert(DataType from, DataType to) {
-        throw new UnsupportedOperationException();
+        return DataTypeConverter.canConvert(from, to);
     }
 
     @Override
     public Object convert(Object value, DataType type) {
-        throw new UnsupportedOperationException();
+        DataType detectedType = DataTypes.fromJava(value);
+
+        if (detectedType == type || value == null) {
+            return value;
+        }
+
+        Converter converter = DataTypeConverter.converterFor(detectedType, type);
+
+        if (converter == null) {
+            throw new QlIllegalArgumentException("cannot convert from [{}] to [{}]", value, type.typeName());
+        }
+        return DataTypeConverter.convert(value, type);
     }
 
     @Override
     public DataType commonType(DataType left, DataType right) {
-        throw new UnsupportedOperationException();
+        return DataTypeConverter.commonType(left, right);
     }
 }

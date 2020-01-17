@@ -10,7 +10,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.ParsingException;
-import org.elasticsearch.xpack.ql.expression.literal.Intervals.TimeUnit;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
 
 import java.time.Duration;
 import java.time.Period;
@@ -20,9 +21,6 @@ import java.util.stream.Stream;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.ql.expression.literal.Intervals.intervalType;
-import static org.elasticsearch.xpack.ql.expression.literal.Intervals.of;
-import static org.elasticsearch.xpack.ql.expression.literal.Intervals.parseInterval;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY_TO_HOUR;
@@ -37,6 +35,9 @@ import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR_TO_MONTH;
+import static org.elasticsearch.xpack.sql.expression.literal.Intervals.intervalType;
+import static org.elasticsearch.xpack.sql.expression.literal.Intervals.of;
+import static org.elasticsearch.xpack.sql.expression.literal.Intervals.parseInterval;
 
 public class IntervalsTests extends ESTestCase {
 

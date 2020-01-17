@@ -4,12 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ql.expression.literal;
+package org.elasticsearch.xpack.sql.expression.literal.interval;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -47,12 +47,12 @@ public class IntervalDayTime extends Interval<Duration> {
 
     @Override
     public IntervalDayTime add(Interval<Duration> interval) {
-        return new IntervalDayTime(interval().plus(interval.interval()), DataTypes.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalDayTime(interval().plus(interval.interval()), SqlDataTypes.compatibleInterval(dataType(), interval.dataType()));
     }
 
     @Override
     public IntervalDayTime sub(Interval<Duration> interval) {
-        return new IntervalDayTime(interval().minus(interval.interval()), DataTypes.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalDayTime(interval().minus(interval.interval()), SqlDataTypes.compatibleInterval(dataType(), interval.dataType()));
     }
 
     @Override

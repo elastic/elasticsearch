@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
-import org.elasticsearch.xpack.ql.expression.literal.Interval;
-
-import java.time.OffsetTime;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Map;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
 
@@ -42,11 +44,50 @@ public final class DataTypes {
     public static final DataType OBJECT = new DataType("object", 0, false, false, true);
     public static final DataType NESTED = new DataType("nested", 0, false, false, true);
 
-
+    
+    public static final Collection<DataType> TYPES = Arrays.asList(
+            UNSUPPORTED,
+            NULL,
+            BOOLEAN,
+            BYTE,
+            SHORT,
+            INTEGER,
+            LONG,
+            DOUBLE,
+            FLOAT,
+            HALF_FLOAT,
+            SCALED_FLOAT,
+            KEYWORD,
+            TEXT,
+            DATETIME,
+            IP,
+            BINARY,
+            OBJECT,
+            NESTED)
+            .stream()
+            .sorted(Comparator.comparing(DataType::typeName))
+            .collect(toUnmodifiableList());
+    
+    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
+            .filter(e -> e.esType() != null)
+            .collect(toUnmodifiableMap(DataType::esType, t -> t));
+    
     private DataTypes() {}
 
     public static boolean isUnsupported(DataType from) {
         return from == UNSUPPORTED;
+    }
+
+    public static boolean isString(DataType t) {
+        return t == KEYWORD || t == TEXT;
+    }
+
+    public static boolean isPrimitive(DataType t) {
+        return t != OBJECT && t != NESTED;
+    }
+
+    public static DataType fromEs(String name) {
+        return ES_TO_TYPE.get(name);
     }
 
     public static DataType fromJava(Object value) {
@@ -74,22 +115,13 @@ public final class DataTypes {
         if (value instanceof Short) {
             return SHORT;
         }
-        if (value instanceof OffsetTime) {
-            return TIME;
-        }
         if (value instanceof ZonedDateTime) {
             return DATETIME;
         }
         if (value instanceof String || value instanceof Character) {
             return KEYWORD;
         }
-        if (value instanceof Interval) {
-            return ((Interval<?>) value).dataType();
-        }
-        if (value instanceof GeoShape) {
-            return DataType.GEO_SHAPE;
-        }
 
-        throw new QlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
+        return null;
     }
 }

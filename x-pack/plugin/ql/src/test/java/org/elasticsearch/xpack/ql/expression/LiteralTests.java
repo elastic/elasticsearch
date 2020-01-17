@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +52,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
         DataType dataType = randomFrom(gen.validDataTypes);
-        return new Literal(SourceTests.randomSource(), DataTypeConversion.convert(gen.valueSupplier.get(), dataType), dataType);
+        return new Literal(SourceTests.randomSource(), DataTypeConverter.convert(gen.valueSupplier.get(), dataType), dataType);
     }
 
     @Override
@@ -106,7 +106,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     private Object randomValueOfTypeOtherThan(Object original, DataType type) {
         for (ValueAndCompatibleTypes gen : GENERATORS) {
             if (gen.validDataTypes.get(0) == type) {
-                return randomValueOtherThan(original, () -> DataTypeConversion.convert(gen.valueSupplier.get(), type));
+                return randomValueOtherThan(original, () -> DataTypeConverter.convert(gen.valueSupplier.get(), type));
             }
         }
         throw new IllegalArgumentException("No native generator for [" + type + "]");
@@ -118,7 +118,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
                 DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN);
         for (DataType candidate : options) {
             try {
-                DataTypeConversion.Conversion c = DataTypeConversion.conversionFor(type, candidate);
+                DataTypeConverter.Converter c = DataTypeConverter.converterFor(type, candidate);
                 c.convert(value);
                 validDataTypes.add(candidate);
             } catch (QlIllegalArgumentException e) {

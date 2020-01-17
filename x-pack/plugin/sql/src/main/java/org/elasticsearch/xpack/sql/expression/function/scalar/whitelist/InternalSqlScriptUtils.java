@@ -8,10 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIfProcessor;
@@ -19,7 +16,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
@@ -43,6 +40,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -477,6 +477,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Object cast(Object value, String typeName) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromSqlOrEsType(typeName));
+        return DataTypeConverter.convert(asDateTime(value, true), DataType.fromSqlOrEsType(typeName));
     }
 }

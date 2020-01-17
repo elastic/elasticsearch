@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,7 +20,7 @@ public abstract class Foldables {
     @SuppressWarnings("unchecked")
     public static <T> T valueOf(Expression e, DataType to) {
         if (e.foldable()) {
-            return (T) DataTypeConversion.conversionFor(e.dataType(), to).convert(e.fold());
+            return (T) DataTypeConverter.converterFor(e.dataType(), to).convert(e.fold());
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }

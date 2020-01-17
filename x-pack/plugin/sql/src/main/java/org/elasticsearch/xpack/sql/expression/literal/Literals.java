@@ -4,9 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ql.expression.literal;
+package org.elasticsearch.xpack.sql.expression.literal;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,6 +33,7 @@ public final class Literals {
 
         entries.add(new NamedWriteableRegistry.Entry(IntervalDayTime.class, IntervalDayTime.NAME, IntervalDayTime::new));
         entries.add(new NamedWriteableRegistry.Entry(IntervalYearMonth.class, IntervalYearMonth.NAME, IntervalYearMonth::new));
+        entries.add(new NamedWriteableRegistry.Entry(GeoShape.class, GeoShape.NAME, GeoShape::new));
 
         return entries;
     }

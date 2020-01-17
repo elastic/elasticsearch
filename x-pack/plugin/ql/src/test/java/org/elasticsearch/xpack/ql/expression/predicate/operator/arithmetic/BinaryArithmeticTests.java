@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 
 import java.time.Duration;
 import java.time.OffsetTime;

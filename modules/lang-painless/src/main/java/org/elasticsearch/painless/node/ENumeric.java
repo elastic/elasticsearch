@@ -31,12 +31,10 @@ import java.util.Objects;
 /**
  * Represents a non-decimal numeric constant.
  */
-public final class ENumeric extends AExpression {
+public class ENumeric extends AExpression {
 
-    private final String value;
-    private int radix;
-
-    protected Object constant;
+    protected final String value;
+    protected final int radix;
 
     public ENumeric(Location location, String value, int radix) {
         super(location);
@@ -46,9 +44,10 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Object constant;
+
+        Output output = new Output();
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
@@ -114,17 +113,14 @@ public final class ENumeric extends AExpression {
             }
         }
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
+        output.expressionNode = constantNode;
+
+        return output;
     }
 
     @Override

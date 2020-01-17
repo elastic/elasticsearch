@@ -54,7 +54,7 @@ public final class SIfElse extends AStatement {
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.analyze(, scriptRoot, scope, conditionInput);
         condition.cast();
 
         if (condition instanceof EBoolean) {

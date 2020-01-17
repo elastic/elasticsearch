@@ -34,11 +34,11 @@ import java.util.Objects;
 /**
  * Represents a function reference.
  */
-public final class ENewArrayFunctionRef extends AExpression implements ILambda {
-    private final String type;
+public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
-    private SFunction function;
-    private FunctionRef ref;
+    protected final String type;
+
+    // TODO: make local
     private String defPointer;
 
     public ENewArrayFunctionRef(Location location, String type) {
@@ -48,12 +48,13 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        FunctionRef ref;
+
+        Output output = new Output();
 
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(
+        SFunction function = new SFunction(
                 location, type, scriptRoot.getNextSyntheticName("newarray"),
                 Collections.singletonList("int"), Collections.singletonList("size"),
                 new SBlock(location, Collections.singletonList(code)), true, true, true, false);
@@ -72,11 +73,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             output.actual = input.expected;
         }
 
-        return output;
-    }
-
-    @Override
-    NewArrayFuncRefNode write(ClassNode classNode) {
         classNode.addFunctionNode(function.write(classNode));
 
         NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
@@ -85,7 +81,9 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         newArrayFuncRefNode.setExpressionType(output.actual);
         newArrayFuncRefNode.setFuncRef(ref);
 
-        return newArrayFuncRefNode;
+        output.expressionNode = newArrayFuncRefNode;
+
+        return output;
     }
 
     @Override

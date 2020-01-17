@@ -53,7 +53,7 @@ public final class SExpression extends AStatement {
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.read = input.lastSource && !isVoid;
-        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, expressionInput);
+        AExpression.Output expressionOutput = expression.analyze(, scriptRoot, scope, expressionInput);
 
         if ((input.lastSource == false || isVoid) && expressionOutput.statement == false) {
             throw createError(new IllegalArgumentException("Not a statement."));

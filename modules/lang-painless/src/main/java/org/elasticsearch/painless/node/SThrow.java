@@ -47,7 +47,7 @@ public final class SThrow extends AStatement {
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.expected = Exception.class;
-        expression.analyze(scriptRoot, scope, expressionInput);
+        expression.analyze(, scriptRoot, scope, expressionInput);
         expression.cast();
 
         output.methodEscape = true;

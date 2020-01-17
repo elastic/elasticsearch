@@ -32,35 +32,35 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a user-defined call.
  */
-public final class ECallLocal extends AExpression {
+public class ECallLocal extends AExpression {
 
-    private final String name;
-    private final List<AExpression> arguments;
-
-    private FunctionTable.LocalFunction localFunction = null;
-    private PainlessMethod importedMethod = null;
-    private PainlessClassBinding classBinding = null;
-    private int classBindingOffset = 0;
-    private PainlessInstanceBinding instanceBinding = null;
-    private String bindingName = null;
+    protected final String name;
+    protected final List<AExpression> arguments;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
         super(location);
 
         this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        FunctionTable.LocalFunction localFunction = null;
+        PainlessMethod importedMethod = null;
+        PainlessClassBinding classBinding = null;
+        int classBindingOffset = 0;
+        PainlessInstanceBinding instanceBinding = null;
+        String bindingName = null;
+
+        Output output = new Output();
 
         localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
 
@@ -138,30 +138,27 @@ public final class ECallLocal extends AExpression {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
+        List<Output> argumentOutputs = new ArrayList<>(arguments.size());
         // if the class binding is using an implicit this reference then the arguments counted must
         // be incremented by 1 as the this reference will not be part of the arguments passed into
         // the class binding call
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            Input expressionInput = new Input();
-            expressionInput.expected = typeParameters.get(argument + classBindingOffset);
-            expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
-            expression.cast();
+            Input argumentInput = new Input();
+            argumentInput.expected = typeParameters.get(argument + classBindingOffset);
+            argumentInput.internal = true;
+            Output argumentOutput = expression.analyze(classNode, scriptRoot, scope, argumentInput);
+            expression.cast(argumentInput, argumentOutput);
+            argumentOutputs.add(argumentOutput);
         }
 
         output.statement = true;
 
-        return output;
-    }
-
-    @Override
-    MemberCallNode write(ClassNode classNode) {
         MemberCallNode memberCallNode = new MemberCallNode();
 
-        for (AExpression argument : arguments) {
-            memberCallNode.addArgumentNode(argument.cast(argument.write(classNode)));
+        for (int argument = 0; argument < arguments.size(); ++argument) {
+            memberCallNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
         }
 
         memberCallNode.setLocation(location);
@@ -173,7 +170,9 @@ public final class ECallLocal extends AExpression {
         memberCallNode.setBindingName(bindingName);
         memberCallNode.setInstanceBinding(instanceBinding);
 
-        return memberCallNode;
+        output.expressionNode = memberCallNode;
+
+        return output;
     }
 
     @Override

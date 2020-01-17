@@ -66,7 +66,7 @@ public final class SFor extends AStatement {
 
                 AExpression.Input initializerInput = new AExpression.Input();
                 initializerInput.read = false;
-                AExpression.Output initializerOutput = initializer.analyze(scriptRoot, scope, initializerInput);
+                AExpression.Output initializerOutput = initializer.analyze(, scriptRoot, scope, initializerInput);
 
                 if (initializerOutput.statement == false) {
                     throw createError(new IllegalArgumentException("Not a statement."));
@@ -82,7 +82,7 @@ public final class SFor extends AStatement {
         if (condition != null) {
             AExpression.Input conditionInput = new AExpression.Input();
             conditionInput.expected = boolean.class;
-            condition.analyze(scriptRoot, scope, conditionInput);
+            condition.analyze(, scriptRoot, scope, conditionInput);
             condition.cast();
 
             if (condition instanceof EBoolean) {
@@ -103,7 +103,7 @@ public final class SFor extends AStatement {
         if (afterthought != null) {
             AExpression.Input afterthoughtInput = new AExpression.Input();
             afterthoughtInput.read = false;
-            AExpression.Output afterthoughtOutput = afterthought.analyze(scriptRoot, scope, afterthoughtInput);
+            AExpression.Output afterthoughtOutput = afterthought.analyze(, scriptRoot, scope, afterthoughtInput);
 
             if (afterthoughtOutput.statement == false) {
                 throw createError(new IllegalArgumentException("Not a statement."));

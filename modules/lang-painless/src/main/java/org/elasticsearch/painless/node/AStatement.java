@@ -94,12 +94,13 @@ public abstract class AStatement extends ANode {
          * Set to the approximate number of statements in a loop block to prevent
          * infinite loops during runtime.
          */
-        int statementCount = 0;
-    }
+        int statementCount = 1;
 
-    // TODO: remove placeholders once analysis and write are combined into build
-    Input input;
-    Output output;
+        /**
+         * The {@link StatementNode}(s) generated from this expression.
+         */
+        StatementNode statementNode = null;
+    }
 
     /**
      * Standard constructor with location used for error tracking.

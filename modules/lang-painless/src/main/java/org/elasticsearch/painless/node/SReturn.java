@@ -54,7 +54,7 @@ public final class SReturn extends AStatement {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = scope.getReturnType();
             expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.analyze(, scriptRoot, scope, expressionInput);
             expression.cast();
         }
 

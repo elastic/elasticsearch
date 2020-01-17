@@ -23,7 +23,11 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+<<<<<<< HEAD
 import org.elasticsearch.painless.node.AExpression.Input;
+=======
+import org.elasticsearch.painless.ir.TypeNode;
+>>>>>>> e2729a1015f... updated expression nodes to remove member state
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -58,7 +62,7 @@ public final class SDeclaration extends AStatement {
         if (expression != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.analyze(, scriptRoot, scope, expressionInput);
             expression.cast();
         }
 

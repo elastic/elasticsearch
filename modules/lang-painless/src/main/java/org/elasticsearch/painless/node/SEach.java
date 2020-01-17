@@ -57,7 +57,7 @@ public class SEach extends AStatement {
         this.input = input;
         output = new Output();
 
-        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, new AExpression.Input());
+        AExpression.Output expressionOutput = expression.analyze(, scriptRoot, scope, new AExpression.Input());
         expression.input.expected = expressionOutput.actual;
         expression.cast();
 

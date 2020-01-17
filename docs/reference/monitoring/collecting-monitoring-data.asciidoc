@@ -10,10 +10,6 @@ data collection is disabled.
 This method involves sending the metrics to the monitoring cluster by using 
 exporters. For an alternative method, see <<configuring-metricbeat>>.
 
-NOTE: If you want to collect monitoring data from sources such as Beats and {ls}
-and route it to a monitoring cluster, you must follow this method. You cannot
-use {metricbeat} to ship the monitoring data for those products yet.
-
 Advanced monitoring settings enable you to control how frequently data is 
 collected, configure timeouts, and set the retention period for locally-stored 
 monitoring indices. You can also adjust how monitoring data is displayed. 

@@ -115,7 +115,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         Document document = new Document();
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                        document.add(new Field(NestedPathFieldMapper.NAME, "__" + NESTED_OBJECT,
+                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT,
                             NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
@@ -188,7 +188,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         Document document = new Document();
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                        document.add(new Field(NestedPathFieldMapper.NAME, "__" + NESTED_OBJECT,
+                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT,
                             NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                     }

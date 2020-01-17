@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -331,7 +332,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } else {
             this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
-        this.nestedTypePath = "__" + fullPath;
+        if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
+            this.nestedTypePath = "__" + fullPath;
+        } else {
+            this.nestedTypePath = fullPath;
+        }
         this.nestedTypeFilter = NestedPathFieldMapper.filter(settings, nestedTypePath);
     }
 

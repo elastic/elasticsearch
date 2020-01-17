@@ -19,21 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -42,42 +32,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Function;
 
 public class NestedPathFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    public void testDocValuesSingleType() throws Exception {
-        testDocValues(this::createIndex);
-    }
-
-    public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {
-        MapperService mapperService = createIndex.apply("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("_doc",
-            new CompressedXContent("{\"_doc\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
-
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
-        w.addDocument(document.rootDoc());
-        DirectoryReader r = DirectoryReader.open(w);
-        w.close();
-
-        MappedFieldType ft = mapperService.fullName(NestedPathFieldMapper.NAME);
-        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
-            ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
-        AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
-        SortedSetDocValues values = afd.getOrdinalsValues();
-        assertTrue(values.advanceExact(0));
-        assertEquals(0, values.nextOrd());
-        assertEquals(SortedSetDocValues.NO_MORE_ORDS, values.nextOrd());
-        assertEquals(new BytesRef("_doc"), values.lookupOrd(0));
-        r.close();
-        dir.close();
     }
 
     public void testDefaults() throws IOException {

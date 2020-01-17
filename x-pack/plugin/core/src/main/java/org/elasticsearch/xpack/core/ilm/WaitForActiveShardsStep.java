@@ -152,10 +152,10 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             this.enoughShardsActive = enoughShardsActive;
 
             if (enoughShardsActive) {
-                message = "The target of [" + targetActiveShardsCount + "] are active. Don't need to wait anymore.";
+                message = "the target of [" + targetActiveShardsCount + "] are active. Don't need to wait anymore";
             } else {
-                message = "Waiting for [" + targetActiveShardsCount + "] shards to become active, but only [" + currentActiveShardsCount +
-                    "] are active.";
+                message = "waiting for [" + targetActiveShardsCount + "] shards to become active, but only [" + currentActiveShardsCount +
+                    "] are active";
             }
         }
 

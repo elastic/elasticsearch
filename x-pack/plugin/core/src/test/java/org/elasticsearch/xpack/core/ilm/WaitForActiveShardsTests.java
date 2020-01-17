@@ -180,7 +180,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ToXContent.EMPTY_PARAMS);
         String actualResultAsString = Strings.toString(result.getInfomationContext());
         assertThat(actualResultAsString, is(Strings.toString(expected)));
-        assertThat(actualResultAsString, containsString("Waiting for [3] shards to become active, but only [2] are active."));
+        assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
     }
 
     public void testParseIndexNameReturnsCounter() {

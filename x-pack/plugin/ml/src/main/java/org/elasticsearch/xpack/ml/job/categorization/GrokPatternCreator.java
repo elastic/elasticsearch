@@ -30,6 +30,7 @@ public final class GrokPatternCreator {
 
     private static final String PREFACE = "preface";
     private static final String EPILOGUE = "epilogue";
+    private static final int MAX_RECURSE_DEPTH = 10;
 
     /**
      * The first match in this list will be chosen, so it needs to be ordered
@@ -156,9 +157,9 @@ public final class GrokPatternCreator {
             }
         }
 
-        if (bestCandidate == null || numRecurse >= 10) {
-            if (numRecurse >= 10) {
-                logger.warn("[{}] exited grok discovery early", jobId);
+        if (bestCandidate == null || numRecurse >= MAX_RECURSE_DEPTH) {
+            if (bestCandidate != null) {
+                logger.warn("[{}] exited grok discovery early, reached max depth [{}]", jobId, MAX_RECURSE_DEPTH);
             }
             if (isLast) {
                 overallGrokPatternBuilder.append(".*");

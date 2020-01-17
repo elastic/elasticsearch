@@ -133,6 +133,11 @@ For more information about how {es} uses replicas for scaling, see
 <<scalability>>. See <<shard-allocation-filtering>> for more information about
 controlling where Elasticsearch allocates shards of a particular index.
 
+--
+NOTE: As allocate action is not allowed in `hot` phase, the initial allocation for the index should be done manually or via index templates, as ILM won't take care of index allocation during `hot` phase.
+
+--
+
 [[ilm-allocate-options]]
 .Allocate Options
 [options="header"]

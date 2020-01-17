@@ -55,6 +55,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(false, null);
         }
 
+        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
+        if (indexingComplete) {
+            logger.trace(originalIndexMeta.getIndex() + " has lifecycle complete set, skipping " + WaitForActiveShardsStep.NAME);
+            return new Result(true, null);
+        }
+
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
         if (Strings.isNullOrEmpty(rolloverAlias)) {
             throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS

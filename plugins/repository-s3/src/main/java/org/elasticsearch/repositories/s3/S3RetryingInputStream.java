@@ -153,7 +153,6 @@ class S3RetryingInputStream extends InputStream {
         try {
             Streams.consumeFully(currentStream);
         } catch (Exception e2) {
-            e2.addSuppressed(e);
             logger.trace("Failed to fully consume stream on close", e);
         }
         IOUtils.closeWhileHandlingException(currentStream);

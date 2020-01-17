@@ -43,7 +43,17 @@ setup:
             invalid_query: {}
 
   - is_false: valid
-  - match: {error: 'org.elasticsearch.common.ParsingException: no [query] registered for [invalid_query]'}
+  - match: {error: '/.+unknown\squery\s\[invalid_query\].+/' }
+
+  - do:
+      indices.validate_query:
+        explain: true
+        body:
+          query:
+            boool: {}
+
+  - is_false: valid
+  - match: {error: '/.+unknown\squery\s\[boool\]\sdid\syou\smean\s\[bool\]\?.+/' }
 
   - do:
       indices.validate_query:

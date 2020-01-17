@@ -81,12 +81,12 @@ public class AbstractQueryBuilderTests extends ESTestCase {
         source = "{ \"boool\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
-            assertEquals("[query] unknown field [boool] did you mean [bool]?", exception.getMessage());
+            assertEquals("unknown query [boool] did you mean [bool]?", exception.getMessage());
         }
         source = "{ \"match_\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
-            assertEquals("[query] unknown field [match_] did you mean any of [match, match_all, match_none]?", exception.getMessage());
+            assertEquals("unknown query [match_] did you mean any of [match, match_all, match_none]?", exception.getMessage());
         }
     }
 

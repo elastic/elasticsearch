@@ -76,14 +76,14 @@ Which returns:
 ----
 // TESTRESPONSE
 
-`top_metrics` is fairly similar to <<search-aggregations-metrics-top-hits-aggregation, `top_hits`>> in spirit. It is faster
-because it can do its job entirely with <<doc-values>> which are **much** faster to access than the `_source` which
-`top_hits` needs.
+`top_metrics` is fairly similar to <<search-aggregations-metrics-top-hits-aggregation, `top_hits`>> in spirit
+but it is faster because it can do its job entirely with <<doc-values>> which are **much** faster to access
+than the `_source` which `top_hits` needs.
 
 ==== `sort`
 
 The `sort` field in the metric request functions exactly the same as the `sort` field in the
-<<request-body-search-sort search>> request. The metrics that the aggregation returns is the
+<<request-body-search-sort, search>> request. The metrics that the aggregation returns is the
 first hits that would be returned by the search request. Thus, `"sort": {"s": "desc"}` gets
 metrics from the documents with the highest values for `s`. And `"sort": {"s": "asc"}` gets
 the metrics from the documents with the lowest values.
@@ -92,7 +92,7 @@ the metrics from the documents with the lowest values.
 
 ===== Use with terms
 
-This aggregation should be quite useful inside of <<search-aggregations-bucket-terms-aggregation `terms`>>
+This aggregation should be quite useful inside of <<search-aggregations-bucket-terms-aggregation, `terms`>>
 aggregation, to, say, find the last value reported by each node.
 
 [source,console,id=search-aggregations-metrics-top-metrics-terms]

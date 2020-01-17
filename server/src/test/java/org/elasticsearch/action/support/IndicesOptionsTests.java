@@ -70,7 +70,7 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
             assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
             assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-            if (version.before(Version.V_8_0_0)) {
+            if (version.before(Version.V_7_7_0)) {
                 assertThat(indicesOptions2.expandWildcardsHidden(), is(true));
             } else {
                 assertThat(indicesOptions2.expandWildcardsHidden(), equalTo(indicesOptions.expandWildcardsHidden()));

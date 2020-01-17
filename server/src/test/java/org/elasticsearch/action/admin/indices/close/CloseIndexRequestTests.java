@@ -66,7 +66,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                     // to the addition of hidden indices as expand to hidden indices is always true when
                     // read from a prior version
                     // TODO update version on backport!
-                    if (out.getVersion().onOrAfter(Version.V_8_0_0) || request.indicesOptions().expandWildcardsHidden()) {
+                    if (out.getVersion().onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
                         assertEquals(request.indicesOptions(), indicesOptions);
                     }
                     if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
@@ -104,7 +104,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
                 // TODO change version on backport
-                if (out.getVersion().onOrAfter(Version.V_8_0_0) || sample.indicesOptions().expandWildcardsHidden()) {
+                if (out.getVersion().onOrAfter(Version.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
                 }
                 if (out.getVersion().onOrAfter(Version.V_7_2_0)) {

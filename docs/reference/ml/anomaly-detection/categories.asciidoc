@@ -1,6 +1,28 @@
 [role="xpack"]
 [[ml-configuring-categories]]
-=== Categorizing log messages
+=== Categorizing data
+
+Categorization is a {ml} process that considers a tokenization of a field, 
+clusters similar data together, and classifies them into categories. However, 
+categorization doesn't work equally well on different data types. It works 
+best on machine-written messages and application outputs, typically on data that 
+consists of repeated elements, for example log messages for the purpose of 
+system troubleshooting. Log categorization groups unstructured log messages into 
+categories, then you can use {anomaly-detect} to model and identify rare or 
+unusual counts of log message categories.
+
+Categorization is tuned to work best on data like log messages by taking token
+order into account, not considering synonyms, and including stop words in its 
+analysis. Complete sentences in human communication or literary text (for 
+example emails, wiki pages, prose, or other human generated content) can be 
+extremely diverse in structure.  Since categorization is tuned for machine data 
+it will give poor results on such human generated data. For example, the 
+categorization job would create so many categories that couldn't be handled 
+effectively.  Categorization is _not_ natural language processing (NLP).
+
+[float]
+[[ml-categorization-log-messages]]
+==== Categorizing log messages
 
 Application log events are often unstructured and contain variable data. For
 example:
@@ -65,8 +87,8 @@ defining categories. The categorization filters are applied in the order they
 are listed in the job configuration, which allows you to disregard multiple
 sections of the categorization field value. In this example, we have decided that
 we do not want the detailed SQL to be considered in the message categorization.
-This particular categorization filter removes the SQL statement from the categorization
-algorithm.
+This particular categorization filter removes the SQL statement from the 
+categorization algorithm.
 
 If your data is stored in {es}, you can create an advanced {anomaly-job} with
 these same properties:
@@ -79,7 +101,7 @@ NOTE: To add the `categorization_examples_limit` property, you must use the
 
 [float]
 [[ml-configuring-analyzer]]
-==== Customizing the categorization analyzer
+===== Customizing the categorization analyzer
 
 Categorization uses English dictionary words to identify log message categories.
 By default, it also uses English tokenization rules. For this reason, if you use
@@ -135,7 +157,8 @@ here achieves exactly the same as the `categorization_filters` in the first
 example.
 <2> The `ml_classic` tokenizer works like the non-customizable tokenization
 that was used for categorization in older versions of machine learning. If you
-want the same categorization behavior as older versions, use this property value.
+want the same categorization behavior as older versions, use this property 
+value.
 <3> By default, English day or month words are filtered from log messages before
 categorization. If your logs are in a different language and contain
 dates, you might get better results by filtering the day or month words in your
@@ -178,9 +201,9 @@ POST _ml/anomaly_detectors/_validate
 If you specify any part of the `categorization_analyzer`, however, any omitted
 sub-properties are _not_ set to default values.
 
-The `ml_classic` tokenizer and the day and month stopword filter are more or less
-equivalent to the following analyzer, which is defined using only built-in {es}
-{ref}/analysis-tokenizers.html[tokenizers] and
+The `ml_classic` tokenizer and the day and month stopword filter are more or 
+less equivalent to the following analyzer, which is defined using only built-in 
+{es} {ref}/analysis-tokenizers.html[tokenizers] and
 {ref}/analysis-tokenfilters.html[token filters]:
 
 [source,console]
@@ -234,11 +257,11 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
 <4> Underscores, hyphens, and dots are removed from the beginning of tokens.
 <5> Underscores, hyphens, and dots are also removed from the end of tokens.
 
-The key difference between the default `categorization_analyzer` and this example
-analyzer is that using the `ml_classic` tokenizer is several times faster. The
-difference in behavior is that this custom analyzer does not include accented
-letters in tokens whereas the `ml_classic` tokenizer does, although that could
-be fixed by using more complex regular expressions.
+The key difference between the default `categorization_analyzer` and this 
+example analyzer is that using the `ml_classic` tokenizer is several times 
+faster. The difference in behavior is that this custom analyzer does not include 
+accented letters in tokens whereas the `ml_classic` tokenizer does, although 
+that could be fixed by using more complex regular expressions.
 
 If you are categorizing non-English messages in a language where words are
 separated by spaces, you might get better results if you change the day or month
@@ -263,7 +286,7 @@ API examples above.
 
 [float]
 [[ml-viewing-categories]]
-==== Viewing categorization results
+===== Viewing categorization results
 
 After you open the job and start the {dfeed} or supply data to the job, you can
 view the categorization results in {kib}. For example:

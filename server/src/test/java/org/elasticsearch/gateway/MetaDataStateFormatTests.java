@@ -30,9 +30,12 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -277,7 +280,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         List<Path> dirList = Arrays.asList(dirs);
         Collections.shuffle(dirList, random());
         MetaData loadedMetaData = format.loadLatestState(logger, hasMissingCustoms ?
-            NamedXContentRegistry.EMPTY : xContentRegistry(), dirList.toArray(new Path[0]));
+            xContentRegistryWithMissingCustoms() : xContentRegistry(), dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
@@ -705,5 +708,21 @@ public class MetaDataStateFormatTests extends ESTestCase {
             }
         }
         return realId + 1;
+    }
+
+    /**
+     * The {@link NamedXContentRegistry} to use for most {@link XContentParser} in this test.
+     */
+    protected final NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+    }
+
+    /**
+     * The {@link NamedXContentRegistry} to use for {@link XContentParser}s that should be
+     * missing all of the normal cluster state parsers.
+     */
+    protected NamedXContentRegistry xContentRegistryWithMissingCustoms() {
+        return new NamedXContentRegistry(Arrays.asList(
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("garbage"), RepositoriesMetaData::fromXContent)));
     }
 }

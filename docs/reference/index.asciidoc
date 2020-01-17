@@ -40,6 +40,8 @@ include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
+include::autoscaling/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]

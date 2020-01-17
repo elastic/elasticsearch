@@ -160,6 +160,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
         when(indexMetaData.getAliases()).thenReturn(aliases);
+        when(indexMetaData.getSettings()).thenReturn(Settings.EMPTY);
 
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder()
                 .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), indexMetaData).build();

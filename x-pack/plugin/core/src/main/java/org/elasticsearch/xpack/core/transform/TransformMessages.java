@@ -17,6 +17,8 @@ public class TransformMessages {
             "Interrupted while waiting for transform [{0}] to stop";
     public static final String REST_PUT_TRANSFORM_EXISTS = "Transform with id [{0}] already exists";
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
+    public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
+            "Detected transforms with no config [{0}]. Use force to stop/delete them.";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION =
             "Failed to validate configuration";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";

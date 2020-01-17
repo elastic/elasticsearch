@@ -112,12 +112,7 @@ public abstract class AStatement extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         throw new UnsupportedOperationException();
     }
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract StatementNode write(ClassNode classNode);
 }

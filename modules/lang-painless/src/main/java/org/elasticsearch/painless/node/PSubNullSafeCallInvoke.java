@@ -25,7 +25,6 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import static java.util.Objects.checkFromToIndex;
 import static java.util.Objects.requireNonNull;
 
 /**

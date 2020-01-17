@@ -23,6 +23,7 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -59,7 +60,7 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
                 Collections.singletonList("int"), Collections.singletonList("size"),
                 new SBlock(location, Collections.singletonList(code)), true, true, true, false);
         function.generateSignature(scriptRoot.getPainlessLookup());
-        function.analyze(scriptRoot);
+        FunctionNode functionNode = function.writeFunction(classNode, scriptRoot);
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
 
         if (input.expected == null) {
@@ -73,7 +74,7 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
             output.actual = input.expected;
         }
 
-        classNode.addFunctionNode(function.write(classNode));
+        classNode.addFunctionNode(functionNode);
 
         NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
 

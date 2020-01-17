@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;

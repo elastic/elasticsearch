@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
 
 /**
@@ -28,9 +27,9 @@ import org.elasticsearch.painless.ir.FieldNode;
  */
 public class SField extends ANode {
 
-    private final int modifiers;
-    private final String name;
-    private final Class<?> type;
+    protected final int modifiers;
+    protected final String name;
+    protected final Class<?> type;
 
     /**
      * Standard constructor.
@@ -51,8 +50,7 @@ public class SField extends ANode {
         return name;
     }
 
-    @Override
-    FieldNode write(ClassNode classNode) {
+    FieldNode writeField() {
         FieldNode fieldNode = new FieldNode();
 
         fieldNode.setLocation(location);

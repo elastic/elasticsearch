@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-configuring-categories]]
-=== Configuring categorization
+=== Categorizing data
 
 Categorization is a {ml} process that considers a tokenization of a field, 
 clusters similar data together, and classifies them into categories. However, 

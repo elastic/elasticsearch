@@ -153,7 +153,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, int length) throws IOException {
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
         final InputStream inputStream = readBlob(blobName);
         long skipped = inputStream.skip(position); // NORELEASE
         assert skipped == position;

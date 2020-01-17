@@ -6,6 +6,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BaseDirectory;
+import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -36,6 +37,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private final BlobStoreIndexShardSnapshot snapshot;
     private final BlobContainer blobContainer;
+    private static final long BLOB_STORE_SEQUENTIAL_READ_SIZE = 1<<25; // 32MB
 
     public SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
         super(new SingleInstanceLockFactory());
@@ -68,7 +70,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name));
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), BLOB_STORE_SEQUENTIAL_READ_SIZE,
+            BufferedIndexInput.BUFFER_SIZE);
     }
 
     @Override

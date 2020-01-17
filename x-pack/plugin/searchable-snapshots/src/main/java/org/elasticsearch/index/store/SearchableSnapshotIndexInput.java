@@ -5,15 +5,20 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A {@link SearchableSnapshotIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
@@ -41,20 +46,27 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     private final long length;
 
     private long position;
-    private boolean closed;
+    private volatile boolean closed;
 
-    public SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo) {
-        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, 0L, 0L, fileInfo.length());
+    // optimisation for the case where we perform a single seek, then read a large block of data sequentially, then close the input
+    private volatile long sequentialReadSize; // 0 means no optimization for sequential reads
+    private final AtomicReference<StreamForSequentialReads> streamForSequentialReadsRef = new AtomicReference<>();
+
+    SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo, long sequentialReadSize, int bufferSize) {
+        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, 0L, 0L, fileInfo.length(),
+            sequentialReadSize, bufferSize);
     }
 
-    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobContainer blobContainer,
-                                         final FileInfo fileInfo, final long position, final long offset, final long length) {
-        super(resourceDesc);
+    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobContainer blobContainer, final FileInfo fileInfo,
+                                         final long position, final long offset, final long length, final long sequentialReadSize,
+                                         final int bufferSize) {
+        super(resourceDesc, bufferSize);
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.offset = offset;
         this.length = length;
         this.position = position;
+        this.sequentialReadSize = sequentialReadSize;
         this.closed = false;
     }
 
@@ -73,12 +85,12 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     protected void readInternal(byte[] b, int offset, int length) throws IOException {
         ensureOpen();
         if (fileInfo.numberOfParts() == 1L) {
-            readInternalBytes(0L, position, b, offset, length);
+            readInternalBytes(0, position, b, offset, length);
         } else {
             int len = length;
             int off = offset;
             while (len > 0) {
-                long currentPart = position / fileInfo.partSize().getBytes();
+                int currentPart = Math.toIntExact(position / fileInfo.partSize().getBytes());
                 int remainingBytesInPart;
                 if (currentPart < (fileInfo.numberOfParts() - 1)) {
                     remainingBytesInPart = Math.toIntExact(((currentPart + 1L) * fileInfo.partSize().getBytes()) - position);
@@ -93,11 +105,95 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         }
     }
 
-    private void readInternalBytes(final long part, final long pos, byte[] b, int offset, int length) throws IOException {
+    private void readInternalBytes(final int part, long pos, final byte[] b, int offset, int length) throws IOException {
+        final long currentSequentialReadSize = sequentialReadSize;
+        if (currentSequentialReadSize > 0L) {
+            final StreamForSequentialReads streamForSequentialReads = streamForSequentialReadsRef.get();
+            if (streamForSequentialReads == null) {
+                if (tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
+                    assert streamForSequentialReadsRef.get() != null;
+                    return;
+                }
+            } else if (streamForSequentialReads.part == part && streamForSequentialReads.pos == pos) {
+                // continuing a sequential read that we started previously
+                int read = streamForSequentialReads.inputStream.read(b, offset, length);
+                assert read <= length : read + " vs " + length;
+                streamForSequentialReads.pos += read;
+                position += read;
+                pos += read;
+                offset += read;
+                length -= read;
+
+                if (streamForSequentialReads.isFullyRead()) {
+                    if (streamForSequentialReadsRef.compareAndSet(streamForSequentialReads, null) != false) {
+                        streamForSequentialReads.close();
+                    } else {
+                        // something happened concurrently, defensively stop optimizing
+                        sequentialReadSize = 0L;
+                    }
+
+                    if (length == 0) {
+                        // the current stream contained precisely enough data for this read, so we're good.
+                        return;
+                    } else {
+                        // the current stream didn't contain enough data for this read, so we must read more
+                        if (sequentialReadSize > 0 && tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
+                            return;
+                        }
+                    }
+                } else {
+                    // the current stream contained enough data for this read and more besides, so we leave it alone.
+                    assert length == 0 : length + " remaining";
+                    return;
+                }
+            } else {
+                // not a sequential read, so stop optimizing for this usage pattern and fall through to the unoptimized behaviour
+                sequentialReadSize = 0L;
+                IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
+            }
+        }
+
+        // read part of a blob directly; the code above falls through to this case where there is no optimization possible
         try (InputStream inputStream = blobContainer.readBlob(fileInfo.partName(part), pos, length)) {
-            int read = inputStream.read(b, offset, length);
-            assert read == length;
+            final int read = inputStream.read(b, offset, length);
+            assert read == length : read + " vs " + length;
             position += read;
+        }
+    }
+
+    /**
+     * If appropriate, open a new stream for sequential reading and satisfy the given read using it. Returns whether this happened or not;
+     * if it did not happen then nothing was read, and the caller should perform the read directly.
+     */
+    private boolean tryReadAndKeepStreamOpen(int part, long pos, byte[] b, int offset, int length, long currentSequentialReadSize)
+        throws IOException {
+
+        assert streamForSequentialReadsRef.get() == null : "should only be called when a new stream is needed";
+        assert currentSequentialReadSize > 0L : "should not be called if ";
+
+        final long streamLength = Math.min(currentSequentialReadSize, fileInfo.partBytes(part) - pos);
+        if (length < streamLength) {
+            // it is worthwhile to open a larger stream and keep it open for future reads
+            final InputStream inputStream = blobContainer.readBlob(fileInfo.partName(part), pos, streamLength);
+            final StreamForSequentialReads newStreamForSequentialReads
+                = new StreamForSequentialReads(inputStream, part, pos, streamLength);
+            if (streamForSequentialReadsRef.compareAndSet(null, newStreamForSequentialReads) == false) {
+                // something happened concurrently, defensively stop optimizing and fall through to the unoptimized behaviour
+                this.sequentialReadSize = 0L;
+                inputStream.close();
+                return false;
+            }
+
+            final int read = newStreamForSequentialReads.inputStream.read(b, offset, length);
+            assert read == length : read + " vs " + length;
+            position += read;
+            newStreamForSequentialReads.pos += read;
+            assert newStreamForSequentialReads.isFullyRead() == false;
+            return true;
+        } else {
+            // length <= currentSequentialReadSize so this single read will consume the entire stream, so there is no need to keep
+            // hold of it, so we can fall through to reading the stream directly
+            return false;
         }
     }
 
@@ -108,19 +204,23 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         } else if (pos < 0L) {
             throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
         }
-        this.position = offset + pos;
+        if (position != offset + pos) {
+            position = offset + pos;
+            IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
+        }
     }
 
     @Override
     public BufferedIndexInput clone() {
-        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length);
+        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length, 0L,
+            getBufferSize());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-            final SearchableSnapshotIndexInput slice =
-                new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position, this.offset + offset, length);
+            final SearchableSnapshotIndexInput slice = new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position,
+                this.offset + offset, length, 0L, getBufferSize());
             slice.seek(0L);
             return slice;
         } else {
@@ -132,6 +232,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     public void close() throws IOException {
         closed = true;
+        IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
     }
 
     @Override
@@ -143,5 +244,29 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             ", length=" + length +
             ", position=" + position +
             '}';
+    }
+
+    private static class StreamForSequentialReads implements Closeable {
+        final InputStream inputStream;
+        final int part;
+        long pos; // position within this part
+        private final long maxPos;
+
+        StreamForSequentialReads(InputStream inputStream, int part, long pos, long streamLength) {
+            this.inputStream = Objects.requireNonNull(inputStream);
+            this.part = part;
+            this.pos = pos;
+            this.maxPos = pos + streamLength;
+        }
+
+        boolean isFullyRead() {
+            assert this.pos <= maxPos;
+            return this.pos >= maxPos;
+        }
+
+        @Override
+        public void close() throws IOException {
+            inputStream.close();
+        }
     }
 }

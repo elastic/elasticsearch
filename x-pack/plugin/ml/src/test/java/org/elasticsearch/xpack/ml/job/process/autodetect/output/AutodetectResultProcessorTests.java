@@ -247,7 +247,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
 
         AutodetectResult bucketResult = mock(AutodetectResult.class);
-        for (int i = 0; i <= AutodetectResultProcessor.EARLY_BUCKET_THRESHOLD; ++i) {
+        final int numPriorBuckets = (int) AutodetectResultProcessor.EARLY_BUCKET_THRESHOLD + 1;
+        for (int i = 0; i < numPriorBuckets; ++i) {
             Bucket bucket = new Bucket(JOB_ID, new Date(i * 1000 + 1000000), BUCKET_SPAN_MS);
             when(bucketResult.getBucket()).thenReturn(bucket);
             processorUnderTest.processResult(bucketResult);
@@ -264,8 +265,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         }
 
         verify(bulkBuilder).persistTimingStats(any(TimingStats.class));
-        verify(bulkBuilder, times((int) AutodetectResultProcessor.EARLY_BUCKET_THRESHOLD + 1)).persistBucket(any(Bucket.class));
-        verify(bulkBuilder, times((int) AutodetectResultProcessor.EARLY_BUCKET_THRESHOLD + 1)).executeRequest();
+        verify(bulkBuilder, times(numPriorBuckets)).persistBucket(any(Bucket.class));
+        verify(bulkBuilder, times(numPriorBuckets)).executeRequest();
         verify(persister, times(iterations * categoryCount)).persistCategoryDefinition(any(CategoryDefinition.class), any());
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
         verify(auditor, never()).warning(eq(JOB_ID), anyString());

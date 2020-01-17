@@ -91,7 +91,7 @@ public class AutodetectResultProcessor {
     private volatile boolean processKilled;
     private volatile boolean failed;
     private long priorRunsBucketCount;
-    private int currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
+    private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
     private boolean excessiveCategoryWarningIssued; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
@@ -230,19 +230,7 @@ public class AutodetectResultProcessor {
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
-            if (categoryDefinition.getCategoryId() == EXCESSIVE_EARLY_CATEGORY_COUNT &&
-                priorRunsBucketCount + currentRunBucketCount < EARLY_BUCKET_THRESHOLD &&
-                excessiveCategoryWarningIssued == false) {
-                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES, EXCESSIVE_EARLY_CATEGORY_COUNT,
-                    // Add 1 because category definitions are written before buckets
-                    1 + priorRunsBucketCount + currentRunBucketCount));
-                // This flag won't be retained if the job is closed and reopened, or if the job migrates to another node.
-                // This means it's possible the audit message is generated multiple times.  However, that's not a
-                // disaster, and is also very unlikely in the the (best practice) cases where initial lookback covers
-                // more than 100 buckets.
-                excessiveCategoryWarningIssued = true;
-            }
+            processCategoryDefinition(categoryDefinition);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
@@ -323,6 +311,22 @@ public class AutodetectResultProcessor {
             // which need to be
             // deleted when the next finalized results come through
             deleteInterimRequired = true;
+        }
+    }
+
+    private void processCategoryDefinition(CategoryDefinition categoryDefinition) {
+        persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
+        if (categoryDefinition.getCategoryId() == EXCESSIVE_EARLY_CATEGORY_COUNT &&
+            priorRunsBucketCount + currentRunBucketCount < EARLY_BUCKET_THRESHOLD &&
+            excessiveCategoryWarningIssued == false) {
+            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES, EXCESSIVE_EARLY_CATEGORY_COUNT,
+                // Add 1 because category definitions are written before buckets
+                1L + priorRunsBucketCount + currentRunBucketCount));
+            // This flag won't be retained if the job is closed and reopened, or if the job migrates to another node.
+            // This means it's possible the audit message is generated multiple times.  However, that's not a
+            // disaster, and is also very unlikely in the the (best practice) cases where initial lookback covers
+            // more than 100 buckets.
+            excessiveCategoryWarningIssued = true;
         }
     }
 

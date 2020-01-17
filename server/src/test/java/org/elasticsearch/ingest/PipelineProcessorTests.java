@@ -19,17 +19,23 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +43,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(
@@ -69,7 +75,7 @@ public class PipelineProcessorTests extends ESTestCase {
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
@@ -85,7 +91,7 @@ public class PipelineProcessorTests extends ESTestCase {
     public void testThrowsOnRecursivePipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
         String outerPipelineId = "outer";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
         outerConfig.put("name", innerPipelineId);
@@ -113,7 +119,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
     public void testAllowsRepeatedPipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
         outerConfig.put("name", innerPipelineId);
@@ -131,7 +137,7 @@ public class PipelineProcessorTests extends ESTestCase {
         String pipeline1Id = "pipeline1";
         String pipeline2Id = "pipeline2";
         String pipeline3Id = "pipeline3";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
@@ -202,5 +208,64 @@ public class PipelineProcessorTests extends ESTestCase {
         assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
         assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
         assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+    }
+
+    public void testIngestPipelineMetadata() {
+        IngestService ingestService = createIngestService();
+
+        final int numPipelines = 16;
+        Pipeline firstPipeline = null;
+        for (int i = 0; i < numPipelines; i++) {
+            String pipelineId = Integer.toString(i);
+            List<Processor> processors = new ArrayList<>();
+            processors.add(new AbstractProcessor(null) {
+                @Override
+                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                    ingestDocument.appendFieldValue("pipelines", ingestDocument.getIngestMetadata().get("pipeline"));
+                    return ingestDocument;
+                }
+
+                @Override
+                public String getType() {
+                    return null;
+                }
+
+            });
+            if (i < (numPipelines - 1)) {
+                TemplateScript.Factory pipelineName = new TestTemplateService.MockTemplateScript.Factory(Integer.toString(i + 1));
+                processors.add(new PipelineProcessor(null, pipelineName, ingestService));
+            }
+
+
+            Pipeline pipeline = new Pipeline(pipelineId, null, null, new CompoundProcessor(false, processors, List.of()));
+            when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+            if (firstPipeline == null) {
+                firstPipeline = pipeline;
+            }
+        }
+
+        IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument[] docHolder = new IngestDocument[1];
+        Exception[] errorHolder = new Exception[1];
+        testIngestDocument.executePipeline(firstPipeline, (doc, e) -> {
+            docHolder[0] = doc;
+            errorHolder[0] = e;
+        });
+        assertThat(docHolder[0], notNullValue());
+        assertThat(errorHolder[0], nullValue());
+
+        IngestDocument ingestDocument = docHolder[0];
+        List<?> pipelines = ingestDocument.getFieldValue("pipelines", List.class);
+        assertThat(pipelines.size(), equalTo(numPipelines));
+        for (int i = 0; i < numPipelines; i++) {
+            assertThat(pipelines.get(i), equalTo(Integer.toString(i)));
+        }
+    }
+
+    static IngestService createIngestService() {
+        IngestService ingestService = mock(IngestService.class);
+        ScriptService scriptService = mock(ScriptService.class);
+        when(ingestService.getScriptService()).thenReturn(scriptService);
+        return ingestService;
     }
 }

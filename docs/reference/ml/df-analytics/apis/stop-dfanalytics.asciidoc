@@ -24,8 +24,14 @@ experimental[]
 [[ml-stop-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-* You must have `machine_learning_admin` built-in role to use this API. For more 
-information, see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles or equivalent privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
 
 [[ml-stop-dfanalytics-desc]]
 ==== {api-description-title}
@@ -42,24 +48,23 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Required, string) Identifier for the {dfanalytics-job}. This identifier can
-  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
   
 [[ml-stop-dfanalytics-query-params]]
 ==== {api-query-parms-title}  
   
 `allow_no_match`::
-  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
-  match any {dfanalytics-job} an error will be returned. The default value is
-  `true`.
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
 
 `force`::
   (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
   
 `timeout`::
-  (Optional, time) Controls the amount of time to wait until the
-  {dfanalytics-job} stops. The default value is 20 seconds.
+(Optional, <<time-units,time units>>) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-stop]
 
 
 [[ml-stop-dfanalytics-example]]

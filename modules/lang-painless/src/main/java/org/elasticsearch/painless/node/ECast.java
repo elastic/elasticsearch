@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -33,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
+ * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)  Casts are inserted during semantic checking.
  */
 final class ECast extends AExpression {
 
@@ -45,11 +44,6 @@ final class ECast extends AExpression {
 
         this.child = Objects.requireNonNull(child);
         this.cast = Objects.requireNonNull(cast);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

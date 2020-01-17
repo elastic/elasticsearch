@@ -145,6 +145,7 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
             QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
         final List<Collector> collectors = new ArrayList<>(leaves.size());

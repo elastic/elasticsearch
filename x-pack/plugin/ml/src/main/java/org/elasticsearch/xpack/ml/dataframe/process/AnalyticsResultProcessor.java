@@ -16,10 +16,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -33,6 +36,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.stream.Collectors.toList;
 
 public class AnalyticsResultProcessor {
 
@@ -163,9 +168,13 @@ public class AnalyticsResultProcessor {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         TrainedModelDefinition definition = inferenceModel.build();
+        String dependentVariable = getDependentVariable();
+        List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
+            .filter(f -> f.equals(dependentVariable) == false)
+            .collect(toList());
         return TrainedModelConfig.builder()
             .setModelId(modelId)
-            .setCreatedBy("data-frame-analytics")
+            .setCreatedBy(XPackUser.NAME)
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)
             .setTags(Collections.singletonList(analytics.getId()))
@@ -175,9 +184,19 @@ public class AnalyticsResultProcessor {
             .setEstimatedHeapMemory(definition.ramBytesUsed())
             .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
             .setParsedDefinition(inferenceModel)
-            .setInput(new TrainedModelInput(fieldNames))
+            .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .build();
+    }
+
+    private String getDependentVariable() {
+        if (analytics.getAnalysis() instanceof Classification) {
+            return ((Classification)analytics.getAnalysis()).getDependentVariable();
+        }
+        if (analytics.getAnalysis() instanceof Regression) {
+            return ((Regression)analytics.getAnalysis()).getDependentVariable();
+        }
+        return null;
     }
 
     private CountDownLatch storeTrainedModel(TrainedModelConfig trainedModelConfig) {

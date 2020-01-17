@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -189,6 +190,34 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             }
             RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
             return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
+        }
+    },
+    HISTOGRAM {
+        @Override
+        public ValuesSource getEmpty() {
+            // TODO: Is this the correct exception type here?
+            throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + this.value());
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
+
+            if (!(indexFieldData instanceof IndexHistogramFieldData)) {
+                throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
+                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+            }
+            return new ValuesSource.Histogram.Fielddata((IndexHistogramFieldData) indexFieldData);
         }
 
         @Override

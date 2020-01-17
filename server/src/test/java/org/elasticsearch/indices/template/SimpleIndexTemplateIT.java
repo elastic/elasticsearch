@@ -382,7 +382,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("_doc", "type", "type=keyword", "field", "type=text")
+                .setMapping("type", "type=keyword", "field", "type=text")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"term\":{\"type\":\"type2\"}}"))
@@ -433,7 +433,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testIndexTemplateWithAliasesInSource() {
         client().admin().indices().preparePutTemplate("template_1")
                 .setSource(new BytesArray("{\n" +
-                        "    \"template\" : \"*\",\n" +
+                        "    \"index_patterns\" : \"*\",\n" +
                         "    \"aliases\" : {\n" +
                         "        \"my_alias\" : {\n" +
                         "            \"filter\" : {\n" +
@@ -446,8 +446,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "}"), XContentType.JSON).get();
 
 
-        assertAcked(prepareCreate("test_index")
-                .addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -482,8 +481,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        assertAcked(prepareCreate("test_index")
-                .addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -624,7 +622,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template1")
                 .setPatterns(Collections.singletonList("a*"))
                 .setOrder(0)
-                .addMapping("test", "field", "type=text")
+                .setMapping("field", "type=text")
                 .addAlias(new Alias("alias1").filter(termQuery("field", "value"))).get();
         // Indexing into b index should fail, since there is field with name 'field' in the mapping
         client().admin().indices().preparePutTemplate("template4")
@@ -708,7 +706,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                                               .setPatterns(Collections.singletonList("te*"))
                                               .setVersion(version)
                                               .setOrder(order)
-                                              .addMapping("test", "field", "type=text")
+                                              .setMapping("field", "type=text")
                                               .get());
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("versioned_template").get();

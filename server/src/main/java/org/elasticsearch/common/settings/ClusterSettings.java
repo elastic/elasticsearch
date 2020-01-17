@@ -70,8 +70,9 @@ import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.IncrementalClusterStateWriter;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -101,9 +102,9 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.SimpleConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -186,6 +187,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.THRESHOLD_SETTING,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+            DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
@@ -196,7 +198,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
             IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
             IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+            IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
+            IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
+            MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
             MetaData.SETTING_READ_ONLY_SETTING,
             MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
             MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
@@ -228,7 +233,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
-            IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD,
+            PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
             NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
             NetworkModule.HTTP_TYPE_SETTING,
@@ -290,9 +295,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
-            SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
+            ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.SERVER_NAME,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,

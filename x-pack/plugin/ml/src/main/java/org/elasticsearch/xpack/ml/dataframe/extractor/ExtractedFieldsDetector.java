@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
@@ -53,16 +53,14 @@ public class ExtractedFieldsDetector {
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;
-    private final boolean isTaskRestarting;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> fieldCardinalities;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
+    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, int docValueFieldsLimit,
                             FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> fieldCardinalities) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
-        this.isTaskRestarting = isTaskRestarting;
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
         this.fieldCardinalities = Objects.requireNonNull(fieldCardinalities);
@@ -83,8 +81,8 @@ public class ExtractedFieldsDetector {
     private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection) {
         Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
         fields.removeAll(IGNORE_FIELDS);
-        checkResultsFieldIsNotPresent();
         removeFieldsUnderResultsField(fields);
+        applySourceFiltering(fields);
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
 
         // If the user has not explicitly included fields we'll include all compatible fields
@@ -114,21 +112,13 @@ public class ExtractedFieldsDetector {
         fields.removeIf(field -> field.startsWith(resultsField + "."));
     }
 
-    private void checkResultsFieldIsNotPresent() {
-        // If the task is restarting we do not mind the index containing the results field, we will overwrite all docs
-        if (isTaskRestarting) {
-            return;
-        }
-
-        String resultsField = config.getDest().getResultsField();
-        Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(resultsField);
-        if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException(
-                "A field that matches the {}.{} [{}] already exists; please set a different {}",
-                DataFrameAnalyticsConfig.DEST.getPreferredName(),
-                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
-                resultsField,
-                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
+    private void applySourceFiltering(Set<String> fields) {
+        Iterator<String> fieldsIterator = fields.iterator();
+        while (fieldsIterator.hasNext()) {
+            String field = fieldsIterator.next();
+            if (config.getSource().isFieldExcluded(field)) {
+                fieldsIterator.remove();
+            }
         }
     }
 
@@ -224,13 +214,13 @@ public class ExtractedFieldsDetector {
                 if (IGNORE_FIELDS.contains(field)) {
                     throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
                 }
+                if (excludes.contains(field)) {
+                    fieldsIterator.remove();
+                    addExcludedField(field, "field in excludes list", fieldSelection);
+                }
             } else {
                 fieldsIterator.remove();
                 addExcludedField(field, "field not in includes list", fieldSelection);
-            }
-            if (excludes.contains(field)) {
-                fieldsIterator.remove();
-                addExcludedField(field, "field in excludes list", fieldSelection);
             }
         }
     }
@@ -368,14 +358,12 @@ public class ExtractedFieldsDetector {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
         for (ExtractedField field : extractedFields.getAllFields()) {
             if (isBoolean(field.getTypes())) {
-                if (config.getAnalysis().getAllowedCategoricalTypes(field.getName()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
-                    // We convert boolean field to string if it is a categorical dependent variable
-                    adjusted.add(ExtractedFields.applyBooleanMapping(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
-                } else {
-                    // We convert boolean fields to integers with values 0, 1 as this is the preferred
-                    // way to consume such features in the analytics process.
-                    adjusted.add(ExtractedFields.applyBooleanMapping(field, 1, 0));
-                }
+                // We convert boolean fields to integers with values 0, 1 as this is the preferred
+                // way to consume such features in the analytics process regardless of:
+                //  - analysis type
+                //  - whether or not the field is categorical
+                //  - whether or not the field is a dependent variable
+                adjusted.add(ExtractedFields.applyBooleanMapping(field));
             } else {
                 adjusted.add(field);
             }
@@ -386,7 +374,7 @@ public class ExtractedFieldsDetector {
     private void addIncludedFields(ExtractedFields extractedFields, Set<FieldSelection> fieldSelection) {
         Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
             .collect(Collectors.toSet());
-        Set<String> categoricalFields = getCategoricalFields(extractedFields);
+        Set<String> categoricalFields = getCategoricalFields(extractedFields, config.getAnalysis());
         for (ExtractedField includedField : extractedFields.getAllFields()) {
             FieldSelection.FeatureType featureType = categoricalFields.contains(includedField.getName()) ?
                 FieldSelection.FeatureType.CATEGORICAL : FieldSelection.FeatureType.NUMERICAL;
@@ -395,9 +383,9 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private Set<String> getCategoricalFields(ExtractedFields extractedFields) {
+    static Set<String> getCategoricalFields(ExtractedFields extractedFields, DataFrameAnalysis analysis) {
         return extractedFields.getAllFields().stream()
-            .filter(extractedField -> config.getAnalysis().getAllowedCategoricalTypes(extractedField.getName())
+            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName())
                 .containsAll(extractedField.getTypes()))
             .map(ExtractedField::getName)
             .collect(Collectors.toUnmodifiableSet());

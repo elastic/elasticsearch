@@ -1,5 +1,8 @@
 [[analysis-flatten-graph-tokenfilter]]
-=== Flatten Graph Token Filter
+=== Flatten graph token filter
+++++
+<titleabbrev>Flatten graph</titleabbrev>
+++++
 
 experimental[This functionality is marked as experimental in Lucene]
 

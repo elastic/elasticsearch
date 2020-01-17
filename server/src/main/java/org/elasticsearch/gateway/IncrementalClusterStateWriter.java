@@ -27,13 +27,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -48,14 +46,9 @@ public class IncrementalClusterStateWriter {
 
     private static final Logger logger = LogManager.getLogger(IncrementalClusterStateWriter.class);
 
-    public static final Setting<TimeValue> SLOW_WRITE_LOGGING_THRESHOLD = Setting.timeSetting("gateway.slow_write_logging_threshold",
-        TimeValue.timeValueSeconds(10), TimeValue.ZERO, Setting.Property.NodeScope, Setting.Property.Dynamic);
-
     private final MetaStateService metaStateService;
 
-    // On master-eligible nodes we call updateClusterState under the Coordinator's mutex; on master-ineligible data nodes we call
-    // updateClusterState on the (unique) cluster applier thread; on other nodes we never call updateClusterState. In all cases there's
-    // no need to synchronize access to these fields.
+    // We call updateClusterState on the (unique) cluster applier thread so there's no need to synchronize access to these fields.
     private Manifest previousManifest;
     private ClusterState previousClusterState;
     private final LongSupplier relativeTimeMillisSupplier;
@@ -70,8 +63,9 @@ public class IncrementalClusterStateWriter {
         this.previousClusterState = clusterState;
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
         this.incrementalWrite = false;
-        this.slowWriteLoggingThreshold = SLOW_WRITE_LOGGING_THRESHOLD.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
+        this.slowWriteLoggingThreshold = PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
+            this::setSlowWriteLoggingThreshold);
     }
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {
@@ -87,10 +81,6 @@ public class IncrementalClusterStateWriter {
 
     Manifest getPreviousManifest() {
         return previousManifest;
-    }
-
-    ClusterState getPreviousClusterState() {
-        return previousClusterState;
     }
 
     void setIncrementalWrite(boolean incrementalWrite) {
@@ -206,36 +196,18 @@ public class IncrementalClusterStateWriter {
         return actions;
     }
 
-    private static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state) {
-        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+    // exposed for tests
+    static Set<Index> getRelevantIndices(ClusterState state) {
+        assert state.nodes().getLocalNode().isDataNode();
+        final RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
         }
-        Set<Index> indices = new HashSet<>();
-        for (ShardRouting routing : newRoutingNode) {
+        final Set<Index> indices = new HashSet<>();
+        for (final ShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
         }
         return indices;
-    }
-
-    private static Set<Index> getRelevantIndicesForMasterEligibleNode(ClusterState state) {
-        Set<Index> relevantIndices = new HashSet<>();
-        // we have to iterate over the metadata to make sure we also capture closed indices
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            relevantIndices.add(indexMetaData.getIndex());
-        }
-        return relevantIndices;
-    }
-
-    // exposed for tests
-    static Set<Index> getRelevantIndices(ClusterState state) {
-        if (state.nodes().getLocalNode().isMasterNode()) {
-            return getRelevantIndicesForMasterEligibleNode(state);
-        } else if (state.nodes().getLocalNode().isDataNode()) {
-            return getRelevantIndicesOnDataOnlyNode(state);
-        } else {
-            return Collections.emptySet();
-        }
     }
 
     /**

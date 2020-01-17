@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notANumber;
 

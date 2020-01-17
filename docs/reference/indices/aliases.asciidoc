@@ -292,23 +292,6 @@ POST /_aliases
 <3> `remove` will dissociate `test` index from `test` alias
 <4> `add` will associate `test_2` index with `test` alias
 
-[source,console]
---------------------------------------------------
-PUT test     <1>
-PUT test_2   <2>
-POST /_aliases
-{
-    "actions" : [
-        { "add":  { "index": "test_2", "alias": "test" } },
-        { "remove_index": { "index": "test" } }  <3>
-    ]
-}
---------------------------------------------------
-
-<1> An index we've added by mistake
-<2> The index we should have added
-<3> `remove_index` is just like <<indices-delete-index>>
-
 [[filtered]]
 ===== Filtered aliases
 

@@ -200,13 +200,11 @@ public class ELambda extends AExpression implements ILambda {
         }
 
         FunctionNode functionNode = new FunctionNode();
-
         functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
-
         functionNode.setLocation(location);
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
-        functionNode.getTypeParameters().addAll(typeParameters);
+        functionNode.getTypeParameters().addAll(typeParametersWithCaptures);
         functionNode.getParameterNames().addAll(parameterNames);
         functionNode.setStatic(true);
         functionNode.setVarArgs(false);
@@ -216,7 +214,6 @@ public class ELambda extends AExpression implements ILambda {
         classNode.addFunctionNode(functionNode);
 
         LambdaNode lambdaNode = new LambdaNode();
-
         lambdaNode.setLocation(location);
         lambdaNode.setExpressionType(output.actual);
         lambdaNode.setFuncRef(ref);

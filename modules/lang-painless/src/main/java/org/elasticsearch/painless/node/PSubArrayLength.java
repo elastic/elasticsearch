@@ -68,7 +68,7 @@ public class PSubArrayLength extends AStoreable {
 
     @Override
     boolean isDefOptimized() {
-        throw new IllegalStateException("Illegal tree structure.");
+        return false;
     }
 
     @Override

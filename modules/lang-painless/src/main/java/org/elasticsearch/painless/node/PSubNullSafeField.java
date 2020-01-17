@@ -68,7 +68,7 @@ public class PSubNullSafeField extends AStoreable {
 
     @Override
     boolean isDefOptimized() {
-        return guarded.isDefOptimized();
+        return false;
     }
 
     @Override

@@ -122,6 +122,8 @@ public class PField extends AStoreable {
             }
         }
 
+        isDefOptimized = sub.isDefOptimized();
+
         if (nullSafe) {
             sub = new PSubNullSafeField(location, sub);
         }

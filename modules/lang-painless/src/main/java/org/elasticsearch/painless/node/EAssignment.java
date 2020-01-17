@@ -27,6 +27,9 @@ import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
+import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.ir.UnaryNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -58,14 +61,15 @@ public class EAssignment extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
         AExpression rhs = this.rhs;
+        Operation operation = this.operation;
         boolean cat = false;
         Class<?> promote = null;
         Class<?> shiftDistance = null;
         PainlessCast there = null;
         PainlessCast back = null;
-
-        Output output = new Output();
 
         Output leftOutput;
 
@@ -100,6 +104,8 @@ public class EAssignment extends AExpression {
                 } else {
                     rhs = new EConstant(location, 1);
                 }
+
+                operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (leftOutput.actual == double.class) {
                     rhs = new EConstant(location, 1D);
@@ -110,13 +116,15 @@ public class EAssignment extends AExpression {
                 } else {
                     rhs = new EConstant(location, 1);
                 }
+
+                operation = Operation.SUB;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
         if (operation != null) {
-            rightOutput = rhs.analyze(classNode, scriptRoot, scope, new Input());
+            rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -125,9 +133,9 @@ public class EAssignment extends AExpression {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
             } else if (operation == Operation.REM) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-            } else if (operation == Operation.ADD || operation == Operation.INCR) {
+            } else if (operation == Operation.ADD) {
                 promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
-            } else if (operation == Operation.SUB || operation == Operation.DECR) {
+            } else if (operation == Operation.SUB) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
             } else if (operation == Operation.LSH) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
@@ -167,15 +175,15 @@ public class EAssignment extends AExpression {
             if (shift) {
                 if (promote == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
-                    input.expected = promote;
+                    rightInput.expected = promote;
                 } else if (shiftDistance == long.class) {
-                    input.expected = int.class;
-                    input.explicit = true;
+                    rightInput.expected = int.class;
+                    rightInput.explicit = true;
                 } else {
-                    input.expected = shiftDistance;
+                    rightInput.expected = shiftDistance;
                 }
             } else {
-                input.expected = promote;
+                rightInput.expected = promote;
             }
 
             rhs.cast(rightInput, rightOutput);
@@ -189,7 +197,7 @@ public class EAssignment extends AExpression {
 
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (lhs.isDefOptimized()) {
-                rightOutput = rhs.analyze(classNode, scriptRoot, scope, new Input());
+                rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -198,6 +206,14 @@ public class EAssignment extends AExpression {
                 rightInput.expected = rightOutput.actual;
                 leftOutput.actual = rightOutput.actual;
                 leftOutput.expressionNode.setExpressionType(rightOutput.actual);
+
+                ExpressionNode expressionNode = leftOutput.expressionNode;
+
+                if (expressionNode instanceof UnaryNode && expressionNode instanceof NullSafeSubNode == false) {
+                    UnaryNode unaryNode = (UnaryNode)expressionNode;
+                    expressionNode = unaryNode.getChildNode();
+                    expressionNode.setExpressionType(leftOutput.actual);
+                }
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
                 rightInput.expected = leftOutput.actual;

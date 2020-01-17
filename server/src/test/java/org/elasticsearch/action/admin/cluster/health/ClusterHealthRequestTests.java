@@ -56,6 +56,11 @@ public class ClusterHealthRequestTests extends ESTestCase {
         assertThat(cloneRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
     }
 
+    public void testRequestReturnsHiddenIndicesByDefault() {
+        final ClusterHealthRequest defaultRequest = new ClusterHealthRequest();
+        assertTrue(defaultRequest.indicesOptions().expandWildcardsHidden());
+    }
+
     public void testBwcSerialization() throws Exception {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
             // Generate a random cluster health request in version < 7.2.0 and serializes it

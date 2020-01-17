@@ -107,6 +107,7 @@ subprojects {
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
       ':build-tools',
+      ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]
 

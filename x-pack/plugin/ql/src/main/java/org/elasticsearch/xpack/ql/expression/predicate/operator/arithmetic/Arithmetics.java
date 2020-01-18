@@ -5,27 +5,15 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
-import java.time.Duration;
-import java.time.OffsetTime;
-import java.time.Period;
-import java.time.temporal.Temporal;
-
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
  */
 public final class Arithmetics {
 
-    public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
-
     private Arithmetics() {}
 
-    private enum IntervalOperation {
-        ADD,
-        SUB
-    }
-
-    static Number add(Number l, Number r) {
+    public static Number add(Number l, Number r) {
         if (l == null || r == null) {
             return null;
         }
@@ -43,15 +31,7 @@ public final class Arithmetics {
         return Integer.valueOf(Math.addExact(l.intValue(), r.intValue()));
     }
 
-    static Temporal add(Temporal l, Period r) {
-        return periodArithmetics(l, r, IntervalOperation.ADD);
-    }
-
-    static Temporal add(Temporal l, Duration r) {
-        return durationArithmetics(l, r, IntervalOperation.ADD);
-    }
-
-    static Number sub(Number l, Number r) {
+    public static Number sub(Number l, Number r) {
         if (l == null || r == null) {
             return null;
         }
@@ -69,15 +49,7 @@ public final class Arithmetics {
         return Integer.valueOf(Math.subtractExact(l.intValue(), r.intValue()));
     }
 
-    static Temporal sub(Temporal l, Period r) {
-        return periodArithmetics(l, r, IntervalOperation.SUB);
-    }
-
-    static Temporal sub(Temporal l, Duration r) {
-        return durationArithmetics(l, r, IntervalOperation.SUB);
-    }
-
-    static Number mul(Number l, Number r) {
+    public static Number mul(Number l, Number r) {
         if (l == null || r == null) {
             return null;
         }
@@ -95,7 +67,7 @@ public final class Arithmetics {
         return Integer.valueOf(Math.multiplyExact(l.intValue(), r.intValue()));
     }
 
-    static Number div(Number l, Number r) {
+    public static Number div(Number l, Number r) {
         if (l == null || r == null) {
             return null;
         }
@@ -155,37 +127,5 @@ public final class Arithmetics {
         }
 
         return Integer.valueOf(Math.negateExact(n.intValue()));
-    }
-
-    private static Temporal periodArithmetics(Temporal l, Period r, IntervalOperation operation) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        if (l instanceof OffsetTime) {
-            return l;
-        }
-
-        if (operation == IntervalOperation.ADD) {
-            return l.plus(r);
-        } else {
-            return l.minus(r);
-        }
-    }
-
-    private static Temporal durationArithmetics(Temporal l, Duration r, IntervalOperation operation) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        if (l instanceof OffsetTime) {
-            r = Duration.ofMillis(r.toMillis() % DAY_IN_MILLIS);
-        }
-
-        if (operation == IntervalOperation.ADD) {
-            return l.plus(r);
-        } else {
-            return l.minus(r);
-        }
     }
 }

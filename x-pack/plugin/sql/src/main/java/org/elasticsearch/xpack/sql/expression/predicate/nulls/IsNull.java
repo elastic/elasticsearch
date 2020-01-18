@@ -35,7 +35,7 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
 
     @Override
     public Object fold() {
-        return field().fold() == null || field().dataType().isNull();
+        return field().fold() == null || DataTypes.isNull(field().dataType());
     }
 
     @Override

@@ -9,6 +9,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -68,30 +69,17 @@ public final class DataTypes {
             .sorted(Comparator.comparing(DataType::typeName))
             .collect(toUnmodifiableList());
     
+    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
+            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    
     private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
             .filter(e -> e.esType() != null)
             .collect(toUnmodifiableMap(DataType::esType, t -> t));
     
     private DataTypes() {}
 
-    public static boolean isUnsupported(DataType from) {
-        return from == UNSUPPORTED;
-    }
-
-    public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT;
-    }
-
-    public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED;
-    }
-
-    public static boolean isNull(DataType t) {
-        return t == NULL;
-    }
-
-    public static boolean isSigned(DataType t) {
-        return t.isNumeric();
+    public static DataType fromTypeName(String name) {
+        return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
     public static DataType fromEs(String name) {
@@ -131,5 +119,29 @@ public final class DataTypes {
         }
 
         return null;
+    }
+
+    public static boolean isUnsupported(DataType from) {
+        return from == UNSUPPORTED;
+    }
+
+    public static boolean isString(DataType t) {
+        return t == KEYWORD || t == TEXT;
+    }
+
+    public static boolean isPrimitive(DataType t) {
+        return t != OBJECT && t != NESTED;
+    }
+
+    public static boolean isNull(DataType t) {
+        return t == NULL;
+    }
+
+    public static boolean isNullOrNumeric(DataType t) {
+        return t.isNumeric() || isNull(t);
+    }
+
+    public static boolean isSigned(DataType t) {
+        return t.isNumeric();
     }
 }

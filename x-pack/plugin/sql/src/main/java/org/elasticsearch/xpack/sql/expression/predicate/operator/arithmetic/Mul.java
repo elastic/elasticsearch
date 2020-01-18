@@ -3,14 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
+package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -36,6 +38,14 @@ public class Mul extends ArithmeticOperation {
 
         // 1. both are numbers
         if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        if (SqlDataTypes.isNullOrInterval(l) && (r.isInteger() || DataTypes.isNull(r))) {
+            dataType = l;
+            return TypeResolution.TYPE_RESOLVED;
+        } else if (SqlDataTypes.isNullOrInterval(r) && (l.isInteger() || DataTypes.isNull(l))) {
+            dataType = r;
             return TypeResolution.TYPE_RESOLVED;
         }
 

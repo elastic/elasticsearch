@@ -168,12 +168,20 @@ public class SqlDataTypes {
             .sorted(Comparator.comparing(DataType::typeName))
             .collect(toUnmodifiableList());
 
+    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
+            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+
     private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
             .filter(e -> e.esType() != null)
             .collect(toUnmodifiableMap(DataType::esType, t -> t));
 
 
     private SqlDataTypes() {}
+
+
+    public static DataType fromTypeName(String name) {
+        return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
+    }
 
     public static DataType fromEs(String name) {
         return ES_TO_TYPE.get(name);
@@ -198,8 +206,23 @@ public class SqlDataTypes {
         return null;
     }
 
-    public static DataType fromTypeName(String name) {
-        throw new UnsupportedOperationException();
+    public static boolean isNullOrInterval(DataType type) {
+        return type == NULL || isInterval(type);
+    }
+
+    public static boolean isInterval(DataType dataType) {
+        return isYearMonthInterval(dataType) || isDayTimeInterval(dataType);
+    }
+
+    public static boolean isYearMonthInterval(DataType dataType) {
+        return dataType == INTERVAL_YEAR || dataType == INTERVAL_MONTH || dataType == INTERVAL_YEAR_TO_MONTH;
+    }
+
+    public static boolean isDayTimeInterval(DataType dataType) {
+        return dataType == INTERVAL_DAY || dataType == INTERVAL_HOUR  || dataType == INTERVAL_MINUTE || dataType == INTERVAL_SECOND
+                || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
+                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_MINUTE
+                || dataType == INTERVAL_MINUTE_TO_SECOND;
     }
 
     public static boolean isDateBased(DataType dataType) {
@@ -595,21 +618,6 @@ public class SqlDataTypes {
         }
 
         return 0;
-    }
-
-    public static boolean isInterval(DataType dataType) {
-        return isYearMonthInterval(dataType) || isDayTimeInterval(dataType);
-    }
-
-    public static boolean isYearMonthInterval(DataType dataType) {
-        return dataType == INTERVAL_YEAR || dataType == INTERVAL_MONTH || dataType == INTERVAL_YEAR_TO_MONTH;
-    }
-
-    public static boolean isDayTimeInterval(DataType dataType) {
-        return dataType == INTERVAL_DAY || dataType == INTERVAL_HOUR  || dataType == INTERVAL_MINUTE || dataType == INTERVAL_SECOND
-                || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
-                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_MINUTE
-                || dataType == INTERVAL_MINUTE_TO_SECOND;
     }
 
     //

@@ -22,6 +22,13 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
+
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
@@ -69,7 +76,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     private boolean isGeoPointArray(List<?> list) {
-        if (dataType() != DataType.GEO_POINT) {
+        if (dataType() != GEO_POINT) {
             return false;
         }
         // we expect the point in [lon lat] or [lon lat alt] formats
@@ -79,16 +86,22 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
+    
     @Override
-    protected Object extractFromSource(Map<String, Object> map) {
-        return super.extractFromSource(map);
+    protected boolean isFromDocValuesOnly(DataType dataType) {
+        return dataType == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
+                || dataType == DATETIME
+                || dataType == SCALED_FLOAT // because of scaling_factor
+                || dataType == GEO_POINT
+                || dataType == GEO_SHAPE
+                || dataType == SHAPE;
     }
 
     @Override
     protected Object unwrapCustomValue(Object values) {
         DataType dataType = dataType();
 
-        if (dataType == DataType.GEO_POINT) {
+        if (dataType == GEO_POINT) {
             try {
                 GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
                 return new GeoShape(geoPoint.lon(), geoPoint.lat());
@@ -96,14 +109,14 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
             }
         }
-        if (dataType == DataType.GEO_SHAPE) {
+        if (dataType == GEO_SHAPE) {
             try {
                 return new GeoShape(values);
             } catch (IOException ex) {
                 throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName());
             }
         }
-        if (dataType == DataType.SHAPE) {
+        if (dataType == SHAPE) {
             try {
                 return new GeoShape(values);
             } catch (IOException ex) {
@@ -113,7 +126,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName());
         }
-        if (dataType == DataType.DATETIME) {
+        if (dataType == DATETIME) {
             if (values instanceof String) {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId());
             }

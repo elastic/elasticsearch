@@ -49,7 +49,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
     public void testDoNotFillGaps() throws Exception {
-        final IndexShard indexShard = newStartedShard(false, Settings.EMPTY, new FollowingEngineFactory());
+        Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build();
+        final IndexShard indexShard = newStartedShard(false, settings, new FollowingEngineFactory());
 
         long seqNo = -1;
         for (int i = 0; i < 8; i++) {

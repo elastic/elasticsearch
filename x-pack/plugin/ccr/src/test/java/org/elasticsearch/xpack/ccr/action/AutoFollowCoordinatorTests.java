@@ -29,7 +29,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -1467,8 +1469,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     private static ClusterState createRemoteClusterState(String indexName, boolean enableSoftDeletes, long metadataVersion) {
         Settings.Builder indexSettings;
-        indexSettings = settings(Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
+        if (enableSoftDeletes == false) {
+            indexSettings = settings(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+        } else {
+            indexSettings = settings(Version.CURRENT);
+        }
+        indexSettings.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
 
         IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
             .settings(indexSettings)

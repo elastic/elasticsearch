@@ -29,15 +29,15 @@ public class IntervalDayTime extends Interval<Duration> {
         super(interval, intervalType);
     }
 
-    IntervalDayTime(StreamInput in) throws IOException {
-        super(duration(in), in.readEnum(DataType.class));
+    public IntervalDayTime(StreamInput in) throws IOException {
+        super(duration(in), SqlDataTypes.fromTypeName(in.readString()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(interval().getSeconds());
         out.writeVInt(interval().getNano());
-        out.writeEnum(dataType());
+        out.writeString(dataType().typeName());
     }
 
     @Override
@@ -47,12 +47,12 @@ public class IntervalDayTime extends Interval<Duration> {
 
     @Override
     public IntervalDayTime add(Interval<Duration> interval) {
-        return new IntervalDayTime(interval().plus(interval.interval()), SqlDataTypes.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalDayTime(interval().plus(interval.interval()), Intervals.compatibleInterval(dataType(), interval.dataType()));
     }
 
     @Override
     public IntervalDayTime sub(Interval<Duration> interval) {
-        return new IntervalDayTime(interval().minus(interval.interval()), SqlDataTypes.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalDayTime(interval().minus(interval.interval()), Intervals.compatibleInterval(dataType(), interval.dataType()));
     }
 
     @Override

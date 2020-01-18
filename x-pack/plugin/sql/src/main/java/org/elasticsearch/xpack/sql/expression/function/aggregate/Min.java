@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumericOrDateOrTime;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumericOrDateOrTime;
 
 /**
  * Find the minimum value in matched documents.

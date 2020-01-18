@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
@@ -45,12 +46,15 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.compatibleInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isYearMonthInterval;
 
 
-public class SqlTypeConverter {
+public class SqlDataTypeConverter {
+
+    public static boolean areCompatible(DataType left, DataType right) {
+        return commonType(left, right) != null;
+    }
 
     public static DataType commonType(DataType left, DataType right) {
         DataType common = DataTypeConverter.commonType(left, right);
@@ -121,7 +125,7 @@ public class SqlTypeConverter {
             // intervals widening
             if (isInterval(right)) {
                 // null returned for incompatible intervals
-                return compatibleInterval(left, right);
+                return Intervals.compatibleInterval(left, right);
             }
         }
 

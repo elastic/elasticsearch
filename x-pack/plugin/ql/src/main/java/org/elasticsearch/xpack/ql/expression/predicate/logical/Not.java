@@ -68,6 +68,6 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 }

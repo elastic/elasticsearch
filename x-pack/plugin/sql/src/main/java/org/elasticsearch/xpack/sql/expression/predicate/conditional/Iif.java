@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression.predicate.conditional;
+package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -53,7 +53,7 @@ public class Iif extends Case implements OptionalArgument {
         }
 
         DataType resultDataType = conditions().get(0).dataType();
-        if (DataTypes.areTypesCompatible(resultDataType, elseResult().dataType()) == false) {
+        if (SqlDataTypeConverter.areCompatible(resultDataType, elseResult().dataType()) == false) {
             return new TypeResolution(format(null, "third argument of [{}] must be [{}], found value [{}] type [{}]",
                 sourceText(),
                 resultDataType.typeName(),

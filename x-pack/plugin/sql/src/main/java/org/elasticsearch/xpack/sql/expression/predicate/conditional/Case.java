@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression.predicate.conditional;
+package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +78,7 @@ public class Case extends ConditionalFunction {
     protected TypeResolution resolveType() {
         DataType expectedResultDataType = null;
         for (IfConditional ifConditional : conditions) {
-            if (ifConditional.result().dataType().isNull() == false) {
+            if (DataTypes.isNull(ifConditional.result().dataType()) == false) {
                 expectedResultDataType = ifConditional.result().dataType();
                 break;
             }
@@ -93,7 +94,7 @@ public class Case extends ConditionalFunction {
                     Expressions.name(conditional.condition()),
                     conditional.condition().dataType().typeName()));
             }
-            if (DataTypes.areTypesCompatible(expectedResultDataType, conditional.dataType()) == false) {
+            if (SqlDataTypeConverter.areCompatible(expectedResultDataType, conditional.dataType()) == false) {
                 return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
                     conditional.sourceText(),
                     expectedResultDataType.typeName(),
@@ -102,7 +103,7 @@ public class Case extends ConditionalFunction {
             }
         }
 
-        if (DataTypes.areTypesCompatible(expectedResultDataType, elseResult.dataType()) == false) {
+        if (SqlDataTypeConverter.areCompatible(expectedResultDataType, elseResult.dataType()) == false) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
                 elseResult.sourceText(),
                 expectedResultDataType.typeName(),

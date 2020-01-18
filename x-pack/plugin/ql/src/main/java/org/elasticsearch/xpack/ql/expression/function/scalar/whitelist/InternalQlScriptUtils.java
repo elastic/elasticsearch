@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -92,14 +91,6 @@ public abstract class InternalQlScriptUtils {
 
     public static Boolean not(Boolean expression) {
         return NotProcessor.apply(expression);
-    }
-
-    public static Boolean isNull(Object expression) {
-        return CheckNullOperation.IS_NULL.apply(expression);
-    }
-
-    public static Boolean isNotNull(Object expression) {
-        return CheckNullOperation.IS_NOT_NULL.apply(expression);
     }
 
     public static Boolean in(Object value, List<Object> values) {

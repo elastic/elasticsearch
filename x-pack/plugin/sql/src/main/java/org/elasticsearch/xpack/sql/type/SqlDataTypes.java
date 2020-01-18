@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
@@ -211,10 +210,15 @@ public class SqlDataTypes {
         return isDateBased(type) || type == TIME;
     }
 
+    public static boolean isGeo(DataType type) {
+        return type == GEO_POINT || type == GEO_SHAPE || type == SHAPE;
+    }
+
     public static String format(DataType type) {
         return isDateOrTimeBased(type) ? "epoch_millis" : null;
     }
     
+
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
                 || dataType == DATE         // because of date formats
@@ -606,63 +610,6 @@ public class SqlDataTypes {
                 || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
                 || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_MINUTE
                 || dataType == INTERVAL_MINUTE_TO_SECOND;
-    }
-
-    // return the compatible interval between the two - it is assumed the types are intervals
-    // YEAR and MONTH -> YEAR_TO_MONTH
-    // DAY... SECOND -> DAY_TIME
-    // YEAR_MONTH and DAY_SECOND are NOT compatible
-    public static DataType compatibleInterval(DataType left, DataType right) {
-        if (left == right) {
-            return left;
-        }
-        if (isYearMonthInterval(left) && isYearMonthInterval(right)) {
-            // no need to look at YEAR/YEAR or MONTH/MONTH as these are equal and already handled
-            return INTERVAL_YEAR_TO_MONTH;
-        }
-        if (isDayTimeInterval(left) && isDayTimeInterval(right)) {
-            int PREFIX = "INTERVAL_".length();
-            // to avoid specifying the combinations, extract the leading and trailing unit from the name
-            // D > H > S > M which is also the alphabetical order
-            String lName = left.typeName().substring(PREFIX);
-            String rName = right.typeName().substring(PREFIX);
-
-            char leading = lName.charAt(0);
-            if (rName.charAt(0) < leading) {
-                leading = rName.charAt(0);
-            }
-            // look at the trailing unit
-            if (lName.length() > 6) {
-                int indexOf = lName.indexOf("_TO_");
-                lName = lName.substring(indexOf + 4);
-            }
-            if (rName.length() > 6) {
-                int indexOf = rName.indexOf("_TO_");
-                rName = rName.substring(indexOf + 4);
-            }
-            char trailing = lName.charAt(0);
-            if (rName.charAt(0) > trailing) {
-                trailing = rName.charAt(0);
-            }
-
-            return fromTypeName("INTERVAL_" + intervalUnit(leading) + "_TO_" + intervalUnit(trailing));
-        }
-        return null;
-    }
-
-    private static String intervalUnit(char unitChar) {
-        switch (unitChar) {
-            case 'D':
-                return "DAY";
-            case 'H':
-                return "HOUR";
-            case 'M':
-                return "MINUTE";
-            case 'S':
-                return "SECOND";
-            default:
-                throw new QlIllegalArgumentException("Unknown unit {}", unitChar);
-        }
     }
 
     //

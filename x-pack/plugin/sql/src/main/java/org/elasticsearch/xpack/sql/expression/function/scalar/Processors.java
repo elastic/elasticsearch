@@ -31,6 +31,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +54,12 @@ public final class Processors {
 
         // base
         entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
+
+        // conditionals
+        entries.add(new Entry(Processor.class, CaseProcessor.NAME, CaseProcessor::new));
+        entries.add(new Entry(Processor.class, CheckNullProcessor.NAME, CheckNullProcessor::new));
+        entries.add(new Entry(Processor.class, ConditionalProcessor.NAME, ConditionalProcessor::new));
+        entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
 
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));

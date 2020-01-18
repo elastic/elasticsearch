@@ -40,17 +40,17 @@ public class SqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public boolean canConvert(DataType from, DataType to) {
-        return SqlTypeConverter.canConvert(from, to);
+        return SqlDataTypeConverter.canConvert(from, to);
     }
 
     @Override
     public Object convert(Object value, DataType type) {
-        return SqlTypeConverter.convert(value, type);
+        return SqlDataTypeConverter.convert(value, type);
     }
 
     @Override
     public DataType commonType(DataType left, DataType right) {
-        return SqlTypeConverter.commonType(left, right);
+        return SqlDataTypeConverter.commonType(left, right);
     }
 
 }

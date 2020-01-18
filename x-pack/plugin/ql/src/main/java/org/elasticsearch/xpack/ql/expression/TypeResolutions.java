@@ -40,28 +40,6 @@ public final class TypeResolutions {
         return isType(e, DataTypes::isString, operationName, paramOrd, "string");
     }
 
-    public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isDateBased, operationName, paramOrd, "date", "datetime");
-    }
-
-    public static TypeResolution isDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isDateOrTimeBased, operationName, paramOrd, "date", "time", "datetime");
-    }
-
-    public static TypeResolution isNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isNumeric() || dt.isDateBased(), operationName, paramOrd,
-            "date", "datetime", "numeric");
-    }
-
-    public static TypeResolution isNumericOrDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isNumeric() || dt.isDateOrTimeBased(), operationName, paramOrd,
-            "date", "time", "datetime", "numeric");
-    }
-
-    public static TypeResolution isGeo(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isGeo, operationName, paramOrd, "geo_point", "geo_shape");
-    }
-
     public static TypeResolution isExact(Expression e, String message) {
         if (e instanceof FieldAttribute) {
             EsField.Exact exact = ((FieldAttribute) e).getExactInfo();

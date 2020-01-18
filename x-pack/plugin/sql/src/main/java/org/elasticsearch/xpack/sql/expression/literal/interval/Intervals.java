@@ -24,13 +24,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY_TO_HOUR;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY_TO_MINUTE;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY_TO_SECOND;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_HOUR_TO_MINUTE;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_HOUR_TO_SECOND;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_MINUTE_TO_SECOND;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR_TO_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_HOUR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_MINUTE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_SECOND;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR_TO_MINUTE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR_TO_SECOND;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MINUTE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MINUTE_TO_SECOND;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.fromTypeName;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDayTimeInterval;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isYearMonthInterval;
 
 public final class Intervals {
 
@@ -91,17 +100,17 @@ public final class Intervals {
         if (trailing == null) {
             switch (leading) {
                 case YEAR:
-                    return DataType.INTERVAL_YEAR;
+                    return INTERVAL_YEAR;
                 case MONTH:
-                    return DataType.INTERVAL_MONTH;
+                    return INTERVAL_MONTH;
                 case DAY:
-                    return DataType.INTERVAL_DAY;
+                    return INTERVAL_DAY;
                 case HOUR:
-                    return DataType.INTERVAL_HOUR;
+                    return INTERVAL_HOUR;
                 case MINUTE:
-                    return DataType.INTERVAL_MINUTE;
+                    return INTERVAL_MINUTE;
                 case SECOND:
-                    return DataType.INTERVAL_SECOND;
+                    return INTERVAL_SECOND;
                 default:
                     throw new ParsingException(source, "Cannot determine datatype for [{}]", leading);
             }
@@ -131,6 +140,64 @@ public final class Intervals {
         }
     }
 
+    // return the compatible interval between the two - it is assumed the types are intervals
+    // YEAR and MONTH -> YEAR_TO_MONTH
+    // DAY... SECOND -> DAY_TIME
+    // YEAR_MONTH and DAY_SECOND are NOT compatible
+    public static DataType compatibleInterval(DataType left, DataType right) {
+        if (left == right) {
+            return left;
+        }
+        if (isYearMonthInterval(left) && isYearMonthInterval(right)) {
+            // no need to look at YEAR/YEAR or MONTH/MONTH as these are equal and already handled
+            return INTERVAL_YEAR_TO_MONTH;
+        }
+        if (isDayTimeInterval(left) && isDayTimeInterval(right)) {
+            int PREFIX = "INTERVAL_".length();
+            // to avoid specifying the combinations, extract the leading and trailing unit from the name
+            // D > H > S > M which is also the alphabetical order
+            String lName = left.typeName().substring(PREFIX);
+            String rName = right.typeName().substring(PREFIX);
+
+            char leading = lName.charAt(0);
+            if (rName.charAt(0) < leading) {
+                leading = rName.charAt(0);
+            }
+            // look at the trailing unit
+            if (lName.length() > 6) {
+                int indexOf = lName.indexOf("_TO_");
+                lName = lName.substring(indexOf + 4);
+            }
+            if (rName.length() > 6) {
+                int indexOf = rName.indexOf("_TO_");
+                rName = rName.substring(indexOf + 4);
+            }
+            char trailing = lName.charAt(0);
+            if (rName.charAt(0) > trailing) {
+                trailing = rName.charAt(0);
+            }
+
+            return fromTypeName("INTERVAL_" + intervalUnit(leading) + "_TO_" + intervalUnit(trailing));
+        }
+        return null;
+    }
+
+    private static String intervalUnit(char unitChar) {
+        switch (unitChar) {
+            case 'D':
+                return "DAY";
+            case 'H':
+                return "HOUR";
+            case 'M':
+                return "MINUTE";
+            case 'S':
+                return "SECOND";
+            default:
+                throw new QlIllegalArgumentException("Unknown unit {}", unitChar);
+        }
+    }
+
+
     //
     // String parsers
     //
@@ -146,7 +213,7 @@ public final class Intervals {
         ParserBuilder(DataType dataType) {
             units = new ArrayList<>(10);
             tokens = new ArrayList<>(6);
-            name = dataType.name().replace('_', ' ');
+            name = dataType.getClass().getSimpleName().replace('_', ' ');
         }
 
         ParserBuilder unit(TimeUnit unit) {
@@ -336,31 +403,31 @@ public final class Intervals {
         char MINUS = '-';
         char COLON = ':';
         
-        PARSERS.put(DataType.INTERVAL_YEAR, new ParserBuilder(DataType.INTERVAL_YEAR).unit(TimeUnit.YEAR).build());
-        PARSERS.put(DataType.INTERVAL_MONTH, new ParserBuilder(DataType.INTERVAL_MONTH).unit(TimeUnit.MONTH).build());
-        PARSERS.put(DataType.INTERVAL_DAY, new ParserBuilder(DataType.INTERVAL_DAY).unit(TimeUnit.DAY).build());
-        PARSERS.put(DataType.INTERVAL_HOUR, new ParserBuilder(DataType.INTERVAL_HOUR).unit(TimeUnit.HOUR).build());
-        PARSERS.put(DataType.INTERVAL_MINUTE, new ParserBuilder(DataType.INTERVAL_MINUTE).unit(TimeUnit.MINUTE).build());
-        PARSERS.put(DataType.INTERVAL_SECOND, new ParserBuilder(DataType.INTERVAL_SECOND)
+        PARSERS.put(INTERVAL_YEAR, new ParserBuilder(INTERVAL_YEAR).unit(TimeUnit.YEAR).build());
+        PARSERS.put(INTERVAL_MONTH, new ParserBuilder(INTERVAL_MONTH).unit(TimeUnit.MONTH).build());
+        PARSERS.put(INTERVAL_DAY, new ParserBuilder(INTERVAL_DAY).unit(TimeUnit.DAY).build());
+        PARSERS.put(INTERVAL_HOUR, new ParserBuilder(INTERVAL_HOUR).unit(TimeUnit.HOUR).build());
+        PARSERS.put(INTERVAL_MINUTE, new ParserBuilder(INTERVAL_MINUTE).unit(TimeUnit.MINUTE).build());
+        PARSERS.put(INTERVAL_SECOND, new ParserBuilder(INTERVAL_SECOND)
                  .unit(TimeUnit.SECOND)
                  .optional()
                  .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                  .build());
 
         // patterns
-        PARSERS.put(DataType.INTERVAL_YEAR_TO_MONTH, new ParserBuilder(DataType.INTERVAL_YEAR_TO_MONTH)
+        PARSERS.put(INTERVAL_YEAR_TO_MONTH, new ParserBuilder(INTERVAL_YEAR_TO_MONTH)
                 .unit(TimeUnit.YEAR)
                 .separator(MINUS)
                 .unit(TimeUnit.MONTH, MAX_MONTH)
                 .build());
 
-        PARSERS.put(DataType.INTERVAL_DAY_TO_HOUR, new ParserBuilder(DataType.INTERVAL_DAY_TO_HOUR)
+        PARSERS.put(INTERVAL_DAY_TO_HOUR, new ParserBuilder(INTERVAL_DAY_TO_HOUR)
                 .unit(TimeUnit.DAY)
                 .separator(SPACE)
                 .unit(TimeUnit.HOUR, MAX_HOUR)
                 .build());
 
-        PARSERS.put(DataType.INTERVAL_DAY_TO_MINUTE, new ParserBuilder(DataType.INTERVAL_DAY_TO_MINUTE)
+        PARSERS.put(INTERVAL_DAY_TO_MINUTE, new ParserBuilder(INTERVAL_DAY_TO_MINUTE)
                 .unit(TimeUnit.DAY)
                 .separator(SPACE)
                 .unit(TimeUnit.HOUR, MAX_HOUR)
@@ -368,7 +435,7 @@ public final class Intervals {
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
                 .build());
 
-        PARSERS.put(DataType.INTERVAL_DAY_TO_SECOND, new ParserBuilder(DataType.INTERVAL_DAY_TO_SECOND)
+        PARSERS.put(INTERVAL_DAY_TO_SECOND, new ParserBuilder(INTERVAL_DAY_TO_SECOND)
                 .unit(TimeUnit.DAY)
                 .separator(SPACE)
                 .unit(TimeUnit.HOUR, MAX_HOUR)
@@ -380,13 +447,13 @@ public final class Intervals {
                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                 .build());
 
-        PARSERS.put(DataType.INTERVAL_HOUR_TO_MINUTE, new ParserBuilder(DataType.INTERVAL_HOUR_TO_MINUTE)
+        PARSERS.put(INTERVAL_HOUR_TO_MINUTE, new ParserBuilder(INTERVAL_HOUR_TO_MINUTE)
                 .unit(TimeUnit.HOUR)
                 .separator(COLON)
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
                 .build());
 
-        PARSERS.put(DataType.INTERVAL_HOUR_TO_SECOND, new ParserBuilder(DataType.INTERVAL_HOUR_TO_SECOND)
+        PARSERS.put(INTERVAL_HOUR_TO_SECOND, new ParserBuilder(INTERVAL_HOUR_TO_SECOND)
                 .unit(TimeUnit.HOUR)
                 .separator(COLON)
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
@@ -396,7 +463,7 @@ public final class Intervals {
                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                 .build());
         
-        PARSERS.put(DataType.INTERVAL_MINUTE_TO_SECOND, new ParserBuilder(DataType.INTERVAL_MINUTE_TO_SECOND)
+        PARSERS.put(INTERVAL_MINUTE_TO_SECOND, new ParserBuilder(INTERVAL_MINUTE_TO_SECOND)
                 .unit(TimeUnit.MINUTE)
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)

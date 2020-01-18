@@ -12,12 +12,8 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.CaseProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
@@ -46,11 +42,6 @@ public final class Processors {
         // logical
         entries.add(new Entry(Processor.class, BinaryLogicProcessor.NAME, BinaryLogicProcessor::new));
         entries.add(new Entry(Processor.class, NotProcessor.NAME, NotProcessor::new));
-        // conditionals
-        entries.add(new Entry(Processor.class, CaseProcessor.NAME, CaseProcessor::new));
-        entries.add(new Entry(Processor.class, CheckNullProcessor.NAME, CheckNullProcessor::new));
-        entries.add(new Entry(Processor.class, ConditionalProcessor.NAME, ConditionalProcessor::new));
-        entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
 
         // arithmetic
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));

@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumericOrDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumericOrDate;
 
 public class Histogram extends GroupingFunction {
 

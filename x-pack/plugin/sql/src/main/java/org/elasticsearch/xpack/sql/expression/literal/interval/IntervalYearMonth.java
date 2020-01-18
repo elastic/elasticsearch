@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.io.IOException;
 import java.time.Period;
@@ -30,8 +30,8 @@ public class IntervalYearMonth extends Interval<Period> {
         super(interval, intervalType);
     }
 
-    IntervalYearMonth(StreamInput in) throws IOException {
-        super(period(in), in.readEnum(DataType.class));
+    public IntervalYearMonth(StreamInput in) throws IOException {
+        super(period(in), SqlDataTypes.fromTypeName(in.readString()));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class IntervalYearMonth extends Interval<Period> {
         out.writeVInt(p.getYears());
         out.writeVInt(p.getMonths());
         out.writeVInt(p.getDays());
-        out.writeEnum(dataType());
+        out.writeString(dataType().typeName());
     }
 
     @Override
@@ -51,13 +51,13 @@ public class IntervalYearMonth extends Interval<Period> {
     @Override
     public IntervalYearMonth add(Interval<Period> interval) {
         return new IntervalYearMonth(interval().plus(interval.interval()).normalized(),
-                DataTypes.compatibleInterval(dataType(), interval.dataType()));
+                Intervals.compatibleInterval(dataType(), interval.dataType()));
     }
 
     @Override
     public IntervalYearMonth sub(Interval<Period> interval) {
         return new IntervalYearMonth(interval().minus(interval.interval()).normalized(),
-                DataTypes.compatibleInterval(dataType(), interval.dataType()));
+                Intervals.compatibleInterval(dataType(), interval.dataType()));
     }
 
     @Override

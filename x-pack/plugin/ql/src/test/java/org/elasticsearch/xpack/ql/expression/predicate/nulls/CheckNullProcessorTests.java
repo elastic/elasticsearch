@@ -11,6 +11,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
 
 public class CheckNullProcessorTests extends AbstractWireSerializingTestCase<CheckNullProcessor> {
 

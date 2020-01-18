@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ql.expression.predicate.conditional;
+package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
@@ -15,26 +15,26 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation.LEAST;
+import static org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation.GREATEST;
 
-public class Least extends ArbitraryConditionalFunction {
+public class Greatest extends ArbitraryConditionalFunction {
 
-    public Least(Source source, List<Expression> fields) {
-        super(source, new ArrayList<>(new LinkedHashSet<>(fields)), LEAST);
+    public Greatest(Source source, List<Expression> fields) {
+        super(source, new ArrayList<>(new LinkedHashSet<>(fields)), GREATEST);
     }
 
     @Override
-    protected NodeInfo<? extends Least> info() {
-        return NodeInfo.create(this, Least::new, children());
+    protected NodeInfo<? extends Greatest> info() {
+        return NodeInfo.create(this, Greatest::new, children());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Least(source(), newChildren);
+        return new Greatest(source(), newChildren);
     }
 
     @Override
     public Object fold() {
-        return LEAST.apply(Foldables.valuesOfNoDuplicates(children(), dataType));
+        return GREATEST.apply(Foldables.valuesOfNoDuplicates(children(), dataType));
     }
 }

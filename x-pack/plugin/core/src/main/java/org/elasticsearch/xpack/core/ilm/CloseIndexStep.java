@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.Client;
@@ -32,7 +33,7 @@ public class CloseIndexStep extends AsyncActionStep {
             getClient().admin().indices()
                 .close(request, ActionListener.wrap(closeIndexResponse -> {
                     if (closeIndexResponse.isAcknowledged() == false) {
-                       new ErrorStep(getKey());
+                        throw new ElasticsearchException("close index request failed to be acknowledged");
                     }
                     listener.onResponse(true);
                 }, listener::onFailure));

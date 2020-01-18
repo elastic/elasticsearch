@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
@@ -594,5 +595,40 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
         }
         return null;
+    }
+
+    public void testFrozenIndexAfterRestarted() throws Exception {
+        final String index = "test_frozen_index";
+        if (isRunningAgainstOldCluster()) {
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            ensureGreen(index);
+            int numDocs = randomIntBetween(10, 500);
+            for (int i = 0; i < numDocs; i++) {
+                int id = randomIntBetween(0, 100);
+                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
+                indexRequest.setJsonEntity("{\"\f\": \"v\"}");
+                assertOK(client().performRequest(indexRequest));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+        } else {
+            ensureGreen(index);
+            final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
+                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            client().performRequest(new Request("POST", index + "/_freeze"));
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, n -> true);
+            assertThat(XContentMapValues.extractValue("hits.total.value",
+                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")))), equalTo(totalHits));
+            client().performRequest(new Request("POST", index + "/_unfreeze"));
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, n -> true);
+        }
     }
 }

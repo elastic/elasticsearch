@@ -18,7 +18,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;

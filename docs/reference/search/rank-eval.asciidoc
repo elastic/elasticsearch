@@ -351,7 +351,7 @@ information needs where the user is interested in finding many relevant
 documents in the top k results.
 
 The metric models the expectation of the reciprocal of the position at which a 
-user stops reading through the result list. This means that a relevant documents 
+user stops reading through the result list. This means that a relevant document
 in a top ranking position will have a large contribution to the overall score. 
 However, the same document will contribute much less to the score if it appears 
 in a lower rank; even more so if there are some relevant (but maybe less relevant) 

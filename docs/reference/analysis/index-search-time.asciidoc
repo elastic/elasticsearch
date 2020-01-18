@@ -18,11 +18,9 @@ analyzer_ or _search analyzer_ respectively.
 [[analysis-same-index-search-analyzer]]
 ==== How the index and search analyzer work together
 
-In most cases, the same analyzer should be used at index and search time.
-
-This converts the text in the query string into the same form of tokens as those
-indexed in the field. In turn, this ensures the tokens match as expected during
-a search.
+In most cases, the same analyzer should be used at index and search time. This
+ensures the values and query strings for a field are changed into the same form
+of tokens. In turn, this ensures the tokens match as expected during a search.
 
 .**Example**
 [%collapsible]
@@ -32,17 +30,18 @@ A document is indexed with the following value in a `text` field:
 
 [source,text]
 ------
-"The QUICK brown foxes jumped over the dog!"
+The QUICK brown foxes jumped over the dog!
 ------
 
-The index analyzer for the field converts the value into tokens. It then applies
-several changes to normalize the tokens. In the end, the following tokens
-are indexed as the field value:
+The index analyzer for the field converts the value into tokens and normalizes
+them. In this case, each of the tokens represents a word:
 
 [source,text]
 ------
 [ quick, brown, fox, jump, over, dog ]
 ------
+
+These tokens are then indexed.
 
 Later, a user searches the same `text` field for:
 
@@ -51,26 +50,25 @@ Later, a user searches the same `text` field for:
 "Quick fox"
 ------
 
-The user expects this search to return any document containing `quick`, `fox`,
-or other relevant words. The search results should include the document
-containing `"The QUICK brown foxes jumped over the dog!"`.
+The user expects this search to match the sentence indexed earlier,
+`The QUICK brown foxes jumped over the dog!`.
 
-However, the provided query string does not contain the exact words contained
-in the document's original text:
+However, the query string does not contain the exact words used in the
+document's original text:
 
 * `quick` vs `QUICK`
 * `fox` vs `foxes`
 
-To account for this, the query string is analyzed using the same analyzer from
-index time. The analyzer produces the following tokens for the query string:
+To account for this, the query string is analyzed using the same analyzer. This
+analyzer produces the following tokens:
 
 [source,text]
 ------
 [ quick, fox ]
 ------
 
-{es} can compare these query string tokens to the ones indexed in the `text`
-field.
+To execute the serach, {es} compares these query string tokens to the tokens
+indexed in the `text` field.
 
 [options="header"]
 |===
@@ -83,9 +81,10 @@ field.
 |`dog`     |              | X
 |===
 
-`quick` and `fox` tokens are exact matches. This means the search returns the
-document containing `"The QUICK brown foxes jumped over the dog!"`, just as the
-user expects.
+Because the field value are query string were analyzed in the same way, they
+created similar tokens. The tokens `quick` and `fox` are exact matches. This
+means the search matches the document containing `"The QUICK brown foxes jumped
+over the dog!"`, just as the user expects.
 ====
 
 [[different-analyzers]]
@@ -107,7 +106,8 @@ or irrelevant search matches.
 a provided prefix. For instance, a search for `tr` should return `tram` or
 `trope`—but never `taxi` or `bat`.
 
-A document is indexed. This document contains one such word in a `text` field:
+A document is added to the search engine's index; this document contains one
+such word in a `text` field:
 
 [source,text]
 ------
@@ -115,7 +115,7 @@ A document is indexed. This document contains one such word in a `text` field:
 ------
 
 The index analyzer for the field converts the value into tokens and normalizes
-them. In this case, each of the final tokens represents a potential prefix for
+them. In this case, each of the tokens represents a potential prefix for
 the word:
 
 [source,text]
@@ -123,7 +123,7 @@ the word:
 [ a, ap, app, appl, apple]
 ------
 
-The tokens are then indexed.
+These tokens are then indexed.
 
 Later, a user searches the same `text` field for:
 
@@ -135,16 +135,16 @@ Later, a user searches the same `text` field for:
 The user expects this search to match only words that start with `appli`,
 such as `appliance` or `application`. The search should not match `apple`.
 
-However, if the same analyzer is used on this query string, it would produce the
-following tokens:
+However, if the index analyzer is used to analyze this query string, it would
+produce the following tokens:
 
 [source,text]
 ------
 [ a, ap, app, appl, appli ]
 ------
 
-When these query string tokens are compared to the ones indexed for `apple`,
-several match.
+When {es} compares these query string tokens to the ones indexed for `apple`,
+it finds several matches.
 
 [options="header"]
 |===
@@ -157,11 +157,10 @@ several match.
 |===
 
 This means the search would erroneously match `apple`. Not only that, it would
-match any such word starting with `a`. That's a lot of irrelevant matches.
+match any word starting with `a`.
 
-To fix this, you can specify a different search analyzer for the `text` field.
-This means different analysis changes would be applied to the query string when
-searching the field.
+To fix this, you can specify a different search analyzer for query strings used
+on the `text` field.
 
 In this case, you could specify a search analyzer that produces a single token
 rather than a set of prefixes:
@@ -171,6 +170,6 @@ rather than a set of prefixes:
 [ appli ]
 ------
 
-This query string token would only match tokens words that start with `appli`,
-which better aligns with the user's search expectations.
+This query string token would only match tokens for words that start with
+`appli`, which better aligns with the user's search expectations.
 ====

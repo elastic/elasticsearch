@@ -779,14 +779,12 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
-            .put(INDEX_SOFT_DELETES_SETTING.getKey(), false)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetaData> aliases = List.of(AliasMetaData.builder("alias1").build());
         IndexMetaData indexMetaData = buildIndexMetaData("test", aliases, () -> null, indexSettings, 4, sourceIndexMetaData);
 
-        assertThat(indexMetaData.getSettings().getAsBoolean(INDEX_SOFT_DELETES_SETTING.getKey(), true), is(false));
         assertThat(indexMetaData.getAliases().size(), is(1));
         assertThat(indexMetaData.getAliases().keys().iterator().next().value, is("alias1"));
         assertThat("The source index primary term must be used", indexMetaData.primaryTerm(0), is(3L));
@@ -828,19 +826,15 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
-    public void testSoftDeletesDisabledDeprecation() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
-        assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
-            + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        if (randomBoolean()) {
-            request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
-        }
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+    public void testRejectWithSoftDeletesDisabled() {
+        final IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+            request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
+            aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        });
+        assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
+            + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
     }
 
     private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {

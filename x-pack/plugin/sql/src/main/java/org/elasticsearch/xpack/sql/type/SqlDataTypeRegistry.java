@@ -9,14 +9,8 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
-import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 
-import java.time.OffsetTime;
 import java.util.Collection;
-
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 
 public class SqlDataTypeRegistry implements DataTypeRegistry {
 
@@ -26,35 +20,17 @@ public class SqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        throw new UnsupportedOperationException();
+        return SqlDataTypes.TYPES;
     }
 
     @Override
     public DataType fromEs(String typeName) {
-        return SqlDataTypes.fromJava(typeName);
+        return SqlDataTypes.fromEs(typeName);
     }
 
     @Override
     public DataType fromJava(Object value) {
-        DataType type = DataTypes.fromJava(value);
-
-        if (type != null) {
-            return type;
-        }
-
-        if (value instanceof OffsetTime) {
-            return TIME;
-        }
-
-        if (value instanceof GeoShape) {
-            return GEO_SHAPE;
-        }
-
-        if (value instanceof Interval) {
-            return ((Interval<?>) value).dataType();
-        }
-
-        return null;
+        return SqlDataTypes.fromJava(value);
     }
 
     @Override
@@ -64,17 +40,17 @@ public class SqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public boolean canConvert(DataType from, DataType to) {
-        throw new UnsupportedOperationException();
+        return SqlTypeConverter.canConvert(from, to);
     }
 
     @Override
     public Object convert(Object value, DataType type) {
-        throw new UnsupportedOperationException();
+        return SqlTypeConverter.convert(value, type);
     }
 
     @Override
     public DataType commonType(DataType left, DataType right) {
-        throw new UnsupportedOperationException();
+        return SqlTypeConverter.commonType(left, right);
     }
 
 }

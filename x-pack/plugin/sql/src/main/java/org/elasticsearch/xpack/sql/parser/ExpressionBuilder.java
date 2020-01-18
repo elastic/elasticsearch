@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -407,7 +408,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private static DataType dataType(Source ctx, String string) {
         String type = string.toUpperCase(Locale.ROOT);
-        DataType dataType = type.startsWith("SQL_") ? DataType.fromOdbcType(type) : DataType.fromSqlOrEsType(type);
+        DataType dataType = type.startsWith("SQL_") ? SqlDataTypes.fromOdbcType(type) : SqlDataTypes.fromSqlOrEsType(type);
         if (dataType == null) {
             throw new ParsingException(ctx, "Does not recognize type [{}]", string);
         }

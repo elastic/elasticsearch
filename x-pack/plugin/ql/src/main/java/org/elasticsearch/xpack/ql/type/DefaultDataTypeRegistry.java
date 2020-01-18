@@ -6,9 +6,6 @@
 
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter.Converter;
-
 import java.util.Collection;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
@@ -46,17 +43,6 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Object convert(Object value, DataType type) {
-        DataType detectedType = DataTypes.fromJava(value);
-
-        if (detectedType == type || value == null) {
-            return value;
-        }
-
-        Converter converter = DataTypeConverter.converterFor(detectedType, type);
-
-        if (converter == null) {
-            throw new QlIllegalArgumentException("cannot convert from [{}] to [{}]", value, type.typeName());
-        }
         return DataTypeConverter.convert(value, type);
     }
 

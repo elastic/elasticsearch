@@ -9,7 +9,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
-import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -104,7 +103,7 @@ public class DataTypeConverter {
             return true;
         }
         // only primitives are supported so far
-        return isPrimitive(from) && isPrimitive(to) && converter(from, to) != null;
+        return isPrimitive(from) && isPrimitive(to) && converterFor(from, to) != null;
     }
 
     /**
@@ -113,24 +112,14 @@ public class DataTypeConverter {
     public static Converter converterFor(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
         if (from == to) {
-            return Converter.IDENTITY;
+            return TypeConverter.IDENTITY;
         }
         if (to == NULL || from == NULL) {
-            return Converter.NULL;
+            return TypeConverter.TO_NULL;
         }
-        if (from == NULL) {
-            return Converter.NULL;
-        }
-        
-        return converter(from, to);
-    }
-
-    private static Converter converter(DataType from, DataType to) {
+        // proper converters
         if (to == KEYWORD || to == TEXT) {
             return conversionToString(from);
-        }
-        if (to == IP) {
-            return conversionToIp(from);
         }
         if (to == LONG) {
             return conversionToLong(from);
@@ -156,254 +145,165 @@ public class DataTypeConverter {
         if (to == BOOLEAN) {
             return conversionToBoolean(from);
         }
+        if (to == IP) {
+            return conversionToIp(from);
+        }
         return null;
     }
 
     private static Converter conversionToString(DataType from) {
-        if (from == DATE) {
-            return Converter.DATE_TO_STRING;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_STRING;
-        }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_STRING;
+            return TypeConverter.DATETIME_TO_STRING;
         }
-        return Converter.OTHER_TO_STRING;
+        return TypeConverter.OTHER_TO_STRING;
     }
 
     private static Converter conversionToIp(DataType from) {
-        if (from.isString()) {
-            return Converter.STRING_TO_IP;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_IP;
         }
         return null;
     }
 
     private static Converter conversionToLong(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_LONG;
+            return TypeConverter.RATIONAL_TO_LONG;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_LONG;
+            return TypeConverter.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_LONG;
+            return TypeConverter.BOOL_TO_LONG;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_LONG;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_LONG;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_LONG;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_LONG;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_LONG;
+            return TypeConverter.DATETIME_TO_LONG;
         }
         return null;
     }
 
     private static Converter conversionToInt(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_INT;
+            return TypeConverter.RATIONAL_TO_INT;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_INT;
+            return TypeConverter.INTEGER_TO_INT;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_INT;
+            return TypeConverter.BOOL_TO_INT;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_INT;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_INT;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_INT;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_INT;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_INT;
+            return TypeConverter.DATETIME_TO_INT;
         }
         return null;
     }
 
     private static Converter conversionToShort(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_SHORT;
+            return TypeConverter.RATIONAL_TO_SHORT;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_SHORT;
+            return TypeConverter.INTEGER_TO_SHORT;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_SHORT;
+            return TypeConverter.BOOL_TO_SHORT;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_SHORT;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_SHORT;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_SHORT;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_SHORT;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_SHORT;
+            return TypeConverter.DATETIME_TO_SHORT;
         }
         return null;
     }
 
     private static Converter conversionToByte(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_BYTE;
+            return TypeConverter.RATIONAL_TO_BYTE;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_BYTE;
+            return TypeConverter.INTEGER_TO_BYTE;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_BYTE;
+            return TypeConverter.BOOL_TO_BYTE;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_BYTE;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_BYTE;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_BYTE;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_BYTE;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_BYTE;
+            return TypeConverter.DATETIME_TO_BYTE;
         }
         return null;
     }
 
-    private static Converter conversionToFloat(DataType from) {
+    private static TypeConverter conversionToFloat(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_FLOAT;
+            return TypeConverter.RATIONAL_TO_FLOAT;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_FLOAT;
+            return TypeConverter.INTEGER_TO_FLOAT;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_FLOAT;
+            return TypeConverter.BOOL_TO_FLOAT;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_FLOAT;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_FLOAT;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_FLOAT;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_FLOAT;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_FLOAT;
+            return TypeConverter.DATETIME_TO_FLOAT;
         }
         return null;
     }
 
-    private static Converter conversionToDouble(DataType from) {
+    private static TypeConverter conversionToDouble(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_DOUBLE;
+            return TypeConverter.RATIONAL_TO_DOUBLE;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_DOUBLE;
+            return TypeConverter.INTEGER_TO_DOUBLE;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_DOUBLE;
+            return TypeConverter.BOOL_TO_DOUBLE;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_DOUBLE;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_DOUBLE;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_DOUBLE;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_DOUBLE;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_DOUBLE;
+            return TypeConverter.DATETIME_TO_DOUBLE;
         }
         return null;
     }
 
-    private static Converter conversionToDate(DataType from) {
+    private static TypeConverter conversionToDateTime(DataType from) {
         if (from.isRational()) {
-            return Converter.RATIONAL_TO_DATE;
+            return TypeConverter.RATIONAL_TO_DATETIME;
         }
         if (from.isInteger()) {
-            return Converter.INTEGER_TO_DATE;
+            return TypeConverter.INTEGER_TO_DATETIME;
         }
         if (from == BOOLEAN) {
-            return Converter.BOOL_TO_DATE; // We emit an int here which is ok because of Java's casting rules
+            return TypeConverter.BOOL_TO_DATETIME; // We emit an int here which is ok because of Java's casting rules
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_DATE;
-        }
-        if (from == DATETIME) {
-            return Converter.DATETIME_TO_DATE;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_DATETIME;
         }
         return null;
     }
 
-    private static Converter conversionToTime(DataType from) {
-        if (from.isRational()) {
-            return Converter.RATIONAL_TO_TIME;
-        }
-        if (from.isInteger()) {
-            return Converter.INTEGER_TO_TIME;
-        }
-        if (from == BOOLEAN) {
-            return Converter.BOOL_TO_TIME; // We emit an int here which is ok because of Java's casting rules
-        }
-        if (from.isString()) {
-            return Converter.STRING_TO_TIME;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_TIME;
-        }
-        if (from == DATETIME) {
-            return Converter.DATETIME_TO_TIME;
-        }
-        return null;
-    }
-
-    private static Converter conversionToDateTime(DataType from) {
-        if (from.isRational()) {
-            return Converter.RATIONAL_TO_DATETIME;
-        }
-        if (from.isInteger()) {
-            return Converter.INTEGER_TO_DATETIME;
-        }
-        if (from == BOOLEAN) {
-            return Converter.BOOL_TO_DATETIME; // We emit an int here which is ok because of Java's casting rules
-        }
-        if (from.isString()) {
-            return Converter.STRING_TO_DATETIME;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_DATETIME;
-        }
-        return null;
-    }
-
-    private static Converter conversionToBoolean(DataType from) {
+    private static TypeConverter conversionToBoolean(DataType from) {
         if (from.isNumeric()) {
-            return Converter.NUMERIC_TO_BOOLEAN;
+            return TypeConverter.NUMERIC_TO_BOOLEAN;
         }
-        if (from.isString()) {
-            return Converter.STRING_TO_BOOLEAN;
-        }
-        if (from == DATE) {
-            return Converter.DATE_TO_BOOLEAN;
-        }
-        if (from == TIME) {
-            return Converter.TIME_TO_BOOLEAN;
+        if (isString(from)) {
+            return TypeConverter.STRING_TO_BOOLEAN;
         }
         if (from == DATETIME) {
-            return Converter.DATETIME_TO_BOOLEAN;
+            return TypeConverter.DATETIME_TO_BOOLEAN;
         }
         return null;
     }
@@ -439,16 +339,16 @@ public class DataTypeConverter {
     public static Number toInteger(double x, DataType dataType) {
         long l = safeToLong(x);
 
-        switch (dataType) {
-            case BYTE:
-                return safeToByte(l);
-            case SHORT:
-                return safeToShort(l);
-            case INTEGER:
-                return safeToInt(l);
-            default:
-                return l;
+        if (dataType == BYTE) {
+            return safeToByte(l);
         }
+        if (dataType == SHORT) {
+            return safeToShort(l);
+        }
+        if (dataType == INTEGER) {
+            return safeToInt(l);
+        }
+        return l;
     }
 
     public static boolean convertToBoolean(String val) {
@@ -469,59 +369,47 @@ public class DataTypeConverter {
         if (detectedType == dataType || value == null) {
             return value;
         }
-        return converterFor(detectedType, dataType).convert(value);
-    }
+        Converter converter = converterFor(detectedType, dataType);
 
-    public static Converter convertion(Object value, DataType dataType) {
-        DataType detectedType = DataTypes.fromJava(value);
-        if (detectedType == dataType || value == null) {
-            return value;
+        if (converter == null) {
+            throw new QlIllegalArgumentException("cannot convert from [{}] to [{}]", value, dataType.typeName());
         }
-        return converterFor(detectedType, dataType).convert(value);
+
+        return converter.convert(value);
     }
 
     /**
      * Reference to a data type conversion that can be serialized. Note that the position in the enum
      * is important because it is used for serialization.
      */
-    public enum Converter {
+    public enum TypeConverter implements Converter {
         IDENTITY(Function.identity()),
-        NULL(value -> null),
+        TO_NULL(value -> null),
         
-        DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
-        TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
         RATIONAL_TO_LONG(fromDouble(DataTypeConverter::safeToLong)),
         INTEGER_TO_LONG(fromLong(value -> value)),
         STRING_TO_LONG(fromString(Long::valueOf, "long")),
-        DATE_TO_LONG(fromDateTime(value -> value)),
-        TIME_TO_LONG(fromTime(value -> value)),
         DATETIME_TO_LONG(fromDateTime(value -> value)),
 
         RATIONAL_TO_INT(fromDouble(value -> safeToInt(safeToLong(value)))),
         INTEGER_TO_INT(fromLong(DataTypeConverter::safeToInt)),
         BOOL_TO_INT(fromBool(value -> value ? 1 : 0)),
         STRING_TO_INT(fromString(Integer::valueOf, "integer")),
-        DATE_TO_INT(fromDateTime(DataTypeConverter::safeToInt)),
-        TIME_TO_INT(fromTime(DataTypeConverter::safeToInt)),
         DATETIME_TO_INT(fromDateTime(DataTypeConverter::safeToInt)),
 
         RATIONAL_TO_SHORT(fromDouble(value -> safeToShort(safeToLong(value)))),
         INTEGER_TO_SHORT(fromLong(DataTypeConverter::safeToShort)),
         BOOL_TO_SHORT(fromBool(value -> value ? (short) 1 : (short) 0)),
         STRING_TO_SHORT(fromString(Short::valueOf, "short")),
-        DATE_TO_SHORT(fromDateTime(DataTypeConverter::safeToShort)),
-        TIME_TO_SHORT(fromTime(DataTypeConverter::safeToShort)),
         DATETIME_TO_SHORT(fromDateTime(DataTypeConverter::safeToShort)),
 
         RATIONAL_TO_BYTE(fromDouble(value -> safeToByte(safeToLong(value)))),
         INTEGER_TO_BYTE(fromLong(DataTypeConverter::safeToByte)),
         BOOL_TO_BYTE(fromBool(value -> value ? (byte) 1 : (byte) 0)),
         STRING_TO_BYTE(fromString(Byte::valueOf, "byte")),
-        DATE_TO_BYTE(fromDateTime(DataTypeConverter::safeToByte)),
-        TIME_TO_BYTE(fromTime(DataTypeConverter::safeToByte)),
         DATETIME_TO_BYTE(fromDateTime(DataTypeConverter::safeToByte)),
 
         // TODO floating point conversions are lossy but conversions to integer conversions are not. Are we ok with that?
@@ -529,41 +417,21 @@ public class DataTypeConverter {
         INTEGER_TO_FLOAT(fromLong(value -> (float) value)),
         BOOL_TO_FLOAT(fromBool(value -> value ? 1f : 0f)),
         STRING_TO_FLOAT(fromString(Float::valueOf, "float")),
-        DATE_TO_FLOAT(fromDateTime(value -> (float) value)),
-        TIME_TO_FLOAT(fromTime(value -> (float) value)),
         DATETIME_TO_FLOAT(fromDateTime(value -> (float) value)),
 
         RATIONAL_TO_DOUBLE(fromDouble(Double::valueOf)),
         INTEGER_TO_DOUBLE(fromLong(Double::valueOf)),
         BOOL_TO_DOUBLE(fromBool(value -> value ? 1d : 0d)),
         STRING_TO_DOUBLE(fromString(Double::valueOf, "double")),
-        DATE_TO_DOUBLE(fromDateTime(Double::valueOf)),
-        TIME_TO_DOUBLE(fromTime(Double::valueOf)),
         DATETIME_TO_DOUBLE(fromDateTime(Double::valueOf)),
-
-        RATIONAL_TO_DATE(toDate(RATIONAL_TO_LONG)),
-        INTEGER_TO_DATE(toDate(INTEGER_TO_LONG)),
-        BOOL_TO_DATE(toDate(BOOL_TO_INT)),
-        STRING_TO_DATE(fromString(DateUtils::asDateOnly, "date")),
-        DATETIME_TO_DATE(fromDatetimeToDate()),
-
-        RATIONAL_TO_TIME(toTime(RATIONAL_TO_LONG)),
-        INTEGER_TO_TIME(toTime(INTEGER_TO_LONG)),
-        BOOL_TO_TIME(toTime(BOOL_TO_INT)),
-        STRING_TO_TIME(fromString(DateUtils::asTimeOnly, "time")),
-        DATE_TO_TIME(fromDatetimeToTime()),
-        DATETIME_TO_TIME(fromDatetimeToTime()),
 
         RATIONAL_TO_DATETIME(toDateTime(RATIONAL_TO_LONG)),
         INTEGER_TO_DATETIME(toDateTime(INTEGER_TO_LONG)),
         BOOL_TO_DATETIME(toDateTime(BOOL_TO_INT)),
         STRING_TO_DATETIME(fromString(DateUtils::asDateTime, "datetime")),
-        DATE_TO_DATETIME(value -> value),
 
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConverter::convertToBoolean, "boolean")),
-        DATE_TO_BOOLEAN(fromDateTime(value -> value != 0)),
-        TIME_TO_BOOLEAN(fromTime(value -> value != 0)),
         DATETIME_TO_BOOLEAN(fromDateTime(value -> value != 0)),
 
         BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
@@ -577,7 +445,7 @@ public class DataTypeConverter {
 
         private final Function<Object, Object> converter;
 
-        Converter(Function<Object, Object> converter) {
+        TypeConverter(Function<Object, Object> converter) {
             this.converter = converter;
         }
 
@@ -605,34 +473,16 @@ public class DataTypeConverter {
             return (Object l) -> converter.apply(((Boolean) l));
         }
 
-        private static Function<Object, Object> fromTime(Function<Long, Object> converter) {
-            return l -> converter.apply(((OffsetTime) l).atDate(DateUtils.EPOCH).toInstant().toEpochMilli());
-        }
-
         private static Function<Object, Object> fromDateTime(Function<Long, Object> converter) {
             return l -> converter.apply(((ZonedDateTime) l).toInstant().toEpochMilli());
-        }
-
-        private static Function<Object, Object> toDate(Converter conversion) {
-            return l -> DateUtils.asDateOnly(((Number) conversion.convert(l)).longValue());
-        }
-
-        private static Function<Object, Object> toTime(Converter conversion) {
-            return l -> DateUtils.asTimeOnly(((Number) conversion.convert(l)).longValue());
         }
 
         private static Function<Object, Object> toDateTime(Converter conversion) {
             return l -> DateUtils.asDateTime(((Number) conversion.convert(l)).longValue());
         }
 
-        private static Function<Object, Object> fromDatetimeToDate() {
-            return l -> DateUtils.asDateOnly((ZonedDateTime) l);
-        }
 
-        private static Function<Object, Object> fromDatetimeToTime() {
-            return l -> ((ZonedDateTime) l).toOffsetDateTime().toOffsetTime();
-        }
-
+        @Override
         public Object convert(Object l) {
             if (l == null) {
                 return null;

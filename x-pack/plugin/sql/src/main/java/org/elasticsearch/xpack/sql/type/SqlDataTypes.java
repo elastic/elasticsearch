@@ -68,9 +68,9 @@ public class SqlDataTypes {
     public static final DataType INTERVAL_HOUR_TO_SECOND =   new DataType(Long.BYTES,    false, false, false);
     public static final DataType INTERVAL_MINUTE_TO_SECOND = new DataType(Long.BYTES,    false, false, false);
     // geo
-    public static final DataType GEO_SHAPE = new DataType(Integer.MAX_VALUE, false, false, false);
-    public static final DataType GEO_POINT = new DataType(Double.BYTES * 2,  false, false, false);
-    public static final DataType SHAPE =     new DataType(Integer.MAX_VALUE, false, false, false);
+    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2,  false, false, false);
+    public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
     
     // @formatter:on
 
@@ -109,19 +109,19 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_TIMESTAMP", DATETIME);
 
         // Intervals
-        ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
-        ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_SECOND", INTERVAL_HOUR_TO_SECOND);
-        ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
-        ODBC_TO_ES.put("SQL_INTERVAL_MONTH", INTERVAL_MONTH);
         ODBC_TO_ES.put("SQL_INTERVAL_YEAR", INTERVAL_YEAR);
-        ODBC_TO_ES.put("SQL_INTERVAL_YEAR_TO_MONTH", INTERVAL_YEAR_TO_MONTH);
+        ODBC_TO_ES.put("SQL_INTERVAL_MONTH", INTERVAL_MONTH);
         ODBC_TO_ES.put("SQL_INTERVAL_DAY", INTERVAL_DAY);
         ODBC_TO_ES.put("SQL_INTERVAL_HOUR", INTERVAL_HOUR);
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE", INTERVAL_MINUTE);
         ODBC_TO_ES.put("SQL_INTERVAL_SECOND", INTERVAL_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_YEAR_TO_MONTH", INTERVAL_YEAR_TO_MONTH);
         ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_HOUR", INTERVAL_DAY_TO_HOUR);
         ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_MINUTE", INTERVAL_DAY_TO_MINUTE);
         ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
+        ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_SECOND", INTERVAL_HOUR_TO_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
     }
 
     private static final Map<String, DataType> SQL_TO_ES = new HashMap<>(mapSize(45));
@@ -173,8 +173,8 @@ public class SqlDataTypes {
             .filter(e -> e.esType() != null)
             .collect(toUnmodifiableMap(DataType::esType, t -> t));
 
-    private SqlDataTypes() {}
 
+    private SqlDataTypes() {}
 
     public static DataType fromEs(String name) {
         return ES_TO_TYPE.get(name);
@@ -199,6 +199,22 @@ public class SqlDataTypes {
         return null;
     }
 
+    public static DataType fromTypeName(String name) {
+        throw new UnsupportedOperationException();
+    }
+
+    public static boolean isDateBased(DataType dataType) {
+        return dataType == DATE || dataType == DATETIME;
+    }
+
+    public static boolean isDateOrTimeBased(DataType type) {
+        return isDateBased(type) || type == TIME;
+    }
+
+    public static String format(DataType type) {
+        return isDateOrTimeBased(type) ? "epoch_millis" : null;
+    }
+    
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
                 || dataType == DATE         // because of date formats
@@ -577,12 +593,8 @@ public class SqlDataTypes {
         return 0;
     }
 
-    private static boolean isDateBased(DataType dataType) {
-        return dataType == DATE || dataType == DATETIME;
-    }
     public static boolean isInterval(DataType dataType) {
-        int ordinal = this.ordinal();
-        return ordinal >= INTERVAL_YEAR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal();
+        return isYearMonthInterval(dataType) || isDayTimeInterval(dataType);
     }
 
     public static boolean isYearMonthInterval(DataType dataType) {
@@ -590,9 +602,10 @@ public class SqlDataTypes {
     }
 
     public static boolean isDayTimeInterval(DataType dataType) {
-        int ordinal = this.ordinal();
-        return (ordinal >= INTERVAL_DAY.ordinal() && ordinal <= INTERVAL_SECOND.ordinal())
-                || (ordinal >= INTERVAL_DAY_TO_HOUR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal());
+        return dataType == INTERVAL_DAY || dataType == INTERVAL_HOUR  || dataType == INTERVAL_MINUTE || dataType == INTERVAL_SECOND
+                || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
+                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_MINUTE
+                || dataType == INTERVAL_MINUTE_TO_SECOND;
     }
 
     // return the compatible interval between the two - it is assumed the types are intervals
@@ -608,10 +621,11 @@ public class SqlDataTypes {
             return INTERVAL_YEAR_TO_MONTH;
         }
         if (isDayTimeInterval(left) && isDayTimeInterval(right)) {
+            int PREFIX = "INTERVAL_".length();
             // to avoid specifying the combinations, extract the leading and trailing unit from the name
             // D > H > S > M which is also the alphabetical order
-            String lName = left.name().substring(9);
-            String rName = right.name().substring(9);
+            String lName = left.typeName().substring(PREFIX);
+            String rName = right.typeName().substring(PREFIX);
 
             char leading = lName.charAt(0);
             if (rName.charAt(0) < leading) {

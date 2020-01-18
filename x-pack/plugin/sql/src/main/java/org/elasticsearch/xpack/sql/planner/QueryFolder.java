@@ -88,11 +88,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.ql.type.DataType.DATE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
 /**
  * Folds the PhysicalPlan into a {@link Query}.
@@ -318,7 +319,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType().isDateBased()) {
+                            if (isDateBased(h.dataType())) {
                                 Object value = h.interval().value();
                                 // interval of exactly 1 year
                                 if (value instanceof IntervalYearMonth
@@ -502,7 +503,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             if (matchingGroup != null) {
                                 if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                     Processor action = null;
-                                    boolean isDateBased = exp.dataType().isDateBased();
+                                    boolean isDateBased = isDateBased(exp.dataType());
                                     /*
                                      * special handling of dates since aggs return the typed Date object which needs
                                      * extraction instead of handling this in the scroller, the folder handles this
@@ -547,11 +548,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // attributes can only refer to declared groups
                         if (target instanceof Attribute) {
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(target));
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, target.dataType().isDateBased()), id);
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())), id);
                         }
                         // handle histogram
                         else if (target instanceof GroupingFunction) {
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, target.dataType().isDateBased()), id);
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())), id);
                         }
                         // handle literal
                         else if (target.foldable()) {
@@ -577,7 +578,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), id);
+                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
                     }
                     // fallback
                     else {
@@ -642,14 +643,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 aggInput = new AggPathInput(f,
                         new MetricAggRef(cAggPath, ia.innerName(),
                             ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null,
-                            ia.dataType().isDateBased()));
+                            isDateBased(ia.dataType())));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
                 if (f instanceof TopHits) {
                     aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
                 } else {
-                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), f.dataType().isDateBased()));
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), isDateBased(f.dataType())));
                 }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }

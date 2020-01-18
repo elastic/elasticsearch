@@ -52,7 +52,7 @@ public class Case extends ConditionalFunction {
             if (conditions.isEmpty()) {
                 dataType = elseResult().dataType();
             } else {
-                dataType = DataType.NULL;
+                dataType = DataTypes.NULL;
 
                 for (IfConditional conditional : conditions) {
                     dataType = DataTypeConverter.commonType(dataType, conditional.dataType());

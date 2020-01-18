@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.Locale;
@@ -16,7 +17,8 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
-import static org.elasticsearch.xpack.ql.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 public final class TypeResolutions {
 
@@ -35,7 +37,7 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isString(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isString, operationName, paramOrd, "string");
+        return isType(e, DataTypes::isString, operationName, paramOrd, "string");
     }
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
@@ -118,7 +120,7 @@ public final class TypeResolutions {
                                         String operationName,
                                         ParamOrdinal paramOrd,
                                         String... acceptedTypes) {
-        return predicate.test(e.dataType()) || e.dataType().isNull() ?
+        return predicate.test(e.dataType()) || e.dataType() == NULL ?
             TypeResolution.TYPE_RESOLVED :
             new TypeResolution(format(null, "{}argument of [{}] must be [{}], found value [{}] type [{}]",
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",

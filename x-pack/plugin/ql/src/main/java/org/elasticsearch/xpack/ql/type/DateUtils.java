@@ -30,8 +30,6 @@ public final class DateUtils {
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
 
-    static final String DATE_PARSE_FORMAT = "epoch_millis";
-
     private DateUtils() {}
 
     /**

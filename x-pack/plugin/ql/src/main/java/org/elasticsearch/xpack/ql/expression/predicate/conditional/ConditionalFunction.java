@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +36,7 @@ public abstract class ConditionalFunction extends ScalarFunction {
     @Override
     public DataType dataType() {
         if (dataType == null) {
-            dataType = DataType.NULL;
+            dataType = DataTypes.NULL;
             for (Expression exp : children()) {
                 dataType = DataTypeConverter.commonType(dataType, exp.dataType());
             }
@@ -50,11 +51,11 @@ public abstract class ConditionalFunction extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        DataType dt = DataType.NULL;
+        DataType dt = DataTypes.NULL;
 
         for (int i = 0; i < children().size(); i++) {
             Expression child = children().get(i);
-            if (dt == DataType.NULL) {
+            if (dt == DataTypes.NULL) {
                 if (Expressions.isNull(child) == false) {
                     dt = child.dataType();
                 }

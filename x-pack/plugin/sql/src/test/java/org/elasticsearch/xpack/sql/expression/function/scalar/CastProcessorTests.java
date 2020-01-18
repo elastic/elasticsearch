@@ -9,13 +9,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter.Converter;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter;
 
 import java.io.IOException;
 
 public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProcessor> {
     public static CastProcessor randomCastProcessor() {
-        return new CastProcessor(randomFrom(Converter.values()));
+        return new CastProcessor(randomFrom(TypeConverter.values()));
     }
 
     @Override
@@ -30,19 +30,19 @@ public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProc
 
     @Override
     protected CastProcessor mutateInstance(CastProcessor instance) throws IOException {
-        return new CastProcessor(randomValueOtherThan(instance.converter(), () -> randomFrom(Converter.values())));
+        return new CastProcessor(randomValueOtherThan(instance.converter(), () -> randomFrom(TypeConverter.values())));
     }
 
     public void testApply() {
         {
-            CastProcessor proc = new CastProcessor(Converter.STRING_TO_INT);
+            CastProcessor proc = new CastProcessor(TypeConverter.STRING_TO_INT);
             assertEquals(null, proc.process(null));
             assertEquals(1, proc.process("1"));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> proc.process("1.2"));
             assertEquals("cannot cast [1.2] to [integer]", e.getMessage());
         }
         {
-            CastProcessor proc = new CastProcessor(Converter.BOOL_TO_INT);
+            CastProcessor proc = new CastProcessor(TypeConverter.BOOL_TO_INT);
             assertEquals(null, proc.process(null));
             assertEquals(1, proc.process(true));
             assertEquals(0, proc.process(false));

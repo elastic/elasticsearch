@@ -34,7 +34,6 @@ public class KeywordEsField extends EsField {
         this.normalized = normalized;
     }
 
-    @Override
     public int getPrecision() {
         return precision;
     }

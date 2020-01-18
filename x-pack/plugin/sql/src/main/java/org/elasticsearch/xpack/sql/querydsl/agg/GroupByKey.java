@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.Objects;
 
@@ -37,17 +38,17 @@ public abstract class GroupByKey extends Agg {
                 builder.valueType(ValueType.LONG);
             } else if (script.outputType().isRational()) {
                 builder.valueType(ValueType.DOUBLE);
-            } else if (script.outputType().isString()) {
+            } else if (DataTypes.isString(script.outputType())) {
                 builder.valueType(ValueType.STRING);
-            } else if (script.outputType() == DataType.DATE) {
+            } else if (script.outputType() == SqlDataTypes.DATE) {
                 builder.valueType(ValueType.LONG);
-            } else if (script.outputType() == DataType.TIME) {
+            } else if (script.outputType() == SqlDataTypes.TIME) {
                 builder.valueType(ValueType.LONG);
-            } else if (script.outputType() == DataType.DATETIME) {
+            } else if (script.outputType() == DataTypes.DATETIME) {
                 builder.valueType(ValueType.LONG);
-            } else if (script.outputType() == DataType.BOOLEAN) {
+            } else if (script.outputType() == DataTypes.BOOLEAN) {
                 builder.valueType(ValueType.BOOLEAN);
-            } else if (script.outputType() == DataType.IP) {
+            } else if (script.outputType() == DataTypes.IP) {
                 builder.valueType(ValueType.IP);
             }
         }

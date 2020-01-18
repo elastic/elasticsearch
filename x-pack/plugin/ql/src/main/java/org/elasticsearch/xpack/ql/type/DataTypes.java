@@ -86,6 +86,14 @@ public final class DataTypes {
         return t != OBJECT && t != NESTED;
     }
 
+    public static boolean isNull(DataType t) {
+        return t == NULL;
+    }
+
+    public static boolean isSigned(DataType t) {
+        return t.isNumeric();
+    }
+
     public static DataType fromEs(String name) {
         return ES_TO_TYPE.get(name);
     }

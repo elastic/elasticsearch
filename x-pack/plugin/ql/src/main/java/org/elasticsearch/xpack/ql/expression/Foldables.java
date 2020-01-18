@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -33,11 +34,11 @@ public abstract class Foldables {
     }
 
     public static Integer intValueOf(Expression e) {
-        return valueOf(e, DataType.INTEGER);
+        return valueOf(e, DataTypes.INTEGER);
     }
 
     public static double doubleValueOf(Expression e) {
-        return valueOf(e, DataType.DOUBLE);
+        return valueOf(e, DataTypes.DOUBLE);
     }
 
     public static <T> List<T> valuesOf(List<Expression> list, DataType to) {
@@ -56,6 +57,6 @@ public abstract class Foldables {
     }
 
     public static List<Double> doubleValuesOf(List<Expression> list) {
-        return valuesOf(list, DataType.DOUBLE);
+        return valuesOf(list, DataTypes.DOUBLE);
     }
 }

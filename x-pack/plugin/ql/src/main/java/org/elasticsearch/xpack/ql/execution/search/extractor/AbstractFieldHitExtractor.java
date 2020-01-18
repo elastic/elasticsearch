@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -191,7 +192,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     }
                     return result;
                 }
-            } else if (dataType.isString()) {
+            } else if (DataTypes.isString(dataType)) {
                 return values.toString();
             } else {
                 return values;

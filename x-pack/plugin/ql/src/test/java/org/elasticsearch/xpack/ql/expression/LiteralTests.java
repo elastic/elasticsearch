@@ -118,7 +118,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
                 DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN);
         for (DataType candidate : options) {
             try {
-                DataTypeConverter.Converter c = DataTypeConverter.converterFor(type, candidate);
+                DataTypeConverter.TypeConverter c = DataTypeConverter.converterFor(type, candidate);
                 c.convert(value);
                 validDataTypes.add(candidate);
             } catch (QlIllegalArgumentException e) {

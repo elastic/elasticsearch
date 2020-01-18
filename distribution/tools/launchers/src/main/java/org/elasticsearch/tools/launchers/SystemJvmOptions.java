@@ -67,14 +67,14 @@ final class SystemJvmOptions {
     }
 
     private static String javaLocaleProviders() {
-        /*
-        SPI setting is used to allow loading custom CalendarDataProvider
-        in jdk8 it has to be loaded from jre/lib/ext,
-        in jdk9+ it is already within ES project and on a classpath
-
-        Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
-        parsing will break in an incompatible way for some date patterns and locales.
-        //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
+        /**
+         *  SPI setting is used to allow loading custom CalendarDataProvider
+         *  in jdk8 it has to be loaded from jre/lib/ext,
+         *  in jdk9+ it is already within ES project and on a classpath
+         *
+         *  Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
+         *  parsing will break in an incompatible way for some date patterns and locales.
+         *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
          */
         if(JavaVersion.majorVersion(JavaVersion.CURRENT) == 8){
             return "-Djava.locale.providers=SPI,JRE";

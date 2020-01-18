@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIfProcess
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
@@ -40,10 +39,11 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
@@ -329,7 +329,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         if (text == null || typeName == null) {
             return null;
         }
-        return new IntervalDayTime(Duration.parse(text), DataType.fromSqlOrEsType(typeName));
+        return new IntervalDayTime(Duration.parse(text), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 
     public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
@@ -337,7 +337,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
             return null;
         }
 
-        return new IntervalYearMonth(Period.parse(text), DataType.fromSqlOrEsType(typeName));
+        return new IntervalYearMonth(Period.parse(text), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 
     public static OffsetTime asTime(String time) {
@@ -477,6 +477,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Object cast(Object value, String typeName) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return DataTypeConverter.convert(asDateTime(value, true), DataType.fromSqlOrEsType(typeName));
+        return DataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 }

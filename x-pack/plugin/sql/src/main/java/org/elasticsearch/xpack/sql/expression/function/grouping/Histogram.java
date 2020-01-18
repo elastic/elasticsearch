@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
 import java.util.Collections;
@@ -47,8 +48,8 @@ public class Histogram extends GroupingFunction {
         TypeResolution resolution = isNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
-            if (field().dataType().isDateBased()) {
-                resolution = isType(interval, DataType::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
+            if (SqlDataTypes.isDateBased(field().dataType())) {
+                resolution = isType(interval, SqlDataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
                 resolution = isNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
             }

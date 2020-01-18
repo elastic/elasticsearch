@@ -221,7 +221,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
             }
             // compound fields
-            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
                 named = u.withUnresolvedMessage(
                         "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields");
             }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlTypeConverter;
 
 import java.util.Objects;
 
@@ -77,7 +78,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected Processor makeProcessor() {
-        return new CastProcessor(DataTypeConverter.converterFor(from(), to()));
+        return new CastProcessor(SqlTypeConverter.converterFor(from(), to()));
     }
 
     @Override

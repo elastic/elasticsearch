@@ -87,7 +87,7 @@ public class Case extends ConditionalFunction {
         }
 
         for (IfConditional conditional : conditions) {
-            if (conditional.condition().dataType() != DataType.BOOLEAN) {
+            if (conditional.condition().dataType() != DataTypes.BOOLEAN) {
                 return new TypeResolution(format(null, "condition of [{}] must be [boolean], found value [{}] type [{}]",
                     conditional.sourceText(),
                     Expressions.name(conditional.condition()),

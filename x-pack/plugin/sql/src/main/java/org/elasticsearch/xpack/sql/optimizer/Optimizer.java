@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -673,12 +673,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
                 if (((IsNotNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataType.BOOLEAN);
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
 
             } else if (e instanceof IsNull) {
                 if (((IsNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataType.BOOLEAN);
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                 }
 
             } else if (e instanceof In) {
@@ -808,7 +808,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (FALSE.equals(l) || FALSE.equals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                 }
                 if (l.semanticEquals(r)) {
                     return l;
@@ -838,7 +838,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             if (bc instanceof Or) {
                 if (TRUE.equals(l) || TRUE.equals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
 
                 if (FALSE.equals(l)) {
@@ -883,10 +883,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.FALSE, DataType.BOOLEAN);
+                return new Literal(n.source(), Boolean.FALSE, DataTypes.BOOLEAN);
             }
             if (FALSE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.TRUE, DataType.BOOLEAN);
+                return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
             }
 
             if (c instanceof Negatable) {
@@ -919,12 +919,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
             }
             if (bc instanceof NullEquals) {
                 if (l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
                 if (Expressions.isNull(r)) {
                     return new IsNull(bc.source(), l);
@@ -934,7 +934,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                 }
             }
 
@@ -1010,7 +1010,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     if (comp != null) {
                                         // var cannot be equal to two different values at the same time
                                         if (comp != 0) {
-                                            return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                                         }
                                     }
                                 }
@@ -1056,7 +1056,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                  // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeLower()))
                             ) {
-                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                             }
                         }
                         if (range.upper().foldable()) {
@@ -1067,7 +1067,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                  // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeUpper()))
                             ) {
-                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                             }
                         }
 
@@ -1908,13 +1908,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsDown(e -> {
                 if (e instanceof Min) {
                     Min min = (Min) e;
-                    if (min.field().dataType().isString()) {
+                    if (DataTypes.isString(min.field().dataType())) {
                         return mins.computeIfAbsent(min.field(), k -> new First(min.source(), k, null));
                     }
                 }
                 if (e instanceof Max) {
                     Max max = (Max) e;
-                    if (max.field().dataType().isString()) {
+                    if (DataTypes.isString(max.field().dataType())) {
                         return maxs.computeIfAbsent(max.field(), k -> new Last(max.source(), k, null));
                     }
                 }
@@ -1950,7 +1950,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return new Literal(expression.source(), null, DataType.NULL);
+                    return new Literal(expression.source(), null, DataTypes.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -1962,7 +1962,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (expression instanceof And) {
                 And and = (And) expression;
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(expression.source(), null, DataType.NULL);
+                    return new Literal(expression.source(), null, DataTypes.NULL);
                 }
             }
             return expression;

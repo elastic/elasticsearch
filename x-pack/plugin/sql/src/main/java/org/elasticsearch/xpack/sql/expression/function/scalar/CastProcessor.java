@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter;
 
 import java.io.IOException;
@@ -17,9 +18,9 @@ public class CastProcessor implements Processor {
 
     public static final String NAME = "ca";
 
-    private final TypeConverter conversion;
+    private final Converter conversion;
 
-    public CastProcessor(TypeConverter conversion) {
+    public CastProcessor(Converter conversion) {
         this.conversion = conversion;
     }
 
@@ -42,7 +43,7 @@ public class CastProcessor implements Processor {
         return conversion.convert(input);
     }
 
-    TypeConverter converter() {
+    Converter converter() {
         return conversion;
     }
 
@@ -67,6 +68,6 @@ public class CastProcessor implements Processor {
 
     @Override
     public String toString() {
-        return conversion.name();
+        return conversion.getClass().getSimpleName();
     }
 }

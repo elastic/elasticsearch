@@ -520,7 +520,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitNullLiteral(NullLiteralContext ctx) {
-        return new Literal(source(ctx), null, DataType.NULL);
+        return new Literal(source(ctx), null, DataTypes.NULL);
     }
 
     @Override
@@ -651,7 +651,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch(IllegalArgumentException iae) {
             throw new ParsingException(source(ctx), iae.getMessage());
     }
-        return new Literal(source(ctx), Boolean.valueOf(value), DataType.BOOLEAN);
+        return new Literal(source(ctx), Boolean.valueOf(value), DataTypes.BOOLEAN);
     }
 
     @Override
@@ -660,7 +660,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         for (TerminalNode node : ctx.STRING()) {
             sb.append(unquoteString(text(node)));
         }
-        return new Literal(source(ctx), sb.toString(), DataType.KEYWORD);
+        return new Literal(source(ctx), sb.toString(), DataTypes.KEYWORD);
     }
 
     @Override
@@ -668,7 +668,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Tuple<Source, String> tuple = withMinus(ctx);
 
         try {
-            return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataType.DOUBLE);
+            return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataTypes.DOUBLE);
         } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
@@ -686,10 +686,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         Object val = Long.valueOf(value);
-        DataType type = DataType.LONG;
+        DataType type = DataTypes.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {
-            type = DataType.INTEGER;
+            type = DataTypes.INTEGER;
             val = Integer.valueOf((int) value);
         }
         return new Literal(tuple.v1(), val, type);
@@ -698,7 +698,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
         SqlTypedParamValue param = param(ctx.PARAM());
-        DataType dataType = DataType.fromTypeName(param.type);
+        DataType dataType = SqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (param.value == null) {
             // no conversion is required for null values
@@ -763,7 +763,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         // parse yyyy-MM-dd
         try {
-            return new Literal(source, asDateOnly(string), DataType.DATE);
+            return new Literal(source, asDateOnly(string), SqlDataTypes.DATE);
         } catch(DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
@@ -776,7 +776,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         // parse HH:mm:ss
         try {
-            return new Literal(source, asTimeOnly(string), DataType.TIME);
+            return new Literal(source, asTimeOnly(string), SqlDataTypes.TIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
@@ -789,7 +789,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
         try {
-            return new Literal(source, ofEscapedLiteral(string), DataType.DATETIME);
+            return new Literal(source, ofEscapedLiteral(string), DataTypes.DATETIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
@@ -838,7 +838,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        return new Literal(source(ctx), string, DataType.KEYWORD);
+        return new Literal(source(ctx), string, DataTypes.KEYWORD);
     }
 
     /**

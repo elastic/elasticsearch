@@ -75,6 +75,7 @@ final class SystemJvmOptions {
          *  Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
          *  parsing will break in an incompatible way for some date patterns and locales.
          *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
+         * See also: documentation in <code>server/org.elasticsearch.common.time.IsoCalendarDataProvider</code>
          */
         if(JavaVersion.majorVersion(JavaVersion.CURRENT) == 8){
             return "-Djava.locale.providers=SPI,JRE";

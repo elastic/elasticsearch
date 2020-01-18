@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.Client;
@@ -34,7 +35,7 @@ final class OpenIndexStep extends AsyncActionStep {
                 .open(request,
                     ActionListener.wrap(openIndexResponse -> {
                         if (openIndexResponse.isAcknowledged() == false) {
-                            new ErrorStep(getKey());
+                            throw new ElasticsearchException("open index request failed to be acknowledged");
                         }
                         listener.onResponse(true);
                     }, listener::onFailure));

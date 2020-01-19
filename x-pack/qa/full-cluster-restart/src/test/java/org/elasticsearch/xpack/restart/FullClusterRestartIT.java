@@ -621,12 +621,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
                 entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            client().performRequest(new Request("POST", index + "/_freeze"));
+            assertOK(client().performRequest(new Request("POST", index + "/_freeze")));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
-            assertThat(XContentMapValues.extractValue("hits.total.value",
-                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")))), equalTo(totalHits));
-            client().performRequest(new Request("POST", index + "/_unfreeze"));
+            final Request request = new Request("GET", "/" + index + "/_search");
+            request.addParameter("ignore_throttled", "false");
+            assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
+                equalTo(totalHits));
+            assertOK(client().performRequest(new Request("POST", index + "/_unfreeze")));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
         }

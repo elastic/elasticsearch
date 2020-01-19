@@ -307,13 +307,13 @@ public class Realms implements Iterable<Realm> {
         if (fileRealm != null) {
             realms.add(fileRealm.create(new RealmConfig(
                     new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    settings, env, threadContext)));
+                    settings, env, threadContext, Integer.MIN_VALUE)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
             realms.add(indexRealmFactory.create(new RealmConfig(
                     new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext)));
+                    settings, env, threadContext, Integer.MIN_VALUE)));
         }
     }
 

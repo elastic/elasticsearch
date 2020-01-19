@@ -79,7 +79,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         Settings fullSettings = builder.build();
         sslService = new SSLService(TestEnvironment.newEnvironment(fullSettings));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ad-as-ldap-test"), fullSettings,
-                TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings));
+                TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings), Integer.MAX_VALUE);
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";

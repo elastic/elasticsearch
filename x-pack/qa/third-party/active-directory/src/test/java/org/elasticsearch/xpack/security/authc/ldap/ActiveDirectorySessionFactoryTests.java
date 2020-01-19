@@ -95,7 +95,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
         this.sslService = new SSLService(env);
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(type, name);
-        return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings));
+        return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings), Integer.MAX_VALUE);
     }
 
     public void testNetbiosAuth() throws Exception {

@@ -79,7 +79,7 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testTokenSupport() throws Exception {
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
         PkiRealm realm = new PkiRealm(config, mock(UserRoleMapper.class));
 
         assertRealmUsageStats(realm, false, false, true, false);
@@ -96,7 +96,7 @@ public class PkiRealmTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[]{certificate});
         PkiRealm realm = new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class));
+                TestEnvironment.newEnvironment(globalSettings), threadContext, Integer.MAX_VALUE), mock(UserRoleMapper.class));
 
         X509AuthenticationToken token = realm.token(threadContext);
         assertThat(token, is(notNullValue()));
@@ -179,7 +179,7 @@ public class PkiRealmTests extends ESTestCase {
 
     private PkiRealm buildRealm(UserRoleMapper roleMapper, Settings settings, Realm... otherRealms) {
         final RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("pki", REALM_NAME), settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+            TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE);
         PkiRealm realm = new PkiRealm(config, roleMapper);
         List<Realm> allRealms = CollectionUtils.arrayAsArrayList(otherRealms);
         allRealms.add(realm);
@@ -270,7 +270,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
-                        TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
+                        TestEnvironment.newEnvironment(globalSettings), threadContext, Integer.MAX_VALUE), mock(UserRoleMapper.class)));
         assertThat(e.getMessage(),
                 is("PKI realms with delegation enabled require a trust configuration "
                         + "(xpack.security.authc.realms.pki.my_pki.certificate_authorities or "
@@ -287,7 +287,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
-                        TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
+                        TestEnvironment.newEnvironment(globalSettings), threadContext, Integer.MAX_VALUE), mock(UserRoleMapper.class)));
         assertThat(e.getMessage(),
                 is("PKI realms with delegation enabled require a trust configuration "
                         + "(xpack.security.authc.realms.pki.my_pki.certificate_authorities "
@@ -389,7 +389,8 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
                 new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "mypki"), settings,
-                        TestEnvironment.newEnvironment(settings), new ThreadContext(settings)), mock(UserRoleMapper.class))
+                        TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE),
+                    mock(UserRoleMapper.class))
         );
         assertThat(e.getMessage(), containsString("Neither [xpack.security.authc.realms.pki.mypki.truststore.secure_password] or [" +
                     "xpack.security.authc.realms.pki.mypki.truststore.password] is configured"));
@@ -404,7 +405,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("xpack.security.authc.realms.pki.mypki.truststore.password", "testnode-client-profile")
                 .build();
         new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "mypki"), settings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(settings)), mock(UserRoleMapper.class));
+                TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE), mock(UserRoleMapper.class));
         assertSettingDeprecationsAndWarnings(new Setting[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace("mypki")
         });
@@ -474,7 +475,7 @@ public class PkiRealmTests extends ESTestCase {
                 NoOpLogger.INSTANCE);
 
         final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
-            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE));
         final User lookupUser = new User(parsedPrincipal);
         otherRealm.registerUser(lookupUser);
 

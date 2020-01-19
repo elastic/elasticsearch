@@ -101,7 +101,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         };
 
         final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY,
-                mock(Environment.class), new ThreadContext(Settings.EMPTY));
+                mock(Environment.class), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
@@ -235,7 +235,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         if (attachRealm) {
             final Environment env = TestEnvironment.newEnvironment(settings);
             final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", realmName);
-            final RealmConfig realmConfig = new RealmConfig(identifier, settings, env, threadContext);
+            final RealmConfig realmConfig = new RealmConfig(identifier, settings, env, threadContext, Integer.MAX_VALUE);
             final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
                 @Override
                 protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {

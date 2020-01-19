@@ -163,7 +163,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String realmName = "test-kerb-realm";
         settings = buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
         config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName), settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+            TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE);
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -175,7 +175,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String username = randomPrincipalName();
         final String expectedUsername = maybeRemoveRealmName(username);
         final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
-            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings))));
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE)));
         final User lookupUser = new User(expectedUsername, new String[] { "admin-role" }, expectedUsername,
                 expectedUsername + "@example.com", Collections.singletonMap("k1", "v1"), true);
         otherRealm.registerUser(lookupUser);

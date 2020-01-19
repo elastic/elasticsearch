@@ -110,7 +110,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     private RealmConfig getRealmConfig(Settings settings) {
-        return new RealmConfig(REALM_IDENTIFIER, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+        return new RealmConfig(REALM_IDENTIFIER, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings),
+            Integer.MAX_VALUE);
     }
 
     public void testUserSearchSubTree() throws Exception {
@@ -520,7 +521,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase);
         final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, realmSettings.build(),
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertThat(searchSessionFactory.bindCredentials, notNullValue());
             assertThat(searchSessionFactory.bindCredentials.getBindDN(), isEmptyString());
@@ -538,7 +539,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase);
         final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, realmSettings.build(),
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertThat(searchSessionFactory.bindCredentials, notNullValue());
             assertThat(searchSessionFactory.bindCredentials.getBindDN(), is("cn=ironman"));

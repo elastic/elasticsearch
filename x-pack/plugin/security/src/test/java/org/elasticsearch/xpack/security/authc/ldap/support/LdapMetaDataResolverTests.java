@@ -44,7 +44,7 @@ public class LdapMetaDataResolverTests extends ESTestCase {
                         "cn", "uid")
                 .build();
         RealmConfig config = new RealmConfig(realmId,
-                settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+                settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE);
         resolver = new LdapMetaDataResolver(config, false);
         assertThat(resolver.attributeNames(), arrayContaining("cn", "uid"));
     }

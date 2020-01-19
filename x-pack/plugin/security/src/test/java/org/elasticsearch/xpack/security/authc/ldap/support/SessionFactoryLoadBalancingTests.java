@@ -291,7 +291,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 LdapSearchScope.SUB_TREE, loadBalancing);
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         return new TestSessionFactory(config, new SSLService(TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
     }

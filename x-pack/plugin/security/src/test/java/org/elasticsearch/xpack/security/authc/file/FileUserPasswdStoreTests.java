@@ -134,7 +134,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     private RealmConfig getRealmConfig() {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("file", "file-test");
-        return new RealmConfig(identifier, settings, env, threadPool.getThreadContext());
+        return new RealmConfig(identifier, settings, env, threadPool.getThreadContext(), Integer.MAX_VALUE);
     }
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {

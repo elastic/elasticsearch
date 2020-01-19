@@ -55,7 +55,8 @@ public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTe
     }
 
     private static RealmConfig getRealmConfig(Settings settings) {
-        return new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+        return new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY),
+            Integer.MAX_VALUE);
     }
 
     public void testBootstrapCheckOfMissingFile() {

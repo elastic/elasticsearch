@@ -247,7 +247,7 @@ public class SamlRealmTests extends SamlTestCase {
         final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
 
         final MockLookupRealm lookupRealm = new MockLookupRealm(
-            new RealmConfig(new RealmConfig.RealmIdentifier("mock","mock_lookup"), globalSettings, env, threadContext));
+            new RealmConfig(new RealmConfig.RealmIdentifier("mock","mock_lookup"), globalSettings, env, threadContext, Integer.MAX_VALUE));
 
         final Settings.Builder settingsBuilder = Settings.builder()
                 .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), useNameId ? "nameid" : "uid")
@@ -718,12 +718,13 @@ public class SamlRealmTests extends SamlTestCase {
                 .put("path.home", createTempDir())
                 .put(realmSettings).build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        return new RealmConfig(new RealmConfig.RealmIdentifier("saml", REALM_NAME), settings, env, threadContext);
+        return new RealmConfig(new RealmConfig.RealmIdentifier("saml", REALM_NAME), settings, env, threadContext, Integer.MAX_VALUE);
     }
 
     private RealmConfig realmConfigFromGlobalSettings(Settings globalSettings) {
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
-        return new RealmConfig(new RealmConfig.RealmIdentifier("saml", REALM_NAME), globalSettings, env, new ThreadContext(globalSettings));
+        return new RealmConfig(new RealmConfig.RealmIdentifier("saml", REALM_NAME), globalSettings, env,
+            new ThreadContext(globalSettings), Integer.MAX_VALUE);
     }
 
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {

@@ -68,7 +68,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
                 .normalizePrefix("xpack.security.authc.realms.test." + name + ".")
                 .put(globalSettings)
                 .build(),
-            env, threadContext);
+            env, threadContext, Integer.MAX_VALUE);
     }
 
     public void testEmptyDelegationList() throws ExecutionException, InterruptedException {

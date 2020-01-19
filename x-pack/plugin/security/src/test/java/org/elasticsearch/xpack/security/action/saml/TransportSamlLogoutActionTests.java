@@ -214,7 +214,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
         final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
 
-        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
+        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext, Integer.MAX_VALUE);
         samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
     }

@@ -298,7 +298,7 @@ public class DnRoleMapperTests extends ESTestCase {
             .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
             .build();
         RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -315,7 +315,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
                 .build();
         RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -332,7 +332,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), false)
                 .build();
         RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -346,7 +346,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put(settings)
                 .put(getFullSettingKey(identifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         return new DnRoleMapper(config, watcherService);
     }
 }

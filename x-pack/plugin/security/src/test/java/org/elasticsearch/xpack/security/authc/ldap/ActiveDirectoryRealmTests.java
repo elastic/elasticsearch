@@ -172,7 +172,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         return new RealmConfig(
             realmIdentifier,
             mergedSettings,
-            env, new ThreadContext(mergedSettings)
+            env, new ThreadContext(mergedSettings),
+            Integer.MAX_VALUE
         );
     }
 

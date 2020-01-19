@@ -138,7 +138,7 @@ public class LdapRealmTests extends LdapTestCase {
 
     private RealmConfig getRealmConfig(RealmConfig.RealmIdentifier identifier, Settings settings) {
         final Environment env = TestEnvironment.newEnvironment(settings);
-        return new RealmConfig(identifier, settings, env, new ThreadContext(settings));
+        return new RealmConfig(identifier, settings, env, new ThreadContext(settings), Integer.MAX_VALUE);
     }
 
     public void testAuthenticateOneLevelGroupSearch() throws Exception {
@@ -271,14 +271,14 @@ public class LdapRealmTests extends LdapTestCase {
 
         final Settings realmSettings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(defaultGlobalSettings);
-        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, realmSettings, env, threadPool.getThreadContext());
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, realmSettings, env, threadPool.getThreadContext(), Integer.MAX_VALUE);
 
         final LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         final DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         final LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper, threadPool);
 
         final MockLookupRealm mockLookup = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"),
-            defaultGlobalSettings, env, threadPool.getThreadContext()));
+            defaultGlobalSettings, env, threadPool.getThreadContext(), Integer.MAX_VALUE));
 
         ldap.initialize(Arrays.asList(ldap, mockLookup), licenseState);
         mockLookup.initialize(Arrays.asList(ldap, mockLookup), licenseState);

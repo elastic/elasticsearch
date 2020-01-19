@@ -219,7 +219,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final RealmConfig realmConfig = new RealmConfig(
                 realmId,
             settings,
-                env, threadContext);
+                env, threadContext, Integer.MAX_VALUE);
         samlRealm = SamlRealmTestHelper.buildRealm(realmConfig, null);
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
         when(realms.stream()).thenAnswer(i -> Stream.of(samlRealm));

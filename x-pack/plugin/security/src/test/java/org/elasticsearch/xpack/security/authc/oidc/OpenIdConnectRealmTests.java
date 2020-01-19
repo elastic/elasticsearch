@@ -309,7 +309,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         ,String authenticatingRealm)
         throws Exception {
         final MockLookupRealm lookupRealm = new MockLookupRealm(
-            new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext));
+            new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext, Integer.MAX_VALUE));
         final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
 
         final Settings.Builder builder = getBasicRealmSettings();

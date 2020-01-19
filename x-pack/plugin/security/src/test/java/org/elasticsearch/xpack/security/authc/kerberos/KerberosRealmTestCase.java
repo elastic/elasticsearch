@@ -123,7 +123,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     protected KerberosRealm createKerberosRealm(final List<Realm> delegatedRealms, final String... userForRoleMapping) {
         final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, REALM_NAME);
         config = new RealmConfig(id, merge(id, settings, globalSettings),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList(userForRoleMapping));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final KerberosRealm kerberosRealm =

@@ -121,6 +121,7 @@ public class LdapLoadBalancingTests extends ESTestCase {
     }
 
     public RealmConfig getConfig(Settings settings) {
-        return new RealmConfig(REALM_IDENTIFIER, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+        return new RealmConfig(REALM_IDENTIFIER, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings),
+            Integer.MAX_VALUE);
     }
 }

@@ -91,7 +91,7 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
             .put("path.home", createTempDir())
             .put(realmSettings).build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
+        return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext, Integer.MAX_VALUE);
     }
 
     public static void writeJwkSetToFile(Path file) throws IOException {

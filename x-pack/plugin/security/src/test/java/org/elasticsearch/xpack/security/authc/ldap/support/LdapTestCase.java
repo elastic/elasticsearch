@@ -194,7 +194,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
 
         return new DnRoleMapper(config, resourceWatcherService);
     }

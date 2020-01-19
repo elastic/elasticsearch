@@ -92,7 +92,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
                 .build();
 
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
@@ -121,7 +121,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
             .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
 
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -148,7 +148,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
             .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -170,7 +170,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
             .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -193,7 +193,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
             .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -215,7 +215,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.BASE))
             .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -262,7 +262,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
-            environment, new ThreadContext(settings));
+            environment, new ThreadContext(settings), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");

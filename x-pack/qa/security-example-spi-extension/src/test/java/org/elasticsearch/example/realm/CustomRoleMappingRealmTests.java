@@ -32,7 +32,7 @@ public class CustomRoleMappingRealmTests extends ESTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final RealmConfig realmConfig = new RealmConfig(
             new RealmConfig.RealmIdentifier(CustomRoleMappingRealm.TYPE, "test"),
-            env.settings(), env, new ThreadContext(env.settings())
+            env.settings(), env, new ThreadContext(env.settings()), Integer.MAX_VALUE
         );
         CustomRoleMappingRealm realm = new CustomRoleMappingRealm(realmConfig, roleMapper);
 

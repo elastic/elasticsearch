@@ -23,7 +23,7 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticate() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig(new RealmConfig.RealmIdentifier(CustomRealm.TYPE, "test"),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE));
         SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, password);
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
@@ -37,7 +37,7 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticateBadUser() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         CustomRealm realm = new CustomRealm(new RealmConfig(new RealmConfig.RealmIdentifier(CustomRealm.TYPE, "test"),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE));
         SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", password);
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();

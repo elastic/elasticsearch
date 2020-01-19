@@ -32,7 +32,8 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         if (settings.hasValue("path.home") == false) {
             settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
         }
-        return new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+        return new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY),
+            Integer.MAX_VALUE);
     }
 
     protected abstract String ldapUrl();

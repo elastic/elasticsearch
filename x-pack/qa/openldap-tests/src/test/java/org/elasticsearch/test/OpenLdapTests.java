@@ -112,7 +112,7 @@ public class OpenLdapTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         RealmConfig config = new RealmConfig(realmId,
             buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};
@@ -132,7 +132,7 @@ public class OpenLdapTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", REALM_NAME);
         RealmConfig config = new RealmConfig(realmId,
                 buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.BASE),
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};
@@ -153,7 +153,7 @@ public class OpenLdapTests extends ESTestCase {
             .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
             .build();
         RealmConfig config = new RealmConfig(realmId, settings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)) {
@@ -171,7 +171,7 @@ public class OpenLdapTests extends ESTestCase {
             .put(buildLdapSettings(realmId, OPEN_LDAP_IP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
             .build();
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
-        RealmConfig config = new RealmConfig(realmId, settings, env, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(realmId, settings, env, new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String user = "blackwidow";
@@ -194,7 +194,7 @@ public class OpenLdapTests extends ESTestCase {
             .build();
 
         RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         final String user = "blackwidow";
@@ -211,7 +211,7 @@ public class OpenLdapTests extends ESTestCase {
                         "cn", "sn")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
@@ -228,7 +228,7 @@ public class OpenLdapTests extends ESTestCase {
                         "objectClass")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
@@ -245,7 +245,7 @@ public class OpenLdapTests extends ESTestCase {
                         "alias")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
         LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);

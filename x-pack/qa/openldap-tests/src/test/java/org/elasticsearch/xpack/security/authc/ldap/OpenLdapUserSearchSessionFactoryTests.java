@@ -92,7 +92,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         }
         final Settings settings = realmSettings.put(globalSettings).build();
         RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
 
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
 

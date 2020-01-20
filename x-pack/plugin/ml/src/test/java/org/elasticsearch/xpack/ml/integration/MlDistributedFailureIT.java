@@ -435,7 +435,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed(jobId, "data_feed_id", TimeValue.timeValueSeconds(1));
         waitForDatafeed(jobId, numDocs1);
 
-        client().admin().indices().prepareSyncedFlush().get();
+        client().admin().indices().prepareFlush().get();
 
         disrupt.run();
 

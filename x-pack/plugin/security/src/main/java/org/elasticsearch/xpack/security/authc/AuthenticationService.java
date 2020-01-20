@@ -460,6 +460,7 @@ public class AuthenticationService {
          * <ul>
          * <li>this is an initial request from a client without preemptive authentication, so we must return an authentication
          * challenge</li>
+         * <li>this is a request that contained an Authorization Header that we can't validate </li>
          * <li>this is a request made internally within a node and there is a fallback user, which is typically the
          * {@link SystemUser}</li>
          * <li>anonymous access is enabled and this will be considered an anonymous request</li>
@@ -475,7 +476,7 @@ public class AuthenticationService {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
                 authentication = new Authentication(fallbackUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.INTERNAL,
                     Collections.emptyMap());
-            } else if (isAnonymousUserEnabled) {
+            } else if (isAnonymousUserEnabled && shouldFallbackToAnonymous()) {
                 logger.trace("No valid credentials found in request [{}], using anonymous [{}]", request, anonymousUser.principal());
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
                 authentication = new Authentication(anonymousUser, authenticatedBy, null, Version.CURRENT, AuthenticationType.ANONYMOUS,
@@ -497,6 +498,20 @@ public class AuthenticationService {
             // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
             // an exception bubbles up even after successful authentication
             action.run();
+        }
+
+        /**
+         * When an API Key or an Elasticsearch Token Service token is used for authentication and authentication fails (as indicated by
+         * a null AuthenticationToken) we should not fallback to the anonymous user.
+         */
+        boolean shouldFallbackToAnonymous(){
+            String header = threadContext.getHeader("Authorization");
+            if (Strings.hasText(header) &&
+                ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
+                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+                return false;
+            }
+            return true;
         }
 
         /**

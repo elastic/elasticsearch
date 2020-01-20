@@ -187,7 +187,7 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals("[1:31] unable to parse Suggestion with name [unknownType]: parser not found", e.getMessage());
+            assertEquals("[1:31] unknown field [unknownType]", e.getMessage());
         }
     }
 

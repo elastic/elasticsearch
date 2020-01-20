@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -75,7 +74,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -128,7 +126,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
 
         final Map<String, String> additionalSettings = new HashMap<>();
-        additionalSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
         additionalSettings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
@@ -371,8 +368,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
         final int numberOfShards = randomIntBetween(1, 4);
-        final String leaderIndexSettings =
-                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
@@ -464,8 +460,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
         final int numberOfShards = randomIntBetween(1, 4);
-        final String leaderIndexSettings =
-                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
@@ -536,7 +531,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -556,7 +550,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -620,7 +613,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -727,7 +719,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -754,7 +745,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = 1;
         final int numberOfReplicas = 1;
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -855,7 +845,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = 1;
         final int numberOfReplicas = 1;
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -945,8 +934,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
         final int numberOfShards = randomIntBetween(1, 4);
-        final String leaderIndexSettings =
-                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);

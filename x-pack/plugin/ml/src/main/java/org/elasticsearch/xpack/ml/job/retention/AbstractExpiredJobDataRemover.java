@@ -92,9 +92,9 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
      * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    protected abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
+    abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
 
-    protected static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
+    static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
         return QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"));

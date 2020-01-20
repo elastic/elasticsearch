@@ -33,10 +33,8 @@ import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -52,12 +50,12 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     private static final String DATA_INDEX = "delete-expired-data-test-data";
 
     @Before
-    public void setUpData() throws IOException {
+    public void setUpData()  {
         client().admin().indices().prepareCreate(DATA_INDEX)
                 .setMapping("time", "type=date,format=epoch_millis")
                 .get();
 
-        // We are going to create 3 days of data starting 1 hr ago
+        // We are going to create 3 days of data ending 1 hr ago
         long latestBucketTime = System.currentTimeMillis() - TimeValue.timeValueHours(1).millis();
         int totalBuckets = 3 * 24;
         int normalRate = 10;
@@ -120,7 +118,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
             String datafeedId = job.getId() + "-feed";
             DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
-            datafeedConfig.setIndices(Arrays.asList(DATA_INDEX));
+            datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
             DatafeedConfig datafeed = datafeedConfig.build();
             registerDatafeed(datafeed);
             putDatafeed(datafeed);
@@ -276,7 +274,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     private static Job.Builder newJobBuilder(String id) {
         Detector.Builder detector = new Detector.Builder();
         detector.setFunction("count");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");

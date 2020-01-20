@@ -335,18 +335,16 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             exchange.close();
         });
 
-        final boolean useRangeRequest = randomBoolean();
         final Exception exception = expectThrows(ConnectionClosedException.class, () -> {
-            try (InputStream stream = useRangeRequest ?
+            try (InputStream stream = randomBoolean() ?
                     blobContainer.readBlob("read_blob_incomplete", 0, 1):
                     blobContainer.readBlob("read_blob_incomplete")) {
                 Streams.readFully(stream);
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
-            containsString(useRangeRequest ?
-                "premature end of chunk coded message body: closing chunk expected" :
-                "premature end of content-length delimited message body"));
+            either(containsString("premature end of chunk coded message body: closing chunk expected"))
+                .or(containsString("premature end of content-length delimited message body")));
         assertThat(exception.getSuppressed().length, equalTo(Math.min(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS, maxRetries)));
     }
 

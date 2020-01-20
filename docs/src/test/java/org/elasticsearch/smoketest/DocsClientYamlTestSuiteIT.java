@@ -58,8 +58,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 //The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
-// gh#49753 increasing timeout to 35 minutes until this gets fixes properly
-@TimeoutSuite(millis = 35 * TimeUnits.MINUTE)
+// gh#49753, tv#49753 : increasing timeout to 40 minutes until this gets fixes properly
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

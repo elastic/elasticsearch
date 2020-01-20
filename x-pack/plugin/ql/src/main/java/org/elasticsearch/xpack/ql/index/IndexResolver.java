@@ -358,11 +358,12 @@ public class IndexResolver {
 
         int dot = fieldName.lastIndexOf('.');
         String fullFieldName = fieldName;
+        EsField parent = null;
 
         if (dot >= 0) {
             String parentName = fieldName.substring(0, dot);
             fieldName = fieldName.substring(dot + 1);
-            EsField parent = flattedMapping.get(parentName);
+            parent = flattedMapping.get(parentName);
             if (parent == null) {
                 Map<String, FieldCapabilities> map = globalCaps.get(parentName);
                 Function<String, EsField> fieldFunction;
@@ -387,7 +388,22 @@ public class IndexResolver {
         }
 
         EsField esField = field.apply(fieldName);
-        
+
+        if (parent != null && parent instanceof UnsupportedEsField) {
+            UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
+            String inherited = unsupportedParent.getInherited();
+            String type = unsupportedParent.getOriginalType();
+            
+            if (inherited == null) {
+                // mark the sub-field as unsupported, just like its parent, setting the first unsupported parent as the current one
+                esField = new UnsupportedEsField(esField.getName(), type, unsupportedParent.getName(), esField.getProperties());
+            } else {
+                // mark the sub-field as unsupported, just like its parent, but setting the first unsupported parent
+                // as the parent's first unsupported grandparent
+                esField = new UnsupportedEsField(esField.getName(), type, inherited, esField.getProperties());
+            }
+        }
+
         parentProps.put(fieldName, esField);
         flattedMapping.put(fullFieldName, esField);
 
@@ -408,7 +424,7 @@ public class IndexResolver {
             case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
-                return new UnsupportedEsField(fieldName, typeName);
+                return new UnsupportedEsField(fieldName, typeName, null, props);
             default:
                 return new EsField(fieldName, esType, props, isAggregateable, isAlias);
         }

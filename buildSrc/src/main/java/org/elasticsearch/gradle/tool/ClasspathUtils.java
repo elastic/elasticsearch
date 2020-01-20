@@ -5,8 +5,7 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 public class ClasspathUtils {
 
-    private ClasspathUtils() {
-    }
+    private ClasspathUtils() {}
 
     /**
      * Determine if we are running in the context of the `elastic/elasticsearch` project. This method will return {@code false} when

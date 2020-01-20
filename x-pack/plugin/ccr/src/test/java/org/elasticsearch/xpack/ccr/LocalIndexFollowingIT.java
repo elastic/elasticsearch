@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -76,21 +75,6 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
         ensureEmptyWriteBuffers();
-    }
-
-    public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(2, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
-        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
-        followRequest.setFollowerIndex("follower-index");
-        PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
-        putFollowRequest.setLeaderIndex("leader-index");
-        putFollowRequest.setFollowerIndex("follower-index");
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
-        assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
-        assertThat(ESIntegTestCase.indexExists("follower-index", client()), equalTo(false));
     }
 
     public void testRemoveRemoteConnection() throws Exception {

@@ -123,14 +123,10 @@
 ---
 "Create index without soft deletes":
   - skip:
-      version:  " - 7.5.99"
-      reason:   "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
-
+      version:  " - 7.9.99"
+      reason:   "indices without soft-deletes is no longer supported "
   - do:
-      warnings:
-        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
-          Please do not specify value for setting [index.soft_deletes.enabled] of index [test_index].
+      catch: /illegal_argument_exception/
       indices.create:
         index: test_index
         body:

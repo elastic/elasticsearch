@@ -87,9 +87,9 @@ public class CacheDirectory extends FilterDirectory {
         private CacheFile getOrAcquire() throws Exception {
             CacheFile currentCacheFile = cacheFile;
             if (currentCacheFile == null) {
+                final CacheFile newCacheFile = cacheService.get(fileName, fileLength, file);
                 synchronized (this) {
                     if (cacheFile == null) {
-                        final CacheFile newCacheFile = cacheService.get(fileName, fileLength, file);
                         if (newCacheFile.acquire(this)) {
                             cacheFile = newCacheFile;
                         }
@@ -151,7 +151,9 @@ public class CacheDirectory extends FilterDirectory {
                 try {
                     cacheFile = getOrAcquire();
                     final CacheFile.FileChannelRefCounted channelRef = cacheFile.getChannelRefCounter();
-                    channelRef.incRef();
+                    if (channelRef == null || channelRef.tryIncRef() == false) {
+                        throw new AlreadyClosedException("Cache file acquired correctly but evicted before increment ref count on channel");
+                    }
                     try {
                         bytesRead += cacheFile.fetchRange(pos,
                             (start, end) -> readCacheFile(channelRef.getChannel(), start, end, pos, buffer, off, len),
@@ -165,7 +167,7 @@ public class CacheDirectory extends FilterDirectory {
                         throw new IOException("Fail to read data from cache", e);
                     }
                     // cache file was evicted during the range fetching, read bytes directly from source
-                    bytesRead += copySource(pos, position + len, buffer, off);
+                    bytesRead += copySource(pos, pos + len, buffer, off);
 
                 } finally {
                     if (bytesRead >= length) {

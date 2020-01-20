@@ -5,43 +5,62 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-class CacheFile implements RefCounted {
+class CacheFile implements Releasable {
 
-    private final Set<StandardOpenOption> options;
+    @FunctionalInterface
+    public interface EvictionListener {
+        void onEviction(CacheFile evictedCacheFile);
+    }
+
+    private static final int RANGE_SIZE = 1 << 15;
+
+    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[]{
+        StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE
+    };
+
+    private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
+        @Override
+        protected void closeInternal() {
+            CacheFile.this.closeInternal();
+        }
+    };
+
     private final SparseFileTracker tracker;
-    private final int sizeOfRange;
     private final String name;
     private final Path file;
 
-    private volatile FileChannel channel;
-    private volatile boolean evicted;
-    private volatile int refCount;
+    private volatile FileChannelRefCounted channelRefCounter;
+    private volatile Set<EvictionListener> listeners;
+    private volatile boolean closed;
 
-    CacheFile(String name, long length, Path file, Set<StandardOpenOption> options, int sizeOfRange) {
+    CacheFile(String name, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);
-        this.options = Objects.requireNonNull(options);
         this.name = Objects.requireNonNull(name);
         this.file = Objects.requireNonNull(file);
-        this.sizeOfRange = sizeOfRange;
-        this.evicted = false;
-        this.refCount = 1;
+        this.listeners = new HashSet<>();
+        this.closed = false;
+        assert invariant();
     }
 
     public String getName() {
@@ -52,52 +71,64 @@ class CacheFile implements RefCounted {
         return tracker.getLength();
     }
 
-    public synchronized void markAsEvicted() {
-        if (evicted == false) {
-            evicted = true;
-            decRef();
-        }
+    public Path getFile() {
+        return file;
     }
 
-    @Override
-    public void incRef() {
-        if (tryIncRef() == false) {
-            throw new IllegalStateException("Failed to increment reference counter, cache entry is already evicted");
-        }
+    @Nullable
+    public FileChannelRefCounted getChannelRefCounter() {
+        return channelRefCounter;
     }
 
-    @Override
-    public synchronized boolean tryIncRef() {
-        assert evicted || refCount > 0;
-        if (evicted) {
-            return false;
-        }
-        if (refCount == 1) {
-            assert channel == null || channel.isOpen() == false;
-            try {
-                channel = FileChannel.open(file, options);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+    public boolean acquire(final EvictionListener listener) throws IOException {
+        ensureOpen();
+        boolean success = false;
+        if (refCounter.tryIncRef()) {
+            synchronized (this) {
+                try {
+                    ensureOpen();
+                    final Set<EvictionListener> newListeners = new HashSet<>(listeners);
+                    if (newListeners.add(Objects.requireNonNull(listener)) == false) {
+                        throw new IllegalStateException("Cannot add the same listener twice");
+                    }
+                    maybeOpenFileChannel(newListeners);
+                    listeners = Collections.unmodifiableSet(newListeners);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        refCounter.decRef();
+                    }
+                }
             }
         }
-        refCount += 1;
-        return true;
+        assert invariant();
+        return success;
     }
 
-    @Override
-    public synchronized void decRef() {
-        assert refCount > 0;
-        refCount -= 1;
-        if (refCount == 1){
-            assert channel != null;
+    public boolean release(final EvictionListener listener) {
+        boolean success = false;
+        synchronized (this) {
             try {
-                channel.close();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                final Set<EvictionListener> newListeners = new HashSet<>(listeners);
+                boolean removed = newListeners.remove(Objects.requireNonNull(listener));
+                maybeCloseFileChannel(newListeners);
+                listeners = Collections.unmodifiableSet(newListeners);
+                success = removed;
+            } finally {
+                if (success) {
+                    refCounter.decRef();
+                }
             }
         }
-        if (refCount == 0) {
-            assert evicted;
+        assert invariant();
+        return success;
+    }
+
+    private void closeInternal() {
+        assert Thread.holdsLock(this);
+        if (channelRefCounter != null) {
+            channelRefCounter.deleteAfterClose();
+        } else {
             try {
                 Files.deleteIfExists(file);
             } catch (IOException e) {
@@ -106,59 +137,157 @@ class CacheFile implements RefCounted {
         }
     }
 
-    synchronized int refCount() {
-        return refCount;
+    @Override
+    public void close() {
+        if (closed == false) {
+            final Set<EvictionListener> evictionListeners = new HashSet<>();
+            synchronized (this) {
+                if (closed == false) {
+                    closed = true;
+                    evictionListeners.addAll(listeners);
+                    refCounter.decRef();
+                }
+            }
+            if (evictionListeners != null) {
+                evictionListeners.forEach(listener -> listener.onEviction(this));
+            }
+        }
+        assert invariant();
+    }
+
+    private void maybeOpenFileChannel(Set<EvictionListener> listeners) throws IOException {
+        assert Thread.holdsLock(this);
+        if (listeners.size() == 1) {
+            assert channelRefCounter == null;
+            channelRefCounter = new FileChannelRefCounted(file);
+        }
+    }
+
+    private void maybeCloseFileChannel(Set<EvictionListener> listeners) {
+        assert Thread.holdsLock(this);
+        if (listeners.size() == 0) {
+            final FileChannelRefCounted oldFileChannel = channelRefCounter;
+            channelRefCounter = null;
+            if (oldFileChannel != null) {
+                oldFileChannel.decRef();
+            }
+        }
+    }
+
+    private boolean invariant() {
+        assert listeners != null;
+        if (listeners.isEmpty()) {
+            assert channelRefCounter == null;
+        } else {
+            assert channelRefCounter != null;
+            assert channelRefCounter.refCount() > 0;
+            assert channelRefCounter.channel != null;
+            assert channelRefCounter.channel.isOpen();
+        }
+        return true;
     }
 
     @Override
     public String toString() {
         return "CacheFile{" +
             "name='" + name + '\'' +
+            ", file=" + file +
             ", length=" + tracker.getLength() +
-            ", evicted=" + evicted +
-            ", refCount=" + refCount +
-            ", channel=" + (channel == null ? "no" : (channel.isOpen() ? "open" : "closed")) +
+            ", channel=" + (channelRefCounter != null ? channelRefCounter : "null") +
             ", tracker=" + tracker +
             '}';
     }
 
-    /**
-     * Computes the start and the end of a range to which the given {@code position} belongs.
-     *
-     * @param position the reading position
-     * @return the start and end range positions to fetch
-     */
-    public Tuple<Long, Long> computeRange(final long position) {
-        final long start = (position / sizeOfRange) * sizeOfRange;
-        return Tuple.tuple(start, Math.min(start + sizeOfRange, tracker.getLength()));
-    }
-
-    public List<SparseFileTracker.Gap> waitForRange(final long start, final long end, final ActionListener<Void> listener) {
-        return tracker.waitForRange(start, end, listener);
-    }
-
-    /**
-     * Read from the cache file on disk into a byte buffer, starting at a certain position.
-     */
-    int readFrom(final ByteBuffer dst, final long position) throws IOException {
-        incRef();
-        try {
-            return Channels.readFromFileChannel(channel, position, dst);
-        } finally {
-            decRef();
+    private void ensureOpen() {
+        if (closed) {
+            throw new AlreadyClosedException("Cache file is closed");
         }
     }
 
-    /**
-     * Write a sequence of bytes to the cache file on disk from the given buffer, starting at the given file position.v
-     */
-    @SuppressForbidden(reason = "Use Channel positional writes")
-    int writeTo(final ByteBuffer src, final long position) throws IOException {
-        incRef();
+    CompletableFuture<Integer> fetchRange(long position,
+                                          CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
+                                          CheckedBiFunction<Long, Long, Integer, IOException> onRangeMissing) {
+        final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            return channel.write(src, position);
-        } finally {
-            decRef();
+            if (position < 0 || position > tracker.getLength()) {
+                throw new IllegalArgumentException("Wrong read position [" + position + "]");
+            }
+
+            ensureOpen();
+            final long rangeStart = (position / RANGE_SIZE) * RANGE_SIZE;
+            final long rangeEnd = Math.min(rangeStart + RANGE_SIZE, tracker.getLength());
+
+            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeStart, rangeEnd,
+                ActionListener.wrap(
+                    rangeReady -> future.complete(onRangeAvailable.apply(rangeStart, rangeEnd)),
+                    rangeFailure -> future.completeExceptionally(rangeFailure)));
+
+            if (gaps.size() > 0) {
+                final SparseFileTracker.Gap range = gaps.get(0);
+                assert gaps.size() == 1 : "expected 1 range to fetch but got " + gaps.size();
+                assert range.start == rangeStart
+                    : "range/gap start mismatch (" + range.start + ',' + rangeStart + ')';
+                assert range.end == rangeEnd
+                    : "range/gap end mismatch (" + range.end + ',' + rangeEnd + ')';
+
+                try {
+                    ensureOpen();
+                    onRangeMissing.apply(rangeStart, rangeEnd);
+                    range.onResponse(null);
+                } catch (Exception e) {
+                    range.onFailure(e);
+                }
+            }
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+        }
+        return future;
+    }
+
+    public static class FileChannelRefCounted extends AbstractRefCounted {
+
+        private final AtomicBoolean deleteAfterClose;
+        private final FileChannel channel;
+        private final Path file;
+
+        private FileChannelRefCounted(final Path file) throws IOException {
+            super("FileChannelRefCounted(" + file + ")");
+            this.channel = FileChannel.open(file, OPEN_OPTIONS);
+            this.deleteAfterClose = new AtomicBoolean(false);
+            this.file = Objects.requireNonNull(file);
+        }
+
+        FileChannel getChannel() {
+            return channel;
+        }
+
+        @Override
+        protected void closeInternal() {
+            try {
+                channel.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Exception when closing channel", e);
+            }
+            if (deleteAfterClose.get()) {
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Exception when deleting file", e);
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return getName() +
+                "[refcount=" + refCount() +
+                ", channel=" + (channel.isOpen() ? "open" : "closed") +
+                ']';
+        }
+
+        void deleteAfterClose() {
+            final boolean delete = deleteAfterClose.compareAndSet(false, true);
+            assert delete : "delete after close flag is already set";
         }
     }
 }

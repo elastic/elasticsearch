@@ -84,10 +84,9 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
-    // package-private for testing
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener);
 
-    protected abstract Long getRetentionDays(Job job);
+    abstract Long getRetentionDays(Job job);
 
     /**
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).

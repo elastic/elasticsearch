@@ -79,7 +79,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    protected Long getRetentionDays(Job job) {
+    Long getRetentionDays(Job job) {
         return job.getResultsRetentionDays();
     }
 

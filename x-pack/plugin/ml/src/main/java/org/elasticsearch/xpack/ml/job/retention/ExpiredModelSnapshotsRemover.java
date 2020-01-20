@@ -71,7 +71,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     }
 
     @Override
-    protected Long getRetentionDays(Job job) {
+    Long getRetentionDays(Job job) {
         return job.getModelSnapshotRetentionDays();
     }
 

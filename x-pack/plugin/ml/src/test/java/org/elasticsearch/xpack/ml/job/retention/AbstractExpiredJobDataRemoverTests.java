@@ -62,7 +62,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             return randomBoolean() ? null : 0L;
         }
 
-        protected void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
+        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
             long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
             listener.onResponse(nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis());
         }

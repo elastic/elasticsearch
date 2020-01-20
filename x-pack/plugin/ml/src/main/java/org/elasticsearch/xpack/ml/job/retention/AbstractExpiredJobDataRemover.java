@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -16,12 +15,9 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -88,10 +84,8 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
-    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
-        long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
-        listener.onResponse(nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis());
-    }
+    // package-private for testing
+    abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener);
 
     protected abstract Long getRetentionDays(Job job);
 

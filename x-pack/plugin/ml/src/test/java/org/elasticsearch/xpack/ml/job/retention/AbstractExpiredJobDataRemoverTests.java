@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,6 +62,11 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             return randomBoolean() ? null : 0L;
         }
 
+        protected void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
+            long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
+            listener.onResponse(nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis());
+        }
+
         @Override
         protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
             listener.onResponse(Boolean.TRUE);
@@ -82,10 +90,10 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     static void givenJobs(Client client, List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
 
-            doAnswer(invocationOnMock -> {
-                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-                listener.onResponse(response);
-                return null;
+        doAnswer(invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
     }
 

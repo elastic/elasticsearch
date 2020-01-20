@@ -57,15 +57,15 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 .setMapping("time", "type=date,format=epoch_millis")
                 .get();
 
-        // We are going to create 2 days of data starting 24 hrs ago
-        long lastestBucketTime = System.currentTimeMillis() - TimeValue.timeValueHours(1).millis();
+        // We are going to create 3 days of data starting 1 hr ago
+        long latestBucketTime = System.currentTimeMillis() - TimeValue.timeValueHours(1).millis();
         int totalBuckets = 3 * 24;
         int normalRate = 10;
         int anomalousRate = 100;
         int anomalousBucket = 30;
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int bucket = 0; bucket < totalBuckets; bucket++) {
-            long timestamp = lastestBucketTime - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
+            long timestamp = latestBucketTime - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
                 IndexRequest indexRequest = new IndexRequest(DATA_INDEX);

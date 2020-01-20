@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -110,12 +108,13 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         if (currentSequentialReadSize > 0L) {
             final StreamForSequentialReads streamForSequentialReads = streamForSequentialReadsRef.get();
             if (streamForSequentialReads == null) {
+                // start a new sequential read
                 if (tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
-                    assert streamForSequentialReadsRef.get() != null;
                     return;
                 }
             } else if (streamForSequentialReads.part == part && streamForSequentialReads.pos == pos) {
                 // continuing a sequential read that we started previously
+                assert streamForSequentialReads.isFullyRead() == false;
                 int read = streamForSequentialReads.inputStream.read(b, offset, length);
                 assert read <= length : read + " vs " + length;
                 streamForSequentialReads.pos += read;
@@ -148,6 +147,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                 }
             } else {
                 // not a sequential read, so stop optimizing for this usage pattern and fall through to the unoptimized behaviour
+                assert streamForSequentialReads.isFullyRead() == false;
                 sequentialReadSize = 0L;
                 IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
             }
@@ -173,7 +173,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
         final long streamLength = Math.min(currentSequentialReadSize, fileInfo.partBytes(part) - pos);
         if (length < streamLength) {
-            // it is worthwhile to open a larger stream and keep it open for future reads
+            // if we open a stream of length streamLength then it will not be completely consumed by this read, so it is worthwhile to open
+            // it and keep it open for future reads
             final InputStream inputStream = blobContainer.readBlob(fileInfo.partName(part), pos, streamLength);
             final StreamForSequentialReads newStreamForSequentialReads
                 = new StreamForSequentialReads(inputStream, part, pos, streamLength);
@@ -191,8 +192,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             assert newStreamForSequentialReads.isFullyRead() == false;
             return true;
         } else {
-            // length <= currentSequentialReadSize so this single read will consume the entire stream, so there is no need to keep
-            // hold of it, so we can fall through to reading the stream directly
+            // streamLength <= length so this single read will consume the entire stream, so there is no need to keep hold of it, so we can
+            // tell the caller to read the data directly
             return false;
         }
     }

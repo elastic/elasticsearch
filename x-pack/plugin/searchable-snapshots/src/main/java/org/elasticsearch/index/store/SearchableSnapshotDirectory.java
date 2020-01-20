@@ -37,7 +37,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private final BlobStoreIndexShardSnapshot snapshot;
     private final BlobContainer blobContainer;
-    private static final long BLOB_STORE_SEQUENTIAL_READ_SIZE = 1<<25; // 32MB
+    private static final long BLOB_STORE_SEQUENTIAL_READ_SIZE = 1L<<25; // 32MB
 
     public SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
         super(new SingleInstanceLockFactory());

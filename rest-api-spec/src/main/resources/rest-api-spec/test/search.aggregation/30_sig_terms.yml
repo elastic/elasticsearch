@@ -137,3 +137,18 @@
       search:
         rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
+
+---
+'Misspelled fields get "did you mean"':
+  - skip:
+      version: " - 7.99.99"
+      reason: Implemented in 8.0 (to be backported to 7.7)
+  - do:
+      catch: /\[significant_terms\] unknown field \[jlp\] did you mean \[jlh\]\?/
+      search:
+          body:
+            aggs:
+              foo:
+                significant_terms:
+                  field: foo
+                  jlp: {}

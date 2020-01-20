@@ -829,11 +829,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final String index = "test_frozen_index";
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = Settings.builder();
-            if (randomBoolean()) {
+            if (minimumNodeVersion().onOrAfter(Version.V_6_5_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
-            String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
-            createIndex(index, settings.build(), mappings);
+            createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(10, 500);
             for (int i = 0; i < numDocs; i++) {

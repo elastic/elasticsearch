@@ -49,13 +49,16 @@ public class VagrantBasePlugin implements Plugin<Project> {
         VagrantExtension extension = project.getExtensions().create("vagrant", VagrantExtension.class, project);
         VagrantMachine service = project.getExtensions().create("vagrantService", VagrantMachine.class, project, extension, reaper);
 
-        project.getGradle().getTaskGraph().whenReady(graph ->
-            service.refs = graph.getAllTasks().stream()
-                .filter(t -> t instanceof VagrantShellTask)
-                .filter(t -> t.getProject() == project)
-                .count());
+        project.getGradle()
+            .getTaskGraph()
+            .whenReady(
+                graph -> service.refs = graph.getAllTasks()
+                    .stream()
+                    .filter(t -> t instanceof VagrantShellTask)
+                    .filter(t -> t.getProject() == project)
+                    .count()
+            );
     }
-
 
     /**
      * Check vagrant and virtualbox versions, if any vagrant test tasks will be run.
@@ -89,8 +92,9 @@ public class VagrantBasePlugin implements Plugin<Project> {
             String output = pipe.toString(StandardCharsets.UTF_8).trim();
             Matcher matcher = versionRegex.matcher(output);
             if (matcher.find() == false) {
-                throw new IllegalStateException(tool +
-                    " version output [" + output + "] did not match regex [" + versionRegex.pattern() + "]");
+                throw new IllegalStateException(
+                    tool + " version output [" + output + "] did not match regex [" + versionRegex.pattern() + "]"
+                );
             }
 
             String version = matcher.group(1);
@@ -100,8 +104,14 @@ public class VagrantBasePlugin implements Plugin<Project> {
                 if (found > minVersion[i]) {
                     break; // most significant version is good
                 } else if (found < minVersion[i]) {
-                    throw new IllegalStateException("Unsupported version of " + tool + ". Found [" + version + "], expected [" +
-                        Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining(".")) + "+");
+                    String exceptionMessage = String.format(
+                        "Unsupported version of %s. Found [%s], expected [%s+",
+                        tool,
+                        version,
+                        Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining("."))
+                    );
+
+                    throw new IllegalStateException(exceptionMessage);
                 } // else equal, so check next element
             }
         }

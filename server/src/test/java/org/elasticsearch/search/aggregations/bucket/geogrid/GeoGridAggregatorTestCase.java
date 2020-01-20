@@ -126,6 +126,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51103")
     public void testBounds() throws IOException {
         final int numDocs = randomIntBetween(64, 256);
         final GeoGridAggregationBuilder builder = createBuilder("_name");

@@ -72,6 +72,7 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SET
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -205,10 +206,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             logger.info("maxRetries={}, readLimit={}, byteSize={}, bytesRead={}",
                 maxRetries, readLimit, bytes.length, bytesRead.length);
             assertArrayEquals(Arrays.copyOfRange(bytes, 0, readLimit), bytesRead);
-            if (readLimit == 0) {
-                // we will not reach out to the service
-                assertFalse(countDown.isCountedDown());
-            }  else if (readLimit < bytes.length) {
+            if (readLimit < bytes.length) {
                 // we might have completed things based on an incomplete response, and we're happy with that
             } else {
                 assertTrue(countDown.isCountedDown());
@@ -268,10 +266,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             logger.info("maxRetries={}, position={}, length={}, readLimit={}, byteSize={}, bytesRead={}",
                 maxRetries, position, length, readLimit, bytes.length, bytesRead.length);
             assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + readLimit)), bytesRead);
-            if (readLimit == 0) {
-                // we will not reach out to the service
-                assertFalse(countDown.isCountedDown());
-            }  else if (readLimit < length && readLimit == bytesRead.length) {
+            if (readLimit < length && readLimit == bytesRead.length) {
                 // we might have completed things based on an incomplete response, and we're happy with that
             } else {
                 assertTrue(countDown.isCountedDown());
@@ -297,14 +292,16 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
-        exception = expectThrows(SocketTimeoutException.class, () -> {
+        exception = expectThrows(IOException.class, () -> {
             try (InputStream stream = randomBoolean() ?
                     blobContainer.readBlob("read_blob_incomplete") :
                     blobContainer.readBlob("read_blob_incomplete", position, length)) {
                 Streams.readFully(stream);
             }
         });
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+        assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class)));
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
+            containsString("Premature end of chunk coded message body: closing chunk expected")));
         assertThat(exception.getSuppressed().length, equalTo(maxRetries));
     }
 

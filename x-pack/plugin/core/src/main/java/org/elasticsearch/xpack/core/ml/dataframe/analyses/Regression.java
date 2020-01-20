@@ -188,7 +188,7 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
-        return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, dependentVariable);
+        return Collections.emptyMap();
     }
 
     @Override

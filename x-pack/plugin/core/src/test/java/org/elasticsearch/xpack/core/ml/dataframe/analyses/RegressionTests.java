@@ -110,7 +110,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public void testFieldMappingsToCopyIsNonEmpty() {
-        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
+        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(anEmptyMap()));
     }
 
     public void testGetStateDocId() {

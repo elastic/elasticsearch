@@ -28,8 +28,6 @@ import java.util.spi.CalendarDataProvider;
  * This class overrides default behaviour for Locale.ROOT (start of the week Sunday, minimum 1 day in the first week of the year).
  * Java SPI mechanism requires java.locale.providers to contain SPI value (i.e. java.locale.providers=SPI,COMPAT)
  * @see <a href="https://en.wikipedia.org/wiki/ISO_week_date">ISO week date</a>
- *
- *
  */
 public class IsoCalendarDataProvider extends CalendarDataProvider {
 

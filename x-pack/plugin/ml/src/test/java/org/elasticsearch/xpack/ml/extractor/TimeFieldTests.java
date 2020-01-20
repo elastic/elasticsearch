@@ -43,7 +43,7 @@ public class TimeFieldTests extends ESTestCase {
     public void testDocValueWithFractionalMillisecondStringValue() {
         long millis = randomNonNegativeLong();
         int extraNanos = randomIntBetween(0, 999999);
-        Instant time = Instant.ofEpochSecond(millis / 1000, (millis % 1000) * 1000000 + extraNanos);
+        Instant time = Instant.ofEpochMilli(millis).plusNanos(extraNanos);
         DateFormatter formatter = DateFormatter.forPattern("epoch_millis");
         String timeAsString = formatter.format(time);
         SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", timeAsString).build();

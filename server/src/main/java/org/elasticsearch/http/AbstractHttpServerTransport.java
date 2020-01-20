@@ -174,7 +174,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             return true;
         });
         if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
+            throw new BindHttpException(
+                "Failed to bind to [" + port.getPortRangeString() + "] on " + hostAddress.getHostAddress(),
+                lastException.get()
+            );
         }
 
         if (logger.isDebugEnabled()) {

@@ -2698,13 +2698,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         int port = serviceA.boundAddress().publishAddress().getPort();
+        String address = serviceA.boundAddress().publishAddress().getAddress();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
+            .put(TransportSettings.HOST.getKey(), address)
             .put(TransportSettings.PORT.getKey(), port)
             .build();
         BindTransportException bindTransportException = expectThrows(BindTransportException.class,
             () -> buildService("test", Version.CURRENT, settings));
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
+        assertEquals("Failed to bind to [" + port + "] on " + address, bindTransportException.getMessage());
     }
 
     public void testChannelCloseWhileConnecting() {

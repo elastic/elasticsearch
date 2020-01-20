@@ -190,11 +190,17 @@ public class NioHttpServerTransportTests extends ESTestCase {
             threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger))) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            Settings settings = Settings.builder()
+                .put("http.port", remoteAddress.getPort())
+                .put("network.host", remoteAddress.getAddress())
+                .build();
             try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
                 threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger))) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
-                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
+                assertEquals(
+                    "Failed to bind to [" + remoteAddress.getPort() + "] on " + remoteAddress.address().getAddress().getHostAddress(),
+                    bindHttpException.getMessage()
+                );
             }
         }
     }

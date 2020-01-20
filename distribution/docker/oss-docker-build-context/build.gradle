@@ -5,7 +5,7 @@ task buildOssDockerBuildContext(type: Tar) {
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch-oss"
-  with dockerBuildContext(true, false, false)
+  with dockerBuildContext(true, false)
 }
 
 assemble.dependsOn buildOssDockerBuildContext

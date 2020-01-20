@@ -357,7 +357,8 @@ public class IndexResolver {
         return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexNames[0], emptyMap()) : indices.get(0));
     }
 
-    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName, Map<String, Map<String, FieldCapabilities>> globalCaps,
+    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName, 
+            Map<String, Map<String, FieldCapabilities>> globalCaps,
             Map<String, EsField> hierarchicalMapping,
             Map<String, EsField> flattedMapping,
             Function<String, EsField> field) {
@@ -556,7 +557,8 @@ public class IndexResolver {
                             
                             createField(typeRegistry, fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
                                     s -> invalidField != null ? invalidField :
-                                        createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(), isAlias.get()));
+                                        createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(), 
+                                                isAlias.get()));
                         }
                     }
                 }

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import static java.util.Collections.emptyMap;
@@ -51,7 +51,7 @@ public class NamedExpressionTests extends ESTestCase {
     }
 
     public void testNameForArithmeticFunctionAppliedOnTableColumn() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "myField", new EsField("myESField", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "myField", new EsField("myESField", DataTypes.INTEGER, emptyMap(), true));
         String e = "myField  + 10";
         Add add = new Add(s(e), fa, l(10));
         assertEquals(e, add.sourceText());

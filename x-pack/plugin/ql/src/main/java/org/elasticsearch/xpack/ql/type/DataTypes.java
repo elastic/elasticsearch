@@ -17,7 +17,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
 
-    public static final DataType UNSUPPORTED = new DataType(null, 0, false, false, false);
+    public static final DataType UNSUPPORTED = new DataType("UNSUPPORTED", null, 0, false, false, false);
 
     public static final DataType NULL = new DataType("null", 0, false, false, false);
 
@@ -33,8 +33,8 @@ public final class DataTypes {
     public static final DataType HALF_FLOAT = new DataType("half_float", Float.BYTES, false, true, true);
     public static final DataType SCALED_FLOAT = new DataType("scaled_float", Long.BYTES, false, true, true);
     // string
-    public static final DataType KEYWORD = new DataType("keyword", Short.MAX_VALUE, true, false, true);
-    public static final DataType TEXT = new DataType("text", Integer.MAX_VALUE, true, false, true);
+    public static final DataType KEYWORD = new DataType("keyword", Short.MAX_VALUE, false, false, true);
+    public static final DataType TEXT = new DataType("text", Integer.MAX_VALUE, false, false, false);
     // date
     public static final DataType DATETIME = new DataType("date", Long.BYTES, false, false, true);
     // ip
@@ -42,11 +42,11 @@ public final class DataTypes {
     // binary
     public static final DataType BINARY = new DataType("binary", Integer.MAX_VALUE, false, false, true);
     // complex types
-    public static final DataType OBJECT = new DataType("object", 0, false, false, true);
-    public static final DataType NESTED = new DataType("nested", 0, false, false, true);
+    public static final DataType OBJECT = new DataType("object", 0, false, false, false);
+    public static final DataType NESTED = new DataType("nested", 0, false, false, false);
 
     
-    public static final Collection<DataType> TYPES = Arrays.asList(
+    private static final Collection<DataType> TYPES = Arrays.asList(
             UNSUPPORTED,
             NULL,
             BOOLEAN,
@@ -78,12 +78,17 @@ public final class DataTypes {
     
     private DataTypes() {}
 
+    public static Collection<DataType> types() {
+        return TYPES;
+    }
+
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
     public static DataType fromEs(String name) {
-        return ES_TO_TYPE.get(name);
+        DataType type = ES_TO_TYPE.get(name);
+        return type != null ? type : UNSUPPORTED;
     }
 
     public static DataType fromJava(Object value) {

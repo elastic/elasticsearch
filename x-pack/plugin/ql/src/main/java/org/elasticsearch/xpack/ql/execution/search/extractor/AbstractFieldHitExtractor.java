@@ -211,7 +211,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     }
 
     protected boolean isFromDocValuesOnly(DataType dataType) {
-            return dataType == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
+        return dataType == KEYWORD // because of ignore_above.
                     || dataType == DATETIME
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }

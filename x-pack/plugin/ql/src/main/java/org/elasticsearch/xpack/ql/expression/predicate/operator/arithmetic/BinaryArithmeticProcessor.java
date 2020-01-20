@@ -6,11 +6,10 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -23,7 +22,7 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
         }
     }
 
-    public enum BinaryArithmeticOperation implements PredicateBiFunction<Object, Object, Object> {
+    public enum DefaultBinaryArithmeticOperation implements BinaryArithmeticOperation {
         ADD(Arithmetics::add, "+"),
         SUB(Arithmetics::sub, "-"),
         MUL(Arithmetics::mul, "*"),
@@ -33,12 +32,12 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
         private final BiFunction<Object, Object, Object> process;
         private final String symbol;
 
-        BinaryArithmeticOperation(BiFunction<Object, Object, Object> process, String symbol) {
+        DefaultBinaryArithmeticOperation(BiFunction<Object, Object, Object> process, String symbol) {
             this.process = process;
             this.symbol = symbol;
         }
 
-        BinaryArithmeticOperation(NumericArithmetic process, String symbol) {
+        DefaultBinaryArithmeticOperation(NumericArithmetic process, String symbol) {
             this(process::wrap, symbol);
         }
 
@@ -56,6 +55,11 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
         public String toString() {
             return symbol;
         }
+
+        @Override
+        public void doWrite(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
     }
     
     public static final String NAME = "abn";
@@ -65,7 +69,12 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
     }
 
     public BinaryArithmeticProcessor(StreamInput in) throws IOException {
-        super(in, i -> i.readEnum(BinaryArithmeticOperation.class));
+        super(in, i -> i.readEnum(DefaultBinaryArithmeticOperation.class));
+    }
+
+    @Override
+    protected void doWrite(StreamOutput out) throws IOException {
+        function().doWrite(out);
     }
 
     @Override

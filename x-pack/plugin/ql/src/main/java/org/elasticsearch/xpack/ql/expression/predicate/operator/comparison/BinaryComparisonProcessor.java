@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
@@ -66,6 +67,11 @@ public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object,
 
     public BinaryComparisonProcessor(StreamInput in) throws IOException {
         super(in, i -> i.readEnum(BinaryComparisonOperation.class));
+    }
+
+    @Override
+    protected void doWrite(StreamOutput out) throws IOException {
+        out.writeEnum(function());
     }
 
     @Override

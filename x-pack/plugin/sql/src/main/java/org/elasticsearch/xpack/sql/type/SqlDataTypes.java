@@ -50,22 +50,22 @@ public class SqlDataTypes {
 
     // @formatter:off
     // date-only, time-only
-    public static final DataType DATE = new DataType(Long.BYTES, false, false, true);
-    public static final DataType TIME = new DataType(Long.BYTES, false, false, true);
+    public static final DataType DATE = new DataType("DATE", null, Long.BYTES, false, false, true);
+    public static final DataType TIME = new DataType("TIME", null, Long.BYTES, false, false, true);
     // interval
-    public static final DataType INTERVAL_YEAR =             new DataType(Integer.BYTES, false, false, false);
-    public static final DataType INTERVAL_MONTH =            new DataType(Integer.BYTES, false, false, false);
-    public static final DataType INTERVAL_DAY =              new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_HOUR =             new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_MINUTE =           new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_SECOND =           new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_YEAR_TO_MONTH =    new DataType(Integer.BYTES, false, false, false);
-    public static final DataType INTERVAL_DAY_TO_HOUR =      new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_DAY_TO_MINUTE =    new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_DAY_TO_SECOND =    new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_HOUR_TO_MINUTE =   new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_HOUR_TO_SECOND =   new DataType(Long.BYTES,    false, false, false);
-    public static final DataType INTERVAL_MINUTE_TO_SECOND = new DataType(Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_YEAR =             new DataType("INTERVAL_YEAR", null, Integer.BYTES, false, false, false);
+    public static final DataType INTERVAL_MONTH =            new DataType("INTERVAL_MONTH", null, Integer.BYTES, false, false, false);
+    public static final DataType INTERVAL_DAY =              new DataType("INTERVAL_DAY", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_HOUR =             new DataType("INTERVAL_HOUR", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_MINUTE =           new DataType("INTERVAL_MINUTE", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_SECOND =           new DataType("INTERVAL_SECOND", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_YEAR_TO_MONTH =    new DataType("INTERVAL_YEAR_TO_MONTH", null, Integer.BYTES, false, false, false);
+    public static final DataType INTERVAL_DAY_TO_HOUR =      new DataType("INTERVAL_DAY_TO_HOUR", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_DAY_TO_MINUTE =    new DataType("INTERVAL_DAY_TO_MINUTE", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_DAY_TO_SECOND =    new DataType("INTERVAL_DAY_TO_SECOND", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_HOUR_TO_MINUTE =   new DataType("INTERVAL_HOUR_TO_MINUTE", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_HOUR_TO_SECOND =   new DataType("INTERVAL_HOUR_TO_SECOND", null, Long.BYTES,    false, false, false);
+    public static final DataType INTERVAL_MINUTE_TO_SECOND = new DataType("INTERVAL_MINUTE_TO_SECOND", null, Long.BYTES,    false, false, false);
     // geo
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
     public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2,  false, false, false);

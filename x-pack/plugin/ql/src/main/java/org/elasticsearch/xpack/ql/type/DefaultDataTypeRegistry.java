@@ -18,7 +18,7 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        return DataTypes.TYPES;
+        return DataTypes.types();
     }
 
     @Override

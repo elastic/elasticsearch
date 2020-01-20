@@ -33,7 +33,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
 /**
  * Conversion utility from one Elasticsearch data type to another Elasticsearch data types.
- * <p>
  */
 public class DataTypeConverter {
 
@@ -372,7 +371,7 @@ public class DataTypeConverter {
         Converter converter = converterFor(detectedType, dataType);
 
         if (converter == null) {
-            throw new QlIllegalArgumentException("cannot convert from [{}] to [{}]", value, dataType.typeName());
+            throw new QlIllegalArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType, dataType.typeName());
         }
 
         return converter.convert(value);

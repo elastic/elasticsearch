@@ -4,11 +4,14 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
+package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
@@ -29,7 +32,7 @@ import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR_TO_MONTH;
 
-public class BinaryArithmeticTests extends ESTestCase {
+public class SqlBinaryArithmeticTests extends ESTestCase {
 
     public void testAddNumbers() {
         assertEquals(Long.valueOf(3), add(1L, 2L));

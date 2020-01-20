@@ -3,19 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
+package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.DefaultBinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 
 /**
  * Addition function ({@code a + b}).
  */
 public class Add extends DateTimeArithmeticOperation {
     public Add(Source source, Expression left, Expression right) {
-        super(source, left, right, DefaultBinaryArithmeticOperation.ADD);
+        super(source, left, right, BinaryArithmeticOperation.ADD);
     }
 
     @Override

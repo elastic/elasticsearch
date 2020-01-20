@@ -65,4 +65,9 @@ public class IntervalYearMonth extends Interval<Period> {
         int i = DataTypeConverter.safeToInt(mul);
         return new IntervalYearMonth(interval().multipliedBy(i), dataType());
     }
+
+    @Override
+    public String script() {
+        return "{sql}.intervalYearMonth({},{})";
+    }
 }

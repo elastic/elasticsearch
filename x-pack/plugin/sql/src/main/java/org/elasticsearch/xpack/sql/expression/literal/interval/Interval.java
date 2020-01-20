@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.sql.expression.literal.interval;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ql.expression.function.scalar.IntervalScripting;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.temporal.TemporalAmount;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -25,7 +27,7 @@ import java.util.Objects;
  * Unfortunately because the SQL interval type is not preserved accurately by the JDK TemporalAmount class
  * in both cases, the data type needs to be carried around as it cannot be inferred.
  */
-public abstract class Interval<I extends TemporalAmount> implements NamedWriteable, ToXContentObject {
+public abstract class Interval<I extends TemporalAmount> implements NamedWriteable, ToXContentObject, IntervalScripting {
 
     private final I interval;
     private final DataType intervalType;
@@ -77,5 +79,15 @@ public abstract class Interval<I extends TemporalAmount> implements NamedWriteab
     @Override
     public String toString() {
         return DateUtils.toString(interval);
+    }
+
+    @Override
+    public String value() {
+        return interval().toString();
+    }
+
+    @Override
+    public String typeName() {
+        return dataType().esType().toUpperCase(Locale.ROOT);
     }
 }

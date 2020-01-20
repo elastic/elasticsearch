@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.logical;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -75,6 +76,11 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
 
     public BinaryLogicProcessor(StreamInput in) throws IOException {
         super(in, i -> i.readEnum(BinaryLogicOperation.class));
+    }
+
+    @Override
+    protected void doWrite(StreamOutput out) throws IOException {
+        out.writeEnum(function());
     }
 
     @Override

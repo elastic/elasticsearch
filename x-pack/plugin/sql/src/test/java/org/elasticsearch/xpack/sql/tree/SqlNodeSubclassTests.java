@@ -19,9 +19,13 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Arrays.asList;
 
 /**
  * Looks for all subclasses of {@link Node} and verifies that they
@@ -50,7 +54,8 @@ import java.util.List;
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = CollectionUtils.combine(
-            NodeSubclassTests.CLASSES_WITH_MIN_TWO_CHILDREN, Arrays.asList(Percentile.class, Percentiles.class, PercentileRanks.class));
+            NodeSubclassTests.CLASSES_WITH_MIN_TWO_CHILDREN,
+            asList(Percentile.class, Percentiles.class, PercentileRanks.class, Iif.class, IfConditional.class, IfNull.class));
 
 
     public SqlNodeSubclassTests(Class<T> subclass) {

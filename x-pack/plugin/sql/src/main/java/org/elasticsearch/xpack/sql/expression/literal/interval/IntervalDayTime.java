@@ -59,4 +59,9 @@ public class IntervalDayTime extends Interval<Duration> {
     public Interval<Duration> mul(long mul) {
         return new IntervalDayTime(interval().multipliedBy(mul), dataType());
     }
+
+    @Override
+    public String script() {
+        return "{sql}.intervalDayTime({},{})";
+    }
 }

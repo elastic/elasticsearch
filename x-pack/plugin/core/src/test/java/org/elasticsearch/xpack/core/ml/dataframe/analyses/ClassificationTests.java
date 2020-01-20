@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
 
-    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0);
+    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = BoostedTreeParams.builder().build();
 
     @Override
     protected Classification doParseInstance(XContentParser parser) throws IOException {

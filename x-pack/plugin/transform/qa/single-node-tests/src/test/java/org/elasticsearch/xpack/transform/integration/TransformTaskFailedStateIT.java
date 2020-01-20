@@ -40,16 +40,15 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting
-            .setJsonEntity(
-                "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
-                    + 0
-                    + "\","
-                    + "\"logger.org.elasticsearch.action.bulk\": \"info\","
-                    + // reduces bulk failure spam
-                    "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
-                    + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
-            );
+        addFailureRetrySetting.setJsonEntity(
+            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+                + 0
+                + "\","
+                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
+                + // reduces bulk failure spam
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
+        );
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -70,9 +69,9 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
         failureTransforms.add(transformId);
-        startDataframeTransform(transformId);
+        startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
-        Map<?, ?> fullState = getDataFrameState(transformId);
+        Map<?, ?> fullState = getTransformStateAndStats(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: "
             + ".*BulkIndexingException: Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
@@ -94,7 +93,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         stopTransform(transformId, true);
 
         awaitState(transformId, TransformStats.State.STOPPED);
-        fullState = getDataFrameState(transformId);
+        fullState = getTransformStateAndStats(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
@@ -105,9 +104,9 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         createDestinationIndexWithBadMapping(dataFrameIndex);
         createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
         failureTransforms.add(transformId);
-        startDataframeTransform(transformId);
+        startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
-        Map<?, ?> fullState = getDataFrameState(transformId);
+        Map<?, ?> fullState = getTransformStateAndStats(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: "
             + ".*BulkIndexingException: Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
@@ -119,7 +118,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
             + "\\]. Use force stop and then restart the transform once error is resolved.";
         // Verify that we cannot start the transform when the task is in a failed state
         assertBusy(() -> {
-            ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId));
+            ResponseException ex = expectThrows(ResponseException.class, () -> startTransform(transformId));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
             assertThat(
                 (String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
@@ -132,7 +131,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     private void awaitState(String transformId, TransformStats.State state) throws Exception {
         assertBusy(() -> {
-            String currentState = getDataFrameTransformState(transformId);
+            String currentState = getTransformState(transformId);
             assertThat(currentState, equalTo(state.value()));
         }, 180, TimeUnit.SECONDS); // It should not take this long, but if the scheduler gets deferred, it could
     }
@@ -142,8 +141,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder
-                    .startObject("mappings")
+                builder.startObject("mappings")
                     .startObject("properties")
                     .startObject("reviewer")
                     .field("type", "long")

@@ -140,6 +140,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 [[cluster-nodes-stats-api-response-body-indices]]
 ===== `indices` section
 
+[%collapsible]
+====
 `indices.docs.count`::
 (integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
@@ -536,97 +538,13 @@ that used an index shard as a target.
 (integer)
 Time in milliseconds
 recovery operations were delayed due to throttling.
-
-[[cluster-nodes-stats-api-response-body-fs]]
-===== `fs` section
-
-`fs.timestamp`::
-    Last time the file stores statistics have been refreshed.
-
-`fs.total.total_in_bytes`::
-    Total size (in bytes) of all file stores.
-
-`fs.total.free_in_bytes`::
-    Total number of unallocated bytes in all file stores.
-
-`fs.total.available_in_bytes`::
-    Total number of bytes available to this Java virtual machine on all file 
-    stores. Depending on OS or process level restrictions, this might appear 
-    less than `fs.total.free_in_bytes`. This is the actual amount of free disk 
-    space the {es} node can utilise.
-
-`fs.data`::
-    List of all file stores.
-
-`fs.data.path`::
-    Path to the file store.
-
-`fs.data.mount`::
-    Mount point of the file store (ex: /dev/sda2).
-
-`fs.data.type`::
-    Type of the file store (ex: ext4).
-
-`fs.data.total_in_bytes`::
-    Total size (in bytes) of the file store.
-
-`fs.data.free_in_bytes`::
-    Total number of unallocated bytes in the file store.
-
-`fs.data.available_in_bytes`::
-    Total number of bytes available to this Java virtual machine on this file 
-    store.
-
-`fs.io_stats.devices` (Linux only)::
-    Array of disk metrics for each device that is backing an {es} data path. 
-    These disk metrics are probed periodically and averages between the last 
-    probe and the current probe are computed.
-
-`fs.io_stats.devices.device_name` (Linux only)::
-    The Linux device name.
-
-`fs.io_stats.devices.operations` (Linux only)::
-    The total number of read and write operations for the device completed since 
-    starting {es}.
-
-`fs.io_stats.devices.read_operations` (Linux only)::
-    The total number of read operations for the device completed since starting 
-    {es}.
-
-`fs.io_stats.devices.write_operations` (Linux only)::
-    The total number of write operations for the device completed since starting 
-    {es}.
-
-`fs.io_stats.devices.read_kilobytes` (Linux only)::
-    The total number of kilobytes read for the device since starting {es}.
-
-`fs.io_stats.devices.write_kilobytes` (Linux only)::
-    The total number of kilobytes written for the device since starting {es}.
-
-`fs.io_stats.operations` (Linux only)::
-    The total number of read and write operations across all devices used by 
-    {es} completed since starting {es}.
-
-`fs.io_stats.read_operations` (Linux only)::
-    The total number of read operations for across all devices used by {es} 
-    completed since starting {es}.
-
-`fs.io_stats.write_operations` (Linux only)::
-    The total number of write operations across all devices used by {es} 
-    completed since starting {es}.
-
-`fs.io_stats.read_kilobytes` (Linux only)::
-    The total number of kilobytes read across all devices used by {es} since 
-    starting {es}.
-
-`fs.io_stats.write_kilobytes` (Linux only)::
-    The total number of kilobytes written across all devices used by {es} since 
-    starting {es}.
-
+====
 
 [[cluster-nodes-stats-api-response-body-os]]
 ===== `os` section
 
+[%collapsible]
+====
 `os.timestamp`::
     Last time the operating system statistics have been refreshed.
 
@@ -720,10 +638,13 @@ recovery operations were delayed due to throttling.
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into the 
 kernel, the `cpu` and `cpuacct` cgroup subsystems must be configured and stats 
 must be readable from `/sys/fs/cgroup/cpu` and `/sys/fs/cgroup/cpuacct`.
+====
 
 [[cluster-nodes-stats-api-response-body-process]]
 ===== `process` section
 
+[%collapsible]
+====
 `process.timestamp`::
     Last time the process statistics have been refreshed.
 
@@ -745,10 +666,13 @@ must be readable from `/sys/fs/cgroup/cpu` and `/sys/fs/cgroup/cpuacct`.
 `process.mem.total_virtual_in_bytes`::
     Size in bytes of virtual memory that is guaranteed to be available to the 
     running process.
+====
 
 [[cluster-nodes-stats-api-response-body-jvm]]
 ===== `jvm` section
 
+[%collapsible]
+====
 `jvm.timestamp`::
 (integer)
 Last time JVM statistics were refreshed.
@@ -894,10 +818,13 @@ Total number of buffer pool classes loaded since the JVM started.
 `jvm.classes.total_unloaded_count`::
 (integer)
 Total number of buffer pool classes unloaded since the JVM started.
+====
 
 [[cluster-nodes-stats-api-response-body-threadpool]]
 ===== `thread_pool` section
 
+[%collapsible]
+====
 `thread_pool.<thread_pool_name>.threads`::
 (integer)
 Number of threads in the thread pool.
@@ -921,10 +848,102 @@ Highest number of active threads in the thread pool.
 `thread_pool.<thread_pool_name>.completed`::
 (integer)
 Number of tasks completed by the thread pool executor.
+====
+
+[[cluster-nodes-stats-api-response-body-fs]]
+===== `fs` section
+
+[%collapsible]
+====
+`fs.timestamp`::
+    Last time the file stores statistics have been refreshed.
+
+`fs.total.total_in_bytes`::
+    Total size (in bytes) of all file stores.
+
+`fs.total.free_in_bytes`::
+    Total number of unallocated bytes in all file stores.
+
+`fs.total.available_in_bytes`::
+    Total number of bytes available to this Java virtual machine on all file 
+    stores. Depending on OS or process level restrictions, this might appear 
+    less than `fs.total.free_in_bytes`. This is the actual amount of free disk 
+    space the {es} node can utilise.
+
+`fs.data`::
+    List of all file stores.
+
+`fs.data.path`::
+    Path to the file store.
+
+`fs.data.mount`::
+    Mount point of the file store (ex: /dev/sda2).
+
+`fs.data.type`::
+    Type of the file store (ex: ext4).
+
+`fs.data.total_in_bytes`::
+    Total size (in bytes) of the file store.
+
+`fs.data.free_in_bytes`::
+    Total number of unallocated bytes in the file store.
+
+`fs.data.available_in_bytes`::
+    Total number of bytes available to this Java virtual machine on this file 
+    store.
+
+`fs.io_stats.devices` (Linux only)::
+    Array of disk metrics for each device that is backing an {es} data path. 
+    These disk metrics are probed periodically and averages between the last 
+    probe and the current probe are computed.
+
+`fs.io_stats.devices.device_name` (Linux only)::
+    The Linux device name.
+
+`fs.io_stats.devices.operations` (Linux only)::
+    The total number of read and write operations for the device completed since 
+    starting {es}.
+
+`fs.io_stats.devices.read_operations` (Linux only)::
+    The total number of read operations for the device completed since starting 
+    {es}.
+
+`fs.io_stats.devices.write_operations` (Linux only)::
+    The total number of write operations for the device completed since starting 
+    {es}.
+
+`fs.io_stats.devices.read_kilobytes` (Linux only)::
+    The total number of kilobytes read for the device since starting {es}.
+
+`fs.io_stats.devices.write_kilobytes` (Linux only)::
+    The total number of kilobytes written for the device since starting {es}.
+
+`fs.io_stats.operations` (Linux only)::
+    The total number of read and write operations across all devices used by 
+    {es} completed since starting {es}.
+
+`fs.io_stats.read_operations` (Linux only)::
+    The total number of read operations for across all devices used by {es} 
+    completed since starting {es}.
+
+`fs.io_stats.write_operations` (Linux only)::
+    The total number of write operations across all devices used by {es} 
+    completed since starting {es}.
+
+`fs.io_stats.read_kilobytes` (Linux only)::
+    The total number of kilobytes read across all devices used by {es} since 
+    starting {es}.
+
+`fs.io_stats.write_kilobytes` (Linux only)::
+    The total number of kilobytes written across all devices used by {es} since 
+    starting {es}.
+====
 
 [[cluster-nodes-stats-api-response-body-transport]]
 ===== `transport` section
 
+[%collapsible]
+====
 `transport.server_open`::
 (integer)
 Number of open TCP connections used for internal communication between nodes.
@@ -948,10 +967,13 @@ communication.
 (integer)
 Size, in bytes, of TX packets sent by the node during internal cluster
 communication.
+====
 
 [[cluster-nodes-stats-api-response-body-http]]
 ===== `http` section
 
+[%collapsible]
+====
 `http.current_open`::
 (integer)
 Current number of open HTTP connections for the node.
@@ -959,10 +981,94 @@ Current number of open HTTP connections for the node.
 `http.total_opened`::
 (integer)
 Total number of HTTP connections opened for the node.
+====
+
+[[cluster-nodes-stats-api-response-body-breakers]]
+===== `breakers` section
+
+[%collapsible]
+====
+`breakers.<circuit_breaker_name>.limit_size_in_bytes`::
+(integer)
+Memory limit, in bytes, for the circuit breaker.
+
+`breakers.<circuit_breaker_name>.limit_size`::
+(<<byte-units,byte value>>)
+Memory limit for the circuit breaker.
+
+`breakers.<circuit_breaker_name>.estimated_size_in_bytes`::
+(integer)
+Estimated memory used, in bytes, for the operation.
+
+`breakers.<circuit_breaker_name>.estimated_size`::
+(<<byte-units,byte value>>)
+Estimated memory used for the operation.
+
+`breakers.<circuit_breaker_name>.overhead`::
+(float)
+A constant that all estimates for the circuit breaker are multiplied with to
+calculate a final estimate.
+
+`breakers.<circuit_breaker_name>.tripped`::
+(integer)
+Total number of times the circuit breaker has been triggered and prevented an
+out of memory error.
+====
+
+[[cluster-nodes-stats-api-response-body-script]]
+===== `script` section
+
+[%collapsible]
+====
+`script.compilations`::
+(integer)
+Total number of inline script compilations performed by the node.
+
+`script.cache_evictions`::
+(integer)
+Total number of times the script cache has evicted old data.
+
+`script.compilation_limit_triggered`::
+(integer)
+Total number of times the <<script-compilation-circuit-breaker,script
+compilation>> circuit breaker has limited inline script compilations.
+====
+
+[[cluster-nodes-stats-api-response-body-discovery]]
+===== `discovery` section
+
+[%collapsible]
+====
+`discovery.cluster_state_queue.total`::
+(integer)
+Total number of cluster states in queue.
+
+`discovery.cluster_state_queue.pending`::
+(integer)
+Number of pending cluster states in queue.
+
+`discovery.cluster_state_queue.committed`::
+(integer)
+Number of committed cluster states in queue.
+
+`discovery.published_cluster_states.full_states`::
+(integer)
+Number of published cluster states.
+
+`discovery.published_cluster_states.incompatible_diffs`::
+(integer)
+Number of incompatible differences between published cluster states.
+
+`discovery.published_cluster_states.compatible_diffs`::
+(integer)
+Number of compatible differences between published cluster states.
+====
 
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section
 
+[%collapsible]
+====
 `ingest.total.count`::
     (integer)
     Total number of documents ingested during the lifetime of this node.
@@ -1007,10 +1113,13 @@ Total number of HTTP connections opened for the node.
 `ingest.pipelines.<pipeline_id>.<processor>.failed`::
     (integer)
     Number of failed operations for the processor.
+====
 
 [[cluster-nodes-stats-api-response-body-adaptive-selection]]
 ===== `adaptive_selection` section
 
+[%collapsible]
+====
 The `adaptive_selection` statistics are keyed by node. For each node:
 
 `adaptive_selection.outgoing_searches`::
@@ -1032,6 +1141,7 @@ The `adaptive_selection` statistics are keyed by node. For each node:
 `rank`::
     The rank of this node; used for shard selection when routing search 
     requests.
+====
 
 
 [[cluster-nodes-stats-api-example]]

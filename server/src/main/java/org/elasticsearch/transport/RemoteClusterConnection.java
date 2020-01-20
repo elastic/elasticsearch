@@ -66,18 +66,13 @@ final class RemoteClusterConnection implements Closeable {
      * @param transportService the local nodes transport service
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
-        this(settings, clusterAlias, transportService,
-            createConnectionManager(RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings), transportService));
-    }
-
-    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService,
-                            ConnectionManager connectionManager) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
-        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
+        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
-        connectionManager.addListener(transportService);
+        this.remoteConnectionManager.getConnectionManager().addListener(transportService);
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.threadPool = transportService.threadPool;

@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryTests extends ESTestCase {

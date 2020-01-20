@@ -24,10 +24,14 @@ for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
       exit 1
     fi
 
-    FILE_PERMS="$(stat -c '%a' ${!VAR_NAME_FILE})"
+    FILE_PERMS="$(stat -L -c '%a' ${!VAR_NAME_FILE})"
 
-    if [[ "$FILE_PERMS" != "400" && "$FILE_PERMS" != 600 ]]; then
-        echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+    if [[ "$FILE_PERMS" != "400" && "$FILE_PERMS" != "600" ]]; then
+        if [[ -h "${!VAR_NAME_FILE}" ]]; then
+            echo "ERROR: File $(readlink "${!VAR_NAME_FILE}") (target of symlink ${!VAR_NAME_FILE} from $VAR_NAME_FILE) must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+        else
+            echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+        fi
         exit 1
     fi
 

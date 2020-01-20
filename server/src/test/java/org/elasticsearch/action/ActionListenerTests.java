@@ -254,6 +254,9 @@ public class ActionListenerTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 exReference.set(e);
+                if (e instanceof IllegalArgumentException) {
+                    throw (IllegalArgumentException) e;
+                }
             }
         };
         ActionListener<Boolean> mapped = ActionListener.map(listener, b -> {
@@ -272,6 +275,12 @@ public class ActionListenerTests extends ESTestCase {
         mapped.onResponse(false);
         assertNull(exReference.get());
         mapped.onResponse(true);
+        assertThat(exReference.get(), instanceOf(IllegalStateException.class));
+
+        assertionError = expectThrows(AssertionError.class, () -> mapped.onFailure(new IllegalArgumentException()));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+        mapped.onFailure(new IllegalStateException());
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
     }
 }

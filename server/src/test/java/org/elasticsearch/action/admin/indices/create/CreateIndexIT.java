@@ -378,4 +378,5 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         assertEquals("Should have index name in response", "foo", response.index());
     }
+
 }

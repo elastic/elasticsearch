@@ -95,24 +95,30 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
 
     protected abstract byte[] filebytes(String platform, String extension) throws IOException;
 
-    private void runBuild(
-        String taskname, String platform, Consumer<BuildResult> assertions, String vendor, String version) throws IOException {
+    private void runBuild(String taskname, String platform, Consumer<BuildResult> assertions, String vendor, String version)
+        throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             String extension = platform.equals("windows") ? "zip" : "tar.gz";
             boolean isOld = version.equals(oldJdkVersion());
 
             wireMock.stubFor(head(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(aResponse().withStatus(200)));
-            wireMock.stubFor(get(urlEqualTo(urlPath(isOld, platform, extension)))
-                .willReturn(aResponse().withStatus(200).withBody(filebytes(platform, extension))));
+            wireMock.stubFor(
+                get(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(
+                    aResponse().withStatus(200).withBody(filebytes(platform, extension))
+                )
+            );
             wireMock.start();
 
-            GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir("jdk-download"))
-                .withArguments(taskname,
+            GradleRunner runner = GradleRunner.create()
+                .withProjectDir(getProjectDir("jdk-download"))
+                .withArguments(
+                    taskname,
                     "-Dtests.jdk_vendor=" + vendor,
                     "-Dtests.jdk_version=" + version,
                     "-Dtests.jdk_repo=" + wireMock.baseUrl(),
-                    "-i")
+                    "-i"
+                )
                 .withPluginClasspath();
 
             BuildResult result = runner.build();

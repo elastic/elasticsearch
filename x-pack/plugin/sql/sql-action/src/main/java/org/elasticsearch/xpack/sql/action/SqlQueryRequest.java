@@ -61,8 +61,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
-            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
-            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
         super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;

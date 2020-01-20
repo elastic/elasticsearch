@@ -91,12 +91,13 @@ public class SqlTypedParamValue implements ToXContentObject {
         SqlTypedParamValue that = (SqlTypedParamValue) o;
         return Objects.equals(value, that.value)
                 && Objects.equals(type, that.type)
-                && Objects.equals(hasExplicitType, that.hasExplicitType);
+                && Objects.equals(hasExplicitType, that.hasExplicitType)
+                && Objects.equals(tokenLocation, that.tokenLocation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, type, hasExplicitType);
+        return Objects.hash(value, type, hasExplicitType, tokenLocation);
     }
 
     @Override

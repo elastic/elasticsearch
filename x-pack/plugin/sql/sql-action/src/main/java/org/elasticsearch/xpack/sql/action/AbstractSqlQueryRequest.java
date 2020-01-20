@@ -81,7 +81,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareString(AbstractSqlQueryRequest::query, QUERY);
         parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
         parser.declareString((request, clientId) -> request.clientId(clientId), CLIENT_ID);
-        parser.declareField(AbstractSqlQueryRequest::params, p -> AbstractSqlQueryRequest.parseParams(p), PARAMS, ValueType.VALUE_ARRAY);
+        parser.declareField(AbstractSqlQueryRequest::params, AbstractSqlQueryRequest::parseParams, PARAMS, ValueType.VALUE_ARRAY);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
@@ -132,23 +132,23 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             Object value = null;
             String type = null;
             SqlTypedParamValue previousParam = null;
+            SqlTypedParamValue currentParam = null;
             
             while ((token = p.nextToken()) != Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
                 
                 if (token == Token.START_OBJECT) {
                     // we are at the start of a value/type pair... hopefully
-                    SqlTypedParamValue s = SqlTypedParamValue.fromXContent(p);
+                    currentParam = SqlTypedParamValue.fromXContent(p);
                     /*
-                     * Set the xcontentlocation for the first param just in case the first one doesn't meet the parsing rules
-                     * that are checked later in validateParams method and, also, the xcontentlocation of the param that is 
-                     * different from the previous param in list when it comes to its type being explicitly set or inferred.
+                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
+                     * that are checked later in validateParams method.
+                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to 
+                     * its type being explicitly set or inferred.
                      */
                     if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
-                        s.tokenLocation(loc);
+                        currentParam.tokenLocation(loc);
                     }
-                    result.add(s);
-                    previousParam = s;
                 } else {
                     if (token == Token.VALUE_STRING) {
                         value = p.text();
@@ -178,13 +178,14 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
                     }
                     
-                    SqlTypedParamValue s = new SqlTypedParamValue(type, value, false);
+                    currentParam = new SqlTypedParamValue(type, value, false);
                     if ((previousParam != null && previousParam.hasExplicitType() == true) || result.isEmpty()) {
-                        s.tokenLocation(loc);
+                        currentParam.tokenLocation(loc);
                     }
-                    result.add(s);
-                    previousParam = s;
                 }
+
+                result.add(currentParam);
+                previousParam = currentParam;
             }
         }
         

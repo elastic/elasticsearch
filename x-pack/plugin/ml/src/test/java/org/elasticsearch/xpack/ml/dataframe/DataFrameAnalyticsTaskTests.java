@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -13,7 +12,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
@@ -22,10 +20,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsActionResponseTests;
-import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.StartingState;
-import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.stubbing.Answer;
@@ -116,13 +112,13 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         assertThat(startingState, equalTo(StartingState.FINISHED));
     }
 
-    private void testMarkAsCompleted(SearchHits searchHits, String expectedIndexOrAlias) {
+    private void testPersistProgress(SearchHits searchHits, String expectedIndexOrAlias) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadPool);
 
-        GetDataFrameAnalyticsStatsAction.Response getStatsResponse = GetDataFrameAnalyticsStatsActionResponseTests.randomResponse();
+        GetDataFrameAnalyticsStatsAction.Response getStatsResponse = GetDataFrameAnalyticsStatsActionResponseTests.randomResponse(1);
         doAnswer(withResponse(getStatsResponse)).when(client).execute(eq(GetDataFrameAnalyticsStatsAction.INSTANCE), any(), any());
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -132,27 +128,17 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         IndexResponse indexResponse = mock(IndexResponse.class);
         doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
 
-        TaskParams taskParams = new TaskParams("task_id", Version.CURRENT, Collections.emptyList(), false);
-        DataFrameAnalyticsTask task =
-            new DataFrameAnalyticsTask(
-                0,
-                "",
-                "",
-                null,
-                null,
-                client,
-                mock(ClusterService.class),
-                mock(DataFrameAnalyticsManager.class),
-                mock(DataFrameAnalyticsAuditor.class),
-                taskParams);
-        task.markAsCompleted();
+        Runnable runnable = mock(Runnable.class);
+
+        DataFrameAnalyticsTask.persistProgress(client, "task_id", runnable);
 
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
 
-        InOrder inOrder = inOrder(client);
+        InOrder inOrder = inOrder(client, runnable);
         inOrder.verify(client).execute(eq(GetDataFrameAnalyticsStatsAction.INSTANCE), any(), any());
         inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
         inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        inOrder.verify(runnable).run();
         inOrder.verifyNoMoreInteractions();
 
         IndexRequest indexRequest = indexRequestCaptor.getValue();
@@ -160,12 +146,12 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         assertThat(indexRequest.id(), equalTo("data_frame_analytics-task_id-progress"));
     }
 
-    public void testMarkAsCompleted_ProgressDocumentCreated() {
-        testMarkAsCompleted(SearchHits.empty(), ".ml-state-write");
+    public void testPersistProgress_ProgressDocumentCreated() {
+        testPersistProgress(SearchHits.empty(), ".ml-state-write");
     }
 
-    public void testMarkAsCompleted_ProgressDocumentUpdated() {
-        testMarkAsCompleted(
+    public void testPersistProgress_ProgressDocumentUpdated() {
+        testPersistProgress(
             new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
             ".ml-state-dummy");
     }

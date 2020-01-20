@@ -55,6 +55,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -1143,5 +1144,27 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Returns the minimum node version among all nodes of the cluster
+     */
+    protected static Version minimumNodeVersion() throws IOException {
+        final Request request = new Request("GET", "_nodes");
+        request.addParameter("filter_path", "nodes.*.version");
+
+        final Response response = client().performRequest(request);
+        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
+
+        Version minVersion = null;
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
+            if (minVersion == null || minVersion.after(nodeVersion)) {
+                minVersion = nodeVersion;
+            }
+        }
+        assertNotNull(minVersion);
+        return minVersion;
     }
 }

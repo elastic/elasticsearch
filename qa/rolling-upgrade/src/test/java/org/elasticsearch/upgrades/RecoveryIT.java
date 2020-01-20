@@ -541,28 +541,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    private static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = client().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
-    }
-
-    /**
      * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
      * that the index has started shards.
      */

@@ -29,8 +29,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -71,14 +69,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class encapsulates the state needed to execute a search. It holds a reference to the
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
- *
- * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
- * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
- * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
- * an external event.
  */
-// For reference why we use RefCounted here see #20095
-public abstract class SearchContext extends AbstractRefCounted implements Releasable {
+public abstract class SearchContext implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
     public static final int TRACK_TOTAL_HITS_ACCURATE = Integer.MAX_VALUE;
@@ -90,7 +82,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     private InnerHitsContext innerHitsContext;
 
     protected SearchContext() {
-        super("search_context");
+
     }
 
     public abstract void setTask(SearchShardTask task);
@@ -101,23 +93,11 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) { // prevent double closing
-            decRef();
-        }
-    }
-
-    @Override
-    protected final void closeInternal() {
         try {
             clearReleasables(Lifetime.CONTEXT);
         } finally {
             doClose();
         }
-    }
-
-    @Override
-    protected void alreadyClosed() {
-        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
     }
 
     protected abstract void doClose();
@@ -146,11 +126,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract float queryBoost();
 
-    public abstract long getOriginNanoTime();
-
     public abstract ScrollContext scrollContext();
-
-    public abstract SearchContext scrollContext(ScrollContext scroll);
 
     public abstract SearchContextAggregations aggregations();
 
@@ -179,8 +155,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      * @return list of all rescore contexts.  empty if there aren't any.
      */
     public abstract List<RescoreContext> rescore();
-
-    public abstract void addRescore(RescoreContext rescore);
 
     public abstract boolean hasScriptFields();
 
@@ -322,14 +296,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize);
 
-    public abstract void accessed(long accessTime);
-
-    public abstract long lastAccessTime();
-
-    public abstract long keepAlive();
-
-    public abstract void keepAlive(long keepAlive);
-
     public SearchLookup lookup() {
         return getQueryShardContext().lookup();
     }
@@ -411,10 +377,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
          * This life time is for objects that only live during collection time.
          */
         COLLECTION,
-        /**
-         * This life time is for objects that need to live until the end of the current search phase.
-         */
-        PHASE,
         /**
          * This life time is for objects that need to live until the search context they are attached to is destroyed.
          */

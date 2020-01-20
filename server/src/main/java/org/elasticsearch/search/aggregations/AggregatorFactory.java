@@ -50,7 +50,7 @@ public abstract class AggregatorFactory {
             this.parent = parent;
             this.factory = factory;
             this.first = first;
-            context.addReleasable(this, Lifetime.PHASE);
+            context.addReleasable(this, Lifetime.CONTEXT);
             aggregators = bigArrays.newObjectArray(1);
             aggregators.set(0, first);
             collectors = bigArrays.newObjectArray(1);

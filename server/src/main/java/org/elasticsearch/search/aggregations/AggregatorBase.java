@@ -76,7 +76,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(context, this);
-        context.addReleasable(this, Lifetime.PHASE);
+        context.addReleasable(this, Lifetime.CONTEXT);
         final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {

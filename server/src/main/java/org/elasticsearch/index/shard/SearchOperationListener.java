@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -76,34 +78,34 @@ public interface SearchOperationListener {
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
-     * Executed when a new search context was created
-     * @param context the created context
+     * Executed when a new reader context was created
+     * @param readerContext the created context
      */
-    default void onNewContext(SearchContext context) {}
+    default void onNewReaderContext(ReaderContext readerContext) {}
 
     /**
-     * Executed when a previously created search context is freed.
+     * Executed when a previously created reader context is freed.
      * This happens either when the search execution finishes, if the
      * execution failed or if the search context as idle for and needs to be
      * cleaned up.
-     * @param context the freed search context
+     * @param readerContext the freed reader context
      */
-    default void onFreeContext(SearchContext context) {}
+    default void onFreeReaderContext(ReaderContext readerContext) {}
 
     /**
      * Executed when a new scroll search {@link SearchContext} was created
-     * @param context the created search context
+     * @param scrollContext the created search context
      */
-    default void onNewScrollContext(SearchContext context) {}
+    default void onNewScrollContext(ScrollContext scrollContext) {}
 
     /**
      * Executed when a scroll search {@link SearchContext} is freed.
      * This happens either when the scroll search execution finishes, if the
      * execution failed or if the search context as idle for and needs to be
      * cleaned up.
-     * @param context the freed search context
+     * @param scrollContext the freed search context
      */
-    default void onFreeScrollContext(SearchContext context) {}
+    default void onFreeScrollContext(ScrollContext scrollContext) {}
 
     /**
      * Executed prior to using a {@link SearchContext} that has been retrieved
@@ -193,10 +195,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onNewContext(SearchContext context) {
+        public void onNewReaderContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onNewContext(context);
+                    listener.onNewReaderContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onNewContext listener [{}] failed", listener), e);
                 }
@@ -204,10 +206,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFreeContext(SearchContext context) {
+        public void onFreeReaderContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFreeContext(context);
+                    listener.onFreeReaderContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreeContext listener [{}] failed", listener), e);
                 }
@@ -215,10 +217,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onNewScrollContext(SearchContext context) {
+        public void onNewScrollContext(ScrollContext scrollContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onNewScrollContext(context);
+                    listener.onNewScrollContext(scrollContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onNewScrollContext listener [{}] failed", listener), e);
                 }
@@ -226,10 +228,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFreeScrollContext(SearchContext context) {
+        public void onFreeScrollContext(ScrollContext scrollContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFreeScrollContext(context);
+                    listener.onFreeScrollContext(scrollContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreeScrollContext listener [{}] failed", listener), e);
                 }

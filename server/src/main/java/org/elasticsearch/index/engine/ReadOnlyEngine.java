@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -68,7 +69,7 @@ public class ReadOnlyEngine extends Engine {
      * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
      * ID field if we are reading form memory maps.
      */
-    public static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
+    private static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
         BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
@@ -533,5 +534,14 @@ public class ReadOnlyEngine extends Engine {
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
         assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
             maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
+    }
+
+    protected DirectoryReader openDirectory(Directory dir, IndexSettings indexSettings) throws IOException {
+        final DirectoryReader reader = DirectoryReader.open(dir, OFF_HEAP_READER_ATTRIBUTES);
+        if (indexSettings.isSoftDeleteEnabled()) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
     }
 }

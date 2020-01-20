@@ -149,7 +149,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         static final ParseField ENOUGH_SHARDS_ACTIVE = new ParseField("enough_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
 
-        public ActiveShardsInfo(long currentActiveShardsCount, String targetActiveShardsCount, boolean enoughShardsActive) {
+        ActiveShardsInfo(long currentActiveShardsCount, String targetActiveShardsCount, boolean enoughShardsActive) {
             this.currentActiveShardsCount = currentActiveShardsCount;
             this.targetActiveShardsCount = targetActiveShardsCount;
             this.enoughShardsActive = enoughShardsActive;
@@ -200,7 +200,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         static final ParseField MESSAGE = new ParseField("message");
 
-        public Info(String message) {
+        Info(String message) {
             this.message = message;
         }
 

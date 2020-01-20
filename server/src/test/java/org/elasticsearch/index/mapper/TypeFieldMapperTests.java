@@ -75,7 +75,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(values.advanceExact(0));
         assertEquals(0, values.nextOrd());
         assertEquals(SortedSetDocValues.NO_MORE_ORDS, values.nextOrd());
-        assertEquals(new BytesRef("_doc"), values.lookupOrd(0));
+        assertEquals(new BytesRef("type"), values.lookupOrd(0));
         r.close();
         dir.close();
     }

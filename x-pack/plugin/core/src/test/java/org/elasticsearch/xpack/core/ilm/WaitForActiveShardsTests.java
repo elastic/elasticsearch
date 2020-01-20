@@ -19,9 +19,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
@@ -177,11 +179,37 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
 
-        XContentBuilder expected = new WaitForActiveShardsStep.Info(2, "3", false).toXContent(JsonXContent.contentBuilder(),
+        XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(JsonXContent.contentBuilder(),
             ToXContent.EMPTY_PARAMS);
         String actualResultAsString = Strings.toString(result.getInfomationContext());
         assertThat(actualResultAsString, is(Strings.toString(expected)));
         assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
+    }
+
+    public void testResultReportsErrorMessage() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
+            .putAlias(AliasMetaData.builder(alias).writeIndex(true))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put("index.write.wait_for_active_shards", "3")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(2)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(rolledIndex, true).build())
+            .build();
+
+        WaitForActiveShardsStep step = createRandomInstance();
+        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("index-000000", UUID.randomUUID().toString()),
+            clusterState);
+        assertThat(result.isComplete(), is(false));
+
+        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        assertThat(actualResultAsString,
+            containsString("[" + step.getKey().getAction() + "] lifecycle action for index [index-000000] executed but " +
+                "index no longer exists"));
     }
 
     public void testParseIndexNameReturnsCounter() {

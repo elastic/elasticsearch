@@ -23,6 +23,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -49,15 +50,19 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexMetaData originalIndexMeta = clusterState.metaData().index(index);
 
         if (originalIndexMeta == null) {
+            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
+                getKey().getAction(), index.getName());
             // Index must have been since deleted
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
-            return new Result(false, null);
+            logger.debug(errorMessage);
+            return new Result(false, new Info(errorMessage));
         }
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
         if (indexingComplete) {
-            logger.trace(originalIndexMeta.getIndex() + " has lifecycle complete set, skipping " + WaitForActiveShardsStep.NAME);
-            return new Result(true, null);
+            String message = String.format(Locale.ROOT, "index [%s] has lifecycle complete set, skipping [%s]",
+                originalIndexMeta.getIndex().getName(), WaitForActiveShardsStep.NAME);
+            logger.trace(message);
+            return new Result(true, new Info(message));
         }
 
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
@@ -88,10 +93,13 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 }
             }
             if (rolledIndexMeta == null) {
-                // Index must have been since deleted
-                logger.debug("unable to find the index that was rolled over from [{}] as part of lifecycle action [{}]", index.getName(),
+                String errorMessage = String.format(Locale.ROOT,
+                    "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", index.getName(),
                     getKey().getAction());
-                return new Result(false, null);
+
+                // Index must have been since deleted
+                logger.debug(errorMessage);
+                return new Result(false, new Info(errorMessage));
             }
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
@@ -105,7 +113,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
             currentActiveShards += shardRouting.value.activeShards().size();
         }
-        return new Result(enoughShardsActive, new Info(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
+        return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
     }
 
     /**
@@ -129,7 +137,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         }
     }
 
-    public static final class Info implements ToXContentObject {
+    static final class ActiveShardsInfo implements ToXContentObject {
 
         private final long currentActiveShardsCount;
         private final String targetActiveShardsCount;
@@ -141,7 +149,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         static final ParseField ENOUGH_SHARDS_ACTIVE = new ParseField("enough_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
 
-        public Info(long currentActiveShardsCount, String targetActiveShardsCount, boolean enoughShardsActive) {
+        public ActiveShardsInfo(long currentActiveShardsCount, String targetActiveShardsCount, boolean enoughShardsActive) {
             this.currentActiveShardsCount = currentActiveShardsCount;
             this.targetActiveShardsCount = targetActiveShardsCount;
             this.enoughShardsActive = enoughShardsActive;
@@ -173,7 +181,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            Info info = (Info) o;
+            ActiveShardsInfo info = (ActiveShardsInfo) o;
             return currentActiveShardsCount == info.currentActiveShardsCount &&
                 enoughShardsActive == info.enoughShardsActive &&
                 Objects.equals(targetActiveShardsCount, info.targetActiveShardsCount) &&
@@ -183,6 +191,42 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         @Override
         public int hashCode() {
             return Objects.hash(currentActiveShardsCount, targetActiveShardsCount, enoughShardsActive, message);
+        }
+    }
+
+    static final class Info implements ToXContentObject {
+
+        private final String message;
+
+        static final ParseField MESSAGE = new ParseField("message");
+
+        public Info(String message) {
+            this.message = message;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(MESSAGE.getPreferredName(), message);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Info info = (Info) o;
+            return Objects.equals(message, info.message);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(message);
         }
     }
 }

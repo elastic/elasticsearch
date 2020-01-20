@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.time.Instant;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -31,7 +31,7 @@ public class TimeFieldTests extends ESTestCase {
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
         assertThat(timeField.getName(), equalTo("time"));
         assertThat(timeField.getSearchField(), equalTo("time"));
-        assertThat(timeField.getTypes(), contains("date"));
+        assertThat(timeField.getTypes(), containsInAnyOrder("date", "date_nanos"));
         assertThat(timeField.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
         assertThat(timeField.getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(timeField.supportsFromSource(), is(false));
@@ -53,7 +53,7 @@ public class TimeFieldTests extends ESTestCase {
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
         assertThat(timeField.getName(), equalTo("time"));
         assertThat(timeField.getSearchField(), equalTo("time"));
-        assertThat(timeField.getTypes(), contains("date"));
+        assertThat(timeField.getTypes(), containsInAnyOrder("date", "date_nanos"));
         assertThat(timeField.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
         assertThat(timeField.getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(timeField.supportsFromSource(), is(false));
@@ -71,7 +71,7 @@ public class TimeFieldTests extends ESTestCase {
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
         assertThat(timeField.getName(), equalTo("time"));
         assertThat(timeField.getSearchField(), equalTo("time"));
-        assertThat(timeField.getTypes(), contains("date"));
+        assertThat(timeField.getTypes(), containsInAnyOrder("date", "date_nanos"));
         assertThat(timeField.getMethod(), equalTo(ExtractedField.Method.SCRIPT_FIELD));
         expectThrows(UnsupportedOperationException.class, timeField::getDocValueFormat);
         assertThat(timeField.supportsFromSource(), is(false));

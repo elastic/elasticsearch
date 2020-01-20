@@ -97,7 +97,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
             } else {
                 listener.onFailure(new RepositoryException(metadata.name(),
-                        "Password mismatch for repository [" + metadata.name() + "]. The local node's value of the " +
+                        "Password mismatch for repository. The local node's value of the " +
                                 "keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's"));
             }
         } else {
@@ -118,8 +118,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                     "keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's");
         }
         super.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, ActionListener.delegateResponse(listener,
-                (l, e) -> l.onFailure(new RepositoryException(metadata.name(), "Password mismatch for repository [" + metadata.name() +
-                        "]. The local node's value of the keystore secure setting [" +
+                (l, e) -> l.onFailure(new RepositoryException(metadata.name(), "Password mismatch for repository. " +
+                        "The local node's value of the keystore secure setting [" +
                         passwordSettingForThisRepo.getKey() + "] is different from the master's"))));
     }
 

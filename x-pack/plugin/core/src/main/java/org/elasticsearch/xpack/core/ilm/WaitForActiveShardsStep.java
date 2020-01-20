@@ -72,8 +72,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         Alias alias = (Alias) aliasOrIndex;
         IndexMetaData aliasWriteIndex = alias.getWriteIndex();
-        String rolledIndexName;
-        String waitForActiveShardsSettingValue;
+        final String rolledIndexName;
+        final String waitForActiveShardsSettingValue;
         if (aliasWriteIndex != null) {
             rolledIndexName = aliasWriteIndex.getIndex().getName();
             waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");

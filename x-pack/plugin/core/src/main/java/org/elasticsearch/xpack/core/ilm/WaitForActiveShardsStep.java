@@ -119,9 +119,15 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
      */
     static int parseIndexNameCounter(String indexName) {
         int numberIndex = indexName.lastIndexOf("-");
-        assert numberIndex != -1 : "no separator '-' found";
-        return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
-            indexName.length()));
+        if (numberIndex == -1) {
+            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
+        }
+        try {
+            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
+                indexName.length()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
+        }
     }
 
     public static final class Info implements ToXContentObject {

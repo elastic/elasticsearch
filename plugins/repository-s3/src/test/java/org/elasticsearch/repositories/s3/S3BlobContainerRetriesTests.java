@@ -266,7 +266,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             logger.info("maxRetries={}, position={}, length={}, readLimit={}, byteSize={}, bytesRead={}",
                 maxRetries, position, length, readLimit, bytes.length, bytesRead.length);
             assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + readLimit)), bytesRead);
-            if (readLimit < length && readLimit == bytesRead.length) {
+            if (readLimit == 0 || (readLimit < length && readLimit == bytesRead.length)) {
                 // we might have completed things based on an incomplete response, and we're happy with that
             } else {
                 assertTrue(countDown.isCountedDown());
@@ -301,7 +301,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         });
         assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class)));
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
-            containsString("Premature end of chunk coded message body: closing chunk expected")));
+            containsString("premature end of chunk coded message body: closing chunk expected")));
         assertThat(exception.getSuppressed().length, equalTo(maxRetries));
     }
 

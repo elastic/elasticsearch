@@ -12,6 +12,10 @@ setup:
 
 ---
 "Validate query api":
+  - skip:
+      version: ' - 7.99.99'
+      reason: message changed in 8.0.0
+
   - do:
       indices.validate_query:
         q: query string

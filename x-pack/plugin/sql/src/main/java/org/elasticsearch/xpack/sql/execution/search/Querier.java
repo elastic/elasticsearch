@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -86,7 +87,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
     private final Configuration cfg;
@@ -148,6 +149,30 @@ public class Querier {
                 .setIndicesOptions(
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
+    }
+    
+    protected static void logSearchResponse(SearchResponse response, Logger logger) {
+        List<Aggregation> aggs = Collections.emptyList();
+        if (response.getAggregations() != null) {
+            aggs = response.getAggregations().asList();
+        }
+        StringBuilder aggsNames = new StringBuilder();
+        for (int i = 0; i < aggs.size(); i++) {
+            aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
+        }
+        
+        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]",
+                response.getHits().getTotalHits().relation.toString(),
+                response.getHits().getTotalHits().value,
+                aggs.size(),
+                aggsNames,
+                response.getFailedShards(),
+                response.getSkippedShards(),
+                response.getSuccessfulShards(),
+                response.getTotalShards(),
+                response.getTook(),
+                response.isTimedOut());
     }
 
     /**
@@ -280,6 +305,10 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+            
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);

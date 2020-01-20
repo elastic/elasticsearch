@@ -740,8 +740,8 @@ setup:
 ---
 "Mixed ip and unmapped fields":
   - skip:
-      version: " - 7.99.99"
-      reason: This will fail against 7.x until the fix is backported there
+      version: " - 7.5.99"
+      reason: This was fixed in 7.6.0
   # It is important that the index *without* the ip field be sorted *before*
   # the index *with* the ip field because that has caused bugs in the past.
   - do:

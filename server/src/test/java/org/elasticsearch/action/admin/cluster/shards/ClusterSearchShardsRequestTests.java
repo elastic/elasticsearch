@@ -65,7 +65,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                 // indices options are not equivalent when sent to an older version and re-read due
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
-                if (version.onOrAfter(Version.V_8_0_0) || request.indicesOptions().expandWildcardsHidden()) { // TODO change on backport!
+                if (version.onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 }
                 assertEquals(request.routing(), deserialized.routing());

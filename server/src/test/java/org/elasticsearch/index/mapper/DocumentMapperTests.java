@@ -155,7 +155,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("_doc", new CompressedXContent("{\"_doc\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -184,7 +184,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("_doc", new CompressedXContent(update.toString()), MapperService.MergeReason.MAPPING_UPDATE);
+                        mapperService.merge("test", new CompressedXContent(update.toString()), MapperService.MergeReason.MAPPING_UPDATE);
                     }
                 } catch (Exception e) {
                     error.set(e);

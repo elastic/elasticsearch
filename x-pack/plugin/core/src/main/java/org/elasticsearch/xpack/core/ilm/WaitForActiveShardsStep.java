@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -141,16 +140,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         static final ParseField TARGET_ACTIVE_SHARDS_COUNT = new ParseField("target_active_shards_count");
         static final ParseField ENOUGH_SHARDS_ACTIVE = new ParseField("enough_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
-        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("wait_for_active_shards_step_info",
-            a -> new Info((long) a[0], (String) a[1], (boolean) a[2]));
-
-        static {
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), CURRENT_ACTIVE_SHARDS_COUNT);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), TARGET_ACTIVE_SHARDS_COUNT);
-            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENOUGH_SHARDS_ACTIVE);
-            PARSER.declareString((i, s) -> {
-            }, MESSAGE);
-        }
 
         public Info(long currentActiveShardsCount, String targetActiveShardsCount, boolean enoughShardsActive) {
             this.currentActiveShardsCount = currentActiveShardsCount;

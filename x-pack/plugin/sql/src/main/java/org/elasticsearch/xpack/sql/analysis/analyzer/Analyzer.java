@@ -217,8 +217,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // unsupported types
             else if (DataTypes.isUnsupported(fa.dataType())) {
                 UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+                if (unsupportedField.hasInherited()) {
+                    named = u.withUnresolvedMessage(
+                            "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "] "
+                                    + "in hierarchy (field [" + unsupportedField.getInherited() + "])");
+                } else {
+                    named = u.withUnresolvedMessage(
+                            "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]");
+                }
             }
             // compound fields
             else if (allowCompound == false && fa.dataType().isPrimitive() == false) {

@@ -365,9 +365,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 try {
                     final Repository repository = repositoriesService.repository(repositoryName);
-                    hasOldFormatSnapshots = snapshotIds.stream().map(repository::getSnapshotInfo).anyMatch(
-                        snapshotInfo -> (excluded == null || snapshotInfo.snapshotId().equals(excluded) == false)
-                            && snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
+                    hasOldFormatSnapshots = snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).anyMatch(
+                        snapshotId -> {
+                            final Version known = repositoryData.getVersion(snapshotId);
+                            return (known == null ? repository.getSnapshotInfo(snapshotId).version() : known)
+                                .before(SHARD_GEN_IN_REPO_DATA_VERSION);
+                        });
                 } catch (SnapshotMissingException e) {
                     logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
                     return true;

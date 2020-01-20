@@ -28,11 +28,13 @@ import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -96,7 +98,7 @@ public class ExtractedFieldsDetectorFactory {
 
     private void getCardinalitiesForFieldsWithLimit(String[] index, DataFrameAnalyticsConfig config,
                                                     ActionListener<Map<String, Long>> listener) {
-        Map<String, Long> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
+        List<FieldCardinalityConstraint> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
         if (fieldCardinalityLimits.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;
@@ -108,13 +110,11 @@ public class ExtractedFieldsDetectorFactory {
         );
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
-        for (Map.Entry<String, Long> entry : fieldCardinalityLimits.entrySet()) {
-            String fieldName = entry.getKey();
-            Long limit = entry.getValue();
+        for (FieldCardinalityConstraint limit : fieldCardinalityLimits) {
             searchSourceBuilder.aggregation(
-                AggregationBuilders.cardinality(fieldName)
-                    .field(fieldName)
-                    .precisionThreshold(limit + 1));
+                AggregationBuilders.cardinality(limit.getField())
+                    .field(limit.getField())
+                    .precisionThreshold(limit.getUpperBound() + 1));
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
         ClientHelper.executeWithHeadersAsync(
@@ -130,13 +130,13 @@ public class ExtractedFieldsDetectorFactory {
         }
 
         Map<String, Long> fieldCardinalities = new HashMap<>(config.getAnalysis().getFieldCardinalityLimits().size());
-        for (String field : config.getAnalysis().getFieldCardinalityLimits().keySet()) {
-            Cardinality cardinality = aggs.get(field);
+        for (FieldCardinalityConstraint limit : config.getAnalysis().getFieldCardinalityLimits()) {
+            Cardinality cardinality = aggs.get(limit.getField());
             if (cardinality == null) {
                 listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
                 return;
             }
-            fieldCardinalities.put(field, cardinality.getValue());
+            fieldCardinalities.put(limit.getField(), cardinality.getValue());
         }
         listener.onResponse(fieldCardinalities);
     }

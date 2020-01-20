@@ -107,7 +107,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public void testFieldCardinalityLimitsIsEmpty() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(anEmptyMap()));
+        assertThat(createTestInstance().getFieldCardinalityLimits().isEmpty(), is(true));
     }
 
     public void testGetExplicitlyMappedFields() {

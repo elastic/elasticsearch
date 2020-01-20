@@ -182,8 +182,8 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
-        return Collections.emptyMap();
+    public List<FieldCardinalityConstraint> getFieldCardinalityLimits() {
+        return Collections.emptyList();
     }
 
     @Override

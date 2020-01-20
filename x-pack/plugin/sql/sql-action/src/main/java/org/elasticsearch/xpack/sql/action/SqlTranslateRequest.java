@@ -58,6 +58,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
 
     public static SqlTranslateRequest fromXContent(XContentParser parser) {
         SqlTranslateRequest request = PARSER.apply(parser, null);
+        validateParams(request.params(), request.mode());
         return request;
     }
 

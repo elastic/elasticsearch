@@ -688,6 +688,7 @@ public class MetaDataCreateIndexService {
         if (!mappings.isEmpty()) {
             assert mappings.size() == 1 : mappings;
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
+            mapperService.validateDynamicTemplates();
         }
 
         if (sourceMetaData == null) {

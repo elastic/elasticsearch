@@ -334,8 +334,16 @@ public class DynamicTemplate implements ToXContentObject {
         return processedList;
     }
 
+    String getName() {
+        return name;
+    }
+
     XContentFieldType getXContentFieldType() {
         return xcontentFieldType;
+    }
+
+    Map<String, Object> getMapping() {
+        return mapping;
     }
 
     @Override

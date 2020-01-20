@@ -716,4 +716,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         return reloadedAnalyzers;
     }
+
+    public void validateDynamicTemplates() {
+        Mapper.TypeParser.ParserContext parserContext = documentParser.parserContext();
+        documentMapper().root().validateDynamicTemplates(parserContext);
+    }
 }

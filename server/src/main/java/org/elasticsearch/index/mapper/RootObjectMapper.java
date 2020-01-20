@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -189,7 +190,6 @@ public class RootObjectMapper extends ObjectMapper {
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                    validateDynamicTemplate(parserContext, templateName, templateParams, template);
                     if (template != null) {
                         templates.add(template);
                     }
@@ -206,109 +206,6 @@ public class RootObjectMapper extends ObjectMapper {
             return false;
         }
 
-        private static void validateDynamicTemplate(ParserContext parserContext,
-                                                    String templateName,
-                                                    Map<String, Object> templateParams,
-                                                    DynamicTemplate template) {
-
-            if (containsPlaceHolders(templateParams, "{name}")) {
-                // Can't validate template, because field names can't be guessed up front.
-                return;
-            }
-
-            final XContentFieldType[] types;
-            if (template.getXContentFieldType() != null) {
-                types = new XContentFieldType[]{template.getXContentFieldType()};
-            } else {
-                types = XContentFieldType.values();
-            }
-
-            Exception lastError = null;
-            boolean dynamicTemplateInvalid = true;
-
-            for (XContentFieldType contentFieldType : types) {
-                String defaultDynamicType = contentFieldType.defaultMappingType();
-                String mappingType = template.mappingType(defaultDynamicType);
-                Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
-                if (typeParser != null) {
-                    Map<String, Object> fieldTypeConfig = template.mappingForName("__dummy__", defaultDynamicType);
-                    fieldTypeConfig.remove("type");
-                    try {
-                        Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
-                        if (fieldTypeConfig.isEmpty()) {
-                            dynamicTemplateInvalid = false;
-                            break;
-                        }
-                    } catch (Exception e) {
-                        lastError = e;
-                    }
-                }
-            }
-
-            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
-            if (dynamicTemplateInvalid) {
-                String message =
-                    String.format(Locale.ROOT, "dynamic template [%s] has invalid content [%s]", templateName, templateParams);
-                if (failInvalidDynamicTemplates) {
-                    throw new IllegalArgumentException(message, lastError);
-                } else {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", message);
-                }
-            }
-        }
-    }
-
-    private static boolean containsPlaceHolders(Map<?, ?> map, String... placeHolders) {
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String key = entry.getKey().toString();
-            for (String placeHolder : placeHolders) {
-                if (key.contains(placeHolder)) {
-                    return true;
-                }
-            }
-
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
-                    return true;
-                }
-            } else if (value instanceof List) {
-                if (containsPlaceHolders((List<?>) value, placeHolders)) {
-                    return true;
-                }
-            } else if (value instanceof String) {
-                String valueString = (String) value;
-                for (String placeHolder : placeHolders) {
-                    if (valueString.contains(placeHolder)) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean containsPlaceHolders(List<?> list, String... placeHolders) {
-        for (Object value : list) {
-            if (value instanceof Map) {
-                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
-                    return true;
-                }
-            } else if (value instanceof List) {
-                if (containsPlaceHolders((List<?>) value, placeHolders)) {
-                    return true;
-                }
-            } else if (value instanceof String) {
-                String valueString = (String) value;
-                for (String placeHolder : placeHolders) {
-                    if (valueString.contains(placeHolder)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     private Explicit<DateFormatter[]> dynamicDateTimeFormatters;
@@ -444,5 +341,113 @@ public class RootObjectMapper extends ObjectMapper {
         if (numericDetection.explicit() || includeDefaults) {
             builder.field("numeric_detection", numericDetection.value());
         }
+    }
+
+    public void validateDynamicTemplates(Mapper.TypeParser.ParserContext parserContext) {
+        for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
+            validateDynamicTemplate(parserContext, dynamicTemplate);
+        }
+    }
+
+    private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
+                                                DynamicTemplate dynamicTemplate) {
+
+        if (containsPlaceHolders(dynamicTemplate.getMapping(), "{name}")) {
+            // Can't validate template, because field names can't be guessed up front.
+            return;
+        }
+
+        final XContentFieldType[] types;
+        if (dynamicTemplate.getXContentFieldType() != null) {
+            types = new XContentFieldType[]{dynamicTemplate.getXContentFieldType()};
+        } else {
+            types = XContentFieldType.values();
+        }
+
+        Exception lastError = null;
+        boolean dynamicTemplateInvalid = true;
+
+        for (XContentFieldType contentFieldType : types) {
+            String defaultDynamicType = contentFieldType.defaultMappingType();
+            String mappingType = dynamicTemplate.mappingType(defaultDynamicType);
+            Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+            if (typeParser != null) {
+                Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
+                fieldTypeConfig.remove("type");
+                try {
+                    Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                    if (fieldTypeConfig.isEmpty()) {
+                        dynamicTemplateInvalid = false;
+                        break;
+                    }
+                } catch (Exception e) {
+                    lastError = e;
+                }
+            }
+        }
+
+        final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
+        if (dynamicTemplateInvalid) {
+            String message = String.format(Locale.ROOT, "dynamic template [%s] has invalid content [%s]",
+                dynamicTemplate.getName(), Strings.toString(dynamicTemplate));
+            if (failInvalidDynamicTemplates) {
+                throw new IllegalArgumentException(message, lastError);
+            } else {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", message);
+            }
+        }
+    }
+
+    private static boolean containsPlaceHolders(Map<?, ?> map, String... placeHolders) {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            String key = entry.getKey().toString();
+            for (String placeHolder : placeHolders) {
+                if (key.contains(placeHolder)) {
+                    return true;
+                }
+            }
+
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof List) {
+                if (containsPlaceHolders((List<?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof String) {
+                String valueString = (String) value;
+                for (String placeHolder : placeHolders) {
+                    if (valueString.contains(placeHolder)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsPlaceHolders(List<?> list, String... placeHolders) {
+        for (Object value : list) {
+            if (value instanceof Map) {
+                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof List) {
+                if (containsPlaceHolders((List<?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof String) {
+                String valueString = (String) value;
+                for (String placeHolder : placeHolders) {
+                    if (valueString.contains(placeHolder)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

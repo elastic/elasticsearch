@@ -965,7 +965,7 @@ end::results-index-name[]
 
 tag::results-retention-days[]
 Advanced configuration option. When set this option will prune results older
-than this age. Age is calculated as the difference between the latest
+than this age in days. Age is calculated as the difference between the latest
 bucket result's timestamp and the result's timestamp. Once per day at 00:30
 (server time), results older than this are deleted from {es}. The default
 value is null, which means all results are retained.

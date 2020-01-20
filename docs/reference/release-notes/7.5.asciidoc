@@ -3,6 +3,14 @@
 
 coming::[7.5.2]
 
+[[bug-7.5.2]]
+[float]
+=== Bug fixes
+
+Machine Learning::
+* Fixes potential memory corruption or inconsistent state when background
+persisting categorizer state. {ml-pull}921[#921]
+
 [[release-notes-7.5.1]]
 == {es} version 7.5.1
 

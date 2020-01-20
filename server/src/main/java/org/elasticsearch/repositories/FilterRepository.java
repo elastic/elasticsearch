@@ -77,9 +77,9 @@ public class FilterRepository implements Repository {
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+                                 boolean writeShardGens, boolean writeIndexGens, ActionListener<SnapshotInfo> listener) {
         in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metaData, userMetadata, writeShardGens, listener);
+            includeGlobalState, metaData, userMetadata, writeShardGens, writeIndexGens, listener);
     }
 
     @Override

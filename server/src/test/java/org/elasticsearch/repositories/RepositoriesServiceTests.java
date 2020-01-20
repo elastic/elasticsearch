@@ -157,7 +157,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
                                      int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                      boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                     boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+                                     boolean writeShardGens, boolean writeIndexGens, ActionListener<SnapshotInfo> listener) {
             listener.onResponse(null);
         }
 

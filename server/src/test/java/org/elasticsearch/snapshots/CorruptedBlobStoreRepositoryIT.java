@@ -282,7 +282,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         Files.write(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
             BytesReference.toBytes(BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(),
-                true))), StandardOpenOption.TRUNCATE_EXISTING);
+                true, true))), StandardOpenOption.TRUNCATE_EXISTING);
 
         logger.info("--> verify that repo is assumed in old metadata format");
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);

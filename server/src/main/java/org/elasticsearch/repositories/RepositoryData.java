@@ -263,7 +263,7 @@ public final class RepositoryData {
                 "Index meta generations should have been empty but was [" + indexMetaDataGenerations + "]";
             newIndexMetaGenerations = IndexMetaDataGenerations.EMPTY;
         } else {
-            assert shardGenerations.indices().equals(indexMetaBlobs.keySet()) :
+            assert indexMetaBlobs.isEmpty() || shardGenerations.indices().equals(indexMetaBlobs.keySet()) :
                 "Shard generations contained indices " + shardGenerations.indices()
                     + " but indexMetaData was given for " + indexMetaBlobs.keySet();
             newIndexMetaGenerations = indexMetaDataGenerations.withAddedSnapshot(snapshotId, indexMetaBlobs, newHashes);
@@ -420,7 +420,8 @@ public final class RepositoryData {
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final boolean shouldWriteShardGens) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final boolean shouldWriteShardGens,
+                                               final boolean shouldWriteIndexGens) throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -431,7 +432,7 @@ public final class RepositoryData {
             if (snapshotStates.containsKey(snapshot.getUUID())) {
                 builder.field(STATE, snapshotStates.get(snapshot.getUUID()).value());
             }
-            if (shouldWriteShardGens) {
+            if (shouldWriteIndexGens) {
                 builder.field(INDEX_METADATA_LOOKUP, indexMetaDataGenerations.lookup.getOrDefault(snapshot, Collections.emptyMap())
                     .entrySet().stream().collect(Collectors.toMap(entry -> entry.getKey().getId(), Map.Entry::getValue)));
             }
@@ -464,9 +465,11 @@ public final class RepositoryData {
         }
         builder.endObject();
         if (shouldWriteShardGens) {
-            builder.field(INDEX_METADATA_HASHES, indexMetaDataGenerations.hashes);
             // Add min version field to make it impossible for older ES versions to deserialize this object
             builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
+        }
+        if (shouldWriteIndexGens) {
+            builder.field(INDEX_METADATA_HASHES, indexMetaDataGenerations.hashes);
         }
         builder.endObject();
         return builder;

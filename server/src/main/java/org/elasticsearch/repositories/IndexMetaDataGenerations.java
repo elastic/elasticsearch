@@ -68,6 +68,10 @@ public final class IndexMetaDataGenerations {
         this.hashes = Map.copyOf(hashes);
     }
 
+    public boolean isEmpty() {
+        return hashes.isEmpty();
+    }
+
     /**
      * Get the blob id by the hash of {@link IndexMetaData} computed via {@link #hashIndexMetaData} or {@code null} if none is
      * tracked for the hash.

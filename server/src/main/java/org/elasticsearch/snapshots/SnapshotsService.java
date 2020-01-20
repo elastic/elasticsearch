@@ -124,6 +124,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
+    public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     private final ClusterService clusterService;
@@ -272,6 +274,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
             final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(repositoryName, repositoryData, null);
+            final boolean hasNoIndexGens = hasPreIndexGensVersionSnapshots(repositoryData);
             clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
                 private SnapshotsInProgress.Entry newSnapshot = null;
@@ -306,7 +309,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             null,
                             request.userMetadata(),
                             hasOldFormatSnapshots == false &&
-                                clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
+                                clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+                            // TODO: This is not good enough, need to check index gen version instead
+                            hasNoIndexGens == false &&
+                                clusterService.state().nodes().getMinNodeVersion().onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION));
                         initializingSnapshots.add(newSnapshot.snapshot());
                         snapshots = new SnapshotsInProgress(newSnapshot);
                     } else {
@@ -352,6 +358,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }, listener::onFailure);
+    }
+
+    public static boolean hasPreIndexGensVersionSnapshots(RepositoryData repositoryData) {
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        final boolean hasOldFormatSnapshots;
+        if (snapshotIds.isEmpty()) {
+            hasOldFormatSnapshots = false;
+        } else {
+            if (repositoryData.indexMetaDataGenerations().isEmpty() == false) {
+                hasOldFormatSnapshots = false;
+            } else {
+                try {
+                    hasOldFormatSnapshots = snapshotIds.stream().anyMatch(
+                        snapshotId -> {
+                            final Version known = repositoryData.getVersion(snapshotId);
+                            return (known == null ? INDEX_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion() : known)
+                                .before(INDEX_GEN_IN_REPO_DATA_VERSION);
+                        });
+                } catch (SnapshotMissingException e) {
+                    logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
+                    return true;
+                }
+            }
+        }
+        assert hasOldFormatSnapshots == false || repositoryData.indexMetaDataGenerations().isEmpty() :
+            "Found non-empty index generations [" + repositoryData.indexMetaDataGenerations()
+                + "] but repository contained old version snapshots";
+        return hasOldFormatSnapshots;
     }
 
     public boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData, @Nullable SnapshotId excluded) {
@@ -612,6 +646,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             metaDataForSnapshot(snapshot, metaData),
                             snapshot.userMetadata(),
                             snapshot.useShardGenerations(),
+                            snapshot.useIndexGenerations(),
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
@@ -1087,6 +1122,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
                     entry.useShardGenerations(),
+                    entry.useIndexGenerations(),
                     ActionListener.wrap(snapshotInfo -> {
                         removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());

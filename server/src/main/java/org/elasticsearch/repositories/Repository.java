@@ -125,12 +125,13 @@ public interface Repository extends LifecycleComponent {
      * @param clusterMetaData    cluster metadata
      * @param userMetadata       user metadata
      * @param writeShardGens     if shard generations should be written to the repository
+     * @param writeIndexGens     if index generations should be written to the repository
      * @param listener listener to be called on completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                          boolean writeShardGens, ActionListener<SnapshotInfo> listener);
+                          boolean writeShardGens, boolean writeIndexGens, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot

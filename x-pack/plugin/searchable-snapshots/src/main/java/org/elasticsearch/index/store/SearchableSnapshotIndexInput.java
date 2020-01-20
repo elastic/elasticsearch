@@ -47,7 +47,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     private volatile boolean closed;
 
     // optimisation for the case where we perform a single seek, then read a large block of data sequentially, then close the input
-    private volatile long sequentialReadSize; // 0 means no optimization for sequential reads
+    private volatile long sequentialReadSize;
+    private static final long NO_SEQUENTIAL_READ_OPTIMIZATION = 0L;
     private final AtomicReference<StreamForSequentialReads> streamForSequentialReadsRef = new AtomicReference<>();
 
     SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo, long sequentialReadSize, int bufferSize) {
@@ -64,6 +65,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         this.offset = offset;
         this.length = length;
         this.position = position;
+        assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
         this.closed = false;
     }
@@ -105,7 +107,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
     private void readInternalBytes(final int part, long pos, final byte[] b, int offset, int length) throws IOException {
         final long currentSequentialReadSize = sequentialReadSize;
-        if (currentSequentialReadSize > 0L) {
+        if (currentSequentialReadSize != NO_SEQUENTIAL_READ_OPTIMIZATION) {
             final StreamForSequentialReads streamForSequentialReads = streamForSequentialReadsRef.get();
             if (streamForSequentialReads == null) {
                 // start a new sequential read
@@ -128,7 +130,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                         streamForSequentialReads.close();
                     } else {
                         // something happened concurrently, defensively stop optimizing
-                        sequentialReadSize = 0L;
+                        sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
                     }
 
                     if (length == 0) {
@@ -136,7 +138,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                         return;
                     } else {
                         // the current stream didn't contain enough data for this read, so we must read more
-                        if (sequentialReadSize > 0 && tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
+                        if (sequentialReadSize != NO_SEQUENTIAL_READ_OPTIMIZATION
+                            && tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
                             return;
                         }
                     }
@@ -148,7 +151,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             } else {
                 // not a sequential read, so stop optimizing for this usage pattern and fall through to the unoptimized behaviour
                 assert streamForSequentialReads.isFullyRead() == false;
-                sequentialReadSize = 0L;
+                sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
                 IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
             }
         }
@@ -180,7 +183,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                 = new StreamForSequentialReads(inputStream, part, pos, streamLength);
             if (streamForSequentialReadsRef.compareAndSet(null, newStreamForSequentialReads) == false) {
                 // something happened concurrently, defensively stop optimizing and fall through to the unoptimized behaviour
-                this.sequentialReadSize = 0L;
+                this.sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
                 inputStream.close();
                 return false;
             }
@@ -213,15 +216,15 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
     @Override
     public BufferedIndexInput clone() {
-        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length, 0L,
-            getBufferSize());
+        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length,
+            NO_SEQUENTIAL_READ_OPTIMIZATION, getBufferSize());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final SearchableSnapshotIndexInput slice = new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position,
-                this.offset + offset, length, 0L, getBufferSize());
+                this.offset + offset, length, NO_SEQUENTIAL_READ_OPTIMIZATION, getBufferSize());
             slice.seek(0L);
             return slice;
         } else {

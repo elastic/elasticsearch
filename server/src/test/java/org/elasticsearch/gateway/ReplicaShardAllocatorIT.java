@@ -77,7 +77,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0f)
@@ -206,7 +205,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
@@ -243,7 +241,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -324,7 +321,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
             .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
             .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
             .build());

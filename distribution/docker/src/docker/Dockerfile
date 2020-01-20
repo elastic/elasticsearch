@@ -36,7 +36,7 @@ COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
-#control how ES and any child processes are shut down.
+# control how ES and any child processes are shut down.
 ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /tini
 ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini.asc /tini.asc
 RUN gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 595E85A6B1B4779EA4DAAEC70B588DFF0527A9B7 \

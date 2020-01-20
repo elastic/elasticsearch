@@ -1,0 +1,309 @@
+[role="xpack"]
+[testenv="basic"]
+[[put-inference]]
+=== Create {infer} trained model API
+[subs="attributes"]
+++++
+<titleabbrev>Crerate {infer} trained model</titleabbrev>
+++++
+
+Creates an {infer} trained model.
+
+experimental[]
+
+
+[[ml-put-inference-request]]
+==== {api-request-title}
+
+`PUT _ml/inference/<model_id>`
+
+
+[[ml-put-inference-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `machine_learning_admin`
+
+
+* source index: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+[[ml-put-inference-desc]]
+==== {api-description-title}
+
+
+
+
+[[ml-put-inference-path-params]]
+==== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+
+
+[[ml-put-inference-query-params]]
+==== {api-query-parms-title}
+
+`definition`::
+(Required, object) 
+The {infer} definition for the model.
+
+`definition`.`preprocessors`:::
+(Optional, object)
+Collection of preprocessors. See <<ml-put-inference-preprocessors>> for the full 
+list of available preprocessors.
+
+`definition`.`trained_model`:::
+(Required, object) 
+The definition of the trained model. See <<ml-put-inference-trained-model>> for 
+details.
+
+`description`::
+(Optional, string) 
+A human-readable description of the {infer} trained model.
+
+`ensamble`::
+(Optional, object)
+The definition for an ensamble model. See <<ml-put-inference-ensamble-model>> 
+for details.
+
+`input`::
+(Required, object) 
+The input field names for the model definition.
+
+`metadata`::
+(Optional, object) 
+An object map that contains metadata about the model.
+
+`tags`::
+(Optional, string) 
+An array of tags to organize the model.
+
+
+[[ml-put-inference-preprocessors]]
+===== {infer-cap} preprocessor definitions
+
+`frequency_encoding`::
+(Object) 
+Defines a frequency encoding for a field.
+
+`frequency_encoding`.`field`:::
+(String) 
+The field name to encode.
+
+`frequency_encoding`.`feature_name`:::
+(String) 
+The name of the resulting feature.
+
+`frequency_encoding`.`frequency_map`:::
+(Object map of string:double) 
+Object that maps the field value to the frequency encoded value.
+
+[source,js]
+----------------------------------
+{
+	"frequency_encoding": {
+		"field": "FlightDelayType",
+		"feature_name": "FlightDelayType_frequency",
+		"frequency_map": {
+			"Carrier Delay": 0.6007414737092798,
+			"NAS Delay": 0.6007414737092798,
+			"Weather Delay": 0.024573576178086153,
+			"Security Delay": 0.02476631010889467,
+			"No Delay": 0.6007414737092798,
+			"Late Aircraft Delay": 0.6007414737092798
+		}
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+`one_hot_encoding`::
+(Object) 
+Defines a one hot encoding map for a field.
+
+`one_hot_encoding`.`field`:::
+(String) 
+The field name to encode.
+
+`one_hot_encoding`.`hot_map`:::
+(Object map of strings) 
+String map of "field_value: one_hot_column_name".
+
+[source,js]
+----------------------------------
+{
+	"one_hot_encoding": {
+		"field": "FlightDelayType",
+		"hot_map": {
+			"Carrier Delay": "FlightDelayType_Carrier Delay",
+			"NAS Delay": "FlightDelayType_NAS Delay",
+			"No Delay": "FlightDelayType_No Delay",
+			"Late Aircraft Delay": "FlightDelayType_Late Aircraft Delay"
+		}
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+
+`target_mean_encoding`::
+(Object) 
+Defines a target mean encoding for a field.
+
+`target_mean_encoding`.`field`:::
+(String)
+The field name to encode.
+
+`target_mean_encoding`.`feature_name`:::
+(String) 
+The name of the resulting feature.
+
+`target_mean_encoding`.`target.map`:::
+(Object map of string:double) 
+Object that maps the field value to the target mean value.
+
+`target_mean_encoding`.`default.value`:::
+(Double) 
+The feature value if the field value is not in the `target_map`.
+
+[source,js]
+----------------------------------
+{
+	"target_mean_encoding": {
+		"field": "FlightDelayType",
+		"feature_name": "FlightDelayType_targetmean",
+		"target_map": {
+			"Carrier Delay": 39.97465788139886,
+			"NAS Delay": 39.97465788139886,
+			"Security Delay": 203.171206225681,
+			"Weather Delay": 187.64705882352948,
+			"No Delay": 39.97465788139886,
+			"Late Aircraft Delay": 39.97465788139886
+		},
+		"default_value": 158.17995752420433
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+
+[[ml-put-inference-trained-model]]
+===== {infer-cap} trained model definitions
+
+`tree`::
+(Object) 
+The definition for a decision tree.
+
+`tree`.`feature_names`:::
+(String) 
+Features expected by the tree, in their expected order.
+
+`tree`.`tree_structure`:::
+(Object) 
+An array of `tree_node` objects. The nodes must be in ordinal order by their 
+`tree_node.node_index` value.
+
+`tree`.`classification_labels`:::
+(Optional, string) An array of classification labels (used for 
+`classification`).
+
+`tree`.`target_type`:::
+(String) 
+String indicating the model target type; `regression` or `classification`.
+
+`tree_node`::
+
+`tree_node`.`decision_type`:::
+(Optional, string) 
+Indicates the positive value (in other words, when to choose the left node) 
+decision type. Supported `lt`, `lte`, `gt`, `gte`. Defaults to `lte`.
+
+`tree_node`.`threshold`:::
+(Optional, double) 
+The decision threshold with which to compare the feature value.
+
+`tree_node`.`left_child`:::
+(Optional, integer) 
+The index of the left child.
+
+`tree_node`.`right_child`:::
+(Optional, integer) 
+The index of the right child.
+
+`tree_node`.`default_left`:::
+(Optional, boolean) 
+Should default to the left if the feature is missing. Defaults to `true`.
+
+`tree_node`.`split_feature`:::
+(Optional, integer) 
+The index of the feature value in the feature array.
+
+`tree_node`.`node_index`:::
+(Integer) 
+The index of the current node.
+
+`tree_node`.`split_gain`:::
+(Optional, double) The information gain from the split.
+
+`tree_node`.`leaf_value`:::
+(Optional, double) 
+The leaf value of the of the node, if the value is a leaf (in other words, no 
+children).
+
+There are two major types of nodes: leaf nodes and not-leaf nodes.
+
+* Leaf nodes only need `node_index` and `leaf_value` defined.
+* All other nodes need `split_feature`, `left_child`, `right_child`, `threshold`, 
+`decision_type`, and `default_left` defined.
+
+[source,js]
+----------------------------------
+{
+	"tree": {
+		"feature_names": [
+			"DistanceKilometers",
+			"FlightTimeMin",
+			"FlightDelayType_NAS Delay",
+			"Origin_targetmean",
+			"DestRegion_targetmean",
+			"DestCityName_targetmean",
+			"OriginAirportID_targetmean",
+			"OriginCityName_frequency",
+			"DistanceMiles",
+			"FlightDelayType_Late Aircraft Delay"
+		],
+		"tree_structure": [{
+				"decision_type": "lt",
+				"threshold": 9069.33437193022,
+				"split_feature": 0,
+				"split_gain": 4112.094574306927,
+				"node_index": 0,
+				"default_left": true,
+				"left_child": 1,
+				"right_child": 2
+			},
+			...
+      {
+				"node_index": 9,
+				"leaf_value": -27.68987349695448
+			},
+			...
+		],
+		"target_type": "regression"
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+
+[[ml-put-inference-ensamble-model]]
+===== {infer-cap} ensemble model definitions
+
+

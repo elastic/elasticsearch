@@ -99,6 +99,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
@@ -740,6 +741,59 @@ public class AuthenticationServiceTests extends ESTestCase {
             //expected
             verify(auditTrail).tamperedRequest(reqId, "_action", message);
             verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    public void testWrongTokenDoesNotFallbackToAnonymous() {
+        String username = randomBoolean() ? AnonymousUser.DEFAULT_ANONYMOUS_USERNAME : "user1";
+        Settings.Builder builder = Settings.builder()
+            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3");
+        if (username.equals(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME) == false) {
+            builder.put(AnonymousUser.USERNAME_SETTING.getKey(), username);
+        }
+        Settings anonymousEnabledSettings = builder.build();
+        final AnonymousUser anonymousUser = new AnonymousUser(anonymousEnabledSettings);
+        service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrail,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, tokenService, apiKeyService);
+
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+            threadContext.putHeader("Authorization", "Bearer thisisaninvalidtoken");
+            ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
+            verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
+            verifyNoMoreInteractions(auditTrail);
+            assertAuthenticationException(e);
+        }
+    }
+
+    public void testWrongApiKeyDoesNotFallbackToAnonymous() {
+        String username = randomBoolean() ? AnonymousUser.DEFAULT_ANONYMOUS_USERNAME : "user1";
+        Settings.Builder builder = Settings.builder()
+            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3");
+        if (username.equals(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME) == false) {
+            builder.put(AnonymousUser.USERNAME_SETTING.getKey(), username);
+        }
+        Settings anonymousEnabledSettings = builder.build();
+        final AnonymousUser anonymousUser = new AnonymousUser(anonymousEnabledSettings);
+        service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrail,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, tokenService, apiKeyService);
+        doAnswer(invocationOnMock -> {
+            final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(new GetResponse(new GetResult(request.index(), request.id(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1L, false, null,
+                Collections.emptyMap(), Collections.emptyMap())));
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+            threadContext.putHeader("Authorization", "ApiKey dGhpc2lzYW5pbnZhbGlkaWQ6dGhpc2lzYW5pbnZhbGlkc2VjcmV0");
+            ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
+            verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
+            verifyNoMoreInteractions(auditTrail);
+            assertAuthenticationException(e);
         }
     }
 

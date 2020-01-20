@@ -9,7 +9,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,9 +52,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String unallowedIndex  = "unallowed-index";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
-            Settings indexSettings = Settings.builder().put("index.soft_deletes.enabled", true).build();
-            createIndex(allowedIndex, indexSettings);
-            createIndex(unallowedIndex, indexSettings);
+            createIndex(allowedIndex, Settings.EMPTY);
+            createIndex(unallowedIndex, Settings.EMPTY);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(allowedIndex, Integer.toString(i), "field", i);
@@ -150,11 +148,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         try (RestClient leaderClient = buildLeaderClient()) {
             for (String index : new String[]{allowedIndex, disallowedIndex}) {
-                Settings settings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
-                String requestBody = "{\"settings\": " + Strings.toString(settings) +
-                    ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
+                String requestBody = "{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
                 request = new Request("PUT", "/" + index);
                 request.setJsonEntity(requestBody);
                 assertOK(leaderClient.performRequest(request));
@@ -187,11 +181,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String forgetFollower = "forget-follower";
         if ("leader".equals(targetCluster)) {
             logger.info("running against leader cluster");
-            final Settings indexSettings = Settings.builder()
-                    .put("index.number_of_replicas", 0)
-                    .put("index.number_of_shards", 1)
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
+            final Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build();
             createIndex(forgetLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");

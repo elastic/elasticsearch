@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
@@ -86,7 +84,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
 
-        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Classification(
+                KEYWORD_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -104,6 +109,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
+            assertThat(resultsObject.keySet().stream().filter(k -> k.startsWith("feature_importance.")).findAny().isPresent(), is(true));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -178,7 +184,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Classification(dependentVariable, BoostedTreeParamsTests.createRandom(), null, numTopClasses, 50.0, null));
+                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, numTopClasses, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -414,7 +420,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String firstJobId = "classification_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
 
-        BoostedTreeParams boostedTreeParams = new BoostedTreeParams(1.0, 1.0, 1.0, 1, 1.0);
+        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
+            .setLambda(1.0)
+            .setGamma(1.0)
+            .setEta(1.0)
+            .setFeatureBagFraction(1.0)
+            .setMaximumNumberTrees(1)
+            .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, null));
@@ -569,9 +581,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(topClasses, hasSize(numTopClasses));
         List<T> classNames = new ArrayList<>(topClasses.size());
         List<Double> classProbabilities = new ArrayList<>(topClasses.size());
+        List<Double> classScores = new ArrayList<>(topClasses.size());
         for (Map<String, Object> topClass : topClasses) {
             classNames.add(getFieldValue(topClass, "class_name"));
             classProbabilities.add(getFieldValue(topClass, "class_probability"));
+            classScores.add(getFieldValue(topClass, "class_score"));
         }
         // Assert that all the predicted class names come from the set of dependent variable values.
         classNames.forEach(className -> assertThat(className, is(in(dependentVariableValues))));
@@ -579,8 +593,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(classNames.get(0), equalTo(resultsObject.get(dependentVariable + "_prediction")));
         // Assert that all the class probabilities lie within [0, 1] interval.
         classProbabilities.forEach(p -> assertThat(p, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
-        // Assert that the top classes are listed in the order of decreasing probabilities.
-        assertThat(Ordering.natural().reverse().isOrdered(classProbabilities), is(true));
+        // Assert that the top classes are listed in the order of decreasing scores.
+        assertThat(Ordering.natural().reverse().isOrdered(classScores), is(true));
     }
 
     private <T> void assertEvaluation(String dependentVariable, List<T> dependentVariableValues, String predictedClassField) {

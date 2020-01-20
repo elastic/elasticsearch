@@ -40,6 +40,8 @@ include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
+include::autoscaling/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
@@ -49,6 +51,8 @@ include::frozen-indices.asciidoc[]
 include::data-rollup-transform.asciidoc[]
 
 include::high-availability.asciidoc[]
+
+include::snapshot-restore/index.asciidoc[]
 
 include::{xes-repo-dir}/security/index.asciidoc[]
 

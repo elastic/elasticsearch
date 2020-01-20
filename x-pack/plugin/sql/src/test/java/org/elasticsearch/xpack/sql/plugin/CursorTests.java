@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -109,7 +109,8 @@ public class CursorTests extends ESTestCase {
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
 
         String encodedWithWrongVersion = CursorsTestUtil.encodeToString(cursor, nextMinorVersion, randomZone());
-        SqlException exception = expectThrows(SqlException.class, () -> Cursors.decodeFromString(encodedWithWrongVersion));
+        SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class,
+                () -> Cursors.decodeFromString(encodedWithWrongVersion));
 
         assertEquals(LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
                 exception.getMessage());

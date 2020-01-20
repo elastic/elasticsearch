@@ -59,6 +59,7 @@ import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
@@ -335,9 +337,50 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that when verifying the file permissions of _FILE environment variables, symlinks
+     * are followed.
+     */
+    public void test082SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
+        // Test relies on configuring security
+        assumeTrue(distribution.isDefault());
+        // Test relies on symlinks
+        assumeFalse(Platforms.WINDOWS);
+
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+        final String symlinkFilename = "password_symlink";
+
+        // ELASTIC_PASSWORD_FILE
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        // Link to the password file. We can't use an absolute path for the target, because
+        // it won't resolve inside the container.
+        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
+
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + symlinkFilename,
+            // Enable security so that we can test that the password has been used
+            "xpack.security.enabled",
+            "true"
+        );
+
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values. The wrapper will resolve the symlink
+        // and check the target's permissions.
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
+
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
+
+        // Restart the container - this will check that Elasticsearch started correctly,
+        // and didn't fail to follow the symlink and check the file permissions
+        runContainer(distribution(), volumes, envVars);
+    }
+
+    /**
      * Check that environment variables cannot be used with _FILE environment variables.
      */
-    public void test081CannotUseEnvVarsAndFiles() throws Exception {
+    public void test083CannotUseEnvVarsAndFiles() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -368,7 +411,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when populating environment variables by setting variables with the suffix "_FILE",
      * the files' permissions are checked.
      */
-    public void test082EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+    public void test084EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -391,10 +434,59 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that when verifying the file permissions of _FILE environment variables, symlinks
+     * are followed, and that invalid target permissions are detected.
+     */
+    public void test085SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
+        // Test relies on configuring security
+        assumeTrue(distribution.isDefault());
+        // Test relies on symlinks
+        assumeFalse(Platforms.WINDOWS);
+
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+        final String symlinkFilename = "password_symlink";
+
+        // ELASTIC_PASSWORD_FILE
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        // Link to the password file. We can't use an absolute path for the target, because
+        // it won't resolve inside the container.
+        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
+
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + symlinkFilename,
+            // Enable security so that we can test that the password has been used
+            "xpack.security.enabled",
+            "true"
+        );
+
+        // Set invalid permissions on the file that the symlink targets
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
+
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
+
+        // Restart the container
+        final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
+
+        assertThat(
+            dockerLogs.stderr,
+            containsString(
+                "ERROR: File "
+                    + passwordFilename
+                    + " (target of symlink /run/secrets/"
+                    + symlinkFilename
+                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400 or 600, but actually has: 775"
+            )
+        );
+    }
+
+    /**
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+    public void test086EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());
@@ -405,10 +497,7 @@ public class DockerTests extends PackagingTestCase {
         final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
 
         assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
-        assertThat(
-            result.stdout,
-            containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known")
-        );
+        assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known"));
     }
 
     /**

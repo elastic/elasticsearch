@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.sql.DatabaseMetaData;
 import java.util.Comparator;
@@ -22,9 +22,9 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataType.SHORT;
 
 /**
  * System command designed to be used by JDBC / ODBC for column metadata.
@@ -74,13 +74,13 @@ public class SysTypes extends Command {
     public final void execute(SqlSession session, ActionListener<Page> listener) {
         Stream<DataType> values = Stream.of(DataType.values());
         if (type.intValue() != 0) {
-            values = values.filter(t -> type.equals(t.sqlType.getVendorTypeNumber()));
+            values = values.filter(t -> type.equals(t.sqlType().getVendorTypeNumber()));
         }
         List<List<?>> rows = values
                 // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
-                .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
+                .sorted(Comparator.comparing((DataType t) -> t.sqlType().getVendorTypeNumber()).thenComparing(DataType::sqlName))
                 .map(t -> asList(t.toString(),
-                        t.sqlType.getVendorTypeNumber(),
+                        t.sqlType().getVendorTypeNumber(),
                         DataTypes.precision(t),
                         "'",
                         "'",

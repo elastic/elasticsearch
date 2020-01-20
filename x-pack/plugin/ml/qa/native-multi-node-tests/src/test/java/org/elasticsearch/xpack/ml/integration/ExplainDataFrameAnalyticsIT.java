@@ -43,7 +43,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         String sourceIndex = "test-source-query-is-applied";
 
         client().admin().indices().prepareCreate(sourceIndex)
-            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical", "type=keyword")
+            .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();

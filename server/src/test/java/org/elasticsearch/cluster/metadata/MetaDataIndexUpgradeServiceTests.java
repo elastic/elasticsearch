@@ -82,6 +82,18 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(src, service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion())); // no double upgrade
     }
 
+    public void testUpgradeCustomSimilarity() {
+        MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
+        IndexMetaData src = newIndexMeta("foo",
+            Settings.builder()
+                .put("index.similarity.my_similarity.type", "DFR")
+                .put("index.similarity.my_similarity.after_effect", "l")
+                .build());
+        assertFalse(service.isUpgraded(src));
+        src = service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        assertTrue(service.isUpgraded(src));
+    }
+
     public void testIsUpgraded() {
         MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());

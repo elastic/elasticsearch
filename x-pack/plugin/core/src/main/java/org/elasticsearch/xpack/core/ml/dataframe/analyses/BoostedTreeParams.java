@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     public static final ParseField ETA = new ParseField("eta");
     public static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
     public static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
+    public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
     static void declareFields(AbstractObjectParser<?, Void> parser) {
         parser.declareDouble(optionalConstructorArg(), LAMBDA);
@@ -41,6 +43,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         parser.declareDouble(optionalConstructorArg(), ETA);
         parser.declareInt(optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
         parser.declareDouble(optionalConstructorArg(), FEATURE_BAG_FRACTION);
+        parser.declareInt(optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
     }
 
     private final Double lambda;
@@ -48,12 +51,14 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     private final Double eta;
     private final Integer maximumNumberTrees;
     private final Double featureBagFraction;
+    private final Integer numTopFeatureImportanceValues;
 
     public BoostedTreeParams(@Nullable Double lambda,
-                      @Nullable Double gamma,
-                      @Nullable Double eta,
-                      @Nullable Integer maximumNumberTrees,
-                      @Nullable Double featureBagFraction) {
+                             @Nullable Double gamma,
+                             @Nullable Double eta,
+                             @Nullable Integer maximumNumberTrees,
+                             @Nullable Double featureBagFraction,
+                             @Nullable Integer numTopFeatureImportanceValues) {
         if (lambda != null && lambda < 0) {
             throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", LAMBDA.getPreferredName());
         }
@@ -69,15 +74,16 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         if (featureBagFraction != null && (featureBagFraction <= 0 || featureBagFraction > 1.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in (0, 1]", FEATURE_BAG_FRACTION.getPreferredName());
         }
+        if (numTopFeatureImportanceValues != null && numTopFeatureImportanceValues < 0) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a non-negative integer",
+                NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
+        }
         this.lambda = lambda;
         this.gamma = gamma;
         this.eta = eta;
         this.maximumNumberTrees = maximumNumberTrees;
         this.featureBagFraction = featureBagFraction;
-    }
-
-    public BoostedTreeParams() {
-        this(null, null, null, null, null);
+        this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
     }
 
     BoostedTreeParams(StreamInput in) throws IOException {
@@ -86,6 +92,11 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         eta = in.readOptionalDouble();
         maximumNumberTrees = in.readOptionalVInt();
         featureBagFraction = in.readOptionalDouble();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            numTopFeatureImportanceValues = in.readOptionalInt();
+        } else {
+            numTopFeatureImportanceValues = null;
+        }
     }
 
     @Override
@@ -95,6 +106,9 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         out.writeOptionalDouble(eta);
         out.writeOptionalVInt(maximumNumberTrees);
         out.writeOptionalDouble(featureBagFraction);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalInt(numTopFeatureImportanceValues);
+        }
     }
 
     @Override
@@ -113,6 +127,9 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         }
         if (featureBagFraction != null) {
             builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
+        }
+        if (numTopFeatureImportanceValues != null) {
+            builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
         }
         return builder;
     }
@@ -134,6 +151,9 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         if (featureBagFraction != null) {
             params.put(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
         }
+        if (numTopFeatureImportanceValues != null) {
+            params.put(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
+        }
         return params;
     }
 
@@ -146,11 +166,62 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
             && Objects.equals(gamma, that.gamma)
             && Objects.equals(eta, that.eta)
             && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
-            && Objects.equals(featureBagFraction, that.featureBagFraction);
+            && Objects.equals(featureBagFraction, that.featureBagFraction)
+            && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(lambda, gamma, eta, maximumNumberTrees, featureBagFraction);
+        return Objects.hash(lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private Double lambda;
+        private Double gamma;
+        private Double eta;
+        private Integer maximumNumberTrees;
+        private Double featureBagFraction;
+        private Integer numTopFeatureImportanceValues;
+
+        private Builder() {}
+
+        public Builder setLambda(Double lambda) {
+            this.lambda = lambda;
+            return this;
+        }
+
+        public Builder setGamma(Double gamma) {
+            this.gamma = gamma;
+            return this;
+        }
+
+        public Builder setEta(Double eta) {
+            this.eta = eta;
+            return this;
+        }
+
+        public Builder setMaximumNumberTrees(Integer maximumNumberTrees) {
+            this.maximumNumberTrees = maximumNumberTrees;
+            return this;
+        }
+
+        public Builder setFeatureBagFraction(Double featureBagFraction) {
+            this.featureBagFraction = featureBagFraction;
+            return this;
+        }
+
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
+            this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
+            return this;
+        }
+
+        public BoostedTreeParams build() {
+            return new BoostedTreeParams(lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues);
+        }
     }
 }

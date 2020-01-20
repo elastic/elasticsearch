@@ -35,15 +35,27 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Encrypts and decrypts data using a password.
- * Encryption generates the AES secret key from the password and a randomly generated salt (using the PBKDF2 algo).
- * This key is then used to encrypt the data (AES/GCM/NoPadding). The encryption IV is generated randomly.
- * The key is cached internally and used for at most {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} encryption invocations.
- * When this limit is exceeded, a new key is generated, by generating a new random salt. The encryption key is never
- * stored on disk. The salt, however, which was used in generating the encryption key, is prepended to the ciphertext.
- * Decryption extracts the salt prepended to the ciphertext, computes the key (using the secret password) and uses
- * the key to decrypt the ciphertext (which also contains the IV). Decryption also does not store the generated key
- * on disk, but caches it in memory because generating the key from the password is computationally expensive on purpose.
+ * Encrypts and decrypts using a password. Decryption authenticates the cyphertext so as to make sure that
+ * the same password has been used during encryption (the cipher mode is AES/GCM/NoPadding). The caller must
+ * ensure that the password and the ciphertext are not stored on the same "medium" (storage partition).
+ * <p>
+ * The {@code password} constructor argument is used to generate AES 256-bit wide keys using the PBKDF2 algorithm.
+ * The "salt", which is the other required parameter to the PBKDF2 algo, is generated randomly (32 byte-wide) using a
+ * {@code SecureRandom} instance. The "salt" is not a secret, like the password is, and it is used to generate different
+ * keys starting from the same password.
+ * <p>
+ * A new encryption key is generated for every {@link PasswordBasedEncryptor} instance (using a newly generated random
+ * "salt"). The key is then reused for as many as {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} encryption invocations;
+ * when the limit is exceeded, a new key is computed from a newly generated "salt". In order to support the decryption
+ * operation, the "salt" is prepended to the returned ciphertext. Decryption reads-in the "salt" and uses the secret
+ * password to regenerate the same key and decrypt and authenticate the ciphertext. The key thus computed is locally
+ * cached for possible reuses because generating the key from the password is an expensive operation (by design).
+ * <p>
+ * The reason why there is an encryption invocation limit for the same key is because the AES/GCM/NoPadding encryption mode
+ * must not be used with the same key and the same Initialization Vector. During encryption, the {@link PasswordBasedEncryptor}
+ * randomly generates a new 12-byte wide IV, and so in order to limit the risk of a collision, the key must be changed
+ * after at most {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} IVs have been generated and used with that same key. For more
+ * details, see Section 8.2 of https://csrc.nist.gov/publications/detail/sp/800-38d/final .
  */
 public final class PasswordBasedEncryptor {
 

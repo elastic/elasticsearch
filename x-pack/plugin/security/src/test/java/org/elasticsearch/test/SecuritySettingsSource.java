@@ -141,8 +141,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
-                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", Integer.MIN_VALUE)
+                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", String.valueOf(Integer.MIN_VALUE + 1))
                 .put("xpack.license.self_generated.type", "trial");
         addNodeSSLSettings(builder);
         return builder.build();
@@ -185,7 +185,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     protected SecureString nodeClientPassword() {
         return new SecureString(TEST_PASSWORD.toCharArray());
     }
-    
+
     public static void addSSLSettingsForNodePEMFiles(Settings.Builder builder, String prefix, boolean hostnameVerificationEnabled) {
         addSSLSettingsForPEMFiles(builder, prefix,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",

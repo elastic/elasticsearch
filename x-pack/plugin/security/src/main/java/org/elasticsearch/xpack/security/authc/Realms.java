@@ -186,6 +186,7 @@ public class Realms implements Iterable<Realm> {
         List<Realm> realms = new ArrayList<>();
         List<String> kerberosRealmNames = new ArrayList<>();
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
+        Map<Integer, Set<String>> orderToRealmIdentifier = new HashMap<>();
         for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
@@ -218,8 +219,12 @@ public class Realms implements Iterable<Realm> {
             Realm realm = factory.create(config);
             nameToRealmIdentifier.computeIfAbsent(realm.name(), k ->
                 new HashSet<>()).add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
+            orderToRealmIdentifier.computeIfAbsent(realm.order(), k -> new HashSet<>())
+                .add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
             realms.add(realm);
         }
+
+        ensureNoDuplicateOrders(orderToRealmIdentifier);
 
         if (!realms.isEmpty()) {
             Collections.sort(realms);
@@ -313,7 +318,17 @@ public class Realms implements Iterable<Realm> {
         if (indexRealmFactory != null) {
             realms.add(indexRealmFactory.create(new RealmConfig(
                     new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext, Integer.MIN_VALUE)));
+                    settings, env, threadContext, Integer.MIN_VALUE + 1)));
+        }
+    }
+
+    private void ensureNoDuplicateOrders(Map<Integer, Set<String>> orderToRealmIdentifier) {
+        String duplicateOrders = orderToRealmIdentifier.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.joining("; "));
+        if (Strings.hasText(duplicateOrders)) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders + "");
         }
     }
 

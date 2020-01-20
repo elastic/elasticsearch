@@ -131,7 +131,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
     public void testCreateApiKey() throws Exception{
         final Instant start = Instant.now();
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
@@ -148,7 +147,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response.getId());
         assertNotNull(response.getKey());
         Instant expiration = response.getExpiration();
-        final long daysBetween = ChronoUnit.DAYS.between(start, expiration);
+        // Expiration has millisecond precision
+        final long daysBetween = ChronoUnit.DAYS.between(start.minusNanos(start.getNano()), expiration);
         assertThat(daysBetween, is(7L));
 
         // create simple api key

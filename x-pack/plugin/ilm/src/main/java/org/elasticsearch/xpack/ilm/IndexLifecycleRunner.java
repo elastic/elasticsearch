@@ -149,7 +149,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncWaitStep) {
             logger.debug("[{}] running periodic policy with current-step [{}]", index, currentStep.getKey());
-            ((AsyncWaitStep) currentStep).evaluateCondition(clusterService.getSettings(), indexMetaData, new AsyncWaitStep.Listener() {
+            ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
@@ -165,7 +165,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                 }
-            });
+            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }

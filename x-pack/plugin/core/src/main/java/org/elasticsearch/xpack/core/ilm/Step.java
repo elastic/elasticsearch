@@ -72,13 +72,6 @@ public abstract class Step {
         return key + " => " + nextStepKey;
     }
 
-    protected TimeValue getMasterTimeout(ClusterState clusterState){
-        if(clusterState == null){
-            return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(Settings.EMPTY);
-        }
-        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());
-    }
-
     public static final class StepKey implements Writeable, ToXContentObject {
         private final String phase;
         private final String action;

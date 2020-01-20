@@ -11,7 +11,7 @@ The query cache only caches queries which are being used in a filter context.
 However, term queries are not eligible for caching, not even in the filter 
 context.
 
-It caches up to 10000 queries in up to 10% of the total heap space by default. 
+By default, the cache holds a maximum of 10000 queries in up to 10% of the total heap space. 
 To determine if a query is eligible for caching, a history of queries is 
 maintained to track occurrences.
 

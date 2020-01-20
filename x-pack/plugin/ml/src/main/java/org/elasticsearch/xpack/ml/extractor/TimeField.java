@@ -52,7 +52,15 @@ public class TimeField extends AbstractField {
             // work, but that isn't supported by the JSON parser if the number gets round-tripped through
             // JSON.  So String is really the only format that could be used, but the ML consumers of time
             // are expecting a number.
-            value[0] = Long.parseLong(((String) value[0]).replaceFirst("\\..*", ""));
+            String strVal0 = (String) value[0];
+            int dotPos = strVal0.indexOf('.');
+            if (dotPos == -1) {
+                value[0] = Long.parseLong(strVal0);
+            } else if (dotPos > 0) {
+                value[0] = Long.parseLong(strVal0.substring(0, dotPos));
+            } else {
+                value[0] = 0L;
+            }
         } else if (value[0] instanceof Long == false) { // pre-6.0 field
             throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
         }

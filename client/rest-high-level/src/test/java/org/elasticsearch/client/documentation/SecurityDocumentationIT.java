@@ -151,7 +151,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48440")
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         String[] usernames = new String[] {"user1", "user2", "user3"};
@@ -244,7 +243,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
         }
     }
-
 
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -697,7 +695,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             List<Role> roles = response.getRoles();
             assertNotNull(response);
             // 29 system roles plus the three we created
-            assertThat(roles.size(), equalTo(33));
+            assertThat(roles.size(), equalTo(29 + 3));
         }
 
         {

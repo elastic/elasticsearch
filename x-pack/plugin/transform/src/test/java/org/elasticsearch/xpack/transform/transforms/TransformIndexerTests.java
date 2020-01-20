@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.junit.After;
 import org.junit.Before;
@@ -87,7 +87,7 @@ public class TransformIndexerTests extends ESTestCase {
 
         MockedTransformIndexer(
             Executor executor,
-            TransformConfigManager transformsConfigManager,
+            IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
             TransformProgressGatherer progressGatherer,
             TransformConfig transformConfig,
@@ -412,15 +412,14 @@ public class TransformIndexerTests extends ESTestCase {
             );
 
             final CountDownLatch latch = indexer.newLatch(1);
-            auditor
-                .addExpectation(
-                    new MockTransformAuditor.SeenAuditExpectation(
-                        "fail indexer due to script error",
-                        org.elasticsearch.xpack.core.common.notifications.Level.ERROR,
-                        transformId,
-                        "Failed to execute script with error: [*ArithmeticException: / by zero], stack trace: [stack]"
-                    )
-                );
+            auditor.addExpectation(
+                new MockTransformAuditor.SeenAuditExpectation(
+                    "fail indexer due to script error",
+                    org.elasticsearch.xpack.core.common.notifications.Level.ERROR,
+                    transformId,
+                    "Failed to execute script with error: [*ArithmeticException: / by zero], stack trace: [stack]"
+                )
+            );
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -451,7 +450,7 @@ public class TransformIndexerTests extends ESTestCase {
     ) {
         return new MockedTransformIndexer(
             executor,
-            mock(TransformConfigManager.class),
+            mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
             new TransformProgressGatherer(client),
             config,

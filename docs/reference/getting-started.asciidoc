@@ -283,7 +283,7 @@ If you have a lot of documents to index, you can submit them in batches with
 the {ref}/docs-bulk.html[bulk API]. Using bulk to batch document
 operations is significantly faster than submitting requests individually as it minimizes network roundtrips. 
 
-The optimal batch size depends a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
+The optimal batch size depends on a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
 and a total payload between 5MB and 15MB. From there, you can experiment
 to find the sweet spot.
 

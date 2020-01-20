@@ -45,7 +45,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -256,6 +255,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                       ActiveShardCount::parseString,
                       Setting.Property.Dynamic,
                       Setting.Property.IndexScope);
+
+    /**
+     * Whether the index is considered hidden or not. A hidden index will not be resolved in
+     * normal wildcard searches unless explicitly allowed
+     */
+    public static final Setting<Boolean> INDEX_HIDDEN_SETTING =
+        Setting.boolSetting("index.hidden", false, Property.IndexScope, Property.Final);
 
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
@@ -1421,8 +1427,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
         @Override
         public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            assert parser.getXContentRegistry() != NamedXContentRegistry.EMPTY
-                    : "loading index metadata requires a working named xcontent registry";
             return Builder.fromXContent(parser);
         }
     };

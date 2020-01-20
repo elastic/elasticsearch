@@ -38,6 +38,7 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(CoreValuesSourceType.BYTES.ordinal(), equalTo(2));
         assertThat(CoreValuesSourceType.GEOPOINT.ordinal(), equalTo(3));
         assertThat(CoreValuesSourceType.RANGE.ordinal(), equalTo(4));
+        assertThat(CoreValuesSourceType.HISTOGRAM.ordinal(), equalTo(5));
     }
 
     @Override
@@ -47,6 +48,7 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(CoreValuesSourceType.fromString("bytes"), equalTo(CoreValuesSourceType.BYTES));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));
+        assertThat(CoreValuesSourceType.fromString("histogram"), equalTo(CoreValuesSourceType.HISTOGRAM));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> CoreValuesSourceType.fromString("does_not_exist"));
         assertThat(e.getMessage(),
@@ -61,6 +63,7 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertReadFromStream(2, CoreValuesSourceType.BYTES);
         assertReadFromStream(3, CoreValuesSourceType.GEOPOINT);
         assertReadFromStream(4, CoreValuesSourceType.RANGE);
+        assertReadFromStream(5, CoreValuesSourceType.HISTOGRAM);
     }
 
     @Override
@@ -70,5 +73,6 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertWriteToStream(CoreValuesSourceType.BYTES, 2);
         assertWriteToStream(CoreValuesSourceType.GEOPOINT, 3);
         assertWriteToStream(CoreValuesSourceType.RANGE, 4);
+        assertWriteToStream(CoreValuesSourceType.HISTOGRAM, 5);
     }
 }

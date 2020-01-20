@@ -123,7 +123,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48381")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
@@ -143,13 +142,25 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createFunnyTimeout);
 
             logger.info("Waiting for watch results index to fill up...");
-            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            try {
+                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
             waitForHits("bwc_watch_index", 2);
             waitForHits(".watcher-history*", 2);
             logger.info("Done creating watcher-related indices");
         } else {
             logger.info("testing against {}", getOldClusterVersion());
-            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            try {
+                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
 
             logger.info("checking that the Watches index is the correct version");
 
@@ -214,11 +225,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // index documents for the rollup job
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
-                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
-                    bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
-                } else {
-                    bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"doc\"}}\n");
-                }
+                bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
                 String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }

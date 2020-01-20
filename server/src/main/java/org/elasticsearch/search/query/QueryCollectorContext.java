@@ -28,16 +28,13 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_CANCELLED;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
@@ -146,18 +143,6 @@ abstract class QueryCollectorContext {
                 }
                 final Collector collector = MultiCollector.wrap(subCollectors);
                 return new InternalProfileCollector(collector, REASON_SEARCH_MULTI, subCollectors);
-            }
-        };
-    }
-
-    /**
-     * Creates a collector that throws {@link TaskCancelledException} if the search is cancelled
-     */
-    static QueryCollectorContext createCancellableCollectorContext(BooleanSupplier cancelled) {
-        return new QueryCollectorContext(REASON_SEARCH_CANCELLED) {
-            @Override
-            Collector create(Collector in) throws IOException {
-                return new CancellableCollector(cancelled, in);
             }
         };
     }

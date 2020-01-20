@@ -1,9 +1,8 @@
 [[index-lifecycle-management-api]]
 == {ilm-cap} API
 
-You can use the following APIs to manage policies on indices. See
-<<index-lifecycle-management,Managing the index lifecycle>> for more information
-about Index Lifecycle Management.
+You can use the following APIs to manage policies on indices. For more
+information, see <<index-lifecycle-management>>.
 
 [float]
 [[ilm-api-policy-endpoint]]

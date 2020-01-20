@@ -35,9 +35,6 @@ import java.util.function.Supplier;
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
 
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
-        "The type should no longer be specified in the [indexed_shape] section.";
-
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
      * field name using the given Shape

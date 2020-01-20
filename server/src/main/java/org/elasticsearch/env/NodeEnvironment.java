@@ -22,6 +22,7 @@ package org.elasticsearch.env;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -300,7 +302,7 @@ public final class NodeEnvironment  implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
+            this.nodeMetaData = loadNodeMetaData(settings, logger, nodePaths);
 
             success = true;
         } finally {
@@ -380,6 +382,13 @@ public final class NodeEnvironment  implements Closeable {
 
                 // determine folders to move and check that there are no extra files/folders
                 final Set<String> folderNames = new HashSet<>();
+                final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
+
+                    // node state directory, containing MetaDataStateFormat-based node metadata as well as cluster state
+                    MetaDataStateFormat.STATE_DIR_NAME,
+
+                    // indices
+                    INDICES_FOLDER));
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
                     for (Path subFolderPath : stream) {
@@ -387,8 +396,7 @@ public final class NodeEnvironment  implements Closeable {
                         if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
                             // ignore
                         } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
-                            if (fileName.equals(INDICES_FOLDER) == false && // indices folder
-                                fileName.equals(MetaDataStateFormat.STATE_DIR_NAME) == false) { // global metadata & node state folder
+                            if (expectedFolderNames.contains(fileName) == false) {
                                 throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
                                     subFolderPath);
                             }
@@ -406,7 +414,7 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
 
-                assert Sets.difference(folderNames, Sets.newHashSet(INDICES_FOLDER, MetaDataStateFormat.STATE_DIR_NAME)).isEmpty() :
+                assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
                     "expected indices and/or state dir folder but was " + folderNames;
 
                 upgradeActions.add(() -> {
@@ -421,7 +429,7 @@ public final class NodeEnvironment  implements Closeable {
             }
             // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
             // intermediate state would be pretty disastrous
-            loadOrCreateNodeMetaData(settings, logger, legacyNodeLock.getNodePaths());
+            loadNodeMetaData(settings, logger, legacyNodeLock.getNodePaths());
             for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
                 upgradeAction.run();
             }
@@ -490,36 +498,36 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
-     * and persisted into the nodePaths
      */
-    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
-                                                         NodePath... nodePaths) throws IOException {
+    private static NodeMetaData loadNodeMetaData(Settings settings, Logger logger,
+                                                 NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
-
-        final Set<String> nodeIds = new HashSet<>();
-        for (final Path path : paths) {
-            final NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
-            if (metaData != null) {
-                nodeIds.add(metaData.nodeId());
+        NodeMetaData metaData = PersistedClusterStateService.nodeMetaData(paths);
+        if (metaData == null) {
+            // load legacy metadata
+            final Set<String> nodeIds = new HashSet<>();
+            for (final Path path : paths) {
+                final NodeMetaData oldStyleMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+                if (oldStyleMetaData != null) {
+                    nodeIds.add(oldStyleMetaData.nodeId());
+                }
+            }
+            if (nodeIds.size() > 1) {
+                throw new IllegalStateException(
+                    "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
+            }
+            // load legacy metadata
+            final NodeMetaData legacyMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
+            if (legacyMetaData == null) {
+                assert nodeIds.isEmpty() : nodeIds;
+                metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
+            } else {
+                assert nodeIds.equals(Collections.singleton(legacyMetaData.nodeId())) : nodeIds + " doesn't match " + legacyMetaData;
+                metaData = legacyMetaData;
             }
         }
-        if (nodeIds.size() > 1) {
-            throw new IllegalStateException(
-                "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
-        }
-
-        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
-        if (metaData == null) {
-            assert nodeIds.isEmpty() : nodeIds;
-            metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
-        } else {
-            assert nodeIds.equals(Collections.singleton(metaData.nodeId())) : nodeIds + " doesn't match " + metaData;
-            metaData = metaData.upgradeToCurrentVersion();
-        }
-
-        // we write again to make sure all paths have the latest state file
+        metaData = metaData.upgradeToCurrentVersion();
         assert metaData.nodeVersion().equals(Version.CURRENT) : metaData.nodeVersion() + " != " + Version.CURRENT;
-        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
 
         return metaData;
     }
@@ -610,7 +618,7 @@ public final class NodeEnvironment  implements Closeable {
         acquireFSLockForPaths(indexSettings, paths);
         IOUtils.rm(paths);
         if (indexSettings.hasCustomDataPath()) {
-            Path customLocation = resolveCustomLocation(indexSettings, shardId);
+            Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
@@ -687,7 +695,7 @@ public final class NodeEnvironment  implements Closeable {
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
-            Path customLocation = resolveIndexCustomLocation(indexSettings);
+            Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
             IOUtils.rm(customLocation);
         }
@@ -933,7 +941,7 @@ public final class NodeEnvironment  implements Closeable {
      * returned paths. The returned array may contain paths to non-existing directories.
      *
      * @see IndexSettings#hasCustomDataPath()
-     * @see #resolveCustomLocation(IndexSettings, ShardId)
+     * @see #resolveCustomLocation(String, ShardId)
      *
      */
     public Path[] availableShardPaths(ShardId shardId) {
@@ -1233,17 +1241,12 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
-     * the root path for the index.
-     *
-     * @param indexSettings settings for the index
      */
-    public static Path resolveBaseCustomLocation(IndexSettings indexSettings, Path sharedDataPath) {
-        String customDataDir = indexSettings.customDataPath();
-        if (customDataDir != null) {
+    public static Path resolveBaseCustomLocation(String customDataPath, Path sharedDataPath) {
+        if (Strings.isNotEmpty(customDataPath)) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            return sharedDataPath.resolve(customDataDir).resolve("0");
+            return sharedDataPath.resolve(customDataPath).resolve("0");
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
         }
@@ -1254,14 +1257,14 @@ public final class NodeEnvironment  implements Closeable {
      * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
      * the root path for the index.
      *
-     * @param indexSettings settings for the index
+     * @param customDataPath the custom data path
      */
-    private Path resolveIndexCustomLocation(IndexSettings indexSettings) {
-        return resolveIndexCustomLocation(indexSettings, sharedDataPath);
+    private Path resolveIndexCustomLocation(String customDataPath, String indexUUID) {
+        return resolveIndexCustomLocation(customDataPath, indexUUID, sharedDataPath);
     }
 
-    private static Path resolveIndexCustomLocation(IndexSettings indexSettings, Path sharedDataPath) {
-        return resolveBaseCustomLocation(indexSettings, sharedDataPath).resolve(indexSettings.getUUID());
+    private static Path resolveIndexCustomLocation(String customDataPath, String indexUUID, Path sharedDataPath) {
+        return resolveBaseCustomLocation(customDataPath, sharedDataPath).resolve(indexUUID);
     }
 
     /**
@@ -1269,15 +1272,16 @@ public final class NodeEnvironment  implements Closeable {
      * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
      * the root path for the index.
      *
-     * @param indexSettings settings for the index
+     * @param customDataPath the custom data path
      * @param shardId shard to resolve the path to
      */
-    public Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId) {
-        return resolveCustomLocation(indexSettings, shardId, sharedDataPath);
+    public Path resolveCustomLocation(String customDataPath, final ShardId shardId) {
+        return resolveCustomLocation(customDataPath, shardId, sharedDataPath);
     }
 
-    public static Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId, Path sharedDataPath) {
-        return resolveIndexCustomLocation(indexSettings, sharedDataPath).resolve(Integer.toString(shardId.id()));
+    public static Path resolveCustomLocation(String customDataPath, final ShardId shardId, Path sharedDataPath) {
+        return resolveIndexCustomLocation(customDataPath, shardId.getIndex().getUUID(),
+            sharedDataPath).resolve(Integer.toString(shardId.id()));
     }
 
     /**

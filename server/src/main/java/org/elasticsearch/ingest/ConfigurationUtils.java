@@ -348,6 +348,12 @@ public final class ConfigurationUtils {
         return processors;
     }
 
+    public static TemplateScript.Factory readTemplateProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                                              String propertyName, ScriptService scriptService) {
+        String value = readStringProperty(processorType, processorTag, configuration, propertyName, null);
+        return compileTemplate(processorType, processorTag, propertyName, value, scriptService);
+    }
+
     public static TemplateScript.Factory compileTemplate(String processorType, String processorTag, String propertyName,
                                                            String propertyValue, ScriptService scriptService) {
         try {

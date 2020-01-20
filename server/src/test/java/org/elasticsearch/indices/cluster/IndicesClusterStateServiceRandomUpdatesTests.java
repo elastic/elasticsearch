@@ -21,7 +21,6 @@ package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -52,7 +50,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -256,6 +254,40 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         assertThat(shardOrNull == null ? null : shardOrNull.routingEntry(),
             equalTo(state.getRoutingNodes().node(node.getId()).getByShardId(shardId)));
 
+    }
+
+    public void testRecoveryFailures() {
+        disableRandomFailures();
+        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        ClusterState state = ClusterStateCreationUtils.state(index, randomBoolean(),
+            ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+
+        // the initial state which is derived from the newly created cluster state but doesn't contain the index
+        ClusterState previousState = ClusterState.builder(state)
+            .metaData(MetaData.builder(state.metaData()).remove(index))
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
+        final ShardRouting shardRouting = state.routingTable().index(index).shard(0).replicaShards().get(0);
+        final ShardId shardId = shardRouting.shardId();
+        DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
+
+        // simulate the cluster state change on the node
+        ClusterState localState = adaptClusterStateToLocalNode(state, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
+
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        // check that failing unrelated allocation does not remove shard
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, new Exception("dummy"));
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        indicesCSSvc.handleRecoveryFailure(shardRouting, false, new Exception("dummy"));
+        assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
     public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
@@ -482,13 +514,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 null,
                 null,
                 null,
-                null,
                 primaryReplicaSyncer,
+                RetentionLeaseSyncer.EMPTY,
                 client) {
-            @Override
-            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {}
-            @Override
-            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {}
             @Override
             protected void updateGlobalCheckpointForShard(final ShardId shardId) {}
         };

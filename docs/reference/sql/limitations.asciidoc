@@ -176,6 +176,30 @@ from `docvalue_fields`.
 [[fields-from-docvalues]]
 === Retrieving from `docvalue_fields`
 
-When the number of columns retrieveable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
+When the number of columns retrievable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
 the query will fail with `IllegalArgumentException: Trying to retrieve too many docvalue_fields` error. Either the mentioned {es}
-setting needs to be adjusted or fewer columns retrieveable from `docvalue_fields` need to be selected.
+setting needs to be adjusted or fewer columns retrievable from `docvalue_fields` need to be selected.
+
+[float]
+[[aggs-in-pivot]]
+=== Aggregations in the <<sql-syntax-pivot, `PIVOT`>> clause
+
+The aggregation expression in <<sql-syntax-pivot, `PIVOT`>> will currently accept only one aggregation. It is thus not possible to obtain multiple aggregations for any one pivoted column.
+
+[float]
+[[subquery-in-pivot]]
+=== Using a subquery in <<sql-syntax-pivot, `PIVOT`>>'s `IN`-subclause
+
+The values that the <<sql-syntax-pivot, `PIVOT`>> query could pivot must be provided in the query as a list of literals; providing a subquery instead to build this list is not currently supported. For example, in this query:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2))
+-------------------------------------------------------------
+
+the `languages` of interest must be listed explicitly: `IN (1, 2)`. On the other hand, this example would **not work**:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (SELECT languages FROM test_emp WHERE languages <=2 GROUP BY languages))
+-------------------------------------------------------------

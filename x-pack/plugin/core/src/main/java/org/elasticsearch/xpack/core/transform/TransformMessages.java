@@ -17,19 +17,19 @@ public class TransformMessages {
             "Interrupted while waiting for transform [{0}] to stop";
     public static final String REST_PUT_TRANSFORM_EXISTS = "Transform with id [{0}] already exists";
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
+    public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
+            "Detected transforms with no config [{0}]. Use force to stop/delete them.";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION =
             "Failed to validate configuration";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
-    public static final String REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
-    public static final String REST_PUT_TRANSFORM_DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
-    public static final String REST_PUT_TRANSFORM_DEST_SINGLE_INDEX = "Destination index [{0}] should refer to a single index";
     public static final String REST_PUT_TRANSFORM_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
     public static final String TRANSFORM_CONFIG_INVALID = "Transform configuration is invalid [{0}]";
     public static final String REST_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
     public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist transform statistics for transform [{0}]";
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
+    public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
 

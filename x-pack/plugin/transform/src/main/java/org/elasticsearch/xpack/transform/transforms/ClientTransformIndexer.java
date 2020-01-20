@@ -128,15 +128,14 @@ class ClientTransformIndexer extends TransformIndexer {
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].", getJobId()));
             return;
         }
-        ClientHelper
-            .executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                SearchAction.INSTANCE,
-                request,
-                nextPhase
-            );
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            nextPhase
+        );
     }
 
     @Override
@@ -146,49 +145,46 @@ class ClientTransformIndexer extends TransformIndexer {
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a bulk index request for failed transform [{}].", getJobId()));
             return;
         }
-        ClientHelper
-            .executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                BulkAction.INSTANCE,
-                request,
-                ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures()) {
-                        int failureCount = 0;
-                        for (BulkItemResponse item : bulkResponse.getItems()) {
-                            if (item.isFailed()) {
-                                failureCount++;
-                            }
-                            // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            BulkAction.INSTANCE,
+            request,
+            ActionListener.wrap(bulkResponse -> {
+                if (bulkResponse.hasFailures()) {
+                    int failureCount = 0;
+                    for (BulkItemResponse item : bulkResponse.getItems()) {
+                        if (item.isFailed()) {
+                            failureCount++;
                         }
-                        if (auditBulkFailures) {
-                            String failureMessage = bulkResponse.buildFailureMessage();
-                            logger.debug("[{}] Bulk index failure encountered: {}", getJobId(), failureMessage);
-                            auditor
-                                .warning(
-                                    getJobId(),
-                                    "Experienced at least ["
-                                        + failureCount
-                                        + "] bulk index failures. See the logs of the node running the transform for details. "
-                                        + failureMessage
-                                );
-                            auditBulkFailures = false;
-                        }
-                        // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
-                        // It increments the indexing failure, and then calls the `onFailure` logic
-                        nextPhase
-                            .onFailure(
-                                new BulkIndexingException(
-                                    "Bulk index experienced failures. " + "See the logs of the node running the transform for details."
-                                )
-                            );
-                    } else {
-                        auditBulkFailures = true;
-                        nextPhase.onResponse(bulkResponse);
+                        // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
                     }
-                }, nextPhase::onFailure)
-            );
+                    if (auditBulkFailures) {
+                        String failureMessage = bulkResponse.buildFailureMessage();
+                        logger.debug("[{}] Bulk index failure encountered: {}", getJobId(), failureMessage);
+                        auditor.warning(
+                            getJobId(),
+                            "Experienced at least ["
+                                + failureCount
+                                + "] bulk index failures. See the logs of the node running the transform for details. "
+                                + failureMessage
+                        );
+                        auditBulkFailures = false;
+                    }
+                    // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
+                    // It increments the indexing failure, and then calls the `onFailure` logic
+                    nextPhase.onFailure(
+                        new BulkIndexingException(
+                            "Bulk index experienced failures. " + "See the logs of the node running the transform for details."
+                        )
+                    );
+                } else {
+                    auditBulkFailures = true;
+                    nextPhase.onResponse(bulkResponse);
+                }
+            }, nextPhase::onFailure)
+        );
     }
 
     @Override
@@ -275,41 +271,40 @@ class ClientTransformIndexer extends TransformIndexer {
         // Persist the current state and stats in the internal index. The interval of this method being
         // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
         // often when doing bulk indexing calls or at the end of one indexing run.
-        transformsConfigManager
-            .putOrUpdateTransformStoredDoc(
-                new TransformStoredDoc(getJobId(), state, getStats()),
-                seqNoPrimaryTermAndIndex,
-                ActionListener.wrap(r -> {
-                    updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
-                    // for auto stop shutdown the task
-                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                        context.shutdown();
-                    }
-                    // Only do this clean up once, if it succeeded, no reason to do the query again.
-                    if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                        transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
-                            logger.trace("[{}] deleted old transform stats and state document", getJobId());
-                            listener.onResponse(null);
-                        }, e -> {
-                            String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", getJobId());
-                            logger.warn(msg, e);
-                            // If we have failed, we should attempt the clean up again later
-                            oldStatsCleanedUp.set(false);
-                            listener.onResponse(null);
-                        }));
-                    } else {
+        transformsConfigManager.putOrUpdateTransformStoredDoc(
+            new TransformStoredDoc(getJobId(), state, getStats()),
+            seqNoPrimaryTermAndIndex,
+            ActionListener.wrap(r -> {
+                updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                // for auto stop shutdown the task
+                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                    context.shutdown();
+                }
+                // Only do this clean up once, if it succeeded, no reason to do the query again.
+                if (oldStatsCleanedUp.compareAndSet(false, true)) {
+                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
+                        logger.trace("[{}] deleted old transform stats and state document", getJobId());
                         listener.onResponse(null);
-                    }
-                }, statsExc -> {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
-                    auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
-                    // for auto stop shutdown the task
-                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                        context.shutdown();
-                    }
-                    listener.onFailure(statsExc);
-                })
-            );
+                    }, e -> {
+                        String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", getJobId());
+                        logger.warn(msg, e);
+                        // If we have failed, we should attempt the clean up again later
+                        oldStatsCleanedUp.set(false);
+                        listener.onResponse(null);
+                    }));
+                } else {
+                    listener.onResponse(null);
+                }
+            }, statsExc -> {
+                logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                // for auto stop shutdown the task
+                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                    context.shutdown();
+                }
+                listener.onFailure(statsExc);
+            })
+        );
 
     }
 

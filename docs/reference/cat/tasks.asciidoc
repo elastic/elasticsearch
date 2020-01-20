@@ -13,9 +13,7 @@ similar to the <<tasks,task management>> API.
 [[cat-tasks-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/_tasks/<task_id>`
-
-`GET /_cat/_tasks`
+`GET /_cat/tasks`
 
 
 [[cat-tasks-api-desc]]
@@ -26,12 +24,6 @@ about tasks currently executing
 on one or more nodes in the cluster.
 It is a more compact view
 of the JSON <<tasks,task management>> API.
-
-
-[[cat-tasks-api-path-params]]
-==== {api-path-parms-title}
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[cat-tasks-api-query-params]]
@@ -70,30 +62,6 @@ include::{docdir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 [[cat-tasks-api-examples]]
 ==== {api-examples-title}
-
-
-[[cat-tasks-api-specific-ex]]
-===== Get information for a specific task
-
-[source,console]
-----
-GET _cat/tasks/oTUltX4IQMOUUVeiohTt8A:124?v
-----
-// TEST[skip:No tasks to retrieve]
-
-The API returns the following response:
-
-[source,txt]
-----
-action                         task_id                    parent_task_id             type      start_time    timestamp running_time ip             node
-cluster:monitor/tasks/lists[n] oTUltX4IQMOUUVeiohTt8A:124 oTUltX4IQMOUUVeiohTt8A:123 direct    1458585884904 01:48:24  44.1micros   127.0.0.1:9300 oTUltX4IQMOUUVeiohTt8A
-----
-// TESTRESPONSE[skip:No tasks to retrieve]
-// TESTRESPONSE[non_json]
-
-
-[[cat-tasks-api-all-ex]]
-===== Get information for all tasks in a cluster
 
 [source,console]
 ----

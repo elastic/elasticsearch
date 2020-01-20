@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -16,7 +18,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,6 +46,8 @@ import java.util.stream.Stream;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask, StopDatafeedAction.Request,
         StopDatafeedAction.Response, StopDatafeedAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportStopDatafeedAction.class);
 
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
@@ -122,7 +125,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             // Delegates stop datafeed to elected master node, so it becomes the coordinating node.
             // See comment in TransportStartDatafeedAction for more information.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                         new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new));
@@ -259,9 +262,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            if ((e instanceof ResourceNotFoundException &&
-                                Strings.isAllOrWildcard(new String[]{request.getDatafeedId()}))) {
-                                datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                            // We validated that the datafeed names supplied in the request existed when we started processing the action.
+                            // If the related task for one of them doesn't exist at this point then it must have been removed by a
+                            // simultaneous force stop request.  This is not an error.
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 listener.onResponse(new StopDatafeedAction.Response(true));
                             } else {
                                 listener.onFailure(e);
@@ -269,7 +273,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         }
 
                         @Override
-                        protected void doRun() throws Exception {
+                        protected void doRun() {
                             datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
                             listener.onResponse(new StopDatafeedAction.Response(true));
                         }
@@ -343,7 +347,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 throw org.elasticsearch.ExceptionsHelper
                         .convertToElastic(failedNodeExceptions.get(0));
             } else {
-                // This can happen we the actual task in the node no longer exists,
+                // This can happen when the actual task in the node no longer exists,
                 // which means the datafeed(s) have already been stopped.
                 return new StopDatafeedAction.Response(true);
             }

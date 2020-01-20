@@ -31,7 +31,6 @@ import org.elasticsearch.rest.RestUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -63,6 +62,10 @@ public class AzureHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
             if (Regex.simpleMatch("PUT /" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
@@ -92,7 +95,7 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
-                final String ifNoneMatch = exchange.getResponseHeaders().getFirst("If-None-Match");
+                final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 if ("*".equals(ifNoneMatch)) {
                     if (blobs.putIfAbsent(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody())) != null) {
                         sendError(exchange, RestStatus.CONFLICT);
@@ -140,9 +143,6 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("DELETE /" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)
-                try (InputStream is = exchange.getRequestBody()) {
-                    while (is.read() >= 0);
-                }
                 blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
                 exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
 
@@ -214,12 +214,10 @@ public class AzureHttpHandler implements HttpHandler {
         }
 
         final String errorCode = toAzureErrorCode(status);
-        if (errorCode != null) {
-            // see Constants.HeaderConstants.ERROR_CODE
-            headers.add("x-ms-error-code", errorCode);
-        }
+        // see Constants.HeaderConstants.ERROR_CODE
+        headers.add("x-ms-error-code", errorCode);
 
-        if (errorCode == null || "HEAD".equals(exchange.getRequestMethod())) {
+        if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
             final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>" + errorCode + "</Code><Message>"

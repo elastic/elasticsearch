@@ -863,7 +863,7 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-Advanced configuration option. Denotes the period for which model snapshots
+Advanced configuration option. The period of time (in days) that model snapshots are retained.
 will be retained. Age is calculated as the time from the newest model snapshot's
 timestamp, older snapshots are automatically deleted. The default value is `1`,
 which means snapshots are retained for one day (twenty-four hours).

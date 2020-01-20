@@ -35,11 +35,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -85,10 +83,9 @@ public class JsonLoggerTests extends ESTestCase {
     public void tearDown() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
-        System.out.println(PathUtils.get(System.getProperty("es.logs.base_path")));
-        Assert.fail();
         super.tearDown();
     }
+
     public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("deprecation.test");
         testLogger.info(DeprecatedMessage.of("someId","deprecated message1"));
@@ -113,30 +110,6 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    public void testMessageOverrideWithNoValue() throws IOException {
-        //message field is meant to be overriden (see custom.test config), but is not provided.
-        //Expected is that it will be emptied
-        final Logger testLogger = LogManager.getLogger("custom.test");
-
-        testLogger.info(new ESLogMessage("some message"));
-
-        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") + "_custom.json");
-        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-            List<Map<String, String>> jsonLogs = stream
-                .collect(Collectors.toList());
-
-            assertThat(jsonLogs, contains(
-                allOf(
-                    hasEntry("type", "custom"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "custom.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"))
-                )
-            );
-        }
-    }
     public void testBuildingMessage() throws IOException {
 
         final Logger testLogger = LogManager.getLogger("test");
@@ -164,39 +137,6 @@ public class JsonLoggerTests extends ESTestCase {
                 )
             );
         }
-    }
-
-    public void testMessageOverride() throws IOException {
-
-        final Logger testLogger = LogManager.getLogger("custom.test");
-        testLogger.info(new ESLogMessage("some message")
-                                    .with("message","overriden"));
-
-
-        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") + "_custom.json");
-        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-            List<Map<String, String>> jsonLogs = stream
-                .collect(Collectors.toList());
-
-            assertThat(jsonLogs, contains(
-                allOf(
-                    hasEntry("type", "custom"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "custom.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "overriden"))
-                )
-            );
-        }
-
-        final Path plaintextPath = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") + "_plaintext.json");
-        List<String> lines = Files.readAllLines(plaintextPath);
-        assertThat(lines, contains("some message"));
-
-
     }
 
     public void testCustomMessageWithMultipleFields() throws IOException {

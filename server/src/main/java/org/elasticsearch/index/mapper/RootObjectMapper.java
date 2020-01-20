@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,12 +37,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
+
+    private static final Logger LOGGER = LogManager.getLogger(RootObjectMapper.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
@@ -130,7 +137,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                        || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
+                        || processField(builder, fieldName, fieldNode, parserContext)) {
                     iterator.remove();
                 }
             }
@@ -139,7 +146,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @SuppressWarnings("unchecked")
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode,
-                                       Version indexVersionCreated) {
+                                       ParserContext parserContext) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -163,7 +170,7 @@ public class RootObjectMapper extends ObjectMapper {
                           "template_1" : {
                               "match" : "*_test",
                               "match_mapping_type" : "string",
-                              "mapping" : { "type" : "string", "store" : "yes" }
+                              "mapping" : { "type" : "keyword", "store" : "yes" }
                           }
                       }
                   ]
@@ -182,6 +189,7 @@ public class RootObjectMapper extends ObjectMapper {
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
+                    validateDynamicTemplate(parserContext, templateName, templateParams, template);
                     if (template != null) {
                         templates.add(template);
                     }
@@ -197,6 +205,110 @@ public class RootObjectMapper extends ObjectMapper {
             }
             return false;
         }
+
+        private static void validateDynamicTemplate(ParserContext parserContext,
+                                                    String templateName,
+                                                    Map<String, Object> templateParams,
+                                                    DynamicTemplate template) {
+
+            if (containsPlaceHolders(templateParams, "{name}")) {
+                // Can't validate template, because field names can't be guessed up front.
+                return;
+            }
+
+            final XContentFieldType[] types;
+            if (template.getXContentFieldType() != null) {
+                types = new XContentFieldType[]{template.getXContentFieldType()};
+            } else {
+                types = XContentFieldType.values();
+            }
+
+            Exception lastError = null;
+            boolean dynamicTemplateInvalid = true;
+
+            for (XContentFieldType contentFieldType : types) {
+                String defaultDynamicType = contentFieldType.defaultMappingType();
+                String mappingType = template.mappingType(defaultDynamicType);
+                Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+                if (typeParser != null) {
+                    Map<String, Object> fieldTypeConfig = template.mappingForName("__dummy__", defaultDynamicType);
+                    fieldTypeConfig.remove("type");
+                    try {
+                        Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                        if (fieldTypeConfig.isEmpty()) {
+                            dynamicTemplateInvalid = false;
+                            break;
+                        }
+                    } catch (Exception e) {
+                        lastError = e;
+                    }
+                }
+            }
+
+            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
+            if (dynamicTemplateInvalid) {
+                String message =
+                    String.format(Locale.ROOT, "dynamic template [%s] has invalid content [%s]", templateName, templateParams);
+                if (failInvalidDynamicTemplates) {
+                    throw new IllegalArgumentException(message, lastError);
+                } else {
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", message);
+                }
+            }
+        }
+    }
+
+    private static boolean containsPlaceHolders(Map<?, ?> map, String... placeHolders) {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            String key = entry.getKey().toString();
+            for (String placeHolder : placeHolders) {
+                if (key.contains(placeHolder)) {
+                    return true;
+                }
+            }
+
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof List) {
+                if (containsPlaceHolders((List<?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof String) {
+                String valueString = (String) value;
+                for (String placeHolder : placeHolders) {
+                    if (valueString.contains(placeHolder)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsPlaceHolders(List<?> list, String... placeHolders) {
+        for (Object value : list) {
+            if (value instanceof Map) {
+                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof List) {
+                if (containsPlaceHolders((List<?>) value, placeHolders)) {
+                    return true;
+                }
+            } else if (value instanceof String) {
+                String valueString = (String) value;
+                for (String placeHolder : placeHolders) {
+                    if (valueString.contains(placeHolder)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private Explicit<DateFormatter[]> dynamicDateTimeFormatters;

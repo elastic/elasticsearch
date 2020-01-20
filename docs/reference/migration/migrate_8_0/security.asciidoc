@@ -6,6 +6,12 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[float]
+==== Mandatory realm order configuration
+
+The `order` setting is now mandatory and must be specified for each explicitly
+configured realms. Their values must be unique. The cluster will fail to start if
+the requirements are not met.
 
 // end::notable-breaking-changes[]
 
@@ -79,8 +85,8 @@ It is now an error to configure any SSL settings for
 For example, the following configuration is invalid:
 [source,yaml]
 --------------------------------------------------
-xpack.security.http.ssl.certificate: elasticsearch.crt 
-xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
 xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 --------------------------------------------------
 
@@ -88,8 +94,8 @@ And must be configured as either:
 [source,yaml]
 --------------------------------------------------
 xpack.security.http.ssl.enabled: true <1>
-xpack.security.http.ssl.certificate: elasticsearch.crt 
-xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
 xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 --------------------------------------------------
 <1> or `false`.

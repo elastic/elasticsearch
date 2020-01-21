@@ -32,7 +32,7 @@ Features/Ingest::
 * Fix ingest simulate response document order if processor executes async {pull}50244[#50244]
 
 Features/Java Low Level REST Client::
-* Improve warning value extraction performance in Response {pull}50208[#50208] (issue: {issue}24114[#24114])
+* Improve warning value extraction performance in response {pull}50208[#50208] (issue: {issue}24114[#24114])
 
 Machine Learning::
 * Fixes potential memory corruption or inconsistent state when background

@@ -88,7 +88,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
             assertThat(
-                resultsObject.toString(), resultsObject.containsKey("feature_importance." + DISCRETE_NUMERICAL_FEATURE_FIELD), is(true));
+                resultsObject.toString(),
+                resultsObject.containsKey("feature_importance." + NUMERICAL_FEATURE_FIELD)
+                    || resultsObject.containsKey("feature_importance." + DISCRETE_NUMERICAL_FEATURE_FIELD),
+                is(true));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -407,10 +410,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     private static Map<String, Object> getMlResultsObjectFromDestDoc(Map<String, Object> destDoc) {
-        assertThat(destDoc.containsKey("ml"), is(true));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
-        return resultsObject;
+        return getFieldValue(destDoc, "ml");
     }
 
     protected String stateDocId() {

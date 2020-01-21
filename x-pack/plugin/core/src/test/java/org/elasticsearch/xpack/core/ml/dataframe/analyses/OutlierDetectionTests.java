@@ -92,8 +92,8 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         assertThat(createTestInstance().getFieldCardinalityLimits(), is(anEmptyMap()));
     }
 
-    public void testFieldMappingsToCopyIsEmpty() {
-        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(anEmptyMap()));
+    public void testGetExplicitlyMappedFields() {
+        assertThat(createTestInstance().getExplicitlyMappedFields(null, null), is(anEmptyMap()));
     }
 
     public void testGetStateDocId() {

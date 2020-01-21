@@ -22,16 +22,14 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -39,7 +37,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public final class GetSourceResponseTests extends
     AbstractResponseTestCase<GetSourceResponseTests.SourceOnlyResponse, GetSourceResponse> {
 
-    static class SourceOnlyResponse implements ToXContent {
+    static class SourceOnlyResponse implements ToXContentObject {
 
         private final BytesReference source;
 
@@ -70,10 +68,6 @@ public final class GetSourceResponseTests extends
 
     @Override
     protected void assertInstances(SourceOnlyResponse serverTestInstance, GetSourceResponse clientInstance) {
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("field", "value");
-
-        assertThat(clientInstance.getSource(), equalTo(serverTestInstance.source));
-        assertThat(clientInstance.getSource(), equalTo(expected));
+        assertThat(clientInstance.getSource(), equalTo(Map.of("field", "value")));
     }
 }

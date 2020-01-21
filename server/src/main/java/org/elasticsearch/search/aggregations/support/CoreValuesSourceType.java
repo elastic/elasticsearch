@@ -21,9 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -37,7 +34,6 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Locale;
@@ -46,7 +42,7 @@ import java.util.function.LongSupplier;
 /**
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
-public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
+public enum CoreValuesSourceType implements ValuesSourceType {
     ANY(EquivalenceType.STRING) {
         // ANY still has a lot of special handling in ValuesSourceConfig, and as such doesn't adhere to this interface yet
         @Override
@@ -340,16 +336,6 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
-    }
-
-    public static ValuesSourceType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(CoreValuesSourceType.class);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        CoreValuesSourceType state = this;
-        out.writeEnum(state);
     }
 
     public String value() {

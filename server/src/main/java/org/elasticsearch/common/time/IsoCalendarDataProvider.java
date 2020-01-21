@@ -22,6 +22,13 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.spi.CalendarDataProvider;
 
+/**
+ * This class is loaded by JVM SPI mechanism in order to provide ISO compatible behaviour for week calculations using java.time.
+ * It defines start of the week as Monday and requires 4 days in the first week of the year.
+ * This class overrides default behaviour for Locale.ROOT (start of the week Sunday, minimum 1 day in the first week of the year).
+ * Java SPI mechanism requires java.locale.providers to contain SPI value (i.e. java.locale.providers=SPI,COMPAT)
+ * @see <a href="https://en.wikipedia.org/wiki/ISO_week_date">ISO week date</a>
+ */
 public class IsoCalendarDataProvider extends CalendarDataProvider {
 
     @Override

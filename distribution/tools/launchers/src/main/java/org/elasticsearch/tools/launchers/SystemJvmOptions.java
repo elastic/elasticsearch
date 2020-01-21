@@ -19,6 +19,10 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -61,13 +65,25 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
-                /*
-                 * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
-                 * parsing will break in an incompatible way for some date patterns and locales.
-                 */
-                "-Djava.locale.providers=COMPAT"
-            )
-        );
+                javaLocaleProviders()));
+    }
+
+    private static String javaLocaleProviders() {
+        /**
+         *  SPI setting is used to allow loading custom CalendarDataProvider
+         *  in jdk8 it has to be loaded from jre/lib/ext,
+         *  in jdk9+ it is already within ES project and on a classpath
+         *
+         *  Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
+         *  parsing will break in an incompatible way for some date patterns and locales.
+         *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
+         * See also: documentation in <code>server/org.elasticsearch.common.time.IsoCalendarDataProvider</code>
+         */
+        if(JavaVersion.majorVersion(JavaVersion.CURRENT) == 8){
+            return "-Djava.locale.providers=SPI,JRE";
+        } else {
+            return "-Djava.locale.providers=SPI,COMPAT";
+        }
     }
 
 }

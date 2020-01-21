@@ -22,6 +22,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
@@ -156,8 +157,8 @@ public final class Intervals {
             int PREFIX = "INTERVAL_".length();
             // to avoid specifying the combinations, extract the leading and trailing unit from the name
             // D > H > S > M which is also the alphabetical order
-            String lName = left.typeName().substring(PREFIX);
-            String rName = right.typeName().substring(PREFIX);
+            String lName = left.typeName().toUpperCase(Locale.ROOT).substring(PREFIX);
+            String rName = right.typeName().toUpperCase(Locale.ROOT).substring(PREFIX);
 
             char leading = lName.charAt(0);
             if (rName.charAt(0) < leading) {

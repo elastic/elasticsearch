@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
@@ -122,28 +123,6 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
     }
 
-    private static final Map<String, DataType> SQL_TO_ES = new HashMap<>(mapSize(45));
-
-    static {
-        // first add ES types
-        for (DataType type : DataTypes.types()) {
-            if (type != OBJECT && type != NESTED && type != UNSUPPORTED) {
-                SQL_TO_ES.put(type.typeName().toUpperCase(Locale.ROOT), type);
-            }
-        }
-
-        // reuse the ODBC definition (without SQL_)
-        // note that this will override existing types in particular FLOAT
-        for (Entry<String, DataType> entry : ODBC_TO_ES.entrySet()) {
-            SQL_TO_ES.put(entry.getKey().substring(4), entry.getValue());
-        }
-
-        // special ones
-        SQL_TO_ES.put("BOOL", BOOLEAN);
-        SQL_TO_ES.put("INT", INTEGER);
-        SQL_TO_ES.put("STRING", KEYWORD);
-    }
-
     private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Arrays.asList(
             DATE,
             TIME,
@@ -174,6 +153,30 @@ public class SqlDataTypes {
             .filter(e -> e.esType() != null)
             .collect(toUnmodifiableMap(DataType::esType, t -> t));
 
+    private static final Map<String, DataType> SQL_TO_ES;
+
+    static {
+        Map<String, DataType> sqlToEs = new HashMap<>(mapSize(45));
+        // first add ES types
+        for (DataType type : SqlDataTypes.types()) {
+            if (type != OBJECT && type != NESTED) {
+                sqlToEs.put(type.typeName().toUpperCase(Locale.ROOT), type);
+            }
+        }
+
+        // reuse the ODBC definition (without SQL_)
+        // note that this will override existing types in particular FLOAT
+        for (Entry<String, DataType> entry : ODBC_TO_ES.entrySet()) {
+            sqlToEs.put(entry.getKey().substring(4), entry.getValue());
+        }
+
+        // special ones
+        sqlToEs.put("BOOL", BOOLEAN);
+        sqlToEs.put("INT", INTEGER);
+        sqlToEs.put("STRING", KEYWORD);
+
+        SQL_TO_ES = unmodifiableMap(sqlToEs);
+    }
 
     private SqlDataTypes() {}
 

@@ -49,7 +49,6 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
     private static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
     public static final ParseField PERCENTS_FIELD = new ParseField("percents");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
-    public static final ParseField METHOD_FIELD = new ParseField("method");
     public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
     public static final ParseField NUMBER_SIGNIFICANT_DIGITS_FIELD = new ParseField("number_of_significant_value_digits");
 

@@ -43,12 +43,10 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     @Override
@@ -120,10 +118,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
-        assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
+        assertThat(p.get("message"), equalTo("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
-        assertThat(p.getFormattedMessage(), not(containsString("\n")));
-        assertThat(p.getFormattedMessage(), endsWith("id[my_id], "));
+        assertThat(p.get("source"), not(containsString("\n")));
+        assertThat(p.get("id"), equalTo("my_id"));
     }
 
     public void testLevelSetting() {

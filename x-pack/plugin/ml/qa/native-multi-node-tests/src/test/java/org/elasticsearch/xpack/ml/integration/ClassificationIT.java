@@ -489,7 +489,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
         this.destIndex = sourceIndex + "_results";
-        this.analysisUsesExistingDestIndex = false;
+        this.analysisUsesExistingDestIndex = randomBoolean();
         createIndex(sourceIndex);
         if (analysisUsesExistingDestIndex) {
             createIndex(destIndex);

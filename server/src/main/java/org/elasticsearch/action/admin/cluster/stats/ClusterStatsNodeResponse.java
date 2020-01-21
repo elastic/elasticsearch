@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -101,5 +102,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         for (ShardStats ss : shardsStats) {
             ss.writeTo(out);
         }
+    }
+    public static void main(String[] args) {
+        System.out.println(GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(Math.nextDown(180))));
     }
 }

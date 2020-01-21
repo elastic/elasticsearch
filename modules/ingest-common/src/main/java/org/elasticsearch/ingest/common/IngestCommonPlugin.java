@@ -60,6 +60,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+<<<<<<< HEAD
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
@@ -74,7 +75,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
         processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
         processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService));
-        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService, parameters.genericExecutor));
+        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService));
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService));
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, createGrokThreadWatchdog(parameters)));

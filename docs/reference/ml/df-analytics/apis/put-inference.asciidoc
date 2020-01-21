@@ -68,11 +68,6 @@ details.
 (Optional, string) 
 A human-readable description of the {infer} trained model.
 
-`ensamble`::
-(Optional, object)
-The definition for an ensamble model. See <<ml-put-inference-ensamble-model>> 
-for details.
-
 `input`::
 (Required, object) 
 The input field names for the model definition.
@@ -105,25 +100,6 @@ The name of the resulting feature.
 (Object map of string:double) 
 Object that maps the field value to the frequency encoded value.
 
-[source,js]
-----------------------------------
-{
-	"frequency_encoding": {
-		"field": "FlightDelayType",
-		"feature_name": "FlightDelayType_frequency",
-		"frequency_map": {
-			"Carrier Delay": 0.6007414737092798,
-			"NAS Delay": 0.6007414737092798,
-			"Weather Delay": 0.024573576178086153,
-			"Security Delay": 0.02476631010889467,
-			"No Delay": 0.6007414737092798,
-			"Late Aircraft Delay": 0.6007414737092798
-		}
-	}
-}
-----------------------------------
-//NOTCONSOLE
-
 `one_hot_encoding`::
 (Object) 
 Defines a one hot encoding map for a field.
@@ -135,23 +111,6 @@ The field name to encode.
 `one_hot_encoding`.`hot_map`:::
 (Object map of strings) 
 String map of "field_value: one_hot_column_name".
-
-[source,js]
-----------------------------------
-{
-	"one_hot_encoding": {
-		"field": "FlightDelayType",
-		"hot_map": {
-			"Carrier Delay": "FlightDelayType_Carrier Delay",
-			"NAS Delay": "FlightDelayType_NAS Delay",
-			"No Delay": "FlightDelayType_No Delay",
-			"Late Aircraft Delay": "FlightDelayType_Late Aircraft Delay"
-		}
-	}
-}
-----------------------------------
-//NOTCONSOLE
-
 
 `target_mean_encoding`::
 (Object) 
@@ -173,25 +132,7 @@ Object that maps the field value to the target mean value.
 (Double) 
 The feature value if the field value is not in the `target_map`.
 
-[source,js]
-----------------------------------
-{
-	"target_mean_encoding": {
-		"field": "FlightDelayType",
-		"feature_name": "FlightDelayType_targetmean",
-		"target_map": {
-			"Carrier Delay": 39.97465788139886,
-			"NAS Delay": 39.97465788139886,
-			"Security Delay": 203.171206225681,
-			"Weather Delay": 187.64705882352948,
-			"No Delay": 39.97465788139886,
-			"Late Aircraft Delay": 39.97465788139886
-		},
-		"default_value": 158.17995752420433
-	}
-}
-----------------------------------
-//NOTCONSOLE
+See <<ml-put-inference-preprocessor-example>> for more details.
 
 
 [[ml-put-inference-trained-model]]
@@ -218,7 +159,15 @@ An array of `tree_node` objects. The nodes must be in ordinal order by their
 (String) 
 String indicating the model target type; `regression` or `classification`.
 
+There are two major types of nodes: leaf nodes and not-leaf nodes.
+
+* Leaf nodes only need `node_index` and `leaf_value` defined.
+* All other nodes need `split_feature`, `left_child`, `right_child`, 
+  `threshold`, `decision_type`, and `default_left` defined.
+
 `tree_node`::
+(Object)
+
 
 `tree_node`.`decision_type`:::
 (Optional, string) 
@@ -257,11 +206,147 @@ The index of the current node.
 The leaf value of the of the node, if the value is a leaf (in other words, no 
 children).
 
-There are two major types of nodes: leaf nodes and not-leaf nodes.
+`ensemble`::
+(Optional, object)
+The definition for an ensemble model.
 
-* Leaf nodes only need `node_index` and `leaf_value` defined.
-* All other nodes need `split_feature`, `left_child`, `right_child`, `threshold`, 
-`decision_type`, and `default_left` defined.
+`ensemble`.`feature_names`:::
+(String) 
+Features expected by the ensemble, in their expected order.
+
+`ensemble`.`trained_models`:::
+(Object)
+An array of `trained_model` objects. Supported trained models are `tree` and 
+`ensemble`.
+
+`ensemble`.`classification_labels`:::
+(Optional, string) 
+An array of classification labels.
+
+`ensemble`.`target_type`:::
+(String) 
+String indicating the model target type; `regression` or `classification.`
+
+`ensemble`.`aggregate_output`:::
+(Object) 
+An aggregated output object that defines how to aggregate the outputs of the 
+`trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and 
+`logistic_regression`.
+
+See <<ml-put-inference-model-example>> for more details.
+
+
+[[ml-put-inference-aggreegated-output]]
+===== Aggregated output types
+
+`logistic_regression`::
+This `aggregated_output` type works with binary classification (classification 
+for values [0, 1]). It multiplies the outputs (in the case of the `ensemble` 
+model, the inference model values) by the supplied `weights`. The resulting 
+vector is summed and passed to a `sigmoid` function. The result of the `sigmoid` 
+function is considered the probability of class 1 (`P_1`), consequently, the 
+probability of class 0 is `1 - P_1`. The class with the highest probability 
+(either 0 or 1) is then returned.
+
+`logistic_regression`.`weights`:::
+(Double) 
+The weights to multiply by the input values (the inference values of the trained 
+models).
+
+`weighted_sum`::
+This `aggregated_output` type works with regression. The weighted sum of the 
+input values.
+
+`weighted_sum`.`weights`:::
+(Double) 
+The weights to multiply by the input values (the inference values of the trained 
+models).
+
+`weighted_mode`::
+This `aggregated_output` type works with regression or classification. It takes 
+a weighted vote of the input values. The the most common input value (taking the 
+weights into account) is returned.
+
+`weighted_mode`.`weights`:::
+(Double) 
+The weights to multiply by the input values (the inference values of the trained 
+models).
+
+
+[[ml-put-inference-example]]
+==== {api-examples-title}
+
+[[ml-put-inference-preprocessor-example]]
+===== Preprocessor examples
+
+The example above shows a `frequency_encoding` preprocessor object:
+
+[source,js]
+----------------------------------
+{
+	"frequency_encoding": {
+		"field": "FlightDelayType",
+		"feature_name": "FlightDelayType_frequency",
+		"frequency_map": {
+			"Carrier Delay": 0.6007414737092798,
+			"NAS Delay": 0.6007414737092798,
+			"Weather Delay": 0.024573576178086153,
+			"Security Delay": 0.02476631010889467,
+			"No Delay": 0.6007414737092798,
+			"Late Aircraft Delay": 0.6007414737092798
+		}
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+
+The next example shows a `one_hot_encoding` preprocessor object:
+
+[source,js]
+----------------------------------
+{
+	"one_hot_encoding": {
+		"field": "FlightDelayType",
+		"hot_map": {
+			"Carrier Delay": "FlightDelayType_Carrier Delay",
+			"NAS Delay": "FlightDelayType_NAS Delay",
+			"No Delay": "FlightDelayType_No Delay",
+			"Late Aircraft Delay": "FlightDelayType_Late Aircraft Delay"
+		}
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+
+This example shows a `target_mean_encoding` preprocessor object:
+
+[source,js]
+----------------------------------
+{
+	"target_mean_encoding": {
+		"field": "FlightDelayType",
+		"feature_name": "FlightDelayType_targetmean",
+		"target_map": {
+			"Carrier Delay": 39.97465788139886,
+			"NAS Delay": 39.97465788139886,
+			"Security Delay": 203.171206225681,
+			"Weather Delay": 187.64705882352948,
+			"No Delay": 39.97465788139886,
+			"Late Aircraft Delay": 39.97465788139886
+		},
+		"default_value": 158.17995752420433
+	}
+}
+----------------------------------
+//NOTCONSOLE
+
+
+[[ml-put-inference-model-example]]
+===== Model examples
+
+The first example shows a `trained_model` object:
 
 [source,js]
 ----------------------------------
@@ -279,7 +364,8 @@ There are two major types of nodes: leaf nodes and not-leaf nodes.
 			"DistanceMiles",
 			"FlightDelayType_Late Aircraft Delay"
 		],
-		"tree_structure": [{
+		"tree_structure": [
+      {
 				"decision_type": "lt",
 				"threshold": 9069.33437193022,
 				"split_feature": 0,
@@ -303,7 +389,52 @@ There are two major types of nodes: leaf nodes and not-leaf nodes.
 //NOTCONSOLE
 
 
-[[ml-put-inference-ensamble-model]]
-===== {infer-cap} ensemble model definitions
+The following example shows an `ensemble` model object:
+
+[source,js]
+----------------------------------
+"ensemble": {
+	"feature_names": [
+		...
+	],
+	"trained_models": [
+    {
+			"tree": {
+				"feature_names": [],
+				"tree_structure": [
+          {
+					"decision_type": "lte",
+					"node_index": 0,
+					"leaf_value": 47.64069875778043,
+					"default_left": false
+				}
+      ],
+				"target_type": "regression"
+			}
+		},
+		...
+	],
+	"aggregate_output": {
+		"weighted_sum": {
+			"weights": [
+				...
+			]
+		}
+	},
+	"target_type": "regression"
+}
+----------------------------------
+//NOTCONSOLE
 
 
+[[ml-put-inference-aggregated-output-example]]
+===== Aggregated output examples
+
+For the following examples, we use `[1.0, 2.0, 2.0, 3.0, 5.0]` as input. 
+
+If `weighted_mode: { weights: [1.0, -1.0, .5, 1.0, 5.0]}`, then the aggregated 
+output will return `5.0` as that is the most common input value given the 
+weights.
+
+If `weighted_mode: { weights: [1.0, 1.0, 1.0, 1.0, 1.0]}`, then it would return 
+`2.0`, as `2.0` appears the most in the input and the weights are uniform.

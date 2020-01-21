@@ -28,6 +28,21 @@ import java.util.Objects;
  */
 public class GrammarTests extends ESTestCase {
 
+    public void testStrings() throws Exception {
+        assertEquals("1. hello\"world", AstBuilder.unquoteString("'1. hello\"world'"));
+        assertEquals("2. hello'world", AstBuilder.unquoteString("\"2. hello'world\""));
+        assertEquals("3. hello\nworld", AstBuilder.unquoteString("'3. hello\\nworld'"));
+        assertEquals("4. hello\\\nworld", AstBuilder.unquoteString("'4. hello\\\\\\nworld'"));
+        assertEquals("5. hello\\\"world", AstBuilder.unquoteString("'5. hello\\\\\\\"world'"));
+
+        // test for unescaped strings: ?"...." or ?'....'
+        assertEquals("6. hello\"world", AstBuilder.unquoteString("?'1. hello\"world'"));
+        assertEquals("7. hello'world", AstBuilder.unquoteString("?\"2. hello'world\""));
+        assertEquals("8. hello\\nworld", AstBuilder.unquoteString("?'3. hello\\nworld'"));
+        assertEquals("9. hello\\\\\\nworld", AstBuilder.unquoteString("?'4. hello\\\\\\nworld'"));
+        assertEquals("10. hello\\\\\\\"world", AstBuilder.unquoteString("?'5. hello\\\\\\\"world'"));
+    }
+
     public void testSupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
         List<Tuple<String, Integer>> lines = readQueries("/queries-supported.eql");

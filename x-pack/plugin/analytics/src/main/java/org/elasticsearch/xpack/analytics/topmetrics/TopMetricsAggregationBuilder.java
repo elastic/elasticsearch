@@ -32,6 +32,20 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     public static final String NAME = "top_metrics";
     public static final ParseField METRIC_FIELD = new ParseField("metric");
 
+    public static final ConstructingObjectParser<TopMetricsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
+            false, (args, name) -> {
+                @SuppressWarnings("unchecked")
+                List<SortBuilder<?>> sorts = (List<SortBuilder<?>>) args[0];
+                MultiValuesSourceFieldConfig metricField = (MultiValuesSourceFieldConfig) args[1];
+                return new TopMetricsAggregationBuilder(name, sorts, metricField);
+            });
+    static {
+        PARSER.declareField(constructorArg(), (p, n) -> SortBuilder.fromXContent(p), SORT_FIELD,
+                ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.PARSER.apply(true, false);
+        PARSER.declareObject(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
+    }
+
     private final List<SortBuilder<?>> sortBuilders;
     // TODO MultiValuesSourceFieldConfig has more things than we support and less things than we want to support
     private final MultiValuesSourceFieldConfig metricField;
@@ -84,20 +98,6 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
         return new TopMetricsAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metaData, sortBuilders, metricField);
-    }
-
-    public static final ConstructingObjectParser<TopMetricsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
-            false, (args, name) -> {
-                @SuppressWarnings("unchecked")
-                List<SortBuilder<?>> sorts = (List<SortBuilder<?>>) args[0];
-                MultiValuesSourceFieldConfig metricField = (MultiValuesSourceFieldConfig) args[1];
-                return new TopMetricsAggregationBuilder(name, sorts, metricField);
-            });
-    static {
-        PARSER.declareField(constructorArg(), (p, n) -> SortBuilder.fromXContent(p), SORT_FIELD, 
-                ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
-        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.PARSER.apply(true, false);
-        PARSER.declareObject(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
     }
 
     @Override

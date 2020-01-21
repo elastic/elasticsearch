@@ -10,7 +10,7 @@
 ==== The realm `order` setting is required
 
 The `xpack.security.authc.realms.*.*.order` setting is now required and must be
-specified for each explicitly configured realms. Their values must be unique.
+specified for each explicitly configured realm. Each value must be unique.
 The cluster will fail to start if the requirements are not met.
 
 For example, the following configuration is invalid:
@@ -132,5 +132,4 @@ It is now an error to enable SSL for the HTTP (Rest) server without also configu
 a certificate and key through use of the `xpack.security.http.ssl.keystore.path`
 setting or the `xpack.security.http.ssl.certificate` and
 `xpack.security.http.ssl.key` settings.
-
 

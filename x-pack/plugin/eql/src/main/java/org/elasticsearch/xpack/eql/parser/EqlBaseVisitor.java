@@ -184,13 +184,6 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDereference(EqlBaseParser.DereferenceContext ctx);
   /**
-   * Visit a parse tree produced by the {@code identifierEscape}
-   * labeled alternative in {@link EqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitIdentifierEscape(EqlBaseParser.IdentifierEscapeContext ctx);
-  /**
    * Visit a parse tree produced by the {@code parenthesizedExpression}
    * labeled alternative in {@link EqlBaseParser#primaryExpression}.
    * @param ctx the parse tree

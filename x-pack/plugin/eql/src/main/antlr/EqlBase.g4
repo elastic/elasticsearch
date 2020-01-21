@@ -72,7 +72,7 @@ expression
 
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
-    | relationship=identifier OF subquery                                 #processCheck
+    | relationship=IDENTIFIER OF subquery                                 #processCheck
     | predicated                                                          #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
@@ -103,12 +103,11 @@ primaryExpression
     : constant                                                                          #constantDefault
     | functionExpression                                                                #function
     | qualifiedName                                                                     #dereference
-    | ESCAPED_IDENTIFIER                                                                #identifierEscape
     | LP expression RP                                                                  #parenthesizedExpression
     ;
 
 functionExpression
-    : name=identifier LP (expression (COMMA expression)*)? RP
+    : name=IDENTIFIER LP (expression (COMMA expression)*)? RP
     ;
 
 constant
@@ -132,6 +131,7 @@ qualifiedName
 
 identifier
     : IDENTIFIER
+    | ESCAPED_IDENTIFIER
     ;
 
 timeUnit

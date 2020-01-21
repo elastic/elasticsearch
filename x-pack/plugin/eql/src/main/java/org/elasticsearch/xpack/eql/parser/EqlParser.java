@@ -128,8 +128,8 @@ public class EqlParser {
 
         @Override
         public void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext context) {
-            String functionName = context.name.getText();
-            Token token = context.name.IDENTIFIER().getSymbol();
+            Token token = context.name;
+            String functionName = token.getText();
 
             switch (functionName) {
                 case "add":
@@ -192,7 +192,7 @@ public class EqlParser {
 
         @Override
         public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
-            Token token = context.relationship.IDENTIFIER().getSymbol();
+            Token token = context.relationship;
             throw new ParsingException(
                 "process relationships are not supported",
                 null,

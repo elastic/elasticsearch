@@ -10,7 +10,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.junit.Assert;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,11 +28,12 @@ import java.util.Objects;
  */
 public class GrammarTests extends ESTestCase {
 
-    public void testValidQueries() throws Exception {
+    public void testSupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
-        List<Tuple<String, Integer>> lines = readQueries("/valid-queries.eql");
+        List<Tuple<String, Integer>> lines = readQueries("/queries-supported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
+
             try {
                 parser.createStatement(q);
             } catch (ParsingException pe) {
@@ -48,20 +48,17 @@ public class GrammarTests extends ESTestCase {
     }
     public void testUnsupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
-        List<Tuple<String, Integer>> lines = readQueries("/unsupported-queries.eql");
+        List<Tuple<String, Integer>> lines = readQueries("/queries-unsupported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
-            try {
-                parser.createStatement(q);
+            ParsingException pe = expectThrows(
+                ParsingException.class,
+                "Query not identified as unsupported: " + q,
+                () -> parser.createStatement(q));
 
-                fail("Query not identified as unsupported: " + q);
-            } catch (ParsingException pe) {
-                if (pe.getErrorMessage().contains("supported")) {
-                    // the error we actually expect
-                } else {
-                    throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
-                        pe.getErrorMessage() + " inside statement <{}>", q);
-                }
+            if (!pe.getErrorMessage().contains("supported")) {
+                throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
+                    pe.getErrorMessage() + " inside statement <{}>", q);
             }
         }
     }

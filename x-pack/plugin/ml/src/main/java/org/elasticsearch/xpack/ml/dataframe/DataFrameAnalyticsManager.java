@@ -158,7 +158,7 @@ public class DataFrameAnalyticsManager {
 
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            refreshResponse -> {
+            reindexResponse -> {
                 if (task.isStopping()) {
                     LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
                     return;
@@ -177,6 +177,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(
             createIndexResponse -> {
                 ReindexRequest reindexRequest = new ReindexRequest();
+                reindexRequest.setRefresh(true);
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
                 reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());

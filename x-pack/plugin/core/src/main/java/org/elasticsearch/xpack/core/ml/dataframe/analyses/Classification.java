@@ -243,7 +243,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public List<FieldCardinalityConstraint> getFieldCardinalityLimits() {
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
         return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, 2));
     }

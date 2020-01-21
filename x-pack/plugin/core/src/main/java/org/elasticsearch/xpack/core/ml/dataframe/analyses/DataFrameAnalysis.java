@@ -37,9 +37,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     List<RequiredField> getRequiredFields();
 
     /**
-     * @return {@link List} containing cardinality limits for the selected (analysis-specific) fields
+     * @return {@link List} containing cardinality constraints for the selected (analysis-specific) fields
      */
-    List<FieldCardinalityConstraint> getFieldCardinalityLimits();
+    List<FieldCardinalityConstraint> getFieldCardinalityConstraints();
 
     /**
      * Returns fields for which the mappings should be either predefined or copied from source index to destination index.

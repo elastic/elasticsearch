@@ -174,12 +174,12 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     public void testFieldCardinalityLimitsIsNonEmpty() {
         Classification classification = createTestInstance();
-        List<FieldCardinalityConstraint> limits = classification.getFieldCardinalityLimits();
+        List<FieldCardinalityConstraint> constraints = classification.getFieldCardinalityConstraints();
 
-        assertThat(limits.size(), equalTo(1));
-        assertThat(limits.get(0).getField(), equalTo(classification.getDependentVariable()));
-        assertThat(limits.get(0).getLowerBound(), equalTo(2L));
-        assertThat(limits.get(0).getUpperBound(), equalTo(2L));
+        assertThat(constraints.size(), equalTo(1));
+        assertThat(constraints.get(0).getField(), equalTo(classification.getDependentVariable()));
+        assertThat(constraints.get(0).getLowerBound(), equalTo(2L));
+        assertThat(constraints.get(0).getUpperBound(), equalTo(2L));
     }
 
     public void testGetExplicitlyMappedFields() {

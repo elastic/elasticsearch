@@ -225,7 +225,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public List<FieldCardinalityConstraint> getFieldCardinalityLimits() {
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         return Collections.emptyList();
     }
 

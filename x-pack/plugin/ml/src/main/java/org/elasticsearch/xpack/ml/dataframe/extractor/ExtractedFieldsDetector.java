@@ -285,7 +285,7 @@ public class ExtractedFieldsDetector {
     }
 
     private void checkFieldsWithCardinalityLimit() {
-        for (FieldCardinalityConstraint constraint : config.getAnalysis().getFieldCardinalityLimits()) {
+        for (FieldCardinalityConstraint constraint : config.getAnalysis().getFieldCardinalityConstraints()) {
             constraint.check(fieldCardinalities.get(constraint.getField()));
         }
     }

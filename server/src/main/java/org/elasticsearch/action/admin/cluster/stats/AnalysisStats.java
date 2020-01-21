@@ -139,11 +139,15 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
         }
-        return new AnalysisStats(usedCharFilterTypes.values(), usedTokenizerTypes.values(), usedTokenFilterTypes.values(), usedAnalyzerTypes.values(),
-                usedBuiltInCharFilters.values(), usedBuiltInTokenizers.values(), usedBuiltInTokenFilters.values(), usedBuiltInAnalyzers.values());
+        return new AnalysisStats(usedCharFilterTypes.values(), usedTokenizerTypes.values(), usedTokenFilterTypes.values(),
+                usedAnalyzerTypes.values(), usedBuiltInCharFilters.values(), usedBuiltInTokenizers.values(),
+                usedBuiltInTokenFilters.values(), usedBuiltInAnalyzers.values());
     }
 
-    private static void aggregateAnalysisTypes(Collection<Settings> settings, Map<String, IndexFeatureStats> stats, Set<String> indexTypes) {
+    private static void aggregateAnalysisTypes(
+                Collection<Settings> settings,
+                Map<String, IndexFeatureStats> stats,
+                Set<String> indexTypes) {
         for (Settings analysisComponentSettings : settings) {
             final String type = analysisComponentSettings.get("type");
             if (type != null) {
@@ -185,14 +189,14 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     }
 
     public AnalysisStats(StreamInput input) throws IOException {
-        usedCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedBuiltInCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
-        usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readSet(IndexFeatureStats::new)));
+        usedCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedBuiltInCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
     }
 
     @Override
@@ -284,7 +288,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                 usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers);
     }
 
-    private void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll) throws IOException {
+    private void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
+                throws IOException {
         builder.startArray(name);
         for (ToXContent toXContent : coll) {
             toXContent.toXContent(builder, params);

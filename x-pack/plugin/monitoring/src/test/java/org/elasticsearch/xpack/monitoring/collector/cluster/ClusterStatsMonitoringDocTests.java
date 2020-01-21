@@ -324,7 +324,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
-                                                                            emptyList());
+                                                                            emptyList(),
+                                                                            clusterState);
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
@@ -438,6 +439,19 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"fixed_bit_set_memory_in_bytes\":0,"
                         + "\"max_unsafe_auto_id_timestamp\":-9223372036854775808,"
                         + "\"file_sizes\":{}"
+                      + "},"
+                      + "\"mappings\":{"
+                        + "\"field_types\":[]"
+                      + "},"
+                      + "\"analysis\":{"
+                        + "\"char_filter_types\":[],"
+                        + "\"tokenizer_types\":[],"
+                        + "\"filter_types\":[],"
+                        + "\"analyzer_types\":[],"
+                        + "\"built_in_char_filters\":[],"
+                        + "\"built_in_tokenizers\":[],"
+                        + "\"built_in_filters\":[],"
+                        + "\"built_in_analyzers\":[]"
                       + "}"
                     + "},"
                     + "\"nodes\":{"

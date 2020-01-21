@@ -18,7 +18,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -60,7 +59,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollow() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -94,7 +92,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -133,7 +130,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -215,7 +211,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowParameterAreDelegated() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -318,7 +313,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testConflictingPatterns() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -360,7 +354,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeAutoFollowPattern() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -430,7 +423,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeWithMultipleAutoFollowPatterns() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();

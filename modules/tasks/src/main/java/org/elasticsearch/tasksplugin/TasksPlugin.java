@@ -29,7 +29,7 @@ import java.util.Collection;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
- * This plugin currently only exists to register `.tasks` as a system index and prevent deprecation warnings.
+ * This plugin currently only exists to register `.tasks` as a system index.
  */
 public class TasksPlugin extends Plugin implements SystemIndexPlugin {
 

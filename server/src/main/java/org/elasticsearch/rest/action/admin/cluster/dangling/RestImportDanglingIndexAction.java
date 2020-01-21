@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestImportDanglingIndexAction extends BaseRestHandler {
     public RestImportDanglingIndexAction(RestController controller) {
-        controller.registerHandler(POST, "/_dangling/{indexUuid}", this);
+        controller.registerHandler(POST, "/_dangling/{index_uuid}", this);
     }
 
     @Override
@@ -43,8 +43,23 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         final ImportDanglingIndexRequest importRequest = new ImportDanglingIndexRequest();
-        importRequest.setIndexUUID(request.param("indexUUID"));
-        request.applyContentParser(p -> importRequest.source(p.mapOrdered()));
+
+        importRequest.setIndexUUID(request.param("index_uuid"));
+
+        request.params().forEach((key, value) -> {
+            switch (key) {
+                case "accept_data_loss":
+                    importRequest.setAcceptDataLoss(Boolean.parseBoolean(value));
+                    break;
+
+                case "node_id":
+                    importRequest.setNodeId(value);
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("Unknown URL parameter [" + key + "]");
+            }
+        });
 
         return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestStatusToXContentListener<>(channel));
     }

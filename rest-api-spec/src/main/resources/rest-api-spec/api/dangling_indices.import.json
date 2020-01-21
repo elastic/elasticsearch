@@ -7,12 +7,12 @@
     "url": {
       "paths": [
         {
-          "path": "/_dangling/{indexUuid}",
+          "path": "/_dangling/{index_uuid}",
           "methods": [
             "POST"
           ],
           "parts": {
-            "indexUuid": {
+            "index_uuid": {
               "type": "string",
               "description": "The UUID of the dangling index"
             }
@@ -24,11 +24,11 @@
       "accept_data_loss": {
         "type": "boolean",
         "description": "Must be set to true in order to import the dangling index"
+      },
+      "node_id": {
+        "type": "string",
+        "description": "Specifies the node ID where the dangling index to import resides, in the case where the index exists on multiple nodes"
       }
-    },
-    "body": {
-      "description": "Supplies options to the request",
-      "required": true
     }
   }
 }

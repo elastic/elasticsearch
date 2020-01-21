@@ -7,12 +7,12 @@
     "url": {
       "paths": [
         {
-          "path": "/_dangling/{indexUUID}",
+          "path": "/_dangling/{index_uuid}",
           "methods": [
             "DELETE"
           ],
           "parts": {
-            "indexUUID": {
+            "index_uuid": {
               "type": "string",
               "description": "The UUID of the dangling index"
             }
@@ -25,10 +25,6 @@
         "type": "boolean",
         "description": "Must be set to true in order to delete the dangling index"
       }
-    },
-    "body": {
-      "description": "Supplies options to the request",
-      "required": true
     }
   }
 }

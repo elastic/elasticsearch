@@ -276,9 +276,9 @@ final class DefaultSearchContext extends SearchContext {
 
         if (sliceBuilder != null) {
             Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
-            if ( slicedQuery instanceof MatchNoDocsQuery){
+            if (slicedQuery instanceof MatchNoDocsQuery) {
                 return slicedQuery;
-            }else {
+            } else {
                 filters.add(slicedQuery);
             }
         }

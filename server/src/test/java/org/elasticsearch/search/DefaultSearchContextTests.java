@@ -184,11 +184,10 @@ public class DefaultSearchContextTests extends ESTestCase {
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-            when(indexService.newQueryShardContext(anyInt(),anyObject(),anyObject(),anyString())).thenReturn(queryShardContext);
             when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
-            DefaultSearchContext context4 = new DefaultSearchContext(3L, shardSearchRequest, target, searcher, null,
+            DefaultSearchContext context4 = new DefaultSearchContext(4L, shardSearchRequest, target, searcher, null,
                 indexService, indexShard, bigArrays, null, timeout, null);
             context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();

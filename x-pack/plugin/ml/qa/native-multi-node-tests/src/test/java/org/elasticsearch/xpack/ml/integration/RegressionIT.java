@@ -98,7 +98,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(destIndex, predictedClassField, "float");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -137,7 +137,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(destIndex, predictedClassField, "float");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -191,7 +191,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(destIndex, predictedClassField, "float");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -255,7 +255,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(destIndex, predictedClassField, "float");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
@@ -316,7 +316,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(destIndex, predictedClassField, "float");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
 
         // Call _delete_expired_data API and check nothing was deleted
         assertThat(deleteExpiredData().isDeleted(), is(true));
@@ -357,7 +357,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         waitUntilAnalyticsIsStopped(jobId);
         assertProgress(jobId, 100, 100, 100, 100);
 
-        assertMlResultsFieldMappings(destIndex, predictedClassField, "float");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
     private void initialize(String jobId) {

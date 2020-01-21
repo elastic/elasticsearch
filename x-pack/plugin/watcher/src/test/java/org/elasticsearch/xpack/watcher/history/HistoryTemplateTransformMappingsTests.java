@@ -81,6 +81,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
             // time might have rolled over to a new day, thus we need to check that this field exists only in one of the history indices
             List<Boolean> payloadNulls = response.mappings().values().stream()
                     .map(map -> map.get("doc"))
+                    .filter(Objects::nonNull)
                     .map(map -> map.get("result.actions.transform.payload"))
                     .filter(Objects::nonNull)
                     .map(GetFieldMappingsResponse.FieldMappingMetaData::isNull)

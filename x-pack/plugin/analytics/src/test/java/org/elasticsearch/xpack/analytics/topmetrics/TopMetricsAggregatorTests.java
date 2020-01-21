@@ -118,11 +118,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                TopMetricsAggregator aggregator = createAggregator(builder, indexSearcher, fields);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
-                InternalTopMetrics result = (InternalTopMetrics) aggregator.buildAggregation(0L);
+                InternalTopMetrics result = (InternalTopMetrics) search(indexSearcher, query, builder, fields);
                 assertThat(result.getSortFormat(), equalTo(DocValueFormat.RAW));
                 assertThat(result.getSortOrder(), equalTo(builder.getSortBuilders().get(0).order()));
                 assertThat(result.getMetricName(), equalTo(builder.getMetricField().getFieldName()));

@@ -866,7 +866,7 @@ tag::model-snapshot-retention-days[]
 Advanced configuration option. The period of time (in days) that model snapshots are retained.
 Age is calculated relative to the timestamp of the newest model snapshot.
 timestamp, older snapshots are automatically deleted. The default value is `1`,
-which means snapshots are retained for one day (twenty-four hours).
+which means snapshots that are one day (twenty-four hours) older than the newest snapshot are deleted.
 end::model-snapshot-retention-days[]
 
 tag::multivariate-by-fields[]

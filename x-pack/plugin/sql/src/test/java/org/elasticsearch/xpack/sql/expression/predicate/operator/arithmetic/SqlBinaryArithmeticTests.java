@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.Duration;
 import java.time.OffsetTime;
@@ -292,12 +290,12 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     }
 
     private static Literal L(Object value) {
-        return Literal.of(EMPTY, value);
+        return value instanceof Literal ? (Literal) value : new Literal(EMPTY, value, SqlDataTypes.fromJava(value));
     }
 
     private static Literal interval(TemporalAmount value, DataType intervalType) {
         Object i = value instanceof Period ? new IntervalYearMonth((Period) value, intervalType)
                  : new IntervalDayTime((Duration) value, intervalType);
-        return Literal.of(EMPTY, i);
+        return new Literal(EMPTY, i, SqlDataTypes.fromJava(i));
     }
 }

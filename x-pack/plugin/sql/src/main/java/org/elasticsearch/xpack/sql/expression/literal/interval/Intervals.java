@@ -214,7 +214,7 @@ public final class Intervals {
         ParserBuilder(DataType dataType) {
             units = new ArrayList<>(10);
             tokens = new ArrayList<>(6);
-            name = dataType.getClass().getSimpleName().replace('_', ' ');
+            name = dataType.typeName().replace('_', ' ').toUpperCase(Locale.ROOT);
         }
 
         ParserBuilder unit(TimeUnit unit) {

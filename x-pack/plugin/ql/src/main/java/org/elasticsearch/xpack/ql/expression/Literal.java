@@ -94,16 +94,6 @@ public class Literal extends LeafExpression {
     }
 
     /**
-     * Utility method for creating 'in-line' Literals (out of values instead of expressions).
-     */
-    public static Literal of(Source source, Object value) {
-        if (value instanceof Literal) {
-            return (Literal) value;
-        }
-        return new Literal(source, value, DataTypes.fromJava(value));
-    }
-
-    /**
      * Utility method for creating a literal out of a foldable expression.
      * Throws an exception if the expression is not foldable.
      */

@@ -68,7 +68,7 @@ xpack.security.http.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <3
 --
 
 .. If you secured the keystore with a password, add that password to a secure
-configuration setting in {es}:
+setting in {es}:
 +
 --
 [source,shell]

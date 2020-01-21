@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -497,7 +498,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public Number nextKey(Number key) {
-        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue());
+        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue() - offset) + offset;
     }
 
     @Override

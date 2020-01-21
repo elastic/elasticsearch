@@ -75,7 +75,7 @@ signing requests (CSR) for the nodes in your cluster. For more information, see
 <<certutil>>.
 --
 
-. Optional: Generate the necessary certificates to encrypt HTTP client
+. Optional: Generate additional, specific certificates to encrypt HTTP client
 communications. 
 +
 --

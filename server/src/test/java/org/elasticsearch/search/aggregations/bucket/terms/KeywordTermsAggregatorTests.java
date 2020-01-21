@@ -46,16 +46,15 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StringTermsAggregatorTests extends AggregatorTestCase {
-    private static final String LONG_FIELD = "numeric";
+public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     private static final String KEYWORD_FIELD = "keyword";
 
-    private static final List<Long> dataset;
+    private static final List<String> dataset;
     static {
-        List<Long> d = new ArrayList<>(45);
+        List<String> d = new ArrayList<>(45);
         for (int i = 0; i < 10; i++) {
             for (int j = 0; j < i; j++) {
-                d.add((long) i);
+                d.add(String.valueOf(i));
             }
         }
         dataset  = d;
@@ -64,28 +63,18 @@ public class StringTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchNoDocs() throws IOException {
         testBothCases(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
+            agg -> assertEquals(0, agg.getBuckets().size()), null // without type hint
         );
+
         testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.field(LONG_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC
+            aggregation -> aggregation.field(KEYWORD_FIELD),
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING // with type hint
         );
     }
 
     public void testMatchAllDocs() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset,
-            aggregation -> aggregation.field(LONG_FIELD),
-            agg -> {
-                assertEquals(9, agg.getBuckets().size());
-                for (int i = 0; i < 9; i++) {
-                    LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                    assertThat(bucket.getKey(), equalTo(9L - i));
-                    assertThat(bucket.getDocCount(), equalTo(9L - i));
-                }
-            }, ValueType.NUMERIC
-        );
         testBothCases(query, dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> {
@@ -95,67 +84,54 @@ public class StringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
                     assertThat(bucket.getDocCount(), equalTo(9L - i));
                 }
-            }, ValueType.STRING
+            }, null // without type hint
+        );
+
+        testBothCases(query, dataset,
+            aggregation -> aggregation.field(KEYWORD_FIELD),
+            agg -> {
+                assertEquals(9, agg.getBuckets().size());
+                for (int i = 0; i < 9; i++) {
+                    StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
+                    assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
+                    assertThat(bucket.getDocCount(), equalTo(9L - i));
+                }
+            }, ValueType.STRING // with type hint
         );
     }
 
-    public void testBadIncludeExclude() throws IOException {
-        IncludeExclude includeExclude = new IncludeExclude(new RegExp("foo"), null);
-
-        // Bytes fails if the formatter is not RAW.  Note this is still on the long field, just hinted as string
-        AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
-            () -> testBothCases(new MatchNoDocsQuery(), dataset,
-                aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
-                agg -> fail("test should have failed with exception"), ValueType.STRING
-        ));
-        assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style " +
-            "include/exclude settings as they can only be applied to string fields. Use an array of numeric " +
-            "values for include/exclude clauses used to filter numeric fields"));
-
-        // Numeric cannot use regex at all
-        e = expectThrows(AggregationExecutionException.class, () -> testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude),
-            agg -> fail("test should have failed with exception"), ValueType.NUMERIC
-        ));
-        assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style include/exclude " +
-            "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude " +
-            "clauses used to filter numeric fields"));
-    }
-
-    private void testSearchCase(Query query, List<Long> dataset,
+    private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
         executeTestCase(false, query, dataset, configure, verify, valueType);
     }
 
-    private void testSearchAndReduceCase(Query query, List<Long> dataset,
+    private void testSearchAndReduceCase(Query query, List<String> dataset,
                                          Consumer<TermsAggregationBuilder> configure,
                                          Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
         executeTestCase(true, query, dataset, configure, verify, valueType);
     }
 
-    private void testBothCases(Query query, List<Long> dataset,
+    private void testBothCases(Query query, List<String> dataset,
                                Consumer<TermsAggregationBuilder> configure,
                                Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
         testSearchCase(query, dataset, configure, verify, valueType);
         testSearchAndReduceCase(query, dataset, configure, verify, valueType);
     }
 
-    private void executeTestCase(boolean reduced, Query query, List<Long> dataset,
+    private void executeTestCase(boolean reduced, Query query, List<String> dataset,
                                  Consumer<TermsAggregationBuilder> configure,
                                  Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
-                for (Long value : dataset) {
+                for (String value : dataset) {
                     if (frequently()) {
                         indexWriter.commit();
                     }
 
-                    document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
-                    document.add(new LongPoint(LONG_FIELD, value));
-                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
+                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
                     indexWriter.addDocument(document);
                     document.clear();
                 }
@@ -165,7 +141,9 @@ public class StringTermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");
-                aggregationBuilder.userValueTypeHint(valueType);
+                if (valueType != null) {
+                    aggregationBuilder.userValueTypeHint(valueType);
+                }
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
                 }
@@ -174,15 +152,11 @@ public class StringTermsAggregatorTests extends AggregatorTestCase {
                 keywordFieldType.setName(KEYWORD_FIELD);
                 keywordFieldType.setHasDocValues(true);
 
-                MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                longFieldType.setName(LONG_FIELD);
-                longFieldType.setHasDocValues(true);
-
                 InternalMappedTerms rareTerms;
                 if (reduced) {
-                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType, longFieldType);
+                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
                 } else {
-                    rareTerms = search(indexSearcher, query, aggregationBuilder, keywordFieldType, longFieldType);
+                    rareTerms = search(indexSearcher, query, aggregationBuilder, keywordFieldType);
                 }
                 verify.accept(rareTerms);
             }

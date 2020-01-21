@@ -301,7 +301,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             showTermDocCountError, pipelineAggregators, metaData);
     }
 
-
     // return the SubAggCollectionMode that this aggregation should use based on the expected size
     // and the cardinality of the field
     static SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {

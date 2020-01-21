@@ -67,12 +67,12 @@ Specifies the field to which the top classes are written. Defaults to
 
 [discrete]
 [[inference-processor-config-example]]
-==== `inference` examples
+==== `inference_config` examples
 
 [source,js]
 --------------------------------------------------
 {
-  "inference": {
+  "inference_config": {
     "regression": {
       "results_field": "my_regression"
     }
@@ -89,7 +89,7 @@ object.
 [source,js]
 --------------------------------------------------
 {
-  "inference": {
+  "inference_config": {
     "classification": {
       "num_top_classes": 2,
       "results_field": "prediction",

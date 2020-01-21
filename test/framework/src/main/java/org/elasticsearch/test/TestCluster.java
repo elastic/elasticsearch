@@ -25,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -134,7 +135,9 @@ public abstract class TestCluster implements Closeable {
         assert indices != null && indices.length > 0;
         if (size() > 0) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(indices));
+                // include wiping hidden indices!
+                assertAcked(client().admin().indices().prepareDelete(indices)
+                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {

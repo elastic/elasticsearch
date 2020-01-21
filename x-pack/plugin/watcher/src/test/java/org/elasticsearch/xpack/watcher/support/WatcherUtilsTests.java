@@ -90,7 +90,6 @@ public class WatcherUtilsTests extends ESTestCase {
 
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
-        String[] expectedTypes = generateRandomStringArray(2, 5, true, false);
         IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
         SearchType expectedSearchType = getRandomSupportedSearchType();
@@ -111,14 +110,14 @@ public class WatcherUtilsTests extends ESTestCase {
             ScriptType scriptType = randomFrom(ScriptType.values());
             stored = scriptType == ScriptType.STORED;
             expectedTemplate = new Script(scriptType, stored ? null : "mustache", text, params);
-            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
         } else {
             SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder builder = jsonBuilder();
             builder.value(sourceBuilder);
             expectedSource = BytesReference.bytes(builder);
-            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedSearchType,
                     expectedIndicesOptions, expectedSource);
         }
 
@@ -142,12 +141,6 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
         }
-        if (expectedTypes == null) {
-            assertNull(result.getTypes());
-        } else {
-            assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
-            assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
-        }
     }
 
     public void testDeserializeSearchRequest() throws Exception {
@@ -161,16 +154,6 @@ public class WatcherUtilsTests extends ESTestCase {
                 builder.array("indices", indices);
             } else {
                 builder.field("indices", Strings.arrayToCommaDelimitedString(indices));
-            }
-        }
-
-        String[] types = Strings.EMPTY_ARRAY;
-        if (randomBoolean()) {
-            types = generateRandomStringArray(2, 5, false, false);
-            if (randomBoolean()) {
-                builder.array("types", types);
-            } else {
-                builder.field("types", Strings.arrayToCommaDelimitedString(types));
             }
         }
 
@@ -239,12 +222,6 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getType(), equalTo(template.getType()));
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
             assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
-        }
-        if (types == Strings.EMPTY_ARRAY) {
-            assertNull(result.getTypes());
-        } else {
-            assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
-            assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

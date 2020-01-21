@@ -113,10 +113,8 @@ import org.elasticsearch.action.admin.indices.dangling.TransportRestoreDanglingI
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
-import org.elasticsearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -306,8 +304,8 @@ import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusAction;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusActionDeprecated;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -501,7 +499,6 @@ public class ActionModule extends AbstractModule {
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
-        actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
@@ -647,8 +644,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestFlushAction(restController));
         registerHandler.accept(new RestSyncedFlushAction(restController));
         registerHandler.accept(new RestForceMergeAction(restController));
-        registerHandler.accept(new RestUpgradeAction(restController));
-        registerHandler.accept(new RestUpgradeStatusAction(restController));
+        registerHandler.accept(new RestUpgradeActionDeprecated(restController));
+        registerHandler.accept(new RestUpgradeStatusActionDeprecated(restController));
         registerHandler.accept(new RestClearIndicesCacheAction(restController));
 
         registerHandler.accept(new RestIndexAction(restController, clusterService));

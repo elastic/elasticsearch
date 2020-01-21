@@ -51,7 +51,8 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
-        return new Literal(SourceTests.randomSource(), gen.valueSupplier.get(), randomFrom(gen.validDataTypes));
+        DataType dataType = randomFrom(gen.validDataTypes);
+        return new Literal(SourceTests.randomSource(), DataTypeConversion.convert(gen.valueSupplier.get(), dataType), dataType);
     }
 
     @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -70,7 +71,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             nodePaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).createWriter()) {
+                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
@@ -105,7 +107,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         if (randomBoolean()) {
             try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
                 try (PersistedClusterStateService.Writer writer =
-                         ElasticsearchNodeCommand.createPersistedClusterStateService(env.nodeDataPaths()).createWriter()) {
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
                 }
             }
@@ -233,7 +235,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
             if (writeClusterState) {
                 try (PersistedClusterStateService.Writer writer =
-                         ElasticsearchNodeCommand.createPersistedClusterStateService(env.nodeDataPaths()).createWriter()) {
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
                         .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
                             .settings(Settings.builder().put("index.version.created", Version.CURRENT)

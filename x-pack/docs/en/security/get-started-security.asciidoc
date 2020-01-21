@@ -168,15 +168,16 @@ Select a role to see more information about its privileges. For example, select
 the `kibana_system` role to see its list of cluster and index privileges. To
 learn more, see <<privileges-list-indices>>. 
 
-Let's assign the `kibana_user` role to your user. Go back to the 
-*Management / Security / Users* page and select your user. Add the `kibana_user` 
+Let's assign the `kibana_admin` role to your user. Go back to the 
+*Management / Security / Users* page and select your user. Add the `kibana_admin` 
 role and save the change. For example:
 
 [role="screenshot"]
 image::security/images/assign-role.jpg["Assigning a role to a user in Kibana"]
 
-This user now has access to all features in {kib}. For more information about granting
-access to Kibana see {kibana-ref}/xpack-security-authorization.html[Kibana Authorization].
+This user now has administrative access to all features in {kib}.
+For more information about granting access to Kibana see
+{kibana-ref}/xpack-security-authorization.html[Kibana authorization].
 
 If you completed all of the steps in 
 {stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}], you should 

@@ -153,7 +153,7 @@ public class SqlDataTypeConverter {
             return TO_NULL;
         }
         // proper converters
-        if (from == DATE) {
+        if (to == DATE) {
             return conversionToDate(from);
         }
         if (to == TIME) {

@@ -97,7 +97,7 @@ public class EsField {
 
     @Override
     public String toString() {
-        return name + "@" + esDataType.getClass().getSimpleName() + "=" + properties;
+        return name + "@" + esDataType.typeName() + "=" + properties;
     }
 
     @Override

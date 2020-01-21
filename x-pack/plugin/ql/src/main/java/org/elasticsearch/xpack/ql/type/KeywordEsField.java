@@ -61,7 +61,6 @@ public class KeywordEsField extends EsField {
 
     @Override
     public int hashCode() {
-
         return Objects.hash(super.hashCode(), precision, normalized);
     }
 }

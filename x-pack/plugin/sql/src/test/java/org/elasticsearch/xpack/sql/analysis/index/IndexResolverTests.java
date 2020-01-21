@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.ql.type.TypesTests.loadMapping;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class IndexResolverTests extends ESTestCase {
 

@@ -189,7 +189,8 @@ public class SqlDataTypes {
     }
 
     public static DataType fromEs(String name) {
-        return ES_TO_TYPE.get(name);
+        DataType type = ES_TO_TYPE.get(name);
+        return type != null ? type : UNSUPPORTED;
     }
 
     public static DataType fromJava(Object value) {

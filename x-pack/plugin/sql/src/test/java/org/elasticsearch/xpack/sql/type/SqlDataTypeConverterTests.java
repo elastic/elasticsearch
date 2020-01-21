@@ -33,7 +33,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.fromTypeName;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -44,6 +43,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.fromTypeName;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.types;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTime;
@@ -160,8 +160,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(date(0), conversion.convert(false));
         }
         {
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> converterFor(TIME, to));
-            assertEquals("cannot convert from [time] to [date]", e.getMessage());
+            assertNull(converterFor(TIME, to));
         }
         {
             Converter conversion = converterFor(DATETIME, to);
@@ -273,8 +272,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(dateTime(-123465600000L), conversion.convert(asDateOnly(-123456789101L)));
         }
         {
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> converterFor(TIME, to));
-            assertEquals("cannot convert from [time] to [datetime]", e.getMessage());
+            assertNull(converterFor(TIME, to));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -658,8 +656,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testConversionToUnsupported() {
-        Exception e = expectThrows(QlIllegalArgumentException.class, () -> converterFor(INTEGER, UNSUPPORTED));
-        assertEquals("cannot convert from [integer] to [unsupported]", e.getMessage());
+        assertNull(converterFor(INTEGER, UNSUPPORTED));
     }
 
     public void testStringToIp() {

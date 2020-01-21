@@ -100,6 +100,6 @@ public class DataType {
 
     @Override
     public String toString() {
-        return typeName();
+        return typeName().toUpperCase(Locale.ROOT);
     }
 }

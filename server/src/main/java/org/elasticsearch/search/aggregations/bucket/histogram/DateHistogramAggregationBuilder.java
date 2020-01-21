@@ -37,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -160,7 +159,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType(Script script) {
+    protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.DATE;
     }
 
@@ -283,7 +282,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     /**
-     * Parse the string specification of an offset. 
+     * Parse the string specification of an offset.
      */
     public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {

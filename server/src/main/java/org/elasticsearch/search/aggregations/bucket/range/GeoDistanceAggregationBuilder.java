@@ -35,10 +35,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -233,7 +235,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         this.origin = origin;
     }
 
-    // TODO: this should set defaultValuesSourceType to GEOPOINT
 
     /**
      * Read from a stream.
@@ -263,6 +264,13 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         this.unit = clone.unit;
         this.keyed = clone.keyed;
         this.ranges = new ArrayList<>(clone.ranges);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
+        // TODO: this should set defaultValuesSourceType to GEOPOINT
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override

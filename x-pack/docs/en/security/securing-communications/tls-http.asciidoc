@@ -39,18 +39,19 @@ configuration directory.
 certificate. Follow the instructions in the readme in the `elasticsearch` folder
 of the zip file. For example:
 
-..Add the following information to the `elasticsearch.yml` file on each node:
+.. Update the `elasticsearch.yml` file on each node with the location of the
+certificates.
 +
 --
+If the certificates are in PKCS#12 format:
+
 [source, yaml]
 --------------------------------------------------
 xpack.security.http.ssl.enabled: true
 xpack.security.http.ssl.keystore.path: "http.p12"
 --------------------------------------------------
 
-If you did not use the `elasticsearch-certutil http` command and you have
-certificates that are in PEM format, add the following information to the
-`elasticsearch.yml` file on each node:
+If the certificates are in PEM format:
 
 [source, yaml]
 --------------------------------------------------
@@ -67,18 +68,18 @@ xpack.security.http.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <3
     must be a location within the {es} configuration directory.
 --
 
-.. If you secured the keystore with a password, add that password to a secure
-setting in {es}:
+.. If you secured the certificate with a password, add that password to a secure 
+setting in {es}.
 +
 --
+If the certificates are in PKCS#12 format:
+
 [source,shell]
 -----------------------------------------------------------
 bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 -----------------------------------------------------------
---
 
-If you did not use the `elasticsearch-certutil http` command and you have
-certificates that are in PEM format, use this command instead:
+If the certificates are in PEM format:
 
 [source,shell]
 -----------------------------------------------------------

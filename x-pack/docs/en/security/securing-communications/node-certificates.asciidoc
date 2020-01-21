@@ -75,8 +75,8 @@ signing requests (CSR) for the nodes in your cluster. For more information, see
 <<certutil>>.
 --
 
-. Optional: Generate additional, specific certificates to encrypt HTTP client
-communications. 
+. Optional: Generate additional certificates specifically for encrypting HTTP
+client communications. 
 +
 --
 For example, use the `elasticsearch-certutil http` command:

@@ -49,7 +49,7 @@ public class ScoreScriptUtils {
             for (int i = 0; i < queryVector.size(); i++) {
                 float value = queryVector.get(i).floatValue();
                 this.queryVector[i] = value;
-                queryMagnitude += value * value;
+                queryMagnitude = Math.fma(value, value, queryMagnitude);
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
 
@@ -116,7 +116,7 @@ public class ScoreScriptUtils {
             double l2norm = 0;
             for (float queryValue : queryVector) {
                 double diff = queryValue - byteBuffer.getFloat();
-                l2norm += diff * diff;
+                l2norm = Math.fma(diff, diff, l2norm);
             }
             return Math.sqrt(l2norm);
         }
@@ -135,7 +135,7 @@ public class ScoreScriptUtils {
 
             double dotProduct = 0;
             for (float queryValue : queryVector) {
-                dotProduct += queryValue * byteBuffer.getFloat();
+                dotProduct = Math.fma(queryValue, byteBuffer.getFloat(), dotProduct);
             }
             return dotProduct;
         }
@@ -156,14 +156,14 @@ public class ScoreScriptUtils {
             double vectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
                 for (float queryValue : queryVector) {
-                    dotProduct += queryValue * byteBuffer.getFloat();
+                    dotProduct = Math.fma(queryValue, byteBuffer.getFloat(), dotProduct);
                 }
                 vectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
             } else {
                 for (float queryValue : queryVector) {
                     float docValue = byteBuffer.getFloat();
-                    dotProduct += queryValue * docValue;
-                    vectorMagnitude += docValue * docValue;
+                    dotProduct = Math.fma(queryValue, docValue, dotProduct);
+                    vectorMagnitude = Math.fma(docValue, docValue, vectorMagnitude);
                 }
                 vectorMagnitude = (float) Math.sqrt(vectorMagnitude);
             }

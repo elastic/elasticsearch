@@ -60,7 +60,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
     private void testDotProduct(ScoreScript scoreScript) {
         DotProduct function = new DotProduct(scoreScript, queryVector, field);
         double result = function.dotProduct();
-        assertEquals("dotProduct result is not equal to the expected value!", 65425.624, result, 0.001);
+        assertEquals("dotProduct result is not equal to the expected value!", 65425.627, result, 0.001);
 
         DotProduct invalidFunction = new DotProduct(scoreScript, invalidQueryVector, field);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::dotProduct);

@@ -301,10 +301,15 @@ public class ApiKeyService {
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
-                        try (ApiKeyCredentials ignore = credentials) {
-                            final Map<String, Object> source = response.getSource();
-                            validateApiKeyCredentials(docId, source, credentials, clock, listener);
-                        }
+                        final Map<String, Object> source = response.getSource();
+                        validateApiKeyCredentials(docId, source, credentials, clock, ActionListener.wrap(
+                            result -> {
+                                credentials.close();
+                                listener.onResponse(result);
+                            }, e -> {
+                                credentials.close();
+                                listener.onFailure(e);
+                            }));
                     } else {
                         credentials.close();
                         listener.onResponse(
@@ -535,7 +540,8 @@ public class ApiKeyService {
         return null;
     }
 
-    private static boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
+    // Protected instance method so this can be mocked
+    protected boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
         final char[] apiKeyHashChars = apiKeyHash.toCharArray();
         try {
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());

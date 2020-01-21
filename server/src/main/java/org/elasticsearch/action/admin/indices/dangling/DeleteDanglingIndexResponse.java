@@ -32,7 +32,8 @@ public class DeleteDanglingIndexResponse extends ActionResponse implements Statu
     public DeleteDanglingIndexResponse() {
     }
 
-    public DeleteDanglingIndexResponse(StreamInput in) {
+    public DeleteDanglingIndexResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
@@ -42,7 +43,7 @@ public class DeleteDanglingIndexResponse extends ActionResponse implements Statu
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("status", "ok").endObject();
+        return builder.startObject().field("acknowledged", true).endObject();
     }
 
     @Override

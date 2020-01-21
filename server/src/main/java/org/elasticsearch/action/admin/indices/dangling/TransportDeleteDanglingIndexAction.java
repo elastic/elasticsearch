@@ -83,7 +83,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.WRITE;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override
@@ -163,10 +163,6 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
     private IndexMetaData getIndexMetaDataToDelete(DeleteDanglingIndexRequest request) {
         String indexUUID = request.getIndexUUID();
-
-        if (indexUUID == null || indexUUID.isEmpty()) {
-            throw new IllegalArgumentException("No index UUID specified in request");
-        }
 
         List<IndexMetaData> matchingMetaData = new ArrayList<>();
 

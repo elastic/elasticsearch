@@ -31,7 +31,7 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
     }
 
     public ListDanglingIndicesRequest() {
-        super(new String[0]);
+        super((String[]) null);
     }
 
     @Override

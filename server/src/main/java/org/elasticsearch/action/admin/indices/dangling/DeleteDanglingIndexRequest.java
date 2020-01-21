@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Represents a request to delete a particular dangling index, specified by its UUID. The {@link #acceptDataLoss}
@@ -59,6 +58,9 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
             return e;
         }
 
+        // acceptDataLoss is validated later in the transport action, so that the API call can
+        // be made to check that the UUID exists.
+
         return null;
     }
 
@@ -81,20 +83,6 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
     @Override
     public String toString() {
         return "delete dangling index";
-    }
-
-    public void source(Map<String, Object> source) {
-        source.forEach((name, value) -> {
-            if ("accept_data_loss".equals(name)) {
-                if (value instanceof Boolean) {
-                    this.acceptDataLoss = (boolean) value;
-                } else {
-                    throw new IllegalArgumentException("malformed accept_data_loss");
-                }
-            } else {
-                throw new IllegalArgumentException("Unknown parameter " + name);
-            }
-        });
     }
 
     @Override

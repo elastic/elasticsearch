@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Represents a request to import a particular dangling index, specified
@@ -63,6 +62,9 @@ public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingI
             return e;
         }
 
+        // acceptDataLoss is validated later in the transport action, so that the API call can
+        // be made to check that the UUID exists.
+
         return null;
     }
 
@@ -93,31 +95,6 @@ public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingI
     @Override
     public String toString() {
         return "import dangling index";
-    }
-
-    public void source(Map<String, Object> source) {
-        source.forEach((name, value) -> {
-            switch (name) {
-                case "accept_data_loss":
-                    if (value instanceof Boolean) {
-                        this.acceptDataLoss = (boolean) value;
-                    } else {
-                        throw new IllegalArgumentException("malformed accept_data_loss");
-                    }
-                    break;
-
-                case "node_id":
-                    if (value instanceof String) {
-                        this.setNodeId((String) value);
-                    } else {
-                        throw new IllegalArgumentException("malformed node_id");
-                    }
-                    break;
-
-                default:
-                    throw new IllegalArgumentException("Unknown parameter " + name);
-            }
-        });
     }
 
     @Override

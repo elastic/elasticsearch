@@ -43,7 +43,7 @@ Mapping::
 * Fix meta version of task index mapping {pull}50363[#50363] (issue: {issue}48393[#48393])
 
 Recovery::
-* Check allocation id when failing shard on recovery {pull}50656[#50656] (issue: {issue}50508[#50508])
+* Check allocation ID when failing shard on recovery {pull}50656[#50656] (issue: {issue}50508[#50508])
 
 SQL::
 * Change the way unsupported data types fields are handled {pull}50823[#50823]

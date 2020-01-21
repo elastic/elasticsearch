@@ -166,11 +166,7 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
     }
 
     ExtendedBounds round(Rounding rounding) {
-        // Extended bounds shouldn't be effected by the offset
-        Rounding effectiveRounding = rounding.withoutOffset();
-        return new ExtendedBounds(
-                min != null ? effectiveRounding.round(min) : null,
-                max != null ? effectiveRounding.round(max) : null);
+        return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
     }
 
     @Override

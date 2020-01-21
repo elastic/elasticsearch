@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -617,7 +618,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState remoteState = createRemoteClusterState("index1", true);
         MetaData.Builder mBuilder= MetaData.builder(remoteState.metaData());
         mBuilder.put(IndexMetaData.builder("index2")
-            .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
+            .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0));
         ShardRouting shardRouting =
@@ -706,13 +707,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         MetaData remoteMetadata = new MetaData.Builder()
             .put(IndexMetaData.builder("index1")
                 .settings(settings(Version.CURRENT)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "index1"))
                 .numberOfShards(1)
                 .numberOfReplicas(0))
             .put(IndexMetaData.builder("index3")
                 .settings(settings(Version.CURRENT)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "index3"))
                 .numberOfShards(1)
                 .numberOfReplicas(0))
@@ -735,19 +734,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         MetaData remoteMetadata = new MetaData.Builder()
             .put(IndexMetaData.builder("index1")
                 .settings(settings(Version.CURRENT)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "index1"))
                 .numberOfShards(1)
                 .numberOfReplicas(0))
             .put(IndexMetaData.builder("index2")
                 .settings(settings(Version.CURRENT)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "index2"))
                 .numberOfShards(1)
                 .numberOfReplicas(0))
             .put(IndexMetaData.builder("index3")
                 .settings(settings(Version.CURRENT)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "index3"))
                 .numberOfShards(1)
                 .numberOfReplicas(0))
@@ -767,7 +763,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         MetaData remoteMetadata = new MetaData.Builder()
             .put(IndexMetaData.builder("index1")
-                .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
+                .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0))
             .build();
@@ -1251,7 +1247,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
             .metaData(MetaData.builder()
                 .put(IndexMetaData.builder("logs-20190101")
-                    .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
+                    .settings(settings(Version.CURRENT))
                     .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, Map.of(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
                         remoteState.metaData().index("logs-20190101").getIndexUUID()))
                     .numberOfShards(1)
@@ -1396,7 +1392,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
             .metaData(MetaData.builder()
                 .putCustom(AutoFollowMetadata.TYPE,
-                    new AutoFollowMetadata(Map.of(pattern, new AutoFollowPattern("remote", List.of("docs-*"), null, true, 
+                    new AutoFollowMetadata(Map.of(pattern, new AutoFollowPattern("remote", List.of("docs-*"), null, true,
                         null, null, null, null, null, null, null, null, null, null)),
                         Map.of(pattern, List.of()), Map.of(pattern, Map.of()))))
             .build();
@@ -1473,9 +1469,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     private static ClusterState createRemoteClusterState(String indexName, boolean enableSoftDeletes, long metadataVersion) {
         Settings.Builder indexSettings;
-        indexSettings = settings(Version.CURRENT)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enableSoftDeletes)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
+        if (enableSoftDeletes == false) {
+            indexSettings = settings(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+        } else {
+            indexSettings = settings(Version.CURRENT);
+        }
+        indexSettings.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
 
         IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
             .settings(indexSettings)
@@ -1504,7 +1504,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         for (String indexName : indices) {
             IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
                 .settings(settings(Version.CURRENT)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
                 .numberOfShards(1)
                 .numberOfReplicas(0)

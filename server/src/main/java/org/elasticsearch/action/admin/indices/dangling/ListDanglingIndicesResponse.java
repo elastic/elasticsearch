@@ -68,7 +68,8 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
                 DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
                     nodeResponse.getNode(),
                     indexMetaData.getIndex().getName(),
-                    indexMetaData.getIndexUUID()
+                    indexMetaData.getIndexUUID(),
+                    indexMetaData.getCreationDate()
                 );
                 danglingIndexInfo.toXContent(builder, params);
             }

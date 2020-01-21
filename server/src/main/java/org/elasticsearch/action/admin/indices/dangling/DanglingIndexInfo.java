@@ -35,17 +35,20 @@ import java.io.IOException;
 public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObject {
     private String indexName;
     private String indexUUID;
+    private long creationDate;
 
-    public DanglingIndexInfo(DiscoveryNode node, String indexName, String indexUUID) {
+    public DanglingIndexInfo(DiscoveryNode node, String indexName, String indexUUID, long creationDate) {
         super(node);
         this.indexName = indexName;
         this.indexUUID = indexUUID;
+        this.creationDate = creationDate;
     }
 
     public DanglingIndexInfo(StreamInput in) throws IOException {
         super(in);
         this.indexName = in.readString();
         this.indexUUID = in.readString();
+        this.creationDate = in.readLong();
     }
 
     public String getIndexName() {
@@ -60,12 +63,18 @@ public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObj
         return this.getNode().getId();
     }
 
+    public long getCreationDate() {
+        return creationDate;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("nodeId", this.getNodeId());
-        builder.field("indexName", this.indexName);
-        builder.field("indexUUID", this.indexUUID);
+        builder.field("node_id", this.getNodeId());
+        builder.field("node_name", this.getNode().getName());
+        builder.field("index_name", this.indexName);
+        builder.field("index_uuid", this.indexUUID);
+        builder.timeField("index_creation_date_millis", "index_creation_date", this.creationDate);
         builder.endObject();
         return builder;
     }
@@ -75,5 +84,6 @@ public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObj
         super.writeTo(out);
         out.writeString(this.indexName);
         out.writeString(this.indexUUID);
+        out.writeLong(this.creationDate);
     }
 }

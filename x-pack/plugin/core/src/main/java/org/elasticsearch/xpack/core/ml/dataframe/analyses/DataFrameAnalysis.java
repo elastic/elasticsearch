@@ -44,8 +44,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     /**
      * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
      *
+     * @param mappingsProperties mappings.properties portion of the index mappings
      * @param resultsFieldName name of the results field under which all the results are stored
-     * @return {@link List} containing fields for which the mappings should be handled explicitly
+     * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
     Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
 

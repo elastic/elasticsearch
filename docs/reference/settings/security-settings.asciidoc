@@ -216,7 +216,7 @@ information, see <<setting-up-authentication>>.
 
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are
-consulted first. This setting is required.
+consulted first. The value must be unique for each realm. This setting is required.
 
 `enabled`::
 Indicates whether a realm is enabled. You can use this setting to disable a

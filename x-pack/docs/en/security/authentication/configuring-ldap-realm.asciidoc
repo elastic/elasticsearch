@@ -206,6 +206,7 @@ xpack:
       realms:
         ldap:
           ldap1:
+            order: 0
             metadata: cn
 --------------------------------------------------
 --

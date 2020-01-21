@@ -61,6 +61,7 @@ xpack:
       realms:
         pki:
           pki1:
+            order: 1
             username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
 ------------------------------------------------------------
 
@@ -118,6 +119,7 @@ xpack:
       realms:
         pki:
           pki1:
+            order: 1
             truststore:
               path: "pki1_truststore.jks"
 ------------------------------------------------------------

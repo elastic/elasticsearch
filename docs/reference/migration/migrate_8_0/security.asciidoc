@@ -7,11 +7,28 @@
 
 //tag::notable-breaking-changes[]
 [float]
-==== Mandatory realm order configuration
+==== The realm `order` setting is required
 
-The `order` setting is now mandatory and must be specified for each explicitly
-configured realms. Their values must be unique. The cluster will fail to start if
-the requirements are not met.
+The `xpack.security.authc.realms.*.*.order` setting is now required and must be
+specified for each explicitly configured realms. Their values must be unique.
+The cluster will fail to start if the requirements are not met.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.relams.kerberos.kerb1:
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.relams.kerberos.kerb1:
+  order: 0
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
 
 // end::notable-breaking-changes[]
 

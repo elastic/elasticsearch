@@ -55,7 +55,7 @@ Search::
 * Fix upgrade of custom similarity {pull}50851[#50851] (issue: {issue}50763[#50763])
 
 Security::
-* Always consume the body in has privileges {pull}50298[#50298] (issue: {issue}50288[#50288])
+* Always consume the request body of `has_privileges` API {pull}50298[#50298] (issue: {issue}50288[#50288])
 
 
 [[release-notes-7.5.1]]

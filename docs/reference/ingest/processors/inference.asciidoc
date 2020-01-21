@@ -24,12 +24,12 @@ include::common-options.asciidoc[]
 --------------------------------------------------
 {
   "inference": {
-      "model_id": "flight_delay_regression-1571767128603",
-      "target_field": "FlightDelayMin_prediction_infer",
-      "field_mappings": {},
-      "inference_config": {"regression": {}},
-      "model_info_field": "ml"
-    }
+    "model_id": "flight_delay_regression-1571767128603",
+    "target_field": "FlightDelayMin_prediction_infer",
+    "field_mappings": {},
+    "inference_config": { "regression": {} },
+    "model_info_field": "ml"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -67,16 +67,16 @@ Specifies the field to which the top classes are written. Defaults to
 
 [discrete]
 [[inference-processor-config-example]]
-==== `inference_config` examples
+==== `inference` examples
 
 [source,js]
 --------------------------------------------------
 {
-  "inference_config": {
-    “regression”: {
-    “results_field”: “my_regression”
+  "inference": {
+    "regression": {
+      "results_field": "my_regression"
     }
-  },
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -89,13 +89,13 @@ object.
 [source,js]
 --------------------------------------------------
 {
-  "inference_config": {
-    “classification”: {
-      “num_top_classes”: 2, 
-      “results_field”: “prediction”, 
-      “top_classes_results_field”: “probabilities”
-      }
+  "inference": {
+    "classification": {
+      "num_top_classes": 2,
+      "results_field": "prediction",
+      "top_classes_results_field": "probabilities"
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

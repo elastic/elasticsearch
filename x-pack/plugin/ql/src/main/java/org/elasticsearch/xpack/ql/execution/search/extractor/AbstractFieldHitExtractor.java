@@ -225,7 +225,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected abstract boolean isPrimitive(List<?> list);
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected Object extractFromSource(Map<String, Object> map) {
+    public Object extractFromSource(Map<String, Object> map) {
         Object value = null;
 
         // Used to avoid recursive method calls

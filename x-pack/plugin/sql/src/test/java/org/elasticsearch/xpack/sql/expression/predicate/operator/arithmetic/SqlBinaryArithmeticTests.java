@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 
 import java.time.Duration;
 import java.time.OffsetTime;
@@ -25,12 +25,12 @@ import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics.mod;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY_TO_HOUR;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_HOUR;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_MONTH;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR_TO_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_HOUR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 
 public class SqlBinaryArithmeticTests extends ESTestCase {
 

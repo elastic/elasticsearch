@@ -9,7 +9,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcesso
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -114,19 +114,19 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     // Math
     //
     public static Object add(Object left, Object right) {
-        return BinaryArithmeticOperation.ADD.apply(left, right);
+        return SqlBinaryArithmeticOperation.ADD.apply(left, right);
     }
 
     public static Object div(Object left, Object right) {
-        return BinaryArithmeticOperation.DIV.apply(left, right);
+        return SqlBinaryArithmeticOperation.DIV.apply(left, right);
     }
 
     public static Object mod(Object left, Object right) {
-        return BinaryArithmeticOperation.MOD.apply(left, right);
+        return SqlBinaryArithmeticOperation.MOD.apply(left, right);
     }
 
     public static Object mul(Object left, Object right) {
-        return BinaryArithmeticOperation.MUL.apply(left, right);
+        return SqlBinaryArithmeticOperation.MUL.apply(left, right);
     }
 
     public static Number neg(Number value) {
@@ -134,7 +134,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object sub(Object left, Object right) {
-        return BinaryArithmeticOperation.SUB.apply(left, right);
+        return SqlBinaryArithmeticOperation.SUB.apply(left, right);
     }
 
     public static Number round(Number v, Number s) {

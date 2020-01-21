@@ -19,8 +19,7 @@ import java.time.OffsetTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -35,6 +34,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.fromTypeName;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR_TO_MINUTE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR_TO_SECOND;
@@ -43,6 +44,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.types;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
@@ -648,7 +650,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testEsDataTypes() {
-        for (DataType type : values()) {
+        for (DataType type : types()) {
             if (type != DATE) { // Doesn't have a corresponding type in ES
                 assertEquals(type, fromTypeName(type.typeName()));
             }
@@ -676,6 +678,12 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(s, "10.0.0.1"))));
     }
 
+    private DataType randomInterval() {
+        return randomFrom(SqlDataTypes.types().stream()
+                .filter(SqlDataTypes::isInterval)
+                .collect(toList()));
+    }
+    
     static ZonedDateTime dateTime(long millisSinceEpoch) {
         return DateUtils.asDateTime(millisSinceEpoch);
     }

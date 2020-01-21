@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
@@ -35,6 +37,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcesso
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.SqlConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,8 +56,14 @@ public final class Processors {
         
         entries.addAll(org.elasticsearch.xpack.ql.expression.processor.Processors.getNamedWriteables());
 
+
+        // arithmetic
+        // binary arithmetics are pluggable
+        entries.add(new Entry(BinaryArithmeticOperation.class, SqlBinaryArithmeticOperation.NAME, SqlBinaryArithmeticOperation::read));
+
         // base
         entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
+        entries.add(new Entry(Converter.class, SqlConverter.NAME, SqlConverter::read));
 
         // conditionals
         entries.add(new Entry(Processor.class, CaseProcessor.NAME, CaseProcessor::new));

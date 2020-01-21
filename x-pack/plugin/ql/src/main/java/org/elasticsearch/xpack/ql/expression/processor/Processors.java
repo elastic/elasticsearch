@@ -14,11 +14,15 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.HitExtractorProcessor
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor;
+import org.elasticsearch.xpack.ql.type.Converter;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +37,10 @@ public final class Processors {
      */
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+
         // base
+        entries.add(new Entry(Converter.class, DefaultConverter.NAME, DefaultConverter::read));
+
         entries.add(new Entry(Processor.class, ConstantProcessor.NAME, ConstantProcessor::new));
         entries.add(new Entry(Processor.class, HitExtractorProcessor.NAME, HitExtractorProcessor::new));
         entries.add(new Entry(Processor.class, BucketExtractorProcessor.NAME, BucketExtractorProcessor::new));
@@ -44,6 +51,9 @@ public final class Processors {
         entries.add(new Entry(Processor.class, NotProcessor.NAME, NotProcessor::new));
 
         // arithmetic
+        // binary arithmetics are pluggable
+        entries.add(
+                new Entry(BinaryArithmeticOperation.class, DefaultBinaryArithmeticOperation.NAME, DefaultBinaryArithmeticOperation::read));
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
         entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
         // comparators

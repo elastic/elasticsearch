@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +25,8 @@ import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTest
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 /**
  * Needed to override tests in {@link NodeSubclassTests} as Case is special since its children are not usual
@@ -88,7 +87,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         Case c = new Case(EMPTY, Arrays.asList(
             new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
             Literal.of(EMPTY, "default")));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN 'foo'
         // ELSE NULL
@@ -96,7 +95,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         c = new Case(EMPTY, Arrays.asList(
             new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.of(EMPTY, "foo")),
             Literal.NULL));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN NULL
         // ELSE NULL
@@ -104,7 +103,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         c = new Case(EMPTY, Arrays.asList(
             new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
             Literal.NULL));
-        assertEquals(DataType.NULL, c.dataType());
+        assertEquals(NULL, c.dataType());
 
         // CASE WHEN 1 = 1 THEN NULL
         //      WHEN 2 = 2 THEN 'foo'
@@ -114,12 +113,12 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
             new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
             new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 2), Literal.of(EMPTY, 2)), Literal.of(EMPTY, "foo")),
             Literal.NULL));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(KEYWORD, c.dataType());
     }
 
     public void testAllConditionsFolded() {
         Case c = new Case(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
-        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(KEYWORD, c.dataType());
         assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
         assertNotNull(c.info());
     }

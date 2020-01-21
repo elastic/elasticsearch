@@ -36,7 +36,7 @@ public final class DataTypes {
     public static final DataType KEYWORD = new DataType("keyword", Short.MAX_VALUE, false, false, true);
     public static final DataType TEXT = new DataType("text", Integer.MAX_VALUE, false, false, false);
     // date
-    public static final DataType DATETIME = new DataType("date", Long.BYTES, false, false, true);
+    public static final DataType DATETIME = new DataType("DATETIME", "date", Long.BYTES, false, false, true);
     // ip
     public static final DataType IP = new DataType("ip", 39, false, false, true);
     // binary

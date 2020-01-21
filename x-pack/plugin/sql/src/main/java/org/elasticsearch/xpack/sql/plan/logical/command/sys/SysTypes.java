@@ -81,7 +81,7 @@ public class SysTypes extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<Page> listener) {
-        Stream<DataType> values = SqlDataTypes.TYPES.stream();
+        Stream<DataType> values = SqlDataTypes.types().stream();
         if (type.intValue() != 0) {
             values = values.filter(t -> type.equals(sqlType(t).getVendorTypeNumber()));
         }

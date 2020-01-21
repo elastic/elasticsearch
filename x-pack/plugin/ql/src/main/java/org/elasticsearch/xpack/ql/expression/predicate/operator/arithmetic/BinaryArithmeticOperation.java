@@ -6,15 +6,11 @@
 
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 
-import java.io.IOException;
-
-public interface BinaryArithmeticOperation extends PredicateBiFunction<Object, Object, Object> {
+public interface BinaryArithmeticOperation extends PredicateBiFunction<Object, Object, Object>, NamedWriteable {
 
     @Override
     String symbol();
-
-    void doWrite(StreamOutput out) throws IOException;
 }

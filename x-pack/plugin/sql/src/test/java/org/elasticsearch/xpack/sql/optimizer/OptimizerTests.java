@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -143,6 +144,13 @@ import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.Literal.of;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
@@ -184,7 +192,7 @@ public class OptimizerTests extends ESTestCase {
 
         @Override
         public DataType dataType() {
-            return DataType.BOOLEAN;
+            return BOOLEAN;
         }
 
         @Override
@@ -220,7 +228,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute(String name) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", DataType.INTEGER, emptyMap(), true));
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", INTEGER, emptyMap(), true));
     }
 
     public void testPruneSubqueryAliases() {
@@ -366,14 +374,14 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATETIME);
+        Expression cast = new Cast(EMPTY, of(EMPTY, "2018-01-19T10:23:27Z"), DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, UTC)));
         assertEquals(3, foldFunction(new IsoWeekOfYear(EMPTY, cast, UTC)));
         assertNull(foldFunction(
-                new IsoWeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
+                new IsoWeekOfYear(EMPTY, new Literal(EMPTY, null, DataTypes.NULL), UTC)));
     }
 
     public void testConstantFoldingIn() {
@@ -392,7 +400,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, p.projections().size());
         Alias a = (Alias) p.projections().get(0);
         In i = (In) a.child();
-        assertThat(Foldables.valuesOf(i.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
+        assertThat(Foldables.valuesOf(i.list(), INTEGER), contains(1, 2, 3, 4));
     }
 
     public void testConstantFoldingIn_RightValueIsNull() {
@@ -443,7 +451,7 @@ public class OptimizerTests extends ESTestCase {
     public void testNullFoldingIsNullWithCast() {
         FoldNull foldNull = new FoldNull();
 
-        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        Cast cast = new Cast(EMPTY, L("foo"), DATE);
         IsNull isNull = new IsNull(EMPTY, cast);
         final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
         assertEquals(isNull, isNullOpt);
@@ -452,7 +460,7 @@ public class OptimizerTests extends ESTestCase {
                 () -> isNullOpt.asPipe().asProcessor().process(null));
         assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
 
-        isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataType.values())));
+        isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertTrue((Boolean) ((IsNull) foldNull.rule(isNull)).asPipe().asProcessor().process(null));
     }
 
@@ -461,7 +469,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(true, foldNull.rule(new IsNotNull(EMPTY, TRUE)).fold());
         assertEquals(false, foldNull.rule(new IsNotNull(EMPTY, NULL)).fold());
 
-        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        Cast cast = new Cast(EMPTY, L("foo"), DATE);
         IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
         assertEquals(isNotNull, foldNull.rule(isNotNull));
     }
@@ -469,7 +477,7 @@ public class OptimizerTests extends ESTestCase {
     public void testNullFoldingIsNotNullWithCast() {
         FoldNull foldNull = new FoldNull();
 
-        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        Cast cast = new Cast(EMPTY, L("foo"), DATE);
         IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
         final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
         assertEquals(isNotNull, isNotNullOpt);
@@ -478,7 +486,7 @@ public class OptimizerTests extends ESTestCase {
                 () -> isNotNullOpt.asPipe().asProcessor().process(null));
         assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
 
-        isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataType.values())));
+        isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertFalse((Boolean) ((IsNotNull) foldNull.rule(isNotNull)).asPipe().asProcessor().process(null));
     }
 
@@ -502,11 +510,11 @@ public class OptimizerTests extends ESTestCase {
     public void testNullFoldingOnCast() {
         FoldNull foldNull = new FoldNull();
 
-        Cast cast = new Cast(EMPTY, NULL, randomFrom(DataType.values()));
+        Cast cast = new Cast(EMPTY, NULL, randomFrom(DataTypes.types()));
         assertEquals(Nullability.TRUE, cast.nullable());
         assertNull(foldNull.rule(cast).fold());
 
-        cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        cast = new Cast(EMPTY, L("foo"), DATE);
         assertEquals(Nullability.UNKNOWN, cast.nullable());
         assertEquals(cast, foldNull.rule(cast));
     }
@@ -572,7 +580,7 @@ public class OptimizerTests extends ESTestCase {
                         randomListOfNulls())));
         assertEquals(1, e.children().size());
         assertEquals(TRUE, e.children().get(0));
-        assertEquals(DataType.BOOLEAN, e.dataType());
+        assertEquals(BOOLEAN, e.dataType());
     }
 
     private List<Expression> randomListOfNulls() {
@@ -586,7 +594,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(TRUE, e.children().get(0));
-        assertEquals(DataType.BOOLEAN, e.dataType());
+        assertEquals(BOOLEAN, e.dataType());
     }
 
     public void testSimplifyIfNullNulls() {
@@ -600,13 +608,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
-        assertEquals(DataType.INTEGER, e.dataType());
+        assertEquals(INTEGER, e.dataType());
 
         e = new SimplifyConditional().rule(new IfNull(EMPTY, ONE, NULL));
         assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
-        assertEquals(DataType.INTEGER, e.dataType());
+        assertEquals(INTEGER, e.dataType());
     }
 
     public void testFoldNullNotAppliedOnNullIf() {
@@ -634,7 +642,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
-        assertEquals(DataType.INTEGER, e.dataType());
+        assertEquals(INTEGER, e.dataType());
     }
 
     public void testSimplifyLeastNulls() {
@@ -656,7 +664,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
-        assertEquals(DataType.INTEGER, e.dataType());
+        assertEquals(INTEGER, e.dataType());
     }
 
     public void testConcatFoldingIsNotNull() {
@@ -1797,7 +1805,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testTranslateMinToFirst() {
-        Min min1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Min min1 = new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", KEYWORD, emptyMap(), true)));
         Min min2 =  new Min(EMPTY, getFieldAttribute());
 
         OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(),
@@ -1823,7 +1831,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testTranslateMaxToLast() {
-        Max max1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Max max1 = new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", KEYWORD, emptyMap(), true)));
         Max max2 =  new Max(EMPTY, getFieldAttribute());
 
         OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(a("max1", max1), a("max2", max2))),
@@ -1847,9 +1855,9 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSortAggregateOnOrderByWithTwoFields() {
-        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", BYTE, emptyMap(), true));
         FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
-                new EsField("second_field", DataType.BYTE, emptyMap(), true));
+                new EsField("second_field", BYTE, emptyMap(), true));
         Alias firstAlias = new Alias(EMPTY, "first_alias", firstField);
         Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
         Order firstOrderBy = new Order(EMPTY, firstField, OrderDirection.ASC, Order.NullsPosition.LAST);
@@ -1879,9 +1887,9 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSortAggregateOnOrderByOnlyAliases() {
-        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", BYTE, emptyMap(), true));
         FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
-                new EsField("second_field", DataType.BYTE, emptyMap(), true));
+                new EsField("second_field", BYTE, emptyMap(), true));
         Alias firstAlias = new Alias(EMPTY, "first_alias", firstField);
         Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
         Order firstOrderBy = new Order(EMPTY, firstAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
@@ -1934,8 +1942,8 @@ public class OptimizerTests extends ESTestCase {
      * or SELECT STDDEV_POP(agg_field), VAR_POP(agg_field) FROM table WHERE MATCH(match_field,'A') AND/OR QUERY('match_field:A')
      */
     public void testAggregatesPromoteToStats_WithFullTextPredicatesConditions() {
-        FieldAttribute matchField = new FieldAttribute(EMPTY, "match_field", new EsField("match_field", DataType.TEXT, emptyMap(), true));
-        FieldAttribute aggField = new FieldAttribute(EMPTY, "agg_field", new EsField("agg_field", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute matchField = new FieldAttribute(EMPTY, "match_field", new EsField("match_field", TEXT, emptyMap(), true));
+        FieldAttribute aggField = new FieldAttribute(EMPTY, "agg_field", new EsField("agg_field", INTEGER, emptyMap(), true));
 
         FullTextPredicate matchPredicate = new MatchQueryPredicate(EMPTY, matchField, "A", StringUtils.EMPTY);
         FullTextPredicate multiMatchPredicate = new MultiMatchQueryPredicate(EMPTY, "match_field", "A", StringUtils.EMPTY);

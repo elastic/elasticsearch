@@ -9,7 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.TestUtils;
@@ -34,6 +33,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
@@ -114,8 +115,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testFieldAliasTypeWithoutHierarchy() {
         Map<String, EsField> mapping = new LinkedHashMap<>();
 
-        mapping.put("field", new EsField("field", DataType.OBJECT,
-                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
+        mapping.put("field", new EsField("field", OBJECT, singletonMap("alias", new EsField("alias", KEYWORD, emptyMap(), true)), false));
 
         IndexResolution resolution = IndexResolution.valid(new EsIndex("test", mapping));
 

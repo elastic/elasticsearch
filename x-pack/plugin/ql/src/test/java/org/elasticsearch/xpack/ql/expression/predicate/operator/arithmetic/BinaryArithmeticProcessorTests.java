@@ -21,7 +21,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         return new BinaryArithmeticProcessor(
                 new ConstantProcessor(randomLong()),
                 new ConstantProcessor(randomLong()),
-                randomFrom(BinaryArithmeticProcessor.DefaultBinaryArithmeticOperation.values()));
+                randomFrom(DefaultBinaryArithmeticOperation.values()));
     }
 
     @Override

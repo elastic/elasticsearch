@@ -6,31 +6,34 @@
 
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
-import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.io.IOException;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.BOOL_TO_INT;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_BYTE;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_INT;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.DATETIME_TO_SHORT;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.IDENTITY;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.INTEGER_TO_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.RATIONAL_TO_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter.TO_NULL;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.BOOL_TO_INT;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_INT;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.IDENTITY;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.INTEGER_TO_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.RATIONAL_TO_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.TO_NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -377,6 +380,7 @@ public class SqlDataTypeConverter {
         DATE_TO_BOOLEAN(delegate(DATETIME_TO_BOOLEAN)),
         TIME_TO_BOOLEAN(fromTime(value -> value != 0));
 
+        public static final String NAME = "dtc-sql";
         
         private final Function<Object, Object> converter;
 
@@ -426,6 +430,20 @@ public class SqlDataTypeConverter {
                 return null;
             }
             return converter.apply(l);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        public static Converter read(StreamInput in) throws IOException {
+            return in.readEnum(SqlConverter.class);
         }
     }
 }

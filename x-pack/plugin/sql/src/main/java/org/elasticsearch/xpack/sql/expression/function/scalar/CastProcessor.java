@@ -9,7 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.type.Converter;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter.TypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,7 +25,7 @@ public class CastProcessor implements Processor {
     }
 
     public CastProcessor(StreamInput in) throws IOException {
-        conversion = in.readEnum(TypeConverter.class);
+        conversion = in.readEnum(DefaultConverter.class);
     }
 
     @Override
@@ -35,7 +35,7 @@ public class CastProcessor implements Processor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(conversion);
+        out.writeNamedWriteable(conversion);
     }
 
     @Override

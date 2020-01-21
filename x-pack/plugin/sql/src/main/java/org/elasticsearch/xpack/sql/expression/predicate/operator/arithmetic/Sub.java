@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -19,7 +18,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class Sub extends DateTimeArithmeticOperation {
 
     public Sub(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryArithmeticOperation.SUB);
+        super(source, left, right, SqlBinaryArithmeticOperation.SUB);
     }
 
     @Override

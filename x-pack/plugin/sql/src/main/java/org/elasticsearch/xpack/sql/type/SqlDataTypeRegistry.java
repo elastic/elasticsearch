@@ -20,7 +20,7 @@ public class SqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        return SqlDataTypes.TYPES;
+        return SqlDataTypes.types();
     }
 
     @Override

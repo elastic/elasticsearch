@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,7 +23,7 @@ public class Mul extends ArithmeticOperation {
     private DataType dataType;
 
     public Mul(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryArithmeticOperation.MUL);
+        super(source, left, right, SqlBinaryArithmeticOperation.MUL);
     }
 
     @Override

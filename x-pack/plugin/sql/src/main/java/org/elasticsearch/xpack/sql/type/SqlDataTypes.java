@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 
@@ -127,7 +126,7 @@ public class SqlDataTypes {
 
     static {
         // first add ES types
-        for (DataType type : DefaultDataTypeRegistry.INSTANCE.dataTypes()) {
+        for (DataType type : DataTypes.types()) {
             if (type != OBJECT && type != NESTED && type != UNSUPPORTED) {
                 SQL_TO_ES.put(type.typeName().toUpperCase(Locale.ROOT), type);
             }
@@ -145,7 +144,7 @@ public class SqlDataTypes {
         SQL_TO_ES.put("STRING", KEYWORD);
     }
 
-    public static final Collection<DataType> TYPES = Stream.concat(DataTypes.TYPES.stream(), Arrays.asList(
+    private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Arrays.asList(
             DATE,
             TIME,
             INTERVAL_YEAR,
@@ -178,6 +177,9 @@ public class SqlDataTypes {
 
     private SqlDataTypes() {}
 
+    public static Collection<DataType> types() {
+        return TYPES;
+    }
 
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
@@ -221,16 +223,20 @@ public class SqlDataTypes {
     public static boolean isDayTimeInterval(DataType dataType) {
         return dataType == INTERVAL_DAY || dataType == INTERVAL_HOUR  || dataType == INTERVAL_MINUTE || dataType == INTERVAL_SECOND
                 || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
-                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_MINUTE
+                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_SECOND
                 || dataType == INTERVAL_MINUTE_TO_SECOND;
     }
 
-    public static boolean isDateBased(DataType dataType) {
-        return dataType == DATE || dataType == DATETIME;
+    public static boolean isDateBased(DataType type) {
+        return type == DATE || type == DATETIME;
+    }
+
+    public static boolean isTimeBased(DataType type) {
+        return type == TIME;
     }
 
     public static boolean isDateOrTimeBased(DataType type) {
-        return isDateBased(type) || type == TIME;
+        return isDateBased(type) || isTimeBased(type);
     }
 
     public static boolean isGeo(DataType type) {

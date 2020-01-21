@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+
+import java.util.function.BiFunction;
+
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
@@ -12,6 +16,20 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 public final class Arithmetics {
 
     private Arithmetics() {}
+
+    public interface NumericArithmetic extends BiFunction<Number, Number, Number> {
+        default Object wrap(Object l, Object r) {
+            if (!(l instanceof Number)) {
+                throw new QlIllegalArgumentException("A number is required; received {}", l);
+            }
+
+            if (!(r instanceof Number)) {
+                throw new QlIllegalArgumentException("A number is required; received {}", r);
+            }
+
+            return apply((Number) l, (Number) r);
+        }
+    }
 
     public static Number add(Number l, Number r) {
         if (l == null || r == null) {

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.sql.JDBCType;
 import java.util.List;
@@ -54,8 +55,8 @@ public class SysTypesTests extends ESTestCase {
         cmd.execute(session(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(19, r.columnCount());
-            assertEquals(DataType.values().length, r.size());
-            assertFalse(r.schema().types().contains(DataType.NULL));
+            assertEquals(SqlDataTypes.types().size(), r.size());
+            assertFalse(r.schema().types().contains(DataTypes.NULL));
             // test numeric as signed
             assertFalse(r.column(9, Boolean.class));
             // make sure precision is returned as boolean (not int)
@@ -76,7 +77,7 @@ public class SysTypesTests extends ESTestCase {
 
         cmd.execute(session(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(DataType.values().length, r.size());
+            assertEquals(SqlDataTypes.types().size(), r.size());
         }, ex -> fail(ex.getMessage())));
     }
 

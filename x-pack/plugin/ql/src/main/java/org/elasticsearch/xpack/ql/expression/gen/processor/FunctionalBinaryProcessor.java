@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
- * Base class for definition binary processors based on functions (for applying) defined as enums (for serialization purposes).
+ * Base class for definition binary processors based on functions (for applying).
  */
 public abstract class FunctionalBinaryProcessor<T, U, R, F extends BiFunction<T, U, R>> extends BinaryProcessor {
 

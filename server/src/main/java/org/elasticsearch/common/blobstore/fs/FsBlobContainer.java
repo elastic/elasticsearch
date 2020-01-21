@@ -157,7 +157,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         final InputStream inputStream = readBlob(blobName);
         long skipped = inputStream.skip(position); // NORELEASE
         assert skipped == position;
-        return inputStream;
+        return org.elasticsearch.common.io.Streams.limitStream(inputStream, length);
     }
 
     @Override

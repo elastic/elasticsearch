@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -138,6 +139,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                      Map<String, Object> userMetadata, boolean useShardGenerations) {
             this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null, userMetadata,
                 useShardGenerations);
+        }
+
+        public Entry(Entry entry, State state, List<IndexId> indices, long startTime, long repositoryStateId,
+            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, boolean useShardGenerations, String failure) {
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, startTime, repositoryStateId, shards, failure,
+                entry.userMetadata, useShardGenerations);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {

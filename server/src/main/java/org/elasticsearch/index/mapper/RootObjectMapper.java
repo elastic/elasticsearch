@@ -138,7 +138,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                        || processField(builder, fieldName, fieldNode, parserContext)) {
+                        || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
                     iterator.remove();
                 }
             }
@@ -147,7 +147,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @SuppressWarnings("unchecked")
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode,
-                                       ParserContext parserContext) {
+                                       Version indexVersionCreated) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -205,7 +205,6 @@ public class RootObjectMapper extends ObjectMapper {
             }
             return false;
         }
-
     }
 
     private Explicit<DateFormatter[]> dynamicDateTimeFormatters;
@@ -352,7 +351,7 @@ public class RootObjectMapper extends ObjectMapper {
     private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
                                                 DynamicTemplate dynamicTemplate) {
 
-        if (containsPlaceHolders(dynamicTemplate.getMapping(), "{name}")) {
+        if (containsSnippet(dynamicTemplate.getMapping(), "{name}")) {
             // Can't validate template, because field names can't be guessed up front.
             return;
         }
@@ -398,30 +397,26 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    private static boolean containsPlaceHolders(Map<?, ?> map, String... placeHolders) {
+    private static boolean containsSnippet(Map<?, ?> map, String snippet) {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             String key = entry.getKey().toString();
-            for (String placeHolder : placeHolders) {
-                if (key.contains(placeHolder)) {
-                    return true;
-                }
+            if (key.contains(snippet)) {
+                return true;
             }
 
             Object value = entry.getValue();
             if (value instanceof Map) {
-                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
+                if (containsSnippet((Map<?, ?>) value, snippet)) {
                     return true;
                 }
             } else if (value instanceof List) {
-                if (containsPlaceHolders((List<?>) value, placeHolders)) {
+                if (containsSnippet((List<?>) value, snippet)) {
                     return true;
                 }
             } else if (value instanceof String) {
                 String valueString = (String) value;
-                for (String placeHolder : placeHolders) {
-                    if (valueString.contains(placeHolder)) {
-                        return true;
-                    }
+                if (valueString.contains(snippet)) {
+                    return true;
                 }
             }
         }
@@ -429,22 +424,20 @@ public class RootObjectMapper extends ObjectMapper {
         return false;
     }
 
-    private static boolean containsPlaceHolders(List<?> list, String... placeHolders) {
+    private static boolean containsSnippet(List<?> list, String snippet) {
         for (Object value : list) {
             if (value instanceof Map) {
-                if (containsPlaceHolders((Map<?, ?>) value, placeHolders)) {
+                if (containsSnippet((Map<?, ?>) value, snippet)) {
                     return true;
                 }
             } else if (value instanceof List) {
-                if (containsPlaceHolders((List<?>) value, placeHolders)) {
+                if (containsSnippet((List<?>) value, snippet)) {
                     return true;
                 }
             } else if (value instanceof String) {
                 String valueString = (String) value;
-                for (String placeHolder : placeHolders) {
-                    if (valueString.contains(placeHolder)) {
-                        return true;
-                    }
+                if (valueString.contains(snippet)) {
+                    return true;
                 }
             }
         }

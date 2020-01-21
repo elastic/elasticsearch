@@ -53,6 +53,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -106,6 +107,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -155,14 +157,15 @@ public class MetaDataCreateIndexService {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
 
-        List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
-            .filter(descriptor -> descriptor.matchesIndexPattern(index))
-            .collect(toList());
         if (index.charAt(0) == '.') {
+            List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
+                .filter(descriptor -> descriptor.matchesIndexPattern(index))
+                .collect(toList());
             if (matchingDescriptors.isEmpty()) {
-                DEPRECATION_LOGGER.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
+                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
                     "names starting with a dot will fail as these names are reserved for system indices", index);
             } else if (matchingDescriptors.size() > 1) {
+                // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
                 StringBuilder errorMessage = new StringBuilder()
                     .append("index name [")
                     .append(index)
@@ -170,6 +173,8 @@ public class MetaDataCreateIndexService {
                     .append(matchingDescriptors.stream()
                         .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
                             "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+                // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
+                assert false : errorMessage.toString();
                 throw new IllegalStateException(errorMessage.toString());
             }
         }

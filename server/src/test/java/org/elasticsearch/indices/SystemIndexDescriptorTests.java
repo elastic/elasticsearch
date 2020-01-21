@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -69,16 +68,17 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         }
     }
 
-    public void testOverlappingPatterns() {
-        Random random = random();
+    public void testBasicOverlappingPatterns() {
         SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");
         SystemIndexDescriptor notOverlapping = new SystemIndexDescriptor(".bbbddd*", "test");
         SystemIndexDescriptor overlapping1 = new SystemIndexDescriptor(".ac*", "test");
         SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc", "test");
         SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
 
-        String broadPatternSource = randomAlphaOfLength(5);
-        String otherSource = randomAlphaOfLength(6);
+        // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
+        // across tests
+        String broadPatternSource = "AAA" + randomAlphaOfLength(5);
+        String otherSource = "ZZZ" + randomAlphaOfLength(6);
         Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
         descriptors.put(broadPatternSource, Arrays.asList(broadPattern));
         descriptors.put(otherSource, Arrays.asList(notOverlapping, overlapping1, overlapping2, overlapping3));
@@ -94,21 +94,24 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
     }
 
-    /*
-     * Some overlapping patterns will not be caught by the current overlapping-pattern detection. If this changes,
-     * this may be a breaking change for the plugin API.
-     */
-    public void testPotentialCollisionsNotCaught() {
-        Random random = random();
+    public void testComplexOverlappingPatterns() {
+        // These patterns are slightly more complex to detect because pattern1 does not match pattern2 and vice versa
         SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
         SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
 
-        String source1 = randomAlphaOfLength(5);
-        String source2 = randomAlphaOfLength(6);
+        // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
+        // across tests
+        String source1 = "AAA" + randomAlphaOfLength(5);
+        String source2 = "ZZZ" + randomAlphaOfLength(6);
         Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
         descriptors.put(source1, Arrays.asList(pattern1));
         descriptors.put(source2, Arrays.asList(pattern2));
 
-        SystemIndexDescriptor.checkForOverlappingPatterns(descriptors);
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> SystemIndexDescriptor.checkForOverlappingPatterns(descriptors));
+        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
+            "] from plugin [" + source1 + "] overlaps with other system index descriptors:"));
+        assertThat(exception.getMessage(), containsString(pattern2.toString() + " from plugin [" + source2 + "]"));
+
     }
 }

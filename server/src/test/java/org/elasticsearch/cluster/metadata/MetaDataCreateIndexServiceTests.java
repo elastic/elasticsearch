@@ -597,7 +597,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             checkerService.validateIndexName(".pattern-test-other-suffix", ClusterState.EMPTY_STATE);
 
             // Check that an exception is thrown if more than one descriptor matches the index name
-            IllegalStateException exception = expectThrows(IllegalStateException.class,
+            AssertionError exception = expectThrows(AssertionError.class,
                 () -> checkerService.validateIndexName(".pattern-test-overlapping", ClusterState.EMPTY_STATE));
             assertThat(exception.getMessage(),
                 containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));

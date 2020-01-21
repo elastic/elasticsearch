@@ -48,7 +48,7 @@ Recovery::
 SQL::
 * Change the way unsupported data types fields are handled {pull}50823[#50823]
 * Optimization fixes for conjunction merges {pull}50703[#50703] (issue: {issue}49637[#49637])
-* SQL: Fix issue with CAST and NULL checking. {pull}50371[#50371] (issue: {issue}50191[#50191])
+*  Fix issue with CAST and NULL checking. {pull}50371[#50371] (issue: {issue}50191[#50191])
 * Fix NPE for JdbcResultSet.getDate(param, Calendar) calls {pull}50184[#50184] (issue: {issue}50174[#50174])
 
 Search::

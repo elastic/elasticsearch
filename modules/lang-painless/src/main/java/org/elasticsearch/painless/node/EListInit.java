@@ -59,7 +59,7 @@ public final class EListInit extends AExpression {
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (!read) {
-            throw createError(new IllegalArgumentException("Must read from list initializerNode."));
+            throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
         actual = ArrayList.class;

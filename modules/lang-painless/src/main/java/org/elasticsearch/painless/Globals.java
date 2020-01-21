@@ -35,10 +35,10 @@ public class Globals {
         this.statements = statements;
     }
     
-    /** Adds a new constant initializerNode to be written */
+    /** Adds a new constant initializer to be written */
     public void addConstantInitializer(Constant constant) {
         if (constantInitializers.put(constant.name, constant) != null) {
-            throw new IllegalStateException("constant initializerNode: " + constant.name + " already exists");
+            throw new IllegalStateException("constant initializer: " + constant.name + " already exists");
         }
     }
 

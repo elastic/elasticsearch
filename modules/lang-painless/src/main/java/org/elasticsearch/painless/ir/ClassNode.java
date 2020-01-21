@@ -470,7 +470,7 @@ public class ClassNode extends IRNode {
         if (false == globals.getConstantInitializers().isEmpty()) {
             Collection<Constant> inits = globals.getConstantInitializers().values();
 
-            // Initialize the constants in a static initializerNode
+            // Initialize the constants in a static initializer
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
                     WriterConstants.CLINIT, classVisitor, globals.getStatements(), scriptRoot.getCompilerSettings());
             clinit.visitCode();

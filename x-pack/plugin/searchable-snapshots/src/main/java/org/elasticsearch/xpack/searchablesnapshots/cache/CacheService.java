@@ -37,6 +37,8 @@ public class CacheService extends AbstractLifecycleComponent {
         this.cache = CacheBuilder.<String, CacheFile>builder()
             .setMaximumWeight(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes())
             .weigher((key, entry) -> entry.getLength())
+            // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
+            // are done with reading/writing the cache file
             .removalListener(notification -> Releasables.closeWhileHandlingException(notification.getValue()))
             .build();
     }

@@ -81,6 +81,8 @@ class CacheFile implements Releasable {
     }
 
     public boolean acquire(final EvictionListener listener) throws IOException {
+        assert listener != null;
+
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
@@ -88,7 +90,9 @@ class CacheFile implements Releasable {
                 try {
                     ensureOpen();
                     final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                    if (newListeners.add(Objects.requireNonNull(listener)) == false) {
+                    boolean added = newListeners.add(Objects.requireNonNull(listener));
+                    assert added : "listener should not be added twice";
+                    if (added == false) {
                         throw new IllegalStateException("Cannot add the same listener twice");
                     }
                     maybeOpenFileChannel(newListeners);
@@ -106,6 +110,8 @@ class CacheFile implements Releasable {
     }
 
     public boolean release(final EvictionListener listener) {
+        assert listener != null;
+
         boolean success = false;
         synchronized (this) {
             try {
@@ -148,9 +154,7 @@ class CacheFile implements Releasable {
                     refCounter.decRef();
                 }
             }
-            if (evictionListeners != null) {
-                evictionListeners.forEach(listener -> listener.onEviction(this));
-            }
+            evictionListeners.forEach(listener -> listener.onEviction(this));
         }
         assert invariant();
     }
@@ -174,15 +178,17 @@ class CacheFile implements Releasable {
         }
     }
 
-    private boolean invariant() {
+    private synchronized boolean invariant() {
         assert listeners != null;
         if (listeners.isEmpty()) {
             assert channelRefCounter == null;
+            assert closed = false || refCounter.refCount() != 0 || Files.notExists(file);
         } else {
             assert channelRefCounter != null;
             assert channelRefCounter.refCount() > 0;
             assert channelRefCounter.channel != null;
             assert channelRefCounter.channel.isOpen();
+            assert Files.exists(file);
         }
         return true;
     }

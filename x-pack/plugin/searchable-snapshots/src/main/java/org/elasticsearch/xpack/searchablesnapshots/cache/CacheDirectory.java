@@ -150,6 +150,8 @@ public class CacheDirectory extends FilterDirectory {
                 CacheFile cacheFile = null;
                 try {
                     cacheFile = getOrAcquire();
+                    assert cacheFile != null;
+
                     final CacheFile.FileChannelRefCounted channelRef = cacheFile.getChannelRefCounter();
                     if (channelRef == null || channelRef.tryIncRef() == false) {
                         throw new AlreadyClosedException("Cache file acquired correctly but evicted before increment ref count on channel");

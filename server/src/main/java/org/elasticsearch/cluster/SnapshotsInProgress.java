@@ -140,10 +140,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 useShardGenerations);
         }
 
-        public Entry(Entry entry, State state, List<IndexId> indices, long startTime, long repositoryStateId,
+        public Entry(Entry entry, State state, List<IndexId> indices, long repositoryStateId,
                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, boolean useShardGenerations, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, startTime, repositoryStateId, shards, failure,
-                entry.userMetadata, useShardGenerations);
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.startTime, repositoryStateId, shards,
+                failure, entry.userMetadata, useShardGenerations);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {

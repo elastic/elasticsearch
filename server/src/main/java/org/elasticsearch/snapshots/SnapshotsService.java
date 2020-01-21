@@ -469,8 +469,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
                         endSnapshot(new SnapshotsInProgress.Entry(
-                            snapshot, State.STARTED, Collections.emptyList(), threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
-                            null, writeShardGenerations, null), clusterState.metaData());
+                            snapshot, State.STARTED, Collections.emptyList(), repositoryData.getGenId(), null, writeShardGenerations,
+                            null), clusterState.metaData());
                         return;
                     }
                     clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {
@@ -513,14 +513,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 failureMessage.append(closed);
                                             }
                                             entries.add(new SnapshotsInProgress.Entry(entry, State.FAILED, indexIds,
-                                                threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
-                                                writeShardGenerations, failureMessage.toString()));
+                                                repositoryData.getGenId(), shards, writeShardGenerations, failureMessage.toString()));
                                             continue;
                                         }
                                     }
-                                    entries.add(new SnapshotsInProgress.Entry(entry, State.STARTED, indexIds,
-                                        threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, writeShardGenerations,
-                                        null));
+                                    entries.add(new SnapshotsInProgress.Entry(entry, State.STARTED, indexIds, repositoryData.getGenId(),
+                                        shards, writeShardGenerations, null));
                                 }
                             }
                             return ClusterState.builder(currentState)

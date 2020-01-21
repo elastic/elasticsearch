@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;

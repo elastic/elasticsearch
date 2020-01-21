@@ -55,7 +55,7 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         // two docs {value: 0} and {value : 2}, then building a histogram agg with interval 1 and with empty
         // buckets computed.. the empty bucket is the one associated with key "1". then each test will have
         // to check that this bucket exists with the appropriate sub aggregations.
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").execute().actionGet();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId(String.valueOf(i)).setSource(jsonBuilder()

@@ -28,7 +28,8 @@ experimental[]
 [[ml-explain-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following privileges:
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
 
 * cluster: `monitor_ml`
   
@@ -44,9 +45,10 @@ The following explanations are provided:
 
 * which fields are included or not in the analysis and why,
 * how much memory is estimated to be required. The estimate can be used when 
-  deciding the appropriate value for `model_memory_limit` setting later on,
+  deciding the appropriate value for `model_memory_limit` setting later on.
 
-about either an existing {dfanalytics-job} or one that has not been created yet.
+If you have object fields or fields that are excluded via source filtering,
+they are not included in the explanation.
 
 
 [[ml-explain-dfanalytics-path-params]]

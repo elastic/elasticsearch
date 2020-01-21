@@ -20,7 +20,8 @@ experimental[]
 [[ml-put-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following built-in roles and privileges:
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
 
 * `machine_learning_admin`
 * `kibana_user` (UI only)
@@ -66,12 +67,11 @@ upper bound on the improvement in validation loss.
 A fixed number of rounds is used for optimization which depends on the number of 
 parameters being optimized. The optimization starts with random search, then 
 Bayesian optimization is performed that is targeting maximum expected 
-improvement. If you override any parameters,
-//TBD: What is meant by overriding them? Explicitly setting the parameter instead of letting it take the default? 
-the optimization calculates the value of the remaining parameters accordingly
-and uses the value you provided for the overridden parameter. The number of
-rounds are reduced respectively. The validation error is estimated in each round
-by using 4-fold cross validation.
+improvement. If you override any parameters by explicitely setting it, the 
+optimization calculates the value of the remaining parameters accordingly and 
+uses the value you provided for the overridden parameter. The number of rounds 
+are reduced respectively. The validation error is estimated in each round by 
+using 4-fold cross validation.
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -104,7 +104,6 @@ TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set
 automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
 to give minimum validation error. It is highly recommended to use the default 
 values unless you fully understand the function of these parameters.
-
 --
 
 `analysis`.`classification`.`dependent_variable`::::
@@ -148,6 +147,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 `analysis`.`classification`.`randomize_seed`::::
 (Optional, long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`analysis`.`classification`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
 
 `analysis`.`classification`.`training_percent`::::
 (Optional, integer)
@@ -227,6 +230,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 `analysis`.`regression`.`prediction_field_name`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`analysis`.`regression`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
 
 `analysis`.`regression`.`training_percent`::::
 (Optional, integer)
@@ -400,7 +407,7 @@ The API returns the following result:
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/"version" : "8.0.0"/"version" : $body.version/]
 
 
 [[ml-put-dfanalytics-example-r]]

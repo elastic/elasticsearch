@@ -37,6 +37,24 @@ import java.util.stream.Stream;
 
 public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
 
+    public static TrainedModelConfig createTestTrainedModelConfig() {
+        return new TrainedModelConfig(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            Version.CURRENT,
+            randomBoolean() ? null : randomAlphaOfLength(100),
+            Instant.ofEpochMilli(randomNonNegativeLong()),
+            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            randomBoolean() ? null : randomAlphaOfLength(100),
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
+            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomBoolean() ? null : TrainedModelInputTests.createRandomInput(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomFrom("platinum", "basic"));
+    }
+
     @Override
     protected TrainedModelConfig doParseInstance(XContentParser parser) throws IOException {
         return TrainedModelConfig.fromXContent(parser);
@@ -54,22 +72,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
 
     @Override
     protected TrainedModelConfig createTestInstance() {
-        return new TrainedModelConfig(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            Version.CURRENT,
-            randomBoolean() ? null : randomAlphaOfLength(100),
-            Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
-            randomBoolean() ? null : randomAlphaOfLength(100),
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
-            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            randomBoolean() ? null : TrainedModelInputTests.createRandomInput(),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomFrom("platinum", "basic"));
-
+        return createTestTrainedModelConfig();
     }
 
     @Override

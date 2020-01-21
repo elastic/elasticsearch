@@ -110,14 +110,17 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
 
     @Override
     public Set<Entry<K, V>> entrySet() {
-        return delegate.entrySet().stream()
+        return delegate.entrySet()
+            .stream()
             .peek(this::validate)
-            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValue())).entrySet();
+            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValue()))
+            .entrySet();
     }
 
     @Override
     public List<? extends Object> getNormalizedCollection() {
-        return delegate.values().stream()
+        return delegate.values()
+            .stream()
             .peek(this::validate)
             .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)
             .map(entry -> normalizationMapper == null ? entry : normalizationMapper.apply(entry.getKey(), entry.getValue()))

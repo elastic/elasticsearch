@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -30,22 +30,22 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestRestoreDanglingIndexAction extends BaseRestHandler {
-    public RestRestoreDanglingIndexAction(RestController controller) {
+public class RestImportDanglingIndexAction extends BaseRestHandler {
+    public RestImportDanglingIndexAction(RestController controller) {
         controller.registerHandler(POST, "/_dangling/{indexUuid}", this);
     }
 
     @Override
     public String getName() {
-        return "restore_dangling_index";
+        return "import_dangling_index";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final RestoreDanglingIndexRequest restoreRequest = new RestoreDanglingIndexRequest();
-        restoreRequest.setIndexUuid(request.param("indexUuid"));
-        request.applyContentParser(p -> restoreRequest.source(p.mapOrdered()));
+        final ImportDanglingIndexRequest importRequest = new ImportDanglingIndexRequest();
+        importRequest.setIndexUUID(request.param("indexUUID"));
+        request.applyContentParser(p -> importRequest.source(p.mapOrdered()));
 
-        return channel -> client.admin().cluster().restoreDanglingIndex(restoreRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestStatusToXContentListener<>(channel));
     }
 }

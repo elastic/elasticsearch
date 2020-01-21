@@ -24,12 +24,12 @@ import org.elasticsearch.action.ActionType;
 /**
  * Represents a request to restore a particular dangling index.
  */
-public class RestoreDanglingIndexAction extends ActionType<RestoreDanglingIndexResponse> {
+public class ImportDanglingIndexAction extends ActionType<ImportDanglingIndexResponse> {
 
-    public static final RestoreDanglingIndexAction INSTANCE = new RestoreDanglingIndexAction();
+    public static final ImportDanglingIndexAction INSTANCE = new ImportDanglingIndexAction();
     public static final String NAME = "cluster:admin/indices/dangling/restore";
 
-    private RestoreDanglingIndexAction() {
-        super(NAME, RestoreDanglingIndexResponse::new);
+    private ImportDanglingIndexAction() {
+        super(NAME, ImportDanglingIndexResponse::new);
     }
 }

@@ -32,6 +32,6 @@
  * </ul>
  *
  * <p>The classes in this package form an API for managing dangling
- * indices, allowing them to be listed, restored or deleted.
+ * indices, allowing them to be listed, imported or deleted.
  */
 package org.elasticsearch.action.admin.indices.dangling;

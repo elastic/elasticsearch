@@ -1,5 +1,5 @@
 {
-  "dangling_indices.restore": {
+  "dangling_indices.delete": {
     "documentation": {
       "description": "Deletes the specified dangling index"
     },
@@ -7,12 +7,12 @@
     "url": {
       "paths": [
         {
-          "path": "/_dangling/{indexUuid}",
+          "path": "/_dangling/{indexUUID}",
           "methods": [
             "DELETE"
           ],
           "parts": {
-            "indexUuid": {
+            "indexUUID": {
               "type": "string",
               "description": "The UUID of the dangling index"
             }

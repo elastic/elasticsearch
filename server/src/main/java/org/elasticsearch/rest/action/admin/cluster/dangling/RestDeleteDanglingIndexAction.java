@@ -43,7 +43,7 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         final DeleteDanglingIndexRequest deleteRequest = new DeleteDanglingIndexRequest();
-        deleteRequest.setIndexUuid(request.param("indexUuid"));
+        deleteRequest.setIndexUUID(request.param("indexUuid"));
         request.applyContentParser(p -> deleteRequest.source(p.mapOrdered()));
 
         return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestStatusToXContentListener<>(channel));

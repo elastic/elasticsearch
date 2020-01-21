@@ -162,9 +162,9 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     private IndexMetaData getIndexMetaDataToDelete(DeleteDanglingIndexRequest request) {
-        String indexUuid = request.getIndexUuid();
+        String indexUUID = request.getIndexUUID();
 
-        if (indexUuid == null || indexUuid.isEmpty()) {
+        if (indexUUID == null || indexUUID.isEmpty()) {
             throw new IllegalArgumentException("No index UUID specified in request");
         }
 
@@ -174,14 +174,14 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
         for (NodeDanglingIndicesResponse response : nodes) {
             for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
-                if (danglingIndex.getIndexUUID().equals(indexUuid)) {
+                if (danglingIndex.getIndexUUID().equals(indexUUID)) {
                     matchingMetaData.add(danglingIndex);
                 }
             }
         }
 
         if (matchingMetaData.isEmpty()) {
-            throw new IllegalArgumentException("No dangling index found for UUID [" + indexUuid + "]");
+            throw new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]");
         }
 
         // Although we could find metadata for the same index on multiple nodes, we return the first

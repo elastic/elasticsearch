@@ -32,12 +32,12 @@ import java.util.Map;
  * flag must also be explicitly set to true, or later validation will fail.
  */
 public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> {
-    private String indexUuid;
+    private String indexUUID;
     private boolean acceptDataLoss = false;
 
     public DeleteDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
-        this.indexUuid = in.readString();
+        this.indexUUID = in.readString();
         this.acceptDataLoss = in.readBoolean();
     }
 
@@ -45,29 +45,29 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         super();
     }
 
-    public DeleteDanglingIndexRequest(String indexUuid, boolean acceptDataLoss) {
+    public DeleteDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
         super();
-        this.indexUuid = indexUuid;
+        this.indexUUID = indexUUID;
         this.acceptDataLoss = acceptDataLoss;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.indexUuid == null) {
+        if (this.indexUUID == null) {
             ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("No index ID specified");
+            e.addValidationError("No index UUID specified");
             return e;
         }
 
         return null;
     }
 
-    public String getIndexUuid() {
-        return indexUuid;
+    public String getIndexUUID() {
+        return indexUUID;
     }
 
-    public void setIndexUuid(String indexUuid) {
-        this.indexUuid = indexUuid;
+    public void setIndexUUID(String indexUUID) {
+        this.indexUUID = indexUUID;
     }
 
     public boolean isAcceptDataLoss() {
@@ -100,7 +100,7 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(this.indexUuid);
+        out.writeString(this.indexUUID);
         out.writeBoolean(this.acceptDataLoss);
     }
 }

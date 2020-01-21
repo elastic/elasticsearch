@@ -162,9 +162,9 @@ import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRespon
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -1160,13 +1160,13 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<RestoreDanglingIndexResponse> restoreDanglingIndex(RestoreDanglingIndexRequest request) {
-            return execute(RestoreDanglingIndexAction.INSTANCE, request);
+        public ActionFuture<ImportDanglingIndexResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
+            return execute(ImportDanglingIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void restoreDanglingIndex(RestoreDanglingIndexRequest request, ActionListener<RestoreDanglingIndexResponse> listener) {
-            execute(RestoreDanglingIndexAction.INSTANCE, request, listener);
+        public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<ImportDanglingIndexResponse> listener) {
+            execute(ImportDanglingIndexAction.INSTANCE, request, listener);
         }
 
         @Override

@@ -28,36 +28,36 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Represents a request to restore a particular dangling index, specified
+ * Represents a request to import a particular dangling index, specified
  * by its UUID and optionally the node ID, if the dangling index exists on
  * more than one node. The {@link #acceptDataLoss} flag must also be
  * explicitly set to true, or later validation will fail.
  */
-public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglingIndexRequest> {
-    private String indexUuid;
+public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingIndexRequest> {
+    private String indexUUID;
     private boolean acceptDataLoss;
     private String nodeId;
 
-    public RestoreDanglingIndexRequest(StreamInput in) throws IOException {
+    public ImportDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
-        this.indexUuid = in.readString();
+        this.indexUUID = in.readString();
         this.acceptDataLoss = in.readBoolean();
         this.nodeId = in.readOptionalString();
     }
 
-    public RestoreDanglingIndexRequest() {
+    public ImportDanglingIndexRequest() {
         super(new String[0]);
     }
 
-    public RestoreDanglingIndexRequest(String indexUuid, boolean acceptDataLoss) {
+    public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
         this();
-        this.indexUuid = indexUuid;
+        this.indexUUID = indexUUID;
         this.acceptDataLoss = acceptDataLoss;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.indexUuid == null || this.indexUuid.isEmpty()) {
+        if (this.indexUUID == null || this.indexUUID.isEmpty()) {
             ActionRequestValidationException e = new ActionRequestValidationException();
             e.addValidationError("No index UUID specified");
             return e;
@@ -66,12 +66,12 @@ public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglin
         return null;
     }
 
-    public String getIndexUuid() {
-        return indexUuid;
+    public String getIndexUUID() {
+        return indexUUID;
     }
 
-    public void setIndexUuid(String indexUuid) {
-        this.indexUuid = indexUuid;
+    public void setIndexUUID(String indexUUID) {
+        this.indexUUID = indexUUID;
     }
 
     public String getNodeId() {
@@ -92,7 +92,7 @@ public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglin
 
     @Override
     public String toString() {
-        return "restore dangling index";
+        return "import dangling index";
     }
 
     public void source(Map<String, Object> source) {
@@ -123,7 +123,7 @@ public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(this.indexUuid);
+        out.writeString(this.indexUUID);
         out.writeBoolean(this.acceptDataLoss);
         out.writeOptionalString(this.nodeId);
     }

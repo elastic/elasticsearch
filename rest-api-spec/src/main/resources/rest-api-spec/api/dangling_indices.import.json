@@ -1,7 +1,7 @@
 {
-  "dangling_indices.restore": {
+  "dangling_indices.import": {
     "documentation": {
-      "description": "Restores the specified dangling index"
+      "description": "Imports the specified dangling index"
     },
     "stability": "experimental",
     "url": {
@@ -23,7 +23,7 @@
     "params": {
       "accept_data_loss": {
         "type": "boolean",
-        "description": "Must be set to true in order to restore the dangling index"
+        "description": "Must be set to true in order to import the dangling index"
       }
     },
     "body": {

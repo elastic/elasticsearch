@@ -182,7 +182,7 @@ class CacheFile implements Releasable {
         assert listeners != null;
         if (listeners.isEmpty()) {
             assert channelRefCounter == null;
-            assert closed = false || refCounter.refCount() != 0 || Files.notExists(file);
+            assert closed == false || refCounter.refCount() != 0 || Files.notExists(file);
         } else {
             assert channelRefCounter != null;
             assert channelRefCounter.refCount() > 0;

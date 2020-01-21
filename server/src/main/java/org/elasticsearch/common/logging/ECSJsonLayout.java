@@ -21,21 +21,19 @@ package org.elasticsearch.common.logging;
 
 import co.elastic.logging.log4j2.EcsLayout;
 import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
-import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
-import org.apache.logging.log4j.core.layout.ByteBufferDestination;
 import org.apache.logging.log4j.core.util.KeyValuePair;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
 
+/**
+ * This is a wrapper class around <code>co.elastic.logging.log4j2.EcsLayout</code>
+ * in order to avoid a duplication of configuration in log4j2.properties
+ */
 @Plugin(name = "ECSJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ECSJsonLayout  {
 
@@ -62,11 +60,11 @@ public class ECSJsonLayout  {
         public EcsLayout build() {
             return EcsLayout.newBuilder()
                             .setConfiguration(getConfiguration())
-                .setServiceName("ES_ECS")
-                .setStackTraceAsArray(false)
-                .setIncludeMarkers(true)
-                .setAdditionalFields(additionalFields())
-                .build();
+                            .setServiceName("ES_ECS")
+                            .setStackTraceAsArray(false)
+                            .setIncludeMarkers(true)
+                            .setAdditionalFields(additionalFields())
+                            .build();
         }
 
         private KeyValuePair[] additionalFields() {

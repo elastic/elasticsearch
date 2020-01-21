@@ -6,7 +6,7 @@
 === Enhancements
 
 Features/Ingest::
-* Foreach processor - fork recursive call  {pull}50514[#50514]
+* Fork recursive calls in Foreach processor {pull}50514[#50514]
 
 Infra/Core::
 * Fix unintended debug logging in subclasses of TransportMasterNodeAction  {pull}50839[#50839] (issues: {issue}50056[#50056], {issue}50074[#50074], {issue}50076[#50076])

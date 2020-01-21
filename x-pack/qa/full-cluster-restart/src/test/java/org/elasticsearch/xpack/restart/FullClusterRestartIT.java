@@ -837,7 +837,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             int numDocs = randomIntBetween(10, 500);
             for (int i = 0; i < numDocs; i++) {
                 int id = randomIntBetween(0, 100);
-                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
+                final Request indexRequest = new Request("POST", "/" + index + "/" + type + "/" + id);
                 indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
                 assertOK(client().performRequest(indexRequest));
                 if (rarely()) {

@@ -83,6 +83,7 @@ that is greater than this setting value, an error occurs. Existing jobs are not
 affected when you update this setting. For more information about the
 `model_memory_limit` property, see <<put-analysislimits>>.
 
+[[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can run simultaneously on a node. Defaults to
 `20`. In this context, jobs include both {anomaly-jobs} and {dfanalytics-jobs}. 

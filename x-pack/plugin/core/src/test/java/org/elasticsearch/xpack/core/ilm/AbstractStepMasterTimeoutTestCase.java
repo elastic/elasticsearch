@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -15,9 +19,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.stubbing.Stubber;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,6 +34,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
     protected Client client;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
+    protected ThreadPool pool;
 
     @Before
     public void setup() {
@@ -35,6 +43,12 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
         Mockito.when(client.admin()).thenReturn(adminClient);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        pool = new TestThreadPool("timeoutTestPool");
+    }
+
+    @After
+    public void teardown(){
+        pool.shutdownNow();
     }
 
     public void testMasterTimeout() {
@@ -48,23 +62,19 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
                 .build());
     }
 
-    @SuppressWarnings("rawtypes")
     private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
-        IndexMetaData indexMetadata = getIndexMetaData();
-
-        Stubber checkTimeout = Mockito.doAnswer(invocation -> {
-            for(Object argument: invocation.getArguments()){
-                if(argument instanceof MasterNodeRequest)
-                {
-                    @SuppressWarnings("rawtypes") MasterNodeRequest<?> request = (MasterNodeRequest) argument;
-                    assertThat(request.masterNodeTimeout(), equalTo(timeValue));
+        client = new NoOpClient(pool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
+                                                                                                      Request request,
+                                                                                                      ActionListener<Response> listener) {
+                if (request instanceof MasterNodeRequest) {
+                    assertThat(((MasterNodeRequest<?>) request).masterNodeTimeout(), equalTo(timeValue));
                 }
             }
-            return null;
-        });
-        mockRequestCall(checkTimeout);
-        T step = createRandomInstance();
-        step.performAction(indexMetadata, currentClusterState, null, new AsyncActionStep.Listener() {
+        };
+
+        createRandomInstance().performAction(getIndexMetaData(), currentClusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
 
@@ -79,5 +89,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
 
     protected abstract IndexMetaData getIndexMetaData();
 
-    protected abstract void mockRequestCall(Stubber checkTimeout);
+    public static ClusterState emptyClusterState() {
+        return ClusterState.builder(ClusterName.DEFAULT).build();
+    }
 }

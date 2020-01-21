@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.mockito.stubbing.Stubber;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -62,11 +61,6 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
 
-    @Override
-    protected void mockRequestCall(Stubber checkTimeout) {
-        checkTimeout.when(indicesClient).delete(Mockito.any(), Mockito.any());
-    }
-
     public void testIndexSurvives() {
         assertFalse(createRandomInstance().indexSurvives());
     }
@@ -93,7 +87,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -139,7 +133,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

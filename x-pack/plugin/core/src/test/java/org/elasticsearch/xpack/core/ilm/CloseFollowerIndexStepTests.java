@@ -14,7 +14,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
-import org.mockito.stubbing.Stubber;
 
 import java.util.Collections;
 
@@ -34,11 +33,6 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-    }
-
-    @Override
-    protected void mockRequestCall(Stubber checkTimeout) {
-        checkTimeout.when(indicesClient).close(Mockito.any(), Mockito.any());
     }
 
     public void testCloseFollowingIndex() {
@@ -62,7 +56,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -99,7 +93,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

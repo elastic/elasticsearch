@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.mockito.stubbing.Stubber;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,11 +62,6 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
 
-    @Override
-    protected void mockRequestCall(Stubber checkTimeout) {
-        checkTimeout.when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
-    }
-
     public void testIndexSurvives() {
         assertTrue(createRandomInstance().indexSurvives());
     }
@@ -95,7 +89,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         FreezeStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -123,21 +117,16 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-                listener.onFailure(exception);
-                return null;
-            }
-
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         FreezeStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

@@ -14,7 +14,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
-import org.mockito.stubbing.Stubber;
 
 import java.util.Collections;
 
@@ -63,11 +62,6 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
             .build();
     }
 
-    @Override
-    protected void mockRequestCall(Stubber checkTimeout) {
-        checkTimeout.when(indicesClient).open(Mockito.any(), Mockito.any());
-    }
-
     public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
         IndexMetaData indexMetadata = getIndexMetaData();
         Client client = Mockito.mock(Client.class);
@@ -113,7 +107,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -155,7 +149,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

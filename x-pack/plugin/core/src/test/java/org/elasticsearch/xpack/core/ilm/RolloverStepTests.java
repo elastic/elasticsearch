@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.mockito.stubbing.Stubber;
 
 import java.util.Collections;
 import java.util.Locale;
@@ -76,11 +75,6 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         return getIndexMetaData(randomAlphaOfLength(5));
     }
 
-    @Override
-    protected void mockRequestCall(Stubber checkTimeout) {
-        checkTimeout.when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
-    }
-
     private static void assertRolloverIndexRequest(RolloverRequest request, String alias) {
         assertNotNull(request);
         assertEquals(1, request.indices().length);
@@ -116,7 +110,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -223,7 +217,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {

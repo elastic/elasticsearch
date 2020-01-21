@@ -493,7 +493,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
-        // TODO use offset here rather than explicitly in the aggregation
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;

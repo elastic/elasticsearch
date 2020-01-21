@@ -27,7 +27,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
-import java.util.function.Function;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -45,7 +44,7 @@ public class ValuesSourceConfig {
         Object missing,
         ZoneId timeZone,
         String format, String aggregationName) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, s -> CoreValuesSourceType.BYTES, aggregationName);
+        return resolve(context, valueType, field, script, missing, timeZone, format, CoreValuesSourceType.BYTES, aggregationName);
     }
 
     /**
@@ -60,7 +59,7 @@ public class ValuesSourceConfig {
      * @param timeZone - Used to generate a format for dates
      * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
      *               See https://github.com/elastic/elasticsearch/issues/47469
-     * @param defaultValueSourceType - TODO: Get rid of this.
+     * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
      * @param aggregationName - Name of the aggregation, generally from the aggregation builder.  This is used as a lookup key in the
      *                          {@link ValuesSourceRegistry}
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
@@ -72,7 +71,7 @@ public class ValuesSourceConfig {
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, ValuesSourceType> defaultValueSourceType,
+        ValuesSourceType defaultValueSourceType,
         String aggregationName) {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
@@ -91,7 +90,7 @@ public class ValuesSourceConfig {
             if (userValueTypeHint != null) {
                 valuesSourceType = userValueTypeHint.getValuesSourceType();
             } else {
-                valuesSourceType = defaultValueSourceType.apply(script);
+                valuesSourceType = defaultValueSourceType;
             }
             config = new ValuesSourceConfig(valuesSourceType);
             config.script(createScript(script, context));
@@ -109,7 +108,7 @@ public class ValuesSourceConfig {
                 if (userValueTypeHint != null) {
                     valuesSourceType = userValueTypeHint.getValuesSourceType();
                 } else {
-                    valuesSourceType = defaultValueSourceType.apply(script);
+                    valuesSourceType = defaultValueSourceType;
                 }
                config = new ValuesSourceConfig(valuesSourceType);
                 // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.

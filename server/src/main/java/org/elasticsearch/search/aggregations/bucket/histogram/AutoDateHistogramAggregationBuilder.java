@@ -34,10 +34,12 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -147,6 +149,12 @@ public class AutoDateHistogramAggregationBuilder
         super(clone, factoriesBuilder, metaData);
         this.numBuckets = clone.numBuckets;
         this.minimumIntervalExpression = clone.minimumIntervalExpression;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        // TODO: This should probably be DATE, but we're not failing tests with BYTES, so needs more tests?
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override

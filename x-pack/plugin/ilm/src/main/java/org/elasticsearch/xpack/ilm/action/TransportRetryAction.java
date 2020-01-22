@@ -31,8 +31,6 @@ import org.elasticsearch.xpack.core.ilm.action.RetryAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.stream.Stream;
 
 public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
 

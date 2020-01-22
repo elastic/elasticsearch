@@ -3,7 +3,7 @@
     "documentation": {
       "description": "Deletes the specified dangling index"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "url": {
       "paths": [
         {

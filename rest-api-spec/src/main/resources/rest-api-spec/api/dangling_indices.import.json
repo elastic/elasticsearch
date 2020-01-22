@@ -3,7 +3,7 @@
     "documentation": {
       "description": "Imports the specified dangling index"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "url": {
       "paths": [
         {

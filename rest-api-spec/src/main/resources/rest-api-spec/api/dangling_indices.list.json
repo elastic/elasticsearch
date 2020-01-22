@@ -1,19 +1,19 @@
 {
-  "dangling_indices.list":{
-    "documentation":{
-      "description":"Returns all dangling indices."
+  "dangling_indices.list": {
+    "documentation": {
+      "description": "Returns all dangling indices."
     },
-    "stability":"experimental",
-    "url":{
-      "paths":[
+    "stability": "stable",
+    "url": {
+      "paths": [
         {
-          "path":"/_dangling",
-          "methods":[
+          "path": "/_dangling",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{}
+    "params": {}
   }
 }

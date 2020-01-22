@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
@@ -118,7 +119,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JDBC_TIMEZONE, "UTC");
+        // H2 runs with test JVM's set (randomized) timezone, while the ES node with local test machine's. Those tests that require
+        // synchronization of the two are tagged with the given suffix.
+        connectionProperties.setProperty(JDBC_TIMEZONE, testName.toUpperCase().endsWith("TZSYNC") ? TimeZone.getDefault().getID() : "UTC");
         return connectionProperties;
     }
 

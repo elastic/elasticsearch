@@ -119,8 +119,6 @@ dayOfWeekGroupBy
 SELECT DAY_OF_WEEK(birth_date) day, COUNT(*) c FROM test_emp WHERE DAY_OF_WEEK(birth_date) < 6 GROUP BY day ORDER BY DAY_OF_WEEK(birth_date);
 
 // current
-currentTimestampYear
-SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
 
 orderByCurrentTimestamp
 SELECT first_name FROM test_emp ORDER BY NOW(), first_name NULLS LAST LIMIT 5;
@@ -129,14 +127,17 @@ groupByCurrentTimestamp
 SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
 
 //
-// H2 uses the local timezone instead of the specified one
+// H2 uses the test JVM's timezone, but the ES test cluster uses the local machine's one: pass the "time_zone" JDBC param in requests to ES
 //
-currentTimestampMonth-Ignore
+currentTimestampYear-TZSync
+SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
+
+currentTimestampMonth-TZSync
 SELECT MONTH(CURRENT_TIMESTAMP()) AS result;
 
-currentTimestampHour-Ignore
+currentTimestampHour-TZSync
 SELECT HOUR(CURRENT_TIMESTAMP()) AS result;
 
-currentTimestampMinute-Ignore
+currentTimestampMinute-TZSync
 SELECT MINUTE(CURRENT_TIMESTAMP()) AS result;
 

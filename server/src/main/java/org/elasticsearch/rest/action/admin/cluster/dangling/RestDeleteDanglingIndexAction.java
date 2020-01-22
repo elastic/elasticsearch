@@ -27,6 +27,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -42,18 +43,21 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final DeleteDanglingIndexRequest deleteRequest = new DeleteDanglingIndexRequest();
+        String indexUUID = request.param("index_uuid");
+        boolean acceptDataLoss = false;
 
-        deleteRequest.setIndexUUID(request.param("index_uuid"));
+        for (Map.Entry<String, String> entry : request.params().entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
 
-        request.params().forEach((key, value) -> {
             if ("accept_data_loss".equals(key)) {
-                deleteRequest.setAcceptDataLoss(Boolean.parseBoolean(value));
+                acceptDataLoss = Boolean.parseBoolean(value);
             } else {
                 throw new IllegalArgumentException("Unknown URL parameter [" + key + "]");
             }
-        });
+        }
 
+        final DeleteDanglingIndexRequest deleteRequest = new DeleteDanglingIndexRequest(indexUUID, acceptDataLoss);
 
         return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestStatusToXContentListener<>(channel));
     }

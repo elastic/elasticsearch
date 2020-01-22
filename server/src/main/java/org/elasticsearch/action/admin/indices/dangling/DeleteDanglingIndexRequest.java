@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -31,8 +32,8 @@ import java.io.IOException;
  * flag must also be explicitly set to true, or later validation will fail.
  */
 public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> {
-    private String indexUUID;
-    private boolean acceptDataLoss = false;
+    private final String indexUUID;
+    private final boolean acceptDataLoss;
 
     public DeleteDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
@@ -40,13 +41,9 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         this.acceptDataLoss = in.readBoolean();
     }
 
-    public DeleteDanglingIndexRequest() {
-        super();
-    }
-
     public DeleteDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
         super();
-        this.indexUUID = indexUUID;
+        this.indexUUID = Strings.requireNonEmpty(indexUUID, "indexUUID cannot be null or empty");
         this.acceptDataLoss = acceptDataLoss;
     }
 
@@ -68,21 +65,13 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         return indexUUID;
     }
 
-    public void setIndexUUID(String indexUUID) {
-        this.indexUUID = indexUUID;
-    }
-
     public boolean isAcceptDataLoss() {
         return acceptDataLoss;
     }
 
-    public void setAcceptDataLoss(boolean acceptDataLoss) {
-        this.acceptDataLoss = acceptDataLoss;
-    }
-
     @Override
     public String toString() {
-        return "delete dangling index";
+        return "DeleteDanglingIndexRequest{" + "indexUUID='" + indexUUID + '\'' + ", acceptDataLoss=" + acceptDataLoss + '}';
     }
 
     @Override

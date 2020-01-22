@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class StringsTests extends ESTestCase {
 
@@ -100,5 +101,29 @@ public class StringsTests extends ESTestCase {
         assertEquals(Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
         assertEquals(Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
         assertEquals(Strings.tokenizeByCommaToSet("   "), Sets.newHashSet());
+    }
+
+    public void testRequireNonEmptyWithNullArgument() {
+        final NullPointerException nullExceptionMessage = expectThrows(
+            NullPointerException.class,
+            () -> Strings.requireNonEmpty(null, "null exception message")
+        );
+
+        assertThat(nullExceptionMessage.getMessage(), equalTo("null exception message"));
+    }
+
+    public void testRequireNonEmptyWithEmptyArgument() {
+        final IllegalArgumentException emptyExceptionMessage = expectThrows(
+            IllegalArgumentException.class,
+            () -> Strings.requireNonEmpty("", "empty exception message")
+        );
+
+        assertThat(emptyExceptionMessage.getMessage(), equalTo("empty exception message"));
+    }
+
+    public void testRequireNonEmptyWithValidArgument() {
+        String returnValue = Strings.requireNonEmpty("a value", "a message");
+
+        assertThat(returnValue, equalTo("a value"));
     }
 }

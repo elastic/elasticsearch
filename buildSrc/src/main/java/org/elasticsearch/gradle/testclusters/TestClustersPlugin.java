@@ -93,9 +93,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private static class TestClustersHookPlugin implements Plugin<Project> {
-        public TestClustersHookPlugin() {}
-
+    static class TestClustersHookPlugin implements Plugin<Project> {
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {

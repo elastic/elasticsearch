@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.integration;
 // Pending fix
 //import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -43,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -117,7 +114,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -158,7 +155,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -221,7 +218,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, expectedMappingTypeForPredictedField);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, expectedMappingTypeForPredictedField);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -309,7 +306,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -366,7 +363,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -385,7 +382,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(ALIAS_TO_KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -404,7 +401,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(ALIAS_TO_NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -565,15 +562,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         return destDoc;
     }
 
-    /**
-     * Wrapper around extractValue that:
-     * - allows dots (".") in the path elements provided as arguments
-     * - supports implicit casting to the appropriate type
-     */
-    private static <T> T getFieldValue(Map<String, Object> doc, String... path) {
-        return (T)extractValue(String.join(".", path), doc);
-    }
-
     private static <T> void assertTopClasses(Map<String, Object> resultsObject,
                                              int numTopClasses,
                                              String dependentVariable,
@@ -655,27 +643,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
-    }
-
-    private void assertMlResultsFieldMappings(String predictedClassField, String expectedType) {
-        Map<String, Object> mappings =
-            client()
-                .execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(destIndex))
-                .actionGet()
-                .mappings()
-                .get(destIndex)
-                .get("_doc")
-                .sourceAsMap();
-        assertThat(
-            mappings.toString(),
-            getFieldValue(
-                mappings,
-                "properties", "ml", "properties", String.join(".properties.", predictedClassField.split("\\.")), "type"),
-            equalTo(expectedType));
-        assertThat(
-            mappings.toString(),
-            getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
-            equalTo(expectedType));
     }
 
     private String stateDocId() {

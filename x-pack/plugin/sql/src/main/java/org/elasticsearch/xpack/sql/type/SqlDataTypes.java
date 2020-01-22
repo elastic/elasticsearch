@@ -457,7 +457,7 @@ public class SqlDataTypes {
             return 15;
         }
         if (dataType == TEXT) {
-            return Short.MAX_VALUE;
+            return 32766;
         }
         if (dataType == DATETIME) {
             return 3;

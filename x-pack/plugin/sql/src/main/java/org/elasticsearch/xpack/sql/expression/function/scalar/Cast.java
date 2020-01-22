@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.Objects;
@@ -88,7 +87,7 @@ public class Cast extends UnaryScalarFunction {
                 formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
                 paramsBuilder()
                     .script(fieldAsScript.params())
-                    .variable(dataType.typeName())
+                    .variable(dataType.name())
                     .build(),
                 dataType());
     }

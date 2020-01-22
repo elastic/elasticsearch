@@ -13,6 +13,8 @@ public class DataType {
 
     private final String typeName;
 
+    private final String name;
+
     private final String esType;
 
     private final int size;
@@ -39,11 +41,16 @@ public class DataType {
     public DataType(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
         String typeString = typeName != null ? typeName : esType;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
+        this.name = typeString.toUpperCase(Locale.ROOT);
         this.esType = esType;
         this.size = size;
         this.isInteger = isInteger;
         this.isRational = isRational;
         this.docValues = hasDocValues;
+    }
+
+    public String name() {
+        return name;
     }
 
     public String typeName() {
@@ -100,6 +107,6 @@ public class DataType {
 
     @Override
     public String toString() {
-        return typeName().toUpperCase(Locale.ROOT);
+        return name;
     }
 }

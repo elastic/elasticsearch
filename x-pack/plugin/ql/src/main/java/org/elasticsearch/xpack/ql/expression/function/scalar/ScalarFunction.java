@@ -100,7 +100,7 @@ public abstract class ScalarFunction extends Function {
             return new ScriptTemplate(processScript("{sql}.asTime({})"), paramsBuilder().variable(ot.toString()).build(), dataType());
         }
 
-        if (fold.getClass().getSimpleName().equals("GeoShape")) {
+        if (fold != null && fold.getClass().getSimpleName().equals("GeoShape")) {
             return new ScriptTemplate(processScript("{sql}.stWktToSql({})"), paramsBuilder().variable(fold.toString()).build(), dataType());
         }
 

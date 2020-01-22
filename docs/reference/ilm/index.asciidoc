@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-management]]
-= Managing the index lifecycle
+= Manage the index lifecycle
 
 [partintro]
 --
@@ -9,7 +9,7 @@ You can configure index lifecycle policies to automatically manage indices as th
 Index lifecycle policies can trigger actions such as rollover, shrink, force merge, freeze, and delete 
 based on your performance, resiliency, and retention requirements. 
 To automatically back up your indices and manage snapshots, 
-you use <<snapshot-lifecycle-management,snapshot lifecycle policies>>.
+use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
 
 * <<overview-index-lifecycle-management, Overview>>
 * <<getting-started-index-lifecycle-management, Getting Started with {ilm-init}>>

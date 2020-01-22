@@ -178,7 +178,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+            put(InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
         }};
 
         try {
@@ -195,7 +196,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME,
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME.getPreferredName(),
                 Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 1)));
         }};
 
@@ -220,7 +221,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+            put(InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
         }};
 
         try {
@@ -233,7 +235,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME,
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME.getPreferredName(),
                 Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 1)));
         }};
 
@@ -254,7 +256,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "ml");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME,
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME.getPreferredName(),
                 Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
         }};
 
@@ -302,7 +304,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 Collections.singletonMap(InferenceProcessor.TYPE,
                     new HashMap<String, Object>() {{
                         put(InferenceProcessor.MODEL_ID, modelId);
-                        put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+                        put(InferenceProcessor.INFERENCE_CONFIG,
+                                Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
                         put(InferenceProcessor.TARGET_FIELD, "new_field");
                         put(InferenceProcessor.FIELD_MAPPINGS, Collections.singletonMap("source", "dest"));
                     }}))))) {

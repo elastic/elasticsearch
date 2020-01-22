@@ -225,6 +225,7 @@ License::
 * Support "enterprise" license types {pull}49223[#49223] (issue: {issue}48510[#48510])
 
 Machine Learning::
+* [ML] Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])
 * [ML] Add num_top_feature_importance_values param to regression and classi… {pull}50914[#50914]
 * [ML] Implement force deleting a data frame analytics job {pull}50553[#50553] (issue: {issue}48124[#48124])
 * [ML] Delete unused data frame analytics state {pull}50243[#50243]
@@ -240,7 +241,7 @@ Machine Learning::
 * Throw an exception when memory usage estimation endpoint encounters empty data frame. {pull}49143[#49143] (issue: {issue}49140[#49140])
 * Change format of MulticlassConfusionMatrix result to be more self-explanatory {pull}48174[#48174] (issue: {issue}46735[#46735])
 * Make num_top_classes parameter's default value equal to 2 {pull}48119[#48119] (issue: {issue}46735[#46735])
-* [ML] Improve model_memory_limit UX for data frame analytics jobs [ISSUE] {pull}44699[#44699]
+* [ML] Improve model_memory_limit UX for data frame analytics jobs {pull}44699[#44699]
 
 Mapping::
 * Add telemetry for flattened fields. {pull}48972[#48972]
@@ -295,6 +296,7 @@ Store::
 * mmap dim files in HybridDirectory {pull}49272[#49272] (issue: {issue}48509[#48509])
 
 Transform::
+* [Transform] Improve force stop robustness in case of an error {pull}51072[#51072]
 * [Transform] add actual timeout in message {pull}50140[#50140]
 * [Transform] automatic deletion of old checkpoints {pull}49496[#49496]
 * [Transform] improve error handling of script errors {pull}48887[#48887] (issue: {issue}48467[#48467])
@@ -326,6 +328,7 @@ Audit::
 * Audit log filter and marker {pull}45456[#45456] (issue: {issue}47251[#47251])
 
 Authentication::
+* Don't fallback to anonymous for tokens/apikeys {pull}51042[#51042] (issue: {issue}50171[#50171])
 * Populate User metadata with OpenIDConnect collections {pull}50521[#50521] (issue: {issue}50250[#50250])
 * Always return 401 for not valid tokens {pull}49736[#49736] (issue: {issue}38866[#38866])
 * Fix iterate-from-1 bug in smart realm order {pull}49473[#49473]
@@ -407,6 +410,7 @@ Geo::
 * Geo: Switch generated WKT to upper case {pull}50285[#50285] (issue: {issue}49568[#49568])
 * Fix typo when assigning null_value in GeoPointFieldMapper  {pull}49645[#49645]
 * Fix handling of circles in legacy geo_shape queries {pull}49410[#49410] (issue: {issue}49296[#49296])
+* GEO: intersects search for geo_shape return wrong result {pull}49017[#49017]
 * Geo: improve handling of out of bounds points in linestrings {pull}47939[#47939] (issue: {issue}43916[#43916])
 
 Highlighting::
@@ -431,6 +435,8 @@ Infra/REST API::
 * Slash missed in indices.put_mapping url {pull}49468[#49468]
 
 Machine Learning::
+* [ML] Validate classification dependent_variable cardinality is at lea… {pull}51232[#51232]
+* Do not copy mapping from dependent variable to prediction field in regression analysis {pull}51227[#51227]
 * Handle nested and aliased fields correctly when copying mapping. {pull}50918[#50918] (issue: {issue}50787[#50787])
 * [ML] Fix off-by-one error in ml_classic tokenizer end offset {pull}50655[#50655]
 * [ML] Improve uniqueness of result document IDs {pull}50644[#50644] (issue: {issue}50613[#50613])
@@ -497,6 +503,7 @@ Security::
 * Always consume the body in has privileges {pull}50298[#50298] (issue: {issue}50288[#50288])
 
 Snapshot/Restore::
+* Fix Overly Aggressive Request DeDuplication {pull}51270[#51270] (issue: {issue}51253[#51253])
 * Guard Repository#getRepositoryData for exception throw  {pull}50970[#50970]
 * Fix Index Deletion During Partial Snapshot Create {pull}50234[#50234] (issues: {issue}50200[#50200], {issue}50202[#50202])
 * Fix Index Deletion during Snapshot Finalization {pull}50202[#50202] (issues: {issue}45689[#45689], {issue}50200[#50200])

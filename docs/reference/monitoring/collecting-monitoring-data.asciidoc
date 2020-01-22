@@ -15,8 +15,6 @@ internal collection; do not use both.
 Learn more about <<configuring-metricbeat>>.
 =========================
 
-== Collecting monitoring data
-
 If you enable the Elastic {monitor-features} in your cluster, you can
 optionally collect metrics about {es}. By default, monitoring is enabled but
 data collection is disabled.

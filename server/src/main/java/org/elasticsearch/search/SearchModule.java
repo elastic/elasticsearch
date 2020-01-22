@@ -358,7 +358,8 @@ public class SearchModule {
                 MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
                         .addResultReader(InternalMedianAbsoluteDeviation::new));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
-                CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new));
+                CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new)
+            .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
                 GlobalAggregationBuilder::parse).addResultReader(InternalGlobal::new));
         registerAggregation(new AggregationSpec(MissingAggregationBuilder.NAME, MissingAggregationBuilder::new,

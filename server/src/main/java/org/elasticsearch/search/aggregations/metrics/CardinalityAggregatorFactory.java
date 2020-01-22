@@ -19,14 +19,25 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,6 +56,52 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;
+    }
+
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.BOOLEAN, cardinalityAggregatorSupplier(),
+            (fieldType, indexFieldData) -> fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE));
+
+        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC, cardinalityAggregatorSupplier(),
+            (fieldType, indexFieldData) -> {
+                for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
+                    if (fieldType.typeName().equals(type.typeName())) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+
+        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.IP, cardinalityAggregatorSupplier(),
+            (fieldType, indexFieldData) -> fieldType.typeName().equals(IpFieldMapper.CONTENT_TYPE));
+
+        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.RANGE, cardinalityAggregatorSupplier(),
+            (fieldType, indexFieldData) -> fieldType instanceof RangeFieldMapper.RangeFieldType);
+
+        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.DATE, cardinalityAggregatorSupplier(),
+            (fieldType, indexFieldData) -> fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE));
+
+        valuesSourceRegistry.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.BYTES, cardinalityAggregatorSupplier(),
+            (fieldType, indexFieldData) -> fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)
+                || fieldType.typeName().equals(BinaryFieldMapper.CONTENT_TYPE)
+                || fieldType.typeName().equals(IdFieldMapper.CONTENT_TYPE)
+                || fieldType.typeName().equals(IndexFieldMapper.CONTENT_TYPE));
+
+    }
+
+    private static CardinalityAggregatorSupplier cardinalityAggregatorSupplier(){
+        return new CardinalityAggregatorSupplier() {
+            @Override
+            public Aggregator build(String name,
+                                    ValuesSource valuesSource,
+                                    int precision,
+                                    SearchContext context,
+                                    Aggregator parent,
+                                    List<PipelineAggregator> pipelineAggregators,
+                                    Map<String, Object> metaData) throws IOException {
+                return new CardinalityAggregator(name, valuesSource, precision, context, parent, pipelineAggregators, metaData);
+            }
+        };
     }
 
     @Override

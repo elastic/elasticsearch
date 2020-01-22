@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -142,7 +143,8 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchProgressActionListener listener = new SearchProgressActionListener() {
             @Override
-            public void onListShards(List<SearchShard> shards, boolean fetchPhase) {
+            public void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards,
+                                     SearchResponse.Clusters clusters, boolean fetchPhase) {
                 shardsListener.set(shards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
@@ -154,7 +156,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onQueryFailure(int shardIndex, Exception exc) {
+            public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
                 assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryFailures.incrementAndGet();
             }

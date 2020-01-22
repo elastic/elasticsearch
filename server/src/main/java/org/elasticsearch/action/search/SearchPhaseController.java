@@ -669,7 +669,7 @@ public final class SearchPhaseController {
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(),
                 getRemainingAggs(), getRemainingTopDocs(), topDocsStats, numReducePhases, false, performFinalReduce);
             progressListener.notifyReduce(progressListener.searchShards(results.asList()),
-                reducePhase.totalHits, reducePhase.aggregations);
+                reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             return reducePhase;
         }
 
@@ -723,7 +723,8 @@ public final class SearchPhaseController {
                 List<SearchPhaseResult> resultList = results.asList();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
-                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits, reducePhase.aggregations);
+                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits,
+                    reducePhase.aggregations, reducePhase.numReducePhases);
                 return reducePhase;
             }
         };

@@ -775,7 +775,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
 
                 @Override
-                public void onQueryFailure(int shardIndex, Exception exc) {
+                public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
                     assertThat(shardIndex, lessThan(expectedNumResults));
                     numQueryFailureListener.incrementAndGet();
                 }

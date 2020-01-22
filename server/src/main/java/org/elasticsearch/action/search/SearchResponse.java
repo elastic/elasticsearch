@@ -118,6 +118,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
+    public SearchResponseSections getInternalResponse() {
+        return internalResponse;
+    }
+
     /**
      * The search hits.
      */

@@ -87,7 +87,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    private final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
+    protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
@@ -382,7 +382,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
-            onShardGroupFailure(shardIndex, e);
+            onShardGroupFailure(shardIndex, shardTarget, e);
             onPhaseDone();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -402,7 +402,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
-                onShardGroupFailure(shardIndex, e);
+                onShardGroupFailure(shardIndex, shardTarget, e);
             }
         }
     }
@@ -410,10 +410,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Executed once for every {@link ShardId} that failed on all available shard routing.
      *
-     * @param shardIndex the shard target that failed
-     * @param exc the final failure reason
+     * @param shardIndex the shard index that failed
+     * @param shardTarget the last shard target for this failure
+     * @param exc the last failure reason
      */
-    protected void onShardGroupFailure(int shardIndex, Exception exc) {}
+    protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     /**
      * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given

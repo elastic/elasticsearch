@@ -28,6 +28,7 @@ import org.gradle.api.UnknownTaskException;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -108,6 +109,7 @@ public abstract class Boilerplate {
         return task;
     }
 
+    @SuppressWarnings("unchecked")
     public static <T extends BuildService<?>> Provider<T> getBuildService(BuildServiceRegistry registry, String name) {
         BuildServiceRegistration<?, ?> registration = registry.getRegistrations().findByName(name);
         if (registration == null) {

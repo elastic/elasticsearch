@@ -99,12 +99,14 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param predicate the predicate to evaluate
      */
     public void removeFromCache(final Predicate<String> predicate) {
-        for (String cacheKey : cache.keys()) {
-            if (predicate.test(cacheKey)) {
-                cache.invalidate(cacheKey);
+        try (ReleasableLock ignored = cacheInvalidationLock.acquire()) {
+            for (String cacheKey : cache.keys()) {
+                if (predicate.test(cacheKey)) {
+                    cache.invalidate(cacheKey);
+                }
             }
+            cache.refresh();
         }
-        cache.refresh();
     }
 
     /**

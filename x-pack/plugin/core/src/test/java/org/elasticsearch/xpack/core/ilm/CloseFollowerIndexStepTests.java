@@ -138,7 +138,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
     protected CloseFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new CloseFollowerIndexStep(stepKey, nextStepKey, client);
+        return new CloseFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
     }
 
     @Override

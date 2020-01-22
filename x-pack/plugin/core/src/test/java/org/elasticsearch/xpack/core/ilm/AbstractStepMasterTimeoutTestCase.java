@@ -10,9 +10,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -24,30 +21,21 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionStep> extends AbstractStepTestCase<T> {
 
-    protected Client client;
-    protected AdminClient adminClient;
-    protected IndicesAdminClient indicesClient;
     protected ThreadPool pool;
 
     @Before
     public void setup() {
-        client = Mockito.mock(Client.class);
-        adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         pool = new TestThreadPool("timeoutTestPool");
     }
 
     @After
-    public void teardown(){
+    public void teardown() {
         pool.shutdownNow();
     }
 
@@ -63,7 +51,8 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
     }
 
     private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
-        client = new NoOpClient(pool) {
+        T instance = createRandomInstance();
+        instance.setClient(new NoOpClient(pool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                       Request request,
@@ -72,9 +61,8 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
                     assertThat(((MasterNodeRequest<?>) request).masterNodeTimeout(), equalTo(timeValue));
                 }
             }
-        };
-
-        createRandomInstance().performAction(getIndexMetaData(), currentClusterState, null, new AsyncActionStep.Listener() {
+        });
+        instance.performAction(getIndexMetaData(), currentClusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
 

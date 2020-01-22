@@ -29,7 +29,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     protected OpenFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new OpenFollowerIndexStep(stepKey, nextStepKey, client);
+        return new OpenFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
     }
 
     @Override

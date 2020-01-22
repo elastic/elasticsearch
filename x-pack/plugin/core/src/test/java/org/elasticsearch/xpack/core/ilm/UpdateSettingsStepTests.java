@@ -12,16 +12,25 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<UpdateSettingsStep> {
+
+    private Client client;
+
+    @Before
+    public void setup() {
+        client = Mockito.mock(Client.class);
+    }
 
     @Override
     public UpdateSettingsStep createRandomInstance() {

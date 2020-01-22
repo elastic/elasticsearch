@@ -138,6 +138,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51201")
     public void testSimulate() {
         String source = "{\n" +
             "  \"pipeline\": {\n" +
@@ -224,6 +225,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             containsString("Could not find trained model [test_classification_missing]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51201")
     public void testSimulateLangIdent() {
         String source = "{\n" +
             "  \"pipeline\": {\n" +

@@ -34,8 +34,6 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.testclusters.TestDistribution
-import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -160,7 +158,6 @@ class BuildPlugin implements Plugin<Project> {
                         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
                         if (testClusters != null) {
                             testClusters.all { ElasticsearchCluster cluster ->
-                                cluster.setTestDistribution(TestDistribution.DEFAULT)
                                 cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                                 cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
                                 // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode

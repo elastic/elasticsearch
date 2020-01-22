@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -381,14 +382,24 @@ public class TrainedModelProvider {
     public void expandIds(String idExpression,
                           boolean allowNoResources,
                           @Nullable PageParams pageParams,
+                          Set<String> tags,
                           ActionListener<Tuple<Long, Set<String>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
+        BoolQueryBuilder tagQuery = QueryBuilders.boolQuery();
+        for(String tag : tags) {
+            tagQuery.filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), tag));
+        }
+
+        QueryBuilder query = QueryBuilders.constantScoreQuery(
+            QueryBuilders.boolQuery()
+                .filter(tagQuery.hasClauses() ? tagQuery : QueryBuilders.matchAllQuery())
+                .filter(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName())));
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
             .sort(SortBuilders.fieldSort(TrainedModelConfig.MODEL_ID.getPreferredName())
                 // If there are no resources, there might be no mapping for the id field.
                 // This makes sure we don't get an error if that happens.
                 .unmappedType("long"))
-            .query(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName()));
+            .query(query);
         if (pageParams != null) {
             sourceBuilder.from(pageParams.getFrom()).size(pageParams.getSize());
         }
@@ -404,13 +415,23 @@ public class TrainedModelProvider {
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
             .source(sourceBuilder);
+        Set<String> foundResourceIds = new LinkedHashSet<>();
+        if (tags.isEmpty()) {
+            foundResourceIds.addAll(matchedResourceIds(tokens));
+        } else {
+            for(String resourceId : matchedResourceIds(tokens)) {
+                // Does the model as a resource have all the tags?
+                if (Sets.newHashSet(loadModelFromResource(resourceId, true).getTags()).containsAll(tags)) {
+                    foundResourceIds.add(resourceId);
+                }
+            }
+        }
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(
                 response -> {
-                    Set<String> foundResourceIds = new LinkedHashSet<>(matchedResourceIds(tokens));
                     long totalHitCount = response.getHits().getTotalHits().value + foundResourceIds.size();
                     for (SearchHit hit : response.getHits().getHits()) {
                         Map<String, Object> docSource = hit.getSourceAsMap();

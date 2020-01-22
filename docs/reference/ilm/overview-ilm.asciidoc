@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[index-lifecycle-management-overview]]
+[[overview-index-lifecycle-management]]
 == Index lifecycle management overview
 
 ++++

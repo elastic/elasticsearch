@@ -42,8 +42,10 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
 
     AddFileKeyStoreCommand() {
         super("Add a file setting to the keystore", false);
-        this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"),
-            "Overwrite existing setting without prompting, creating keystore if necessary");
+        this.forceOption = parser.acceptsAll(
+            Arrays.asList("f", "force"),
+            "Overwrite existing setting without prompting, creating keystore if necessary"
+        );
         // jopt simple has issue with multiple non options, so we just get one set of them here
         // and convert to File when necessary
         // see https://github.com/jopt-simple/jopt-simple/issues/103
@@ -73,8 +75,10 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
             throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
         }
         if (argumentValues.size() > 2) {
-            throw new UserException(ExitCodes.USAGE, "Unrecognized extra arguments [" +
-                String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Unrecognized extra arguments [" + String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath"
+            );
         }
         keyStore.setFile(setting, Files.readAllBytes(file));
         keyStore.save(env.configFile(), getKeyStorePassword().getChars());

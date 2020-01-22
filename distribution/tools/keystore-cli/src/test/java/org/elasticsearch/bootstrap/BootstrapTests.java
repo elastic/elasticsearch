@@ -90,16 +90,22 @@ public class BootstrapTests extends ESTestCase {
     public void testPassphraseTooLong() throws Exception {
         byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source)) {
-            expectThrows(RuntimeException.class, "Password exceeded maximum length of 10",
-                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH));
+            expectThrows(
+                RuntimeException.class,
+                "Password exceeded maximum length of 10",
+                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+            );
         }
     }
 
     public void testNoPassPhraseProvided() throws Exception {
         byte[] source = "\r\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source)) {
-            expectThrows(RuntimeException.class, "Keystore passphrase required but none provided.",
-                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH));
+            expectThrows(
+                RuntimeException.class,
+                "Keystore passphrase required but none provided.",
+                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+            );
         }
     }
 

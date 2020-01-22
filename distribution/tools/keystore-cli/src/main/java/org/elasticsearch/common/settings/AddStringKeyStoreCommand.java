@@ -44,8 +44,10 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
     AddStringKeyStoreCommand() {
         super("Add a string setting to the keystore", false);
         this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting value from stdin");
-        this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"),
-            "Overwrite existing setting without prompting, creating keystore if necessary");
+        this.forceOption = parser.acceptsAll(
+            Arrays.asList("f", "force"),
+            "Overwrite existing setting without prompting, creating keystore if necessary"
+        );
         this.arguments = parser.nonOptions("setting name");
     }
 
@@ -70,8 +72,10 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         final char[] value;
         if (options.has(stdinOption)) {
-            try (BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-                 CharArrayWriter writer = new CharArrayWriter()) {
+            try (
+                BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+                CharArrayWriter writer = new CharArrayWriter()
+            ) {
                 int charInt;
                 while ((charInt = stdinReader.read()) != -1) {
                     if ((char) charInt == '\r' || (char) charInt == '\n') {

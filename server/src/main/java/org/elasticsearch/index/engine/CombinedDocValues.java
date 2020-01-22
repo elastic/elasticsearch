@@ -63,8 +63,8 @@ final class CombinedDocValues {
     }
 
     long docPrimaryTerm(int segmentDocId) throws IOException {
+        // We exclude non-root nested documents when querying changes, every returned document must have primary term.
         assert primaryTermDV.docID() < segmentDocId;
-        // Use -1 for docs which don't have primary term. The caller considers those docs as nested docs.
         if (primaryTermDV.advanceExact(segmentDocId) == false) {
             assert false : "DocValues for field [" + SeqNoFieldMapper.PRIMARY_TERM_NAME + "] is not found";
             throw new IllegalStateException("DocValues for field [" + SeqNoFieldMapper.PRIMARY_TERM_NAME + "] is not found");

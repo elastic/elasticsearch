@@ -161,8 +161,8 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
-                Level.INFO,
-                "*completed handshake with [*] but followup connection failed: * simulated [root cause]*"));
+                Level.WARN,
+                "*completed handshake with [*] but followup connection failed*"));
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
         Loggers.addAppender(targetLogger, mockAppender);
 

@@ -16,6 +16,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_SERVICE_NAME;
+
 /**
  * Customized version of Gradle {@link Test} task which tracks a collection of {@link ElasticsearchCluster} as a task input. We must do this
  * as a custom task type because the current {@link org.gradle.api.tasks.TaskInputs} runtime API does not have a way to register
@@ -60,10 +62,7 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
     public List<ResourceLock> getSharedResources() {
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = Boilerplate.getBuildService(
-            getProject().getGradle().getSharedServices(),
-            TestClustersPlugin.THROTTLE_SERVICE_NAME
-        );
+        Provider<TestClustersThrottle> throttleProvider = Boilerplate.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
         SharedResource resource = serviceRegistry.forService(throttleProvider);
 
         int nodeCount = (int) clusters.stream().flatMap(cluster -> cluster.getNodes().stream()).count();

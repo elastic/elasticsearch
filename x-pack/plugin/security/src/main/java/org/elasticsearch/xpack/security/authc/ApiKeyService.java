@@ -106,6 +106,7 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
+    public static final String API_KEY_NAME_KEY = "_security_api_key_name";
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
     public static final String API_KEY_CREATOR_REALM = "_security_api_key_creator_realm";
@@ -495,6 +496,7 @@ public class ApiKeyService {
             authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
             authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
             authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
+            authResultMetadata.put(API_KEY_NAME_KEY, source.get("name"));
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
             listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));

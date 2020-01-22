@@ -11,6 +11,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -81,6 +82,12 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         userObject.put("metadata", user.metadata());
                     }
                     break;
+                case API_KEY_NAME:
+                    Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                    if (apiKeyName != null) {
+                        userObject.put("api_key_name", apiKeyName);
+                    }
+                    break;
                 default:
                     throw new UnsupportedOperationException("unsupported property [" + property + "]");
             }
@@ -134,7 +141,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         FULL_NAME,
         EMAIL,
         ROLES,
-        METADATA;
+        METADATA,
+        API_KEY_NAME;
 
         static Property parse(String tag, String value) {
             try {

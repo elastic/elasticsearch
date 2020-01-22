@@ -121,12 +121,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             isMarkAsCompletedCalled = true;
         }
 
-        persistProgress(() -> super.markAsCompleted());
+        persistProgress(client, taskParams.getId(), () -> super.markAsCompleted());
     }
 
     @Override
     public void markAsFailed(Exception e) {
-        persistProgress(() -> super.markAsFailed(e));
+        persistProgress(client, taskParams.getId(), () -> super.markAsFailed(e));
     }
 
     public void stop(String reason, TimeValue timeout) {
@@ -244,21 +244,22 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
     }
 
-    private void persistProgress(Runnable runnable) {
-        LOGGER.debug("[{}] Persisting progress", taskParams.getId());
+    // Visible for testing
+    static void persistProgress(Client client, String jobId, Runnable runnable) {
+        LOGGER.debug("[{}] Persisting progress", jobId);
 
-        String progressDocId = StoredProgress.documentId(taskParams.getId());
+        String progressDocId = StoredProgress.documentId(jobId);
         SetOnce<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = new SetOnce<>();
 
         // Step 4: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
-                LOGGER.debug("[{}] Successfully indexed progress document", taskParams.getId());
+                LOGGER.debug("[{}] Successfully indexed progress document", jobId);
                 runnable.run();
             },
             indexError -> {
                 LOGGER.error(new ParameterizedMessage(
-                    "[{}] cannot persist progress as an error occurred while indexing", taskParams.getId()), indexError);
+                    "[{}] cannot persist progress as an error occurred while indexing", jobId), indexError);
                 runnable.run();
             }
         );
@@ -283,7 +284,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             },
             e -> {
                 LOGGER.error(new ParameterizedMessage(
-                    "[{}] cannot persist progress as an error occurred while retrieving former progress document", taskParams.getId()), e);
+                    "[{}] cannot persist progress as an error occurred while retrieving former progress document", jobId), e);
                 runnable.run();
             }
         );
@@ -302,13 +303,13 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             },
             e -> {
                 LOGGER.error(new ParameterizedMessage(
-                    "[{}] cannot persist progress as an error occurred while retrieving stats", taskParams.getId()), e);
+                    "[{}] cannot persist progress as an error occurred while retrieving stats", jobId), e);
                 runnable.run();
             }
         );
 
         // Step 1: Fetch progress to be persisted
-        GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(taskParams.getId());
+        GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(jobId);
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, getStatsListener);
     }
 

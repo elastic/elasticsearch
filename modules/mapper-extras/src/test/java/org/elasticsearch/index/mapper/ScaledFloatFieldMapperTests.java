@@ -58,12 +58,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
                 .field("scaling_factor", 10.0).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -108,12 +108,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNotIndexed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
                 .field("index", false).field("scaling_factor", 10.0).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -132,12 +132,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNoDocValues() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
                 .field("doc_values", false).field("scaling_factor", 10.0).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -156,12 +156,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testStore() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
                 .field("store", true).field("scaling_factor", 10.0).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -185,12 +185,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCoerce() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
                 .field("scaling_factor", 10.0).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -209,12 +209,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
                 .field("scaling_factor", 10.0).field("coerce", false).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper2 = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper2.mappingSource().toString());
 
@@ -238,12 +238,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void doTestIgnoreMalformed(String value, String exceptionMessageContains) throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", "scaled_float")
             .field("scaling_factor", 10.0).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -256,12 +256,12 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString(exceptionMessageContains));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", "scaled_float")
             .field("scaling_factor", 10.0).field("ignore_malformed", true).endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper mapper2 = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper2.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
@@ -276,7 +276,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testNullValue() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "scaled_float")
@@ -285,7 +285,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
@@ -297,7 +297,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "scaled_float")
@@ -307,7 +307,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         doc = mapper.parse(new SourceToParse("test", "1", BytesReference

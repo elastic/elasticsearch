@@ -168,6 +168,11 @@
 
 ---
 "Usage stats for mappings":
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/51127"
+
   - do:
       xpack.usage: {}
 

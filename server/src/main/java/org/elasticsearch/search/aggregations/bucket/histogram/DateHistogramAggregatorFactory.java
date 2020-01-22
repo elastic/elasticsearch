@@ -39,6 +39,7 @@ import java.util.Map;
 public final class DateHistogramAggregatorFactory
         extends ValuesSourceAggregatorFactory<ValuesSource> {
 
+    private final long offset;
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
@@ -47,11 +48,12 @@ public final class DateHistogramAggregatorFactory
     private final Rounding shardRounding;
 
     public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
-            BucketOrder order, boolean keyed, long minDocCount,
+            long offset, BucketOrder order, boolean keyed, long minDocCount,
             Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, QueryShardContext queryShardContext,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        this.offset = offset;
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
@@ -102,7 +104,7 @@ public final class DateHistogramAggregatorFactory
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, SearchContext searchContext,
                                         Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
+        return new DateHistogramAggregator(name, factories, rounding, shardRounding, offset, order, keyed, minDocCount, extendedBounds,
                 valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 
@@ -111,7 +113,7 @@ public final class DateHistogramAggregatorFactory
                                              Aggregator parent,
                                              List<PipelineAggregator> pipelineAggregators,
                                              Map<String, Object> metaData) throws IOException {
-        return new DateRangeHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
+        return new DateRangeHistogramAggregator(name, factories, rounding, shardRounding, offset, order, keyed, minDocCount, extendedBounds,
             valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 

@@ -549,7 +549,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endArray().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testMappedGeoPointArray() throws Exception {
@@ -631,7 +631,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicFalseValue() throws Exception {
@@ -662,7 +662,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [bar] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicFalseNull() throws Exception {
@@ -693,7 +693,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [bar] within [type] is not allowed", exception.getMessage());
     }
 
     public void testMappedNullValue() throws Exception {
@@ -892,7 +892,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endArray().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicDottedFieldNameLong() throws Exception {
@@ -1009,7 +1009,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicDottedFieldNameObject() throws Exception {
@@ -1136,7 +1136,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDocumentContainsMetadataField() throws Exception {
@@ -1175,7 +1175,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = parser.parse("_doc", new CompressedXContent(builtMapping));
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
@@ -1213,7 +1213,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         String builtMapping = docMapper.mappingSource().string();
-        DocumentMapper builtDocMapper = parser.parse("_doc", new CompressedXContent(builtMapping));
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
 

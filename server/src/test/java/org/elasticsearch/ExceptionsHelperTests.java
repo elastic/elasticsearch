@@ -232,27 +232,4 @@ public class ExceptionsHelperTests extends ESTestCase {
         ExceptionsHelper.unwrap(e1, IOException.class);
         ExceptionsHelper.unwrapCorruption(e1);
     }
-
-    public void testGetMessageIncludingCauses() {
-        assertThat(ExceptionsHelper.getMessageIncludingCauses(new Exception("root cause")), equalTo("root cause"));
-        assertThat(ExceptionsHelper.getMessageIncludingCauses(new Exception("wrapper", new Exception("root cause"))),
-            equalTo("wrapper [root cause]"));
-
-        Exception exception = new Exception("root cause");
-        for (int i = 0; i < 9; i++) {
-            exception = new Exception("wrapper " + i, exception);
-        }
-        assertThat(ExceptionsHelper.getMessageIncludingCauses(exception), equalTo(
-            "wrapper 8 [wrapper 7 [wrapper 6 [wrapper 5 [wrapper 4 [wrapper 3 [wrapper 2 [wrapper 1 [wrapper 0 [root cause]]]]]]]]]"));
-
-        exception = new Exception("too many wrappers", exception);
-        assertThat(ExceptionsHelper.getMessageIncludingCauses(exception), equalTo(
-            "too many wrappers [wrapper 8 [wrapper 7 [wrapper 6 [wrapper 5 [wrapper 4 [wrapper 3 [wrapper 2 [wrapper 1 [wrapper 0 " +
-                "[...]]]]]]]]]]"));
-
-        Exception e1 = new Exception("A");
-        Exception e2 = new Exception("B", e1);
-        e1.initCause(e2);
-        assertThat(ExceptionsHelper.getMessageIncludingCauses(e1), equalTo("A [B [A [...loop...]]]"));
-    }
 }

@@ -275,39 +275,6 @@ public final class ExceptionsHelper {
     }
 
     /**
-     * Get the message of this exception together with its causes, up to a maximum depth of 10.
-     */
-    public static String getMessageIncludingCauses(final Throwable throwable) {
-        final StringBuilder stringBuilder = new StringBuilder();
-        final StringBuilder closingStringBuilder = new StringBuilder();
-        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        Throwable current = throwable;
-        while (closingStringBuilder.length() < 10) {
-            stringBuilder.append(current.getMessage());
-
-            if (seen.add(current) == false) {
-                stringBuilder.append(" [...loop...]");
-                current = null;
-                break;
-            }
-
-            current = current.getCause();
-            if (current == null) {
-                break;
-            }
-
-            stringBuilder.append(" [");
-            closingStringBuilder.append(']');
-        }
-
-        if (current != null) {
-            stringBuilder.append("...");
-        }
-
-        return stringBuilder.append(closingStringBuilder).toString();
-    }
-
-    /**
      * Deduplicate the failures by exception message and index.
      */
     public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {

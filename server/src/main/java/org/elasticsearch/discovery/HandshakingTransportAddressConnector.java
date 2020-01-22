@@ -113,14 +113,9 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             // a master-eligible node with a matching cluster name and a good version, but the attempt to
                                             // open a full connection to its publish address failed; a common reason is that the remote
                                             // node is listening on 0.0.0.0 but has made an inappropriate choice for its publish address.
-                                            if (logger.isDebugEnabled()) {
-                                                logger.warn(new ParameterizedMessage(
-                                                    "[{}] completed handshake with [{}] but followup connection failed",
-                                                    thisConnectionAttempt, remoteNode), e);
-                                            } else {
-                                                logger.warn("[{}] completed handshake with [{}] but followup connection failed: {}",
-                                                    thisConnectionAttempt, remoteNode, ExceptionsHelper.getMessageIncludingCauses(e));
-                                            }
+                                            logger.warn(new ParameterizedMessage(
+                                                "[{}] completed handshake with [{}] but followup connection failed",
+                                                thisConnectionAttempt, remoteNode), e);
                                             listener.onFailure(e);
                                         }));
                                     }

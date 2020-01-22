@@ -48,8 +48,8 @@ not created by {dfanalytics}.
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
-[[ml-put-inference-query-params]]
-==== {api-query-parms-title}
+[[ml-put-inference-request-body]]
+==== {api-request-body-title}
 
 `definition`::
 (Required, object) 
@@ -141,7 +141,7 @@ See <<ml-put-inference-preprocessor-example>> for more details.
 
 `tree`::
 (Required, object) 
-The definition for a decision tree.
+The definition for a binary decision tree.
 
 `tree`.`feature_names`:::
 (Required, string) 
@@ -241,7 +241,7 @@ See <<ml-put-inference-model-example>> for more details.
 ===== Aggregated output types
 
 `logistic_regression`::
-(Optional, object) 
+(Optional, boolean) 
 This `aggregated_output` type works with binary classification (classification 
 for values [0, 1]). It multiplies the outputs (in the case of the `ensemble` 
 model, the inference model values) by the supplied `weights`. The resulting 

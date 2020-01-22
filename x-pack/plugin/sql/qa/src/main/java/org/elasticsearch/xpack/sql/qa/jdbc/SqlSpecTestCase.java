@@ -24,7 +24,7 @@ import java.util.Locale;
  * with those executed against H2's jdbc client.
  */
 public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
-    final private int TZSYNC_MINUTE_THREASHOLD = 55;
+    private final int TZSYNC_MINUTE_THREASHOLD = 55;
     private String query;
 
     @ClassRule

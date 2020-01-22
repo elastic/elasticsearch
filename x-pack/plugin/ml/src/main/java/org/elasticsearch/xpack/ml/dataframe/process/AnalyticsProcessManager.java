@@ -109,9 +109,6 @@ public class AnalyticsProcessManager {
                 }
             }
 
-            // Refresh the dest index to ensure data is searchable
-            refreshDest(config);
-
             // Fetch existing model state (if any)
             BytesReference state = getModelState(config);
 

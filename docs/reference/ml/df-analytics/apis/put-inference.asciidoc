@@ -168,6 +168,7 @@ There are two major types of nodes: leaf nodes and not-leaf nodes.
   `threshold`, `decision_type`, and `default_left` defined.
 
 
+
 `tree_node`::
 (Required, object) 
 The definition of a node in a tree.

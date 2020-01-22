@@ -10,6 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheFile.EvictionListener;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,7 +18,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -29,70 +29,42 @@ public class CacheFileTests extends ESTestCase {
         final Path file = createTempDir().resolve("file.cache");
         final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
-        assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannelRefCounter(), nullValue());
+        assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
 
         final TestEvictionListener listener = new TestEvictionListener();
         boolean acquired = cacheFile.acquire(listener);
         assertThat("Cache file has been acquired", acquired, is(true));
         assertThat("Cache file has been acquired: file should exists", Files.exists(file), is(true));
+        assertThat("Cache file has been acquired: channel should exists", cacheFile.getChannel(), notNullValue());
+        assertThat("Cache file has been acquired: channel is open", cacheFile.getChannel().isOpen(), is(true));
         assertThat("Cache file has been acquired: eviction listener is not executed", listener.isCalled(), is(false));
-
-        CacheFile.FileChannelRefCounted channelRef = cacheFile.getChannelRefCounter();
-        assertThat("Cache file has been acquired: channel should exists", channelRef, notNullValue());
-        assertThat("Cache file has been acquired: channel ref count should be 1", channelRef.refCount(), equalTo(1));
 
         boolean released = cacheFile.release(listener);
         assertThat("Cache file has been released", released, is(true));
         assertThat("Cache file has been released: eviction listener is not executed", listener.isCalled(), is(false));
-
-        channelRef = cacheFile.getChannelRefCounter();
-        assertThat("Cache file has been released and not acquired again: channel does not exist", channelRef, nullValue());
+        assertThat("Cache file has been released: channel does not exist", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not evicted: file still exists after release", Files.exists(file), is(true));
 
         acquired = cacheFile.acquire(listener);
         assertThat("Cache file is acquired again", acquired, is(true));
 
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            channelRef = cacheFile.getChannelRefCounter();
-            assertThat(channelRef, notNullValue());
-
-            channelRef.incRef();
-            try {
-                assertThat(channelRef.refCount(), equalTo(2));
-            } finally {
-                channelRef.decRef();
-                assertThat(Files.exists(cacheFile.getFile()), is(true));
-            }
-        }
-
-        final CacheFile.FileChannelRefCounted lastChannelRef = channelRef;
+        FileChannel fileChannel = cacheFile.getChannel();
+        assertThat("Channel should exists", fileChannel, notNullValue());
+        assertThat("Channel is open", fileChannel.isOpen(), is(true));
 
         assertThat("Cache file is not evicted: eviction listener is not executed notified", listener.isCalled(), is(false));
         cacheFile.close();
 
         assertThat("Cache file has been evicted: eviction listener was executed", listener.isCalled(), is(true));
         assertThat("Cache file is evicted but not fully released: file still exists", Files.exists(file), is(true));
-        assertThat("Cache file is evicted but not fully released: channel still exists", channelRef, notNullValue());
-        assertThat("Channel didn't change after eviction", channelRef, sameInstance(lastChannelRef));
-
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            channelRef = cacheFile.getChannelRefCounter();
-            assertThat(channelRef, notNullValue());
-
-            channelRef.incRef();
-            try {
-                assertThat(channelRef.refCount(), equalTo(2));
-                assertThat(channelRef, sameInstance(lastChannelRef));
-            } finally {
-                channelRef.decRef();
-                assertThat(Files.exists(cacheFile.getFile()), is(true));
-            }
-        }
+        assertThat("Cache file is evicted but not fully released: channel still exists", cacheFile.getChannel(), notNullValue());
+        assertThat("Cache file is evicted but not fully released: channel is open", cacheFile.getChannel().isOpen(), is(true));
+        assertThat("Channel didn't change after eviction", cacheFile.getChannel(), sameInstance(fileChannel));
 
         released = cacheFile.release(listener);
         assertTrue("Cache file is fully released", released);
-        assertThat("Cache file evicted and fully released: channel is closed", channelRef.refCount(), equalTo(0));
+        assertThat("Cache file evicted and fully released: channel does not exist", cacheFile.getChannel(), nullValue());
         assertThat("Cache file has been deleted", Files.exists(file), is(false));
     }
 
@@ -100,15 +72,15 @@ public class CacheFileTests extends ESTestCase {
         final Path file = createTempDir().resolve("file.cache");
         final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
-        assertFalse(Files.exists(file));
-        assertThat(cacheFile.getChannelRefCounter(), nullValue());
+        assertThat(Files.exists(file), is(false));
+        assertThat(cacheFile.getChannel(), nullValue());
 
         if (randomBoolean()) {
             final TestEvictionListener listener = new TestEvictionListener();
             boolean acquired = cacheFile.acquire(listener);
             assertTrue("Cache file is acquired", acquired);
 
-            assertThat(cacheFile.getChannelRefCounter(), notNullValue());
+            assertThat(cacheFile.getChannel(), notNullValue());
             assertThat(Files.exists(file), is(true));
 
             boolean released = cacheFile.release(listener);
@@ -116,6 +88,7 @@ public class CacheFileTests extends ESTestCase {
         }
 
         cacheFile.close();
+        assertThat(cacheFile.getChannel(), nullValue());
         assertFalse(Files.exists(file));
     }
 
@@ -127,6 +100,7 @@ public class CacheFileTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
             TestEvictionListener listener = new TestEvictionListener();
             assertTrue(cacheFile.acquire(listener));
+            assertThat(cacheFile.getChannel(), notNullValue());
             acquiredListeners.add(listener);
         }
 

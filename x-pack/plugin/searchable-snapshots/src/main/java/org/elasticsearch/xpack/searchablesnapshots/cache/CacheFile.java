@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 class CacheFile implements Releasable {
 
@@ -50,8 +49,8 @@ class CacheFile implements Releasable {
     private final String name;
     private final Path file;
 
-    private volatile FileChannelRefCounted channelRefCounter;
     private volatile Set<EvictionListener> listeners;
+    private volatile FileChannel channel;
     private volatile boolean closed;
 
     CacheFile(String name, long length, Path file) {
@@ -76,8 +75,12 @@ class CacheFile implements Releasable {
     }
 
     @Nullable
-    public FileChannelRefCounted getChannelRefCounter() {
-        return channelRefCounter;
+    public FileChannel getChannel() {
+        return channel;
+    }
+
+    public synchronized boolean isAcquired(final EvictionListener listener) {
+        return listeners.contains(listener);
     }
 
     public boolean acquire(final EvictionListener listener) throws IOException {
@@ -90,8 +93,8 @@ class CacheFile implements Releasable {
                 try {
                     ensureOpen();
                     final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                    boolean added = newListeners.add(Objects.requireNonNull(listener));
-                    assert added : "listener should not be added twice";
+                    final boolean added = newListeners.add(Objects.requireNonNull(listener));
+                    assert added : "listener already exists " + listener;
                     if (added == false) {
                         throw new IllegalStateException("Cannot add the same listener twice");
                     }
@@ -116,10 +119,14 @@ class CacheFile implements Releasable {
         synchronized (this) {
             try {
                 final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                boolean removed = newListeners.remove(Objects.requireNonNull(listener));
+                final boolean removed = newListeners.remove(Objects.requireNonNull(listener));
+                assert removed : "listener does not exist " + listener;
+                if (removed == false) {
+                    throw new IllegalStateException("Cannot remove an unknown listener");
+                }
                 maybeCloseFileChannel(newListeners);
                 listeners = Collections.unmodifiableSet(newListeners);
-                success = removed;
+                success = true;
             } finally {
                 if (success) {
                     refCounter.decRef();
@@ -132,14 +139,12 @@ class CacheFile implements Releasable {
 
     private void closeInternal() {
         assert Thread.holdsLock(this);
-        if (channelRefCounter != null) {
-            channelRefCounter.deleteAfterClose();
-        } else {
-            try {
-                Files.deleteIfExists(file);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        assert listeners.isEmpty();
+        assert channel == null;
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -162,18 +167,22 @@ class CacheFile implements Releasable {
     private void maybeOpenFileChannel(Set<EvictionListener> listeners) throws IOException {
         assert Thread.holdsLock(this);
         if (listeners.size() == 1) {
-            assert channelRefCounter == null;
-            channelRefCounter = new FileChannelRefCounted(file);
+            assert channel == null;
+            channel = FileChannel.open(file, OPEN_OPTIONS);
         }
     }
 
     private void maybeCloseFileChannel(Set<EvictionListener> listeners) {
         assert Thread.holdsLock(this);
         if (listeners.size() == 0) {
-            final FileChannelRefCounted oldFileChannel = channelRefCounter;
-            channelRefCounter = null;
-            if (oldFileChannel != null) {
-                oldFileChannel.decRef();
+            if (channel != null) {
+                try {
+                    channel.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Exception when closing channel", e);
+                } finally {
+                    channel = null;
+                }
             }
         }
     }
@@ -181,13 +190,12 @@ class CacheFile implements Releasable {
     private synchronized boolean invariant() {
         assert listeners != null;
         if (listeners.isEmpty()) {
-            assert channelRefCounter == null;
+            assert channel == null;
             assert closed == false || refCounter.refCount() != 0 || Files.notExists(file);
         } else {
-            assert channelRefCounter != null;
-            assert channelRefCounter.refCount() > 0;
-            assert channelRefCounter.channel != null;
-            assert channelRefCounter.channel.isOpen();
+            assert channel != null;
+            assert refCounter.refCount() > 0;
+            assert channel.isOpen();
             assert Files.exists(file);
         }
         return true;
@@ -199,7 +207,9 @@ class CacheFile implements Releasable {
             "name='" + name + '\'' +
             ", file=" + file +
             ", length=" + tracker.getLength() +
-            ", channel=" + (channelRefCounter != null ? channelRefCounter : "null") +
+            ", channel=" + (channel != null ? "yes" : "no") +
+            ", listeners=" + listeners.size() +
+            ", closed=" + closed +
             ", tracker=" + tracker +
             '}';
     }
@@ -248,52 +258,5 @@ class CacheFile implements Releasable {
             future.completeExceptionally(e);
         }
         return future;
-    }
-
-    public static class FileChannelRefCounted extends AbstractRefCounted {
-
-        private final AtomicBoolean deleteAfterClose;
-        private final FileChannel channel;
-        private final Path file;
-
-        private FileChannelRefCounted(final Path file) throws IOException {
-            super("FileChannelRefCounted(" + file + ")");
-            this.channel = FileChannel.open(file, OPEN_OPTIONS);
-            this.deleteAfterClose = new AtomicBoolean(false);
-            this.file = Objects.requireNonNull(file);
-        }
-
-        FileChannel getChannel() {
-            return channel;
-        }
-
-        @Override
-        protected void closeInternal() {
-            try {
-                channel.close();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Exception when closing channel", e);
-            }
-            if (deleteAfterClose.get()) {
-                try {
-                    Files.deleteIfExists(file);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Exception when deleting file", e);
-                }
-            }
-        }
-
-        @Override
-        public String toString() {
-            return getName() +
-                "[refcount=" + refCount() +
-                ", channel=" + (channel.isOpen() ? "open" : "closed") +
-                ']';
-        }
-
-        void deleteAfterClose() {
-            final boolean delete = deleteAfterClose.compareAndSet(false, true);
-            assert delete : "delete after close flag is already set";
-        }
     }
 }

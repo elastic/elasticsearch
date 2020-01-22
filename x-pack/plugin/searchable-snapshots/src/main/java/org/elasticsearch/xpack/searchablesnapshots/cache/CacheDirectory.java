@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -23,6 +24,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * {@link CacheDirectory} uses a {@link CacheService} to cache Lucene files provided by another {@link Directory}.
@@ -60,8 +64,10 @@ public class CacheDirectory extends FilterDirectory {
         private final long offset;
         private final long end;
 
-        private volatile @Nullable CacheFile cacheFile;
-        private volatile boolean closed;
+        private @Nullable AtomicReference<CacheFile> cacheFile;
+        private ReleasableLock cacheEvictionLock;
+        private ReleasableLock cacheAcquireLock;
+        private AtomicBoolean closed;
         private boolean isClone;
 
         CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
@@ -76,6 +82,12 @@ public class CacheDirectory extends FilterDirectory {
             this.ioContext = ioContext;
             this.offset = offset;
             this.end = offset + length;
+            this.cacheFile = new AtomicReference<>();
+            this.closed = new AtomicBoolean(false);
+
+            final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+            this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
+            this.cacheAcquireLock = new ReleasableLock(readWriteLock.readLock());
         }
 
         @Override
@@ -85,53 +97,39 @@ public class CacheDirectory extends FilterDirectory {
 
         @Nullable
         private CacheFile getOrAcquire() throws Exception {
-            CacheFile currentCacheFile = cacheFile;
-            if (currentCacheFile == null) {
-                final CacheFile newCacheFile = cacheService.get(fileName, fileLength, file);
-                synchronized (this) {
-                    if (cacheFile == null) {
-                        if (newCacheFile.acquire(this)) {
-                            cacheFile = newCacheFile;
-                        }
-                    }
-                    currentCacheFile = cacheFile;
+            CacheFile currentCacheFile = cacheFile.get();
+            if (currentCacheFile != null) {
+                return currentCacheFile;
+            }
+
+            final CacheFile newCacheFile = cacheService.get(fileName, fileLength, file);
+            try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+                if (newCacheFile.acquire(this)) {
+                    final CacheFile previousCacheFile = cacheFile.getAndSet(newCacheFile);
+                    assert previousCacheFile == null;
+                    return newCacheFile;
                 }
             }
-            return currentCacheFile;
+            return null;
         }
 
         @Override
         public void onEviction(final CacheFile evictedCacheFile) {
-            synchronized (this) {
-                assert cacheFile == evictedCacheFile || cacheFile == null;
-                releaseAndClear(evictedCacheFile);
-            }
-        }
-
-        private void releaseAndClear(final CacheFile cacheFile) {
-            synchronized (this) {
-                try {
-                    cacheFile.release(this);
-                } finally {
-                    if (cacheFile == this.cacheFile) {
-                        this.cacheFile = null;
-                    }
+            try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+                if (cacheFile.compareAndSet(evictedCacheFile, null)) {
+                    evictedCacheFile.release(this);
                 }
             }
         }
 
         @Override
         public void close() {
-            if (closed) {
-                return;
-            }
-            synchronized (this) {
-                if (closed) {
-                    return;
-                }
-                closed = true;
-                if (cacheFile != null) {
-                    releaseAndClear(cacheFile);
+            if (closed.compareAndSet(false, true)) {
+                try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+                    final CacheFile currentCacheFile = cacheFile.getAndSet(null);
+                    if (currentCacheFile != null) {
+                        currentCacheFile.release(this);
+                    }
                 }
             }
         }
@@ -142,7 +140,6 @@ public class CacheDirectory extends FilterDirectory {
 
             int bytesRead = 0;
             while (bytesRead < length) {
-
                 final long pos = position + bytesRead;
                 final int off = offset + bytesRead;
                 final int len = length - bytesRead;
@@ -150,19 +147,19 @@ public class CacheDirectory extends FilterDirectory {
                 CacheFile cacheFile = null;
                 try {
                     cacheFile = getOrAcquire();
-                    assert cacheFile != null;
-
-                    final CacheFile.FileChannelRefCounted channelRef = cacheFile.getChannelRefCounter();
-                    if (channelRef == null || channelRef.tryIncRef() == false) {
-                        throw new AlreadyClosedException("Cache file acquired correctly but evicted before increment ref count on channel");
+                    if (cacheFile == null) {
+                        throw new AlreadyClosedException("Cache file evicted soon after acquisition");
                     }
-                    try {
+
+                    try (ReleasableLock ignored = cacheAcquireLock.acquire()) {
+                        final FileChannel channel = cacheFile.getChannel();
+                        if (channel == null) {
+                            throw new AlreadyClosedException("Cache file evicted before accessing the file channel");
+                        }
                         bytesRead += cacheFile.fetchRange(pos,
-                            (start, end) -> readCacheFile(channelRef.getChannel(), start, end, pos, buffer, off, len),
-                            (start, end) -> writeCacheFile(channelRef.getChannel(), start, end))
+                            (start, end) -> readCacheFile(channel, start, end, pos, buffer, off, len),
+                            (start, end) -> writeCacheFile(channel, start, end))
                             .get();
-                    } finally {
-                        channelRef.decRef();
                     }
                 } catch (Exception e) {
                     if (isEvictionException(e) == false) {
@@ -174,8 +171,14 @@ public class CacheDirectory extends FilterDirectory {
                 } finally {
                     if (bytesRead >= length) {
                         // once all bytes are read, clones immediately release the last acquired cache file
-                        if (isClone  && cacheFile != null) {
-                            releaseAndClear(cacheFile);
+                        if (isClone) {
+                            if (cacheFile != null) {
+                                try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+                                    if (this.cacheFile.compareAndSet(cacheFile, null)) {
+                                        cacheFile.release(this);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -184,11 +187,13 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         int readCacheFile(FileChannel fc, long start, long end, long position, byte[] buffer, int offset, long length) throws IOException {
+            assert assertFileChannelOpen(fc);
             return Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
         int writeCacheFile(FileChannel fc, long start, long end) throws IOException {
+            assert assertFileChannelOpen(fc);
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(8192L, end - start))];
             int bytesCopied = 0;
             try (IndexInput input = in.openInput(fileName, ioContext)) {
@@ -219,7 +224,11 @@ public class CacheDirectory extends FilterDirectory {
         @Override
         public CacheBufferedIndexInput clone() {
             final CacheBufferedIndexInput clone = (CacheBufferedIndexInput) super.clone();
-            clone.cacheFile = null;
+            final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+            clone.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
+            clone.cacheAcquireLock = new ReleasableLock(readWriteLock.readLock());
+            clone.cacheFile = new AtomicReference<>();
+            clone.closed = new AtomicBoolean(false);
             clone.isClone = true;
             return clone;
         }
@@ -277,5 +286,11 @@ public class CacheDirectory extends FilterDirectory {
             return isEvictionException(t.getCause());
         }
         return false;
+    }
+
+    private static boolean assertFileChannelOpen(FileChannel fileChannel) {
+        assert fileChannel != null;
+        assert fileChannel.isOpen();
+        return true;
     }
 }

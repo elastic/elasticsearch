@@ -187,8 +187,8 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("bar", "baz"))));
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(
-                new HashMap<>() {{
-                    put("foo", new HashMap<>() {{
+                new HashMap<String, Object>() {{
+                    put("foo", new HashMap<String, String>() {{
                         put("type", "alias");
                         put("path", "bar");
                     }});
@@ -200,7 +200,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("type", "long"))));
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(
-                Collections.singletonMap("foo", new HashMap<>() {{
+                Collections.singletonMap("foo", new HashMap<String, String>() {{
                     put("type", "alias");
                     put("path", "missing");
                 }}),

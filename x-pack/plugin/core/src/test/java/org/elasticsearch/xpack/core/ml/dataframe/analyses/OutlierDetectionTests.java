@@ -89,7 +89,7 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
     }
 
     public void testFieldCardinalityLimitsIsEmpty() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(anEmptyMap()));
+        assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
     }
 
     public void testGetExplicitlyMappedFields() {

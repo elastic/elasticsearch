@@ -21,6 +21,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -172,7 +173,13 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testFieldCardinalityLimitsIsNonEmpty() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(anEmptyMap())));
+        Classification classification = createTestInstance();
+        List<FieldCardinalityConstraint> constraints = classification.getFieldCardinalityConstraints();
+
+        assertThat(constraints.size(), equalTo(1));
+        assertThat(constraints.get(0).getField(), equalTo(classification.getDependentVariable()));
+        assertThat(constraints.get(0).getLowerBound(), equalTo(2L));
+        assertThat(constraints.get(0).getUpperBound(), equalTo(2L));
     }
 
     public void testGetExplicitlyMappedFields() {

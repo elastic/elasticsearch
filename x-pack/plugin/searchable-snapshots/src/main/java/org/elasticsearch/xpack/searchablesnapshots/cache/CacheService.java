@@ -25,7 +25,7 @@ import java.util.function.Predicate;
  */
 public class CacheService extends AbstractLifecycleComponent {
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting("searchable.snapshot.cache.size",
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting("xpack.searchable.snapshot.cache.size",
         new ByteSizeValue(1, ByteSizeUnit.GB),                  // TODO: size the default value according to disk space
         new ByteSizeValue(0, ByteSizeUnit.BYTES),               // min // NORELEASE
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max

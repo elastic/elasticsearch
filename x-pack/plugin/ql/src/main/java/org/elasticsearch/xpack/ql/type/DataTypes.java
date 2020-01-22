@@ -33,7 +33,7 @@ public final class DataTypes {
     public static final DataType HALF_FLOAT = new DataType("half_float", Float.BYTES, false, true, true);
     public static final DataType SCALED_FLOAT = new DataType("scaled_float", Long.BYTES, false, true, true);
     // string
-    public static final DataType KEYWORD = new DataType("keyword", Short.MAX_VALUE, false, false, true);
+    public static final DataType KEYWORD = new DataType("keyword", Integer.MAX_VALUE, false, false, true);
     public static final DataType TEXT = new DataType("text", Integer.MAX_VALUE, false, false, false);
     // date
     public static final DataType DATETIME = new DataType("DATETIME", "date", Long.BYTES, false, false, true);
@@ -135,7 +135,7 @@ public final class DataTypes {
     }
 
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED;
+        return t != OBJECT && t != NESTED && t != UNSUPPORTED;
     }
 
     public static boolean isNull(DataType t) {

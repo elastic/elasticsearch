@@ -20,10 +20,13 @@
 package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -31,7 +34,7 @@ import java.io.IOException;
  * Represents a request to delete a particular dangling index, specified by its UUID. The {@link #acceptDataLoss}
  * flag must also be explicitly set to true, or later validation will fail.
  */
-public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> {
+public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> implements AckedRequest {
     private final String indexUUID;
     private final boolean acceptDataLoss;
 
@@ -70,5 +73,10 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         super.writeTo(out);
         out.writeString(this.indexUUID);
         out.writeBoolean(this.acceptDataLoss);
+    }
+
+    @Override
+    public TimeValue ackTimeout() {
+        return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
     }
 }

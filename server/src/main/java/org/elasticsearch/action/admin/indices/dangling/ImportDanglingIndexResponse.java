@@ -32,7 +32,8 @@ public class ImportDanglingIndexResponse extends ActionResponse implements Statu
     public ImportDanglingIndexResponse() {
     }
 
-    public ImportDanglingIndexResponse(StreamInput in) {
+    public ImportDanglingIndexResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

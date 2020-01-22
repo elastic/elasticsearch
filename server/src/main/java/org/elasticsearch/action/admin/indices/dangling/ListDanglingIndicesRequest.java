@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -31,12 +32,7 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
     }
 
     public ListDanglingIndicesRequest() {
-        super((String[]) null);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+        super(Strings.EMPTY_ARRAY);
     }
 
     @Override

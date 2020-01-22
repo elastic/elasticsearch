@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,7 +56,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
 
     @Override
     public RestStatus status() {
-        return this.hasFailures() ? RestStatus.SERVICE_UNAVAILABLE : RestStatus.OK;
+        return this.hasFailures() ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK;
     }
 
     @Override
@@ -76,13 +77,11 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
         }
         builder.endArray();
 
-        if (this.hasFailures()) {
-            builder.startArray("failed_nodes");
-            for (FailedNodeException failure : this.failures()) {
-                failure.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
+        int numNodes = this.getNodes().size();
+        int numFailures = this.failures().size();
+        int numSuccessful = numNodes - numFailures;
+
+        RestActions.buildNodesHeader(builder, params, numNodes, numSuccessful, numFailures, this.failures());
 
         return builder.endObject();
     }

@@ -663,7 +663,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeRollupJobs() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+        final Response response;
+        try {
+            response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+        } catch (ResponseException e) {
+            // If we don't see the rollup endpoint (possibly because of running against an older ES version) we just bail
+            if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                return;
+            }
+            throw e;
+        }
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =

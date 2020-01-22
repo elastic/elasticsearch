@@ -14,98 +14,92 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.RestStatus.NOT_MODIFIED;
-import static org.elasticsearch.rest.RestStatus.PARTIAL_CONTENT;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * A response of a search progress request that contains a non-null {@link PartialSearchResponse} if the request is running or has failed
- * before completion, or a final {@link SearchResponse} if the request succeeded.
+ * A response of an async search request.
  */
 public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject {
     @Nullable
     private final String id;
     private final int version;
-    private final SearchResponse response;
-    private final PartialSearchResponse partialResponse;
+    private final SearchResponse searchResponse;
     private final ElasticsearchException failure;
     private final boolean isRunning;
+    private final boolean isPartial;
 
-    private long startDateMillis;
-    private long runningTimeMillis;
+    private final long startDateMillis;
 
-    public AsyncSearchResponse(String id, int version, boolean isRunning) {
-        this(id, null, null, null, version, isRunning);
-    }
-
-    public AsyncSearchResponse(String id, SearchResponse response, int version, boolean isRunning) {
-        this(id, null, response, null, version, isRunning);
-    }
-
-    public AsyncSearchResponse(String id, PartialSearchResponse response, int version, boolean isRunning) {
-        this(id, response, null, null, version, isRunning);
-    }
-
-    public AsyncSearchResponse(String id, PartialSearchResponse response, ElasticsearchException failure, int version, boolean isRunning) {
-        this(id, response, null, failure, version, isRunning);
-    }
-
-    public AsyncSearchResponse(String id, AsyncSearchResponse clone) {
-        this(id, clone.partialResponse, clone.response, clone.failure, clone.version, clone.isRunning);
-        this.startDateMillis = clone.startDateMillis;
-        this.runningTimeMillis = clone.runningTimeMillis;
-    }
-
+    /**
+     * Creates an {@link AsyncSearchResponse} with meta informations that omits
+     * the search response.
+     */
     public AsyncSearchResponse(String id,
-                               PartialSearchResponse partialResponse,
-                               SearchResponse response,
-                               ElasticsearchException failure,
                                int version,
-                               boolean isRunning) {
-        assert id != null || isRunning == false;
+                               boolean isPartial,
+                               boolean isRunning,
+                               long startDateMillis) {
+        this(id, version, null, null, isPartial, isRunning, startDateMillis);
+    }
+
+    /**
+     * Creates a new {@link AsyncSearchResponse}
+     * @param id The id of the search for further retrieval, <code>null</code> if not stored.
+     * @param version The version number of this response.
+     * @param searchResponse The actual search response.
+     * @param failure The actual failure if the search failed, <code>null</code> if the search is running
+     *                or completed without failure.
+     * @param isPartial Whether the <code>searchResponse</code> contains partial results.
+     * @param isRunning Whether the search is running in the cluster.
+     * @param startDateMillis The start date of the search in milliseconds since epoch.
+     */
+    public AsyncSearchResponse(String id,
+                               int version,
+                               SearchResponse searchResponse,
+                               ElasticsearchException failure,
+                               boolean isPartial,
+                               boolean isRunning,
+                               long startDateMillis) {
         this.id = id;
         this.version = version;
-        this.partialResponse = partialResponse;
         this.failure = failure;
-        this.response = response != null ? wrapFinalResponse(response) : null;
+        this.searchResponse = searchResponse;
+        this.isPartial = isPartial;
         this.isRunning = isRunning;
+        this.startDateMillis = startDateMillis;
     }
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
         this.id = in.readOptionalString();
         this.version = in.readVInt();
-        this.partialResponse = in.readOptionalWriteable(PartialSearchResponse::new);
         this.failure = in.readOptionalWriteable(ElasticsearchException::new);
-        this.response = in.readOptionalWriteable(SearchResponse::new);
+        this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
+        this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
         this.startDateMillis = in.readLong();
-        this.runningTimeMillis = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
         out.writeVInt(version);
-        out.writeOptionalWriteable(partialResponse);
         out.writeOptionalWriteable(failure);
-        out.writeOptionalWriteable(response);
+        out.writeOptionalWriteable(searchResponse);
+        out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
         out.writeLong(startDateMillis);
-        out.writeLong(runningTimeMillis);
     }
 
-    public void setTaskInfo(TaskInfo taskInfo) {
-        this.startDateMillis = taskInfo.getStartTime();
-        this.runningTimeMillis = TimeUnit.NANOSECONDS.toMillis(taskInfo.getRunningTimeNanos());
+    public AsyncSearchResponse clone(String id) {
+        return new AsyncSearchResponse(id, version, searchResponse, failure, isPartial, isRunning, startDateMillis);
     }
+
 
     /**
-     * Return the id of the async search request or null if the response
-     * was cleaned on completion.
+     * Returns the id of the async search request or null if the response is not stored in the cluster.
      */
     @Nullable
     public String getId() {
@@ -113,54 +107,34 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * Return the version of this response.
+     * Returns the version of this response.
      */
     public int getVersion() {
         return version;
     }
 
     /**
-     * Return <code>true</code> if the request has failed.
-     */
-    public boolean hasFailed() {
-        return failure != null;
-    }
-
-    /**
-     * Return <code>true</code> if a partial response is available.
-     */
-    public boolean hasPartialResponse() {
-        return partialResponse != null;
-    }
-
-    /**
-     * Return <code>true</code> if the final response is available.
-     */
-    public boolean hasResponse() {
-        return response != null;
-    }
-
-    /**
-     * The final {@link SearchResponse} if the request has completed, or <code>null</code> if the
-     * request is running or failed.
+     * Returns the current {@link SearchResponse} or <code>null</code> if not available.
+     * See {@link #isPartial()} to determine whether the response contains partial or complete
+     * results.
      */
     public SearchResponse getSearchResponse() {
-        return response;
+        return searchResponse;
     }
 
     /**
-     * The {@link PartialSearchResponse} if the request is running or failed, or <code>null</code>
-     * if the request has completed.
-     */
-    public PartialSearchResponse getPartialResponse() {
-        return partialResponse;
-    }
-
-    /**
-     * The failure that occurred during the search.
+     * Returns the failure reason or null if the query is running or completed normally.
      */
     public ElasticsearchException getFailure() {
         return failure;
+    }
+
+    /**
+     * Returns <code>true</code> if the {@link SearchResponse} contains partial
+     * results computed from a subset of the total shards.
+     */
+    public boolean isPartial() {
+        return isPartial;
     }
 
     /**
@@ -170,12 +144,12 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         return startDateMillis;
     }
 
-    public long getRunningTime() {
-        return runningTimeMillis;
-    }
-
     /**
      * Whether the search is still running in the cluster.
+     * A value of <code>false</code> indicates that the response is final even
+     * if it contains partial results. In such case the failure should indicate
+     * why the request could not finish and the search response represents the
+     * last partial results before the failure.
      */
     public boolean isRunning() {
         return isRunning;
@@ -183,12 +157,13 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public RestStatus status() {
-        if (response == null && partialResponse == null) {
-            return failure != null ? failure.status() : NOT_MODIFIED;
-        } else if (response == null) {
-            return failure != null ? failure.status() : PARTIAL_CONTENT;
+        if (searchResponse == null || isPartial) {
+            // shard failures are not considered fatal for partial results so
+            // we return OK until we get the final response even if we don't have
+            // a single successful shard.
+            return failure != null ? failure.status() : OK;
         } else {
-            return response.status();
+            return searchResponse.status();
         }
     }
 
@@ -199,15 +174,11 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
             builder.field("id", id);
         }
         builder.field("version", version);
+        builder.field("is_partial", isPartial);
         builder.field("is_running", isRunning);
         builder.field("start_date_in_millis", startDateMillis);
-        builder.field("running_time_in_millis", runningTimeMillis);
 
-        if (partialResponse != null) {
-            builder.field("response", partialResponse);
-        } else if (response != null) {
-            builder.field("response", response);
-        }
+        builder.field("response", searchResponse);
         if (failure != null) {
             builder.startObject("failure");
             failure.toXContent(builder, params);
@@ -215,16 +186,5 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         }
         builder.endObject();
         return builder;
-    }
-
-    private static SearchResponse wrapFinalResponse(SearchResponse response) {
-        // Adds a partial flag set to false in the xcontent serialization
-        return new SearchResponse(response) {
-            @Override
-            public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("is_partial", false);
-                return super.innerToXContent(builder, params);
-            }
-        };
     }
 }

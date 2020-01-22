@@ -22,11 +22,9 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import java.io.IOException;
-import java.util.concurrent.Executor;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
     private final ClusterService clusterService;
-    private final Executor generic;
     private final TransportService transportService;
     private final AsyncSearchStoreService store;
 
@@ -40,7 +38,6 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncSearchAction.Request::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.generic = threadPool.generic();
         this.store = new AsyncSearchStoreService(taskManager, threadPool.getThreadContext(), client, registry);
     }
 
@@ -69,17 +66,20 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                            ActionListener<AsyncSearchResponse> listener) throws IOException {
         final AsyncSearchTask task = store.getTask(searchId);
         if (task != null) {
-            // don't block on a network thread
-            generic.execute(() -> {
-                final AsyncSearchResponse response;
-                try {
-                    response = task.getAsyncResponse(request.getWaitForCompletion().millis(), request.getLastVersion());
-                } catch (Exception exc) {
-                    listener.onFailure(exc);
-                    return;
-                }
-                listener.onResponse(response);
-            });
+            try {
+                task.addCompletionListener(
+                    response -> {
+                        if (response.getVersion() <= request.getLastVersion()) {
+                            // return a not-modified response
+                            listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),
+                                response.isPartial(), response.isRunning(), response.getStartDate()));
+                        } else {
+                            listener.onResponse(response);
+                        }
+                    }, request.getWaitForCompletion());
+            } catch (Exception exc) {
+                listener.onFailure(exc);
+            }
         } else {
             // Task isn't running
             getSearchResponseFromIndex(request, searchId, listener);
@@ -93,7 +93,8 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                 public void onResponse(AsyncSearchResponse response) {
                     if (response.getVersion() <= request.getLastVersion()) {
                         // return a not-modified response
-                        listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(), false));
+                        listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),
+                            response.isPartial(), false, response.getStartDate()));
                     } else {
                         listener.onResponse(response);
                     }

@@ -161,11 +161,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         final AsyncSearchResponse initial = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
 
-        assertTrue(initial.hasPartialResponse());
-        assertThat(initial.status(), equalTo(RestStatus.PARTIAL_CONTENT));
-        assertThat(initial.getPartialResponse().getTotalShards(), equalTo(shardLatchArray.length));
-        assertThat(initial.getPartialResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(initial.getPartialResponse().getShardFailures(), equalTo(0));
+        assertTrue(initial.isPartial());
+        assertThat(initial.status(), equalTo(RestStatus.OK));
+        assertThat(initial.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+        assertThat(initial.getSearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(initial.getSearchResponse().getShardFailures().length, equalTo(0));
 
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
@@ -209,32 +209,32 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                         new GetAsyncSearchAction.Request(response.getId(), TimeValue.timeValueMillis(10), lastVersion)
                     ).get();
                     atomic.set(newResp);
-                    assertNotEquals(RestStatus.NOT_MODIFIED, newResp.status());
+                    assertNotEquals(lastVersion, newResp.getVersion());
                 });
                 AsyncSearchResponse newResponse = atomic.get();
                 lastVersion = newResponse.getVersion();
 
                 if (newResponse.isRunning()) {
-                    assertThat(newResponse.status(),  equalTo(RestStatus.PARTIAL_CONTENT));
-                    assertTrue(newResponse.hasPartialResponse());
-                    assertFalse(newResponse.hasFailed());
-                    assertFalse(newResponse.hasResponse());
-                    assertThat(newResponse.getPartialResponse().getTotalShards(), equalTo(shardLatchArray.length));
-                    assertThat(newResponse.getPartialResponse().getShardFailures(), lessThanOrEqualTo(numFailures));
+                    assertThat(newResponse.status(),  equalTo(RestStatus.OK));
+                    assertTrue(newResponse.isPartial());
+                    assertFalse(newResponse.getFailure() != null);
+                    assertNotNull(newResponse.getSearchResponse());
+                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+                    assertThat(newResponse.getSearchResponse().getShardFailures().length, lessThanOrEqualTo(numFailures));
                 } else if (numFailures == shardLatchArray.length) {
                     assertThat(newResponse.status(),  equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                    assertTrue(newResponse.hasFailed());
-                    assertTrue(newResponse.hasPartialResponse());
-                    assertFalse(newResponse.hasResponse());
-                    assertThat(newResponse.getPartialResponse().getTotalShards(), equalTo(shardLatchArray.length));
-                    assertThat(newResponse.getPartialResponse().getSuccessfulShards(), equalTo(0));
-                    assertThat(newResponse.getPartialResponse().getShardFailures(), equalTo(numFailures));
-                    assertNull(newResponse.getPartialResponse().getAggregations());
-                    assertNull(newResponse.getPartialResponse().getTotalHits());
+                    assertTrue(newResponse.getFailure() != null);
+                    assertTrue(newResponse.isPartial());
+                    assertNotNull(newResponse.getSearchResponse());
+                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+                    assertThat(newResponse.getSearchResponse().getSuccessfulShards(), equalTo(0));
+                    assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
+                    assertNull(newResponse.getSearchResponse().getAggregations());
+                    assertNull(newResponse.getSearchResponse().getHits().getTotalHits());
                 } else {
                     assertThat(newResponse.status(),  equalTo(RestStatus.OK));
-                    assertTrue(newResponse.hasResponse());
-                    assertFalse(newResponse.hasPartialResponse());
+                    assertNotNull(newResponse.getSearchResponse());
+                    assertFalse(newResponse.isPartial());
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));

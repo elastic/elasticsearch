@@ -86,20 +86,21 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
             AsyncSearchResponse response = it.next();
             while (it.hasNext()) {
                 response = it.next();
-                if (response.hasPartialResponse() && response.getPartialResponse().getSuccessfulShards() > 0) {
-                    assertNotNull(response.getPartialResponse().getAggregations());
-                    assertNotNull(response.getPartialResponse().getAggregations().get("max"));
-                    assertNotNull(response.getPartialResponse().getAggregations().get("min"));
-                    InternalMax max = response.getPartialResponse().getAggregations().get("max");
-                    InternalMin min = response.getPartialResponse().getAggregations().get("min");
+                assertNotNull(response.getSearchResponse());
+                if (response.getSearchResponse().getSuccessfulShards() > 0) {
+                    assertNotNull(response.getSearchResponse().getAggregations());
+                    assertNotNull(response.getSearchResponse().getAggregations().get("max"));
+                    assertNotNull(response.getSearchResponse().getAggregations().get("min"));
+                    InternalMax max = response.getSearchResponse().getAggregations().get("max");
+                    InternalMin min = response.getSearchResponse().getAggregations().get("min");
                     assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
                     assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
                 }
             }
             if (numFailures == numShards) {
-                assertTrue(response.hasFailed());
+                assertNotNull(response.getFailure());
             } else {
-                assertTrue(response.hasResponse());
+                assertNotNull(response.getSearchResponse());
                 assertNotNull(response.getSearchResponse().getAggregations());
                 assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                 assertNotNull(response.getSearchResponse().getAggregations().get("min"));
@@ -120,7 +121,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
 
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
-        int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
+        int numFailures = 0;//randomBoolean() ? randomIntBetween(0, numShards) : 0;
         int termsSize = randomIntBetween(1, numKeywords);
         SearchSourceBuilder source = new SearchSourceBuilder()
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(termsSize).shardSize(termsSize*2));
@@ -129,10 +130,11 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
             AsyncSearchResponse response = it.next();
             while (it.hasNext()) {
                 response = it.next();
-                if (response.hasPartialResponse() && response.getPartialResponse().getSuccessfulShards() > 0) {
-                    assertNotNull(response.getPartialResponse().getAggregations());
-                    assertNotNull(response.getPartialResponse().getAggregations().get("terms"));
-                    StringTerms terms = response.getPartialResponse().getAggregations().get("terms");
+                assertNotNull(response.getSearchResponse());
+                if (response.getSearchResponse().getSuccessfulShards() > 0) {
+                    assertNotNull(response.getSearchResponse().getAggregations());
+                    assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
+                    StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
                     assertThat(terms.getBuckets().size(), lessThanOrEqualTo(termsSize));
                     for (InternalTerms.Bucket bucket : terms.getBuckets()) {
@@ -142,9 +144,9 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
                 }
             }
             if (numFailures == numShards) {
-                assertTrue(response.hasFailed());
+                assertNotNull(response.getFailure());
             } else {
-                assertTrue(response.hasResponse());
+                assertNotNull(response.getSearchResponse());
                 assertNotNull(response.getSearchResponse().getAggregations());
                 assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
                 StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
@@ -173,9 +175,9 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         ensureTaskCompletion(initial.getId());
         restartTaskNode(initial.getId());
         AsyncSearchResponse response = getAsyncSearch(initial.getId());
-        assertTrue(response.hasResponse());
+        assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
-        assertFalse(response.hasPartialResponse());
+        assertFalse(response.isPartial());
         deleteAsyncSearch(response.getId());
         ensureTaskRemoval(response.getId());
     }
@@ -209,10 +211,10 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         }
         ensureTaskCompletion(initial.getId());
         AsyncSearchResponse response = getAsyncSearch(initial.getId());
-        assertTrue(response.hasFailed());
-        assertTrue(response.hasPartialResponse());
-        assertThat(response.getPartialResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getPartialResponse().getShardFailures(), equalTo(numShards));
+        assertNotNull(response.getFailure());
+        assertTrue(response.isPartial());
+        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.getSearchResponse().getShardFailures().length, equalTo(numShards));
         deleteAsyncSearch(initial.getId());
         ensureTaskRemoval(initial.getId());
     }
@@ -236,15 +238,15 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { "invalid-*" });
         request.setWaitForCompletion(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertTrue(response.hasResponse());
+        assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(0));
 
         request = new SubmitAsyncSearchRequest(new String[] { "invalid" });
         request.setWaitForCompletion(TimeValue.timeValueMillis(1));
         response = submitAsyncSearch(request);
-        assertFalse(response.hasResponse());
-        assertTrue(response.hasFailed());
+        assertNull(response.getSearchResponse());
+        assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
         ElasticsearchException exc = response.getFailure();
         assertThat(exc.getMessage(), containsString("no such index"));

@@ -837,9 +837,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     /**
-     * Handle script exception case. This is error is irrecoverable.
+     * Handle permanent bulk indexing exception case. This is error is irrecoverable.
      *
-     * @param bulkIndexingException ScriptException thrown
+     * @param bulkIndexingException BulkIndexingException thrown
      */
     private void handleIrrecoverableBulkIndexingException(BulkIndexingException bulkIndexingException) {
         String message = TransformMessages.getMessage(

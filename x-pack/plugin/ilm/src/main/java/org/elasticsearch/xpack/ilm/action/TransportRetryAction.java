@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.core.ilm.action.RetryAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.stream.Stream;
 
 public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -69,6 +71,9 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     for (String index : request.indices()) {
                         IndexMetaData idxMeta = newState.metaData().index(index);
+                        if(LifecycleExecutionState.hasLifecycleExecutionState(idxMeta) == false){
+                            continue;
+                        }
                         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
                         StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
                         if (idxMeta == null) {

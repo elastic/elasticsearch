@@ -68,6 +68,16 @@ public class LifecycleExecutionState {
     }
 
     /**
+     * Checks if index has the execution state stored in an {@link IndexMetaData}
+     *
+     * @param indexMetaData The metadata of the index to check.
+     * @return true if index has execution state stored, false otherwise.
+     */
+    public static boolean hasLifecycleExecutionState(IndexMetaData indexMetaData) {
+        return indexMetaData.getCustomData(ILM_CUSTOM_METADATA_KEY) != null;
+    }
+
+    /**
      * Retrieves the execution state from an {@link IndexMetaData} based on the
      * custom metadata.
      * @param indexMetaData The metadata of the index to retrieve the execution

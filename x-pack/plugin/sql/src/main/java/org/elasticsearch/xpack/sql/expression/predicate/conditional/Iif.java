@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.Arrays;
 import java.util.List;
@@ -53,7 +53,7 @@ public class Iif extends Case implements OptionalArgument {
         }
 
         DataType resultDataType = conditions().get(0).dataType();
-        if (SqlDataTypeConverter.areCompatible(resultDataType, elseResult().dataType()) == false) {
+        if (SqlDataTypes.areCompatible(resultDataType, elseResult().dataType()) == false) {
             return new TypeResolution(format(null, "third argument of [{}] must be [{}], found value [{}] type [{}]",
                 sourceText(),
                 resultDataType.typeName(),

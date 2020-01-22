@@ -31,9 +31,5 @@ public interface DataTypeRegistry {
 
     Object convert(Object value, DataType type);
 
-    default boolean areCompatible(DataType left, DataType right) {
-        return commonType(left, right) != null;
-    }
-
     DataType commonType(DataType left, DataType right);
 }

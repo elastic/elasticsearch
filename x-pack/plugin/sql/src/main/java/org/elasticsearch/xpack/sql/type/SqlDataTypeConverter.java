@@ -53,11 +53,9 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isYearMonthInterval;
 
 
-public class SqlDataTypeConverter {
+public final class SqlDataTypeConverter {
 
-    public static boolean areCompatible(DataType left, DataType right) {
-        return commonType(left, right) != null;
-    }
+    private SqlDataTypeConverter() {}
 
     public static DataType commonType(DataType left, DataType right) {
         DataType common = DataTypeConverter.commonType(left, right);

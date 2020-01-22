@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
-import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -60,7 +60,7 @@ public abstract class ConditionalFunction extends ScalarFunction {
                     dt = child.dataType();
                 }
             } else {
-                if (SqlDataTypeRegistry.INSTANCE.areCompatible(dt, child.dataType()) == false) {
+                if (SqlDataTypes.areCompatible(dt, child.dataType()) == false) {
                     return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                         ordinal(i + 1),
                         sourceText(),

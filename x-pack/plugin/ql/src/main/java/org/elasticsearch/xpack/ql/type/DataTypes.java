@@ -149,4 +149,16 @@ public final class DataTypes {
     public static boolean isSigned(DataType t) {
         return t.isNumeric();
     }
+
+    public static boolean areCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == NULL || right == NULL)
+                    || (isString(left) && isString(right))
+                    || (left.isNumeric() && right.isNumeric())
+                    || (left == DATETIME && right == DATETIME);
+        }
+    }
 }

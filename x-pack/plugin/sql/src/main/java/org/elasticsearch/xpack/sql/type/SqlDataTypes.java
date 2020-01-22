@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
@@ -260,6 +261,19 @@ public class SqlDataTypes {
                 || dataType == GEO_POINT
                 || dataType == GEO_SHAPE
                 || dataType == SHAPE;
+    }
+
+    public static boolean areCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == NULL || right == NULL)
+                    || (DataTypes.isString(left) && DataTypes.isString(right))
+                    || (left.isNumeric() && right.isNumeric())
+                    || (isDateBased(left) && isDateBased(right))
+                    || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
+        }
     }
 
     public static DataType fromOdbcType(String odbcType) {

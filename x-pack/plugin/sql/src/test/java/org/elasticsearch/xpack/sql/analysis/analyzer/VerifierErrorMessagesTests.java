@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
+
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser = new SqlParser();

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -93,7 +94,7 @@ public class Case extends ConditionalFunction {
                     Expressions.name(conditional.condition()),
                     conditional.condition().dataType().typeName()));
             }
-            if (SqlDataTypeConverter.areCompatible(expectedResultDataType, conditional.dataType()) == false) {
+            if (SqlDataTypes.areCompatible(expectedResultDataType, conditional.dataType()) == false) {
                 return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
                     conditional.sourceText(),
                     expectedResultDataType.typeName(),
@@ -102,7 +103,7 @@ public class Case extends ConditionalFunction {
             }
         }
 
-        if (SqlDataTypeConverter.areCompatible(expectedResultDataType, elseResult.dataType()) == false) {
+        if (SqlDataTypes.areCompatible(expectedResultDataType, elseResult.dataType()) == false) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
                 elseResult.sourceText(),
                 expectedResultDataType.typeName(),

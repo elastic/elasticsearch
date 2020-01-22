@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 /**
  * Conversion utility from one Elasticsearch data type to another Elasticsearch data types.
  */
-public class DataTypeConverter {
+public final class DataTypeConverter {
 
     private DataTypeConverter() {}
 

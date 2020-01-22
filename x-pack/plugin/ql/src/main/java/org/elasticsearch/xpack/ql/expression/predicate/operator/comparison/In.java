@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -126,7 +125,7 @@ public class In extends ScalarFunction {
         DataType dt = value.dataType();
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
-            if (DefaultDataTypeRegistry.INSTANCE.areCompatible(dt, listValue.dataType()) == false) {
+            if (DataTypes.areCompatible(dt, listValue.dataType()) == false) {
                 return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                     ordinal(i + 1),
                     sourceText(),

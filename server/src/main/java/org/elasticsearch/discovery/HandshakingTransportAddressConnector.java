@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -74,7 +75,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
 
             @Override
             protected void doRun() {
-                // TODO if transportService is already connected to this address then skip the handshaking
+                // We could skip this if the transportService were already connected to the given address, but the savings would be minimal
+                // so we open a new connection anyway.
 
                 final DiscoveryNode targetNode = new DiscoveryNode("", transportAddress.toString(),
                     UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
@@ -99,17 +101,28 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     IOUtils.closeWhileHandlingException(connection);
 
                                     if (remoteNode.equals(transportService.getLocalNode())) {
-                                        // TODO cache this result for some time? forever?
                                         listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
                                     } else if (remoteNode.isMasterNode() == false) {
-                                        // TODO cache this result for some time?
                                         listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
                                     } else {
-                                        transportService.connectToNode(remoteNode, ActionListener.delegateFailure(listener,
-                                            (l, ignored) -> {
-                                                logger.trace("[{}] full connection successful: {}", thisConnectionAttempt, remoteNode);
-                                                listener.onResponse(remoteNode);
-                                            }));
+                                        transportService.connectToNode(remoteNode, ActionListener.wrap(ignored -> {
+                                            logger.trace("[{}] completed full connection with [{}]", thisConnectionAttempt, remoteNode);
+                                            listener.onResponse(remoteNode);
+                                        }, e -> {
+                                            // we opened a connection and successfully performed a handshake, so we're definitely talking to
+                                            // a master-eligible node with a matching cluster name and a good version, but the attempt to
+                                            // open a full connection to its publish address failed; a common reason is that the remote
+                                            // node is listening on 0.0.0.0 but has made an inappropriate choice for its publish address.
+                                            if (logger.isDebugEnabled()) {
+                                                logger.warn(new ParameterizedMessage(
+                                                    "[{}] completed handshake with [{}] but followup connection failed",
+                                                    thisConnectionAttempt, remoteNode), e);
+                                            } else {
+                                                logger.warn("[{}] completed handshake with [{}] but followup connection failed: {}",
+                                                    thisConnectionAttempt, remoteNode, ExceptionsHelper.getMessageIncludingCauses(e));
+                                            }
+                                            listener.onFailure(e);
+                                        }));
                                     }
                                 } catch (Exception e) {
                                     listener.onFailure(e);

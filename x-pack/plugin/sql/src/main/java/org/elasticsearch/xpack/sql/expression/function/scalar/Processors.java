@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalP
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.SqlConverter;
 
 import java.util.ArrayList;
@@ -56,14 +57,16 @@ public final class Processors {
         
         entries.addAll(org.elasticsearch.xpack.ql.expression.processor.Processors.getNamedWriteables());
 
+        // base
+        entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
+        entries.add(new Entry(Converter.class, SqlConverter.NAME, SqlConverter::read));
 
         // arithmetic
         // binary arithmetics are pluggable
         entries.add(new Entry(BinaryArithmeticOperation.class, SqlBinaryArithmeticOperation.NAME, SqlBinaryArithmeticOperation::read));
 
-        // base
-        entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
-        entries.add(new Entry(Converter.class, SqlConverter.NAME, SqlConverter::read));
+        // comparators
+        entries.add(new Entry(Processor.class, InProcessor.NAME, InProcessor::new));
 
         // conditionals
         entries.add(new Entry(Processor.class, CaseProcessor.NAME, CaseProcessor::new));

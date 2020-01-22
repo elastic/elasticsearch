@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.literal.geo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -33,6 +32,7 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,7 +45,7 @@ import java.util.Objects;
  * It is required to override the XContent serialization. The ShapeBuilder serializes using GeoJSON by default,
  * but in SQL we need the serialization to be WKT-based.
  */
-public class GeoShape implements ToXContentFragment, NamedWriteable {
+public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
 
     public static final String NAME = "geo";
 

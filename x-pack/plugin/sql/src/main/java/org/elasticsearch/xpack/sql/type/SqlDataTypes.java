@@ -574,7 +574,7 @@ public class SqlDataTypes {
             return 25;
         }
         if (dataType == KEYWORD) {
-            return Short.MAX_VALUE;
+            return 32766;
         }
         if (dataType == TEXT) {
             return Integer.MAX_VALUE;

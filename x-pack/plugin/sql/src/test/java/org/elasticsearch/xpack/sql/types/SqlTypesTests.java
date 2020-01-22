@@ -40,7 +40,7 @@ public class SqlTypesTests extends ESTestCase {
         assertThat(type, instanceOf(TextEsField.class));
         assertThat(type.isAggregatable(), is(false));
         TextEsField ttype = (TextEsField) type;
-        assertThat(SqlDataTypes.defaultPrecision(ttype.getDataType()), is((int) Short.MAX_VALUE));
+        assertThat(SqlDataTypes.defaultPrecision(ttype.getDataType()), is(32766));
         assertThat(ttype.isAggregatable(), is(false));
     }
 

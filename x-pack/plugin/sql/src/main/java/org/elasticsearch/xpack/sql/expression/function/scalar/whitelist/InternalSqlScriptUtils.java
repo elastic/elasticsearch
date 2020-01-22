@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalP
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -78,6 +79,9 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return CheckNullOperation.IS_NOT_NULL.apply(expression);
     }
 
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
+    }
 
     //
     // Conditional

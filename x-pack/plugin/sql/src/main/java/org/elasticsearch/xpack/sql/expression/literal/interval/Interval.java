@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.sql.expression.literal.interval;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.expression.function.scalar.IntervalScripting;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
@@ -26,7 +26,7 @@ import java.util.Objects;
  * Unfortunately because the SQL interval type is not preserved accurately by the JDK TemporalAmount class
  * in both cases, the data type needs to be carried around as it cannot be inferred.
  */
-public abstract class Interval<I extends TemporalAmount> implements NamedWriteable, ToXContentObject, IntervalScripting {
+public abstract class Interval<I extends TemporalAmount> implements ConstantNamedWriteable, ToXContentObject, IntervalScripting {
 
     private final I interval;
     private final DataType intervalType;

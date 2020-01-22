@@ -10,10 +10,8 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.util.List;
 import java.util.Map;
 
 public abstract class InternalQlScriptUtils {
@@ -91,9 +89,5 @@ public abstract class InternalQlScriptUtils {
 
     public static Boolean not(Boolean expression) {
         return NotProcessor.apply(expression);
-    }
-
-    public static Boolean in(Object value, List<Object> values) {
-        return InProcessor.apply(value, values);
     }
 }

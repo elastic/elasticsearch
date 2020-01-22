@@ -52,13 +52,6 @@ table.
 
 
 [float]
-[[transform-ccs-limitations]]
-==== {ccs-cap} is not supported
-
-{ccs-cap} is not supported for {transforms}.
-
-
-[float]
 [[transform-kibana-limitations]]
 ==== Up to 1,000 {transforms} are supported
 

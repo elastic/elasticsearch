@@ -160,7 +160,7 @@ setup:
 ---
 "Test put datafeed with invalid query":
   - do:
-      catch: /parsing_exception/
+      catch: /failed\sto\sparse\sfield\s\[query\]/
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >

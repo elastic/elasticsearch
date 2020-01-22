@@ -863,9 +863,10 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-The time in days that model snapshots are retained for the job. Older snapshots
-are deleted. The default value is `1`, which means snapshots are retained for
-one day (twenty-four hours).
+Advanced configuration option. The period of time (in days) that model snapshots are retained.
+Age is calculated relative to the timestamp of the newest model snapshot.
+The default value is `1`, which means snapshots that are one day (twenty-four hours)
+older than the newest snapshot are deleted.
 end::model-snapshot-retention-days[]
 
 tag::multivariate-by-fields[]
@@ -963,10 +964,12 @@ is `shared`, which generates an index named `.ml-anomalies-shared`.
 end::results-index-name[]
 
 tag::results-retention-days[]
-Advanced configuration option. The number of days for which job results are 
-retained. Once per day at 00:30 (server time), results older than this period
-are deleted from {es}. The default value is null, which means results are
-retained.
+Advanced configuration option. The period of time (in days) that results are retained.
+Age is calculated relative to the timestamp of the latest bucket result.
+If this property has a non-null value, once per day at 00:30 (server time),
+results that are the specified number of days older than the latest
+bucket result are deleted from {es}. The default value is null, which means all
+results are retained.
 end::results-retention-days[]
 
 tag::retain[]

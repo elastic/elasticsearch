@@ -114,8 +114,12 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
             }
             int eof = input.read();
             if (eof != -1) {
-                fail("Found extra bytes in file stream from keystore, expected " + expectedBytes.length +
-                     " bytes but found 0x" + Integer.toHexString(eof));
+                fail(
+                    "Found extra bytes in file stream from keystore, expected "
+                        + expectedBytes.length
+                        + " bytes but found 0x"
+                        + Integer.toHexString(eof)
+                );
             }
         }
 

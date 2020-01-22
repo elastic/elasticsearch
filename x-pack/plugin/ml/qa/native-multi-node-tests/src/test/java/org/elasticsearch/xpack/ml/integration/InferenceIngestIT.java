@@ -48,11 +48,6 @@ public class InferenceIngestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        ESRestTestCase.waitForPendingTasks(adminClient());
-    }
-
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
@@ -60,7 +55,8 @@ public class InferenceIngestIT extends ESRestTestCase {
 
     @After
     public void cleanUpData() throws Exception {
-        clearMlState();
+        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+        ESRestTestCase.waitForPendingTasks(adminClient());
         client().performRequest(new Request("DELETE", "_ml/inference/test_classification"));
         client().performRequest(new Request("DELETE", "_ml/inference/test_regression"));
     }

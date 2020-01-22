@@ -292,18 +292,18 @@ The example above shows a `frequency_encoding` preprocessor object:
 [source,js]
 ----------------------------------
 {
-	"frequency_encoding": {
-		"field": "FlightDelayType",
-		"feature_name": "FlightDelayType_frequency",
-		"frequency_map": {
-			"Carrier Delay": 0.6007414737092798,
-			"NAS Delay": 0.6007414737092798,
-			"Weather Delay": 0.024573576178086153,
-			"Security Delay": 0.02476631010889467,
-			"No Delay": 0.6007414737092798,
-			"Late Aircraft Delay": 0.6007414737092798
-		}
-	}
+   "frequency_encoding":{
+      "field":"FlightDelayType",
+      "feature_name":"FlightDelayType_frequency",
+      "frequency_map":{
+         "Carrier Delay":0.6007414737092798,
+         "NAS Delay":0.6007414737092798,
+         "Weather Delay":0.024573576178086153,
+         "Security Delay":0.02476631010889467,
+         "No Delay":0.6007414737092798,
+         "Late Aircraft Delay":0.6007414737092798
+      }
+   }
 }
 ----------------------------------
 //NOTCONSOLE
@@ -313,16 +313,16 @@ The next example shows a `one_hot_encoding` preprocessor object:
 
 [source,js]
 ----------------------------------
-{
-	"one_hot_encoding": {
-		"field": "FlightDelayType",
-		"hot_map": {
-			"Carrier Delay": "FlightDelayType_Carrier Delay",
-			"NAS Delay": "FlightDelayType_NAS Delay",
-			"No Delay": "FlightDelayType_No Delay",
-			"Late Aircraft Delay": "FlightDelayType_Late Aircraft Delay"
-		}
-	}
+{ 
+   "one_hot_encoding":{ 
+      "field":"FlightDelayType",
+      "hot_map":{ 
+         "Carrier Delay":"FlightDelayType_Carrier Delay",
+         "NAS Delay":"FlightDelayType_NAS Delay",
+         "No Delay":"FlightDelayType_No Delay",
+         "Late Aircraft Delay":"FlightDelayType_Late Aircraft Delay"
+      }
+   }
 }
 ----------------------------------
 //NOTCONSOLE
@@ -333,19 +333,19 @@ This example shows a `target_mean_encoding` preprocessor object:
 [source,js]
 ----------------------------------
 {
-	"target_mean_encoding": {
-		"field": "FlightDelayType",
-		"feature_name": "FlightDelayType_targetmean",
-		"target_map": {
-			"Carrier Delay": 39.97465788139886,
-			"NAS Delay": 39.97465788139886,
-			"Security Delay": 203.171206225681,
-			"Weather Delay": 187.64705882352948,
-			"No Delay": 39.97465788139886,
-			"Late Aircraft Delay": 39.97465788139886
-		},
-		"default_value": 158.17995752420433
-	}
+   "target_mean_encoding":{
+      "field":"FlightDelayType",
+      "feature_name":"FlightDelayType_targetmean",
+      "target_map":{
+         "Carrier Delay":39.97465788139886,
+         "NAS Delay":39.97465788139886,
+         "Security Delay":203.171206225681,
+         "Weather Delay":187.64705882352948,
+         "No Delay":39.97465788139886,
+         "Late Aircraft Delay":39.97465788139886
+      },
+      "default_value":158.17995752420433
+   }
 }
 ----------------------------------
 //NOTCONSOLE
@@ -359,39 +359,39 @@ The first example shows a `trained_model` object:
 [source,js]
 ----------------------------------
 {
-	"tree": {
-		"feature_names": [
-			"DistanceKilometers",
-			"FlightTimeMin",
-			"FlightDelayType_NAS Delay",
-			"Origin_targetmean",
-			"DestRegion_targetmean",
-			"DestCityName_targetmean",
-			"OriginAirportID_targetmean",
-			"OriginCityName_frequency",
-			"DistanceMiles",
-			"FlightDelayType_Late Aircraft Delay"
-		],
-		"tree_structure": [
-      {
-				"decision_type": "lt",
-				"threshold": 9069.33437193022,
-				"split_feature": 0,
-				"split_gain": 4112.094574306927,
-				"node_index": 0,
-				"default_left": true,
-				"left_child": 1,
-				"right_child": 2
-			},
-			...
-      {
-				"node_index": 9,
-				"leaf_value": -27.68987349695448
-			},
-			...
-		],
-		"target_type": "regression"
-	}
+   "tree":{
+      "feature_names":[
+         "DistanceKilometers",
+         "FlightTimeMin",
+         "FlightDelayType_NAS Delay",
+         "Origin_targetmean",
+         "DestRegion_targetmean",
+         "DestCityName_targetmean",
+         "OriginAirportID_targetmean",
+         "OriginCityName_frequency",
+         "DistanceMiles",
+         "FlightDelayType_Late Aircraft Delay"
+      ],
+      "tree_structure":[
+         {
+            "decision_type":"lt",
+            "threshold":9069.33437193022,
+            "split_feature":0,
+            "split_gain":4112.094574306927,
+            "node_index":0,
+            "default_left":true,
+            "left_child":1,
+            "right_child":2
+         },
+         ...         
+         {
+            "node_index":9,
+            "leaf_value":-27.68987349695448
+         },
+         ...
+      ],
+      "target_type":"regression"
+   }
 }
 ----------------------------------
 //NOTCONSOLE
@@ -401,35 +401,35 @@ The following example shows an `ensemble` model object:
 
 [source,js]
 ----------------------------------
-"ensemble": {
-	"feature_names": [
-		...
-	],
-	"trained_models": [
-    {
-			"tree": {
-				"feature_names": [],
-				"tree_structure": [
-          {
-					"decision_type": "lte",
-					"node_index": 0,
-					"leaf_value": 47.64069875778043,
-					"default_left": false
-				}
-      ],
-				"target_type": "regression"
-			}
-		},
-		...
-	],
-	"aggregate_output": {
-		"weighted_sum": {
-			"weights": [
-				...
-			]
-		}
-	},
-	"target_type": "regression"
+"ensemble":{
+   "feature_names":[
+      ...
+   ],
+   "trained_models":[
+      {
+         "tree":{
+            "feature_names":[],
+            "tree_structure":[
+               {
+                  "decision_type":"lte",
+                  "node_index":0,
+                  "leaf_value":47.64069875778043,
+                  "default_left":false
+               }
+            ],
+            "target_type":"regression"
+         }
+      },
+      ...
+   ],
+   "aggregate_output":{
+      "weighted_sum":{
+         "weights":[
+            ...
+         ]
+      }
+   },
+   "target_type":"regression"
 }
 ----------------------------------
 //NOTCONSOLE

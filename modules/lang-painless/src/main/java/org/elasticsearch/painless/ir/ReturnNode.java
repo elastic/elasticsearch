@@ -21,33 +21,23 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class ReturnNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode expressionNode;
+    private ExpressionNode expressionNode;
 
-    public ReturnNode setExpressionNode(ExpressionNode expressionNode) {
+    public void setExpressionNode(ExpressionNode expressionNode) {
         this.expressionNode = expressionNode;
-        return this;
     }
 
     public ExpressionNode getExpressionNode() {
         return expressionNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public ReturnNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public ReturnNode() {
         // do nothing

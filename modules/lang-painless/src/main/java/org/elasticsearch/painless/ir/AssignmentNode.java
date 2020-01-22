@@ -23,130 +23,91 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 
 public class AssignmentNode extends BinaryNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    protected TypeNode compoundTypeNode;
+    private boolean pre;
+    private boolean post;
+    private Operation operation;
+    private boolean read;
+    private boolean cat;
+    private Class<?> compoundType;
+    private PainlessCast there;
+    private PainlessCast back;
 
-    public AssignmentNode setCompoundTypeNode(TypeNode compoundTypeNode) {
-        this.compoundTypeNode = compoundTypeNode;
-        return this;
-    }
-
-    public TypeNode getCompoundTypeNode() {
-        return compoundTypeNode;
-    }
-
-    public Class<?> getCompoundType() {
-        return compoundTypeNode.getType();
-    }
-
-    public String getCompoundCanonicalTypeName() {
-        return compoundTypeNode.getCanonicalTypeName();
-    }
-    
-    @Override
-    public AssignmentNode setLeftNode(ExpressionNode leftNode) {
-        super.setLeftNode(leftNode);
-        return this;
-    }
-
-    @Override
-    public AssignmentNode setRightNode(ExpressionNode rightNode) {
-        super.setRightNode(rightNode);
-        return this;
-    }
-
-    @Override
-    public AssignmentNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected boolean pre;
-    protected boolean post;
-    protected Operation operation;
-    protected boolean read;
-    protected boolean cat;
-    protected PainlessCast there;
-    protected PainlessCast back;
-
-    public AssignmentNode setPre(boolean pre) {
+    public void setPre(boolean pre) {
         this.pre = pre;
-        return this;
     }
 
     public boolean getPre() {
         return pre;
     }
 
-    public AssignmentNode setPost(boolean post) {
+    public void setPost(boolean post) {
         this.post = post;
-        return this;
     }
 
     public boolean getPost() {
         return post;
     }
 
-    public AssignmentNode setOperation(Operation operation) {
+    public void setOperation(Operation operation) {
         this.operation = operation;
-        return this;
     }
 
     public Operation getOperation() {
         return operation;
     }
 
-    public AssignmentNode setRead(boolean read) {
+    public void setRead(boolean read) {
         this.read = read;
-        return this;
     }
 
     public boolean getRead() {
         return read;
     }
 
-    public AssignmentNode setCat(boolean cat) {
+    public void setCat(boolean cat) {
         this.cat = cat;
-        return this;
     }
 
     public boolean getCat() {
         return cat;
     }
 
-    public AssignmentNode setThere(PainlessCast there) {
+    public void setCompoundType(Class<?> compoundType) {
+        this.compoundType = compoundType;
+    }
+
+    public Class<?> getCompoundType() {
+        return compoundType;
+    }
+
+    public String getCompoundCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(compoundType);
+    }
+
+    public void setThere(PainlessCast there) {
         this.there = there;
-        return this;
     }
 
     public PainlessCast getThere() {
         return there;
     }
 
-    public AssignmentNode setBack(PainlessCast back) {
+    public void setBack(PainlessCast back) {
         this.back = back;
-        return this;
     }
 
     public PainlessCast getBack() {
         return back;
-    }
-
-    @Override
-    public AssignmentNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -170,23 +131,23 @@ public class AssignmentNode extends BinaryNode {
             catElementStackSize = methodWriter.writeNewStrings();
         }
 
-        leftNode.setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
+        getLeftNode().setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
 
         if (cat) {
             // Handle the case where we are doing a compound assignment
             // representing a String concatenation.
 
-            methodWriter.writeDup(leftNode.accessElementCount(), catElementStackSize); // dup the top element and insert it
-                                                                                       // before concat helper on stack
-            leftNode.load(classWriter, methodWriter, globals);                         // read the current lhs's value
-            methodWriter.writeAppendStrings(leftNode.getType());                       // append the lhs's value using the StringBuilder
+            methodWriter.writeDup(getLeftNode().accessElementCount(), catElementStackSize); // dup the top element and insert it
+                                                                                            // before concat helper on stack
+            getLeftNode().load(classWriter, methodWriter, globals);             // read the current lhs's value
+            methodWriter.writeAppendStrings(getLeftNode().getExpressionType()); // append the lhs's value using the StringBuilder
 
-            rightNode.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
+            getRightNode().write(classWriter, methodWriter, globals); // write the bytecode for the rhs
 
-            if (rightNode instanceof BinaryMathNode == false || ((BinaryMathNode)rightNode).cat == false) { // check to see if the rhs
-                                                                                                // has already done a concatenation
-                methodWriter.writeAppendStrings(rightNode.getType());                           // append the rhs's value since
-                                                                                                // it's hasn't already
+            // check to see if the rhs has already done a concatenation
+            if (getRightNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getRightNode()).getCat() == false) {
+                // append the rhs's value since it's hasn't already
+                methodWriter.writeAppendStrings(getRightNode().getExpressionType());
             }
 
             methodWriter.writeToStrings(); // put the value for string concat onto the stack
@@ -194,59 +155,63 @@ public class AssignmentNode extends BinaryNode {
 
             if (read) {
                 // if this lhs is also read from dup the value onto the stack
-                methodWriter.writeDup(MethodWriter.getType(leftNode.getType()).getSize(), leftNode.accessElementCount());
+                methodWriter.writeDup(MethodWriter.getType(
+                        getLeftNode().getExpressionType()).getSize(), getLeftNode().accessElementCount());
             }
 
             // store the lhs's value from the stack in its respective variable/field/array
-            leftNode.store(classWriter, methodWriter, globals);
+            getLeftNode().store(classWriter, methodWriter, globals);
         } else if (operation != null) {
             // Handle the case where we are doing a compound assignment that
             // does not represent a String concatenation.
 
-            methodWriter.writeDup(leftNode.accessElementCount(), 0); // if necessary, dup the previous lhs's value
-                                                                // to be both loaded from and stored to
-            leftNode.load(classWriter, methodWriter, globals); // load the current lhs's value
+            methodWriter.writeDup(getLeftNode().accessElementCount(), 0); // if necessary, dup the previous lhs's value
+                                                                          // to be both loaded from and stored to
+            getLeftNode().load(classWriter, methodWriter, globals); // load the current lhs's value
 
             if (read && post) {
                 // dup the value if the lhs is also read from and is a post increment
-                methodWriter.writeDup(MethodWriter.getType(leftNode.getType()).getSize(), leftNode.accessElementCount());
+                methodWriter.writeDup(MethodWriter.getType(
+                        getLeftNode().getExpressionType()).getSize(), getLeftNode().accessElementCount());
             }
 
             methodWriter.writeCast(there); // if necessary cast the current lhs's value
                                            // to the promotion type between the lhs and rhs types
-            rightNode.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
+            getRightNode().write(classWriter, methodWriter, globals); // write the bytecode for the rhs
 
             // XXX: fix these types, but first we need def compound assignment tests.
             // its tricky here as there are possibly explicit casts, too.
             // write the operation instruction for compound assignment
-            if (getCompoundType() == def.class) {
+            if (compoundType == def.class) {
                 methodWriter.writeDynamicBinaryInstruction(
-                    location, getCompoundType(), def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                        location, compoundType, def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
-                methodWriter.writeBinaryInstruction(location, getCompoundType(), operation);
+                methodWriter.writeBinaryInstruction(location, compoundType, operation);
             }
 
             methodWriter.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
 
             if (read && !post) {
                 // dup the value if the lhs is also read from and is not a post increment
-                methodWriter.writeDup(MethodWriter.getType(leftNode.getType()).getSize(), leftNode.accessElementCount());
+                methodWriter.writeDup(MethodWriter.getType(
+                        getLeftNode().getExpressionType()).getSize(), getLeftNode().accessElementCount());
             }
 
             // store the lhs's value from the stack in its respective variable/field/array
-            leftNode.store(classWriter, methodWriter, globals);
+            getLeftNode().store(classWriter, methodWriter, globals);
         } else {
             // Handle the case for a simple write.
 
-            rightNode.write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
+            getRightNode().write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
 
             if (read) {
                 // dup the value if the lhs is also read from
-                methodWriter.writeDup(MethodWriter.getType(leftNode.getType()).getSize(), leftNode.accessElementCount());
+                methodWriter.writeDup(MethodWriter.getType(
+                        getLeftNode().getExpressionType()).getSize(), getLeftNode().accessElementCount());
             }
 
             // store the lhs's value from the stack in its respective variable/field/array
-            leftNode.store(classWriter, methodWriter, globals);
+            getLeftNode().store(classWriter, methodWriter, globals);
         }
     }
 }

@@ -21,88 +21,33 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
-import java.util.Collection;
-
 public class ListInitializationNode extends ArgumentsNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public ListInitializationNode addArgumentNode(ExpressionNode argumentNode) {
-        super.addArgumentNode(argumentNode);
-        return this;
-    }
+    private PainlessConstructor constructor;
+    private PainlessMethod method;
 
-    @Override
-    public ListInitializationNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
-        super.addArgumentNodes(argumentNodes);
-        return this;
-    }
-
-    @Override
-    public ListInitializationNode setArgumentNode(int index, ExpressionNode argumentNode) {
-        super.setArgumentNode(index, argumentNode);
-        return this;
-    }
-
-    @Override
-    public ListInitializationNode removeArgumentNode(ExpressionNode argumentNode) {
-        super.removeArgumentNode(argumentNode);
-        return this;
-    }
-
-    @Override
-    public ListInitializationNode removeArgumentNode(int index) {
-        super.removeArgumentNode(index);
-        return this;
-    }
-
-    @Override
-    public ListInitializationNode clearArgumentNodes() {
-        super.clearArgumentNodes();
-        return this;
-    }
-
-    @Override
-    public ListInitializationNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected PainlessConstructor constructor;
-    protected PainlessMethod method;
-
-    public ListInitializationNode setConstructor(PainlessConstructor constructor) {
+    public void setConstructor(PainlessConstructor constructor) {
         this.constructor = constructor;
-        return this;
     }
 
     public PainlessConstructor getConstructor() {
         return constructor;
     }
 
-    public ListInitializationNode setMethod(PainlessMethod method) {
+    public void setMethod(PainlessMethod method) {
         this.method = method;
-        return this;
     }
 
     public PainlessMethod getMethod() {
         return method;
-    }
-
-    @Override
-    public ListInitializationNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -115,12 +60,12 @@ public class ListInitializationNode extends ArgumentsNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        methodWriter.newInstance(MethodWriter.getType(getType()));
+        methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
         methodWriter.dup();
         methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
-        for (ExpressionNode argument : argumentNodes) {
+        for (ExpressionNode argument : getArgumentNodes()) {
             methodWriter.dup();
             argument.write(classWriter, methodWriter, globals);
             methodWriter.invokeMethodCall(method);

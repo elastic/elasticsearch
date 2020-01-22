@@ -21,64 +21,48 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Type;
 
 public class InstanceofNode extends UnaryNode {
+    
+    /* ---- begin node data ---- */
 
-    /* ---- begin tree structure ---- */
+    private Class<?> instanceType;
+    private Class<?> resolvedType;
+    private boolean isPrimitiveResult;
 
-    protected TypeNode expressionTypeNode;
-    protected TypeNode resolvedTypeNode;
-
-    public InstanceofNode setExpressionTypeNode(TypeNode expressionTypeNode) {
-        this.expressionTypeNode = expressionTypeNode;
-        return this;
+    public void setInstanceType(Class<?> instanceType) {
+        this.instanceType = instanceType;
+    }
+    
+    public Class<?> getInstanceType() {
+        return instanceType;
+    }
+    
+    public String getInstanceCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
     }
 
-    public TypeNode getExpressionTypeNode() {
-        return expressionTypeNode;
+    public void setResolvedType(Class<?> resolvedType) {
+        this.resolvedType = resolvedType;
     }
 
-    public InstanceofNode setResolvedTypeNode(TypeNode resolvedTypeNode) {
-        this.resolvedTypeNode = resolvedTypeNode;
-        return this;
+    public Class<?> getResolvedType() {
+        return resolvedType;
     }
 
-    public TypeNode getResolvedTypeNode() {
-        return resolvedTypeNode;
+    public String getResolvedCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(resolvedType);
     }
-
-    @Override
-    public InstanceofNode setChildNode(ExpressionNode childNode) {
-        super.setChildNode(childNode);
-        return this;
-    }
-
-    @Override
-    public InstanceofNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected boolean isPrimitiveResult;
-
-    public InstanceofNode setPrimitiveResult(boolean isPrimitiveResult) {
+    
+    public void setPrimitiveResult(boolean isPrimitiveResult) {
         this.isPrimitiveResult = isPrimitiveResult;
-        return this;
     }
 
     public boolean isPrimitiveResult() {
         return isPrimitiveResult;
-    }
-
-    @Override
-    public InstanceofNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -89,17 +73,17 @@ public class InstanceofNode extends UnaryNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        childNode.write(classWriter, methodWriter, globals);
+        getChildNode().write(classWriter, methodWriter, globals);
 
         // primitive types
         if (isPrimitiveResult) {
             // discard child's result result
-            methodWriter.writePop(MethodWriter.getType(childNode.getType()).getSize());
+            methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
             // push our result: its' a primitive so it cannot be null
-            methodWriter.push(resolvedTypeNode.getType().isAssignableFrom(expressionTypeNode.getType()));
+            methodWriter.push(resolvedType.isAssignableFrom(instanceType));
         } else {
             // ordinary instanceof
-            methodWriter.instanceOf(Type.getType(resolvedTypeNode.getType()));
+            methodWriter.instanceOf(Type.getType(resolvedType));
         }
     }
 }

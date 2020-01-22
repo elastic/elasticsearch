@@ -21,81 +21,32 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class TryNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected BlockNode blockNode;
-    protected List<CatchNode> catchNodes = new ArrayList<>();
+    private BlockNode blockNode;
+    private final List<CatchNode> catchNodes = new ArrayList<>();
 
-    public TryNode setBlockNode(BlockNode blockNode) {
+    public void setBlockNode(BlockNode blockNode) {
         this.blockNode = blockNode;
-        return this;
     }
 
     public BlockNode getBlockNode() {
         return blockNode;
     }
 
-    public TryNode addCatchNode(CatchNode catchNode) {
-        catchNodes.add(catchNode);
-        return this;
-    }
-
-    public TryNode addCatchNodes(Collection<CatchNode> catchNodes) {
-        this.catchNodes.addAll(catchNodes);
-        return this;
-    }
-
-    public TryNode setCatchNode(int index, CatchNode catchNode) {
-        catchNodes.set(index, catchNode);
-        return this;
-    }
-
-    public CatchNode getCatchNode(int index) {
-        return catchNodes.get(index);
-    }
-
-    public TryNode removeCatchNode(CatchNode catchNode) {
-        catchNodes.remove(catchNode);
-        return this;
-    }
-
-    public TryNode removeCatchNode(int index) {
-        catchNodes.remove(index);
-        return this;
-    }
-
-    public int getCatchsSize() {
-        return catchNodes.size();
-    }
-
     public List<CatchNode> getCatchsNodes() {
         return catchNodes;
     }
 
-    public TryNode clearCatchNodes() {
-        catchNodes.clear();
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public TryNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public TryNode() {
         // do nothing

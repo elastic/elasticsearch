@@ -23,84 +23,33 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class LambdaNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public LambdaNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private final List<Variable> captures = new ArrayList<>();
+    private FunctionRef funcRef;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected List<Variable> captures = new ArrayList<>();
-    protected FunctionRef funcRef;
-
-    public LambdaNode addCapture(Variable capture) {
+    public void addCapture(Variable capture) {
         captures.add(capture);
-        return this;
-    }
-
-    public LambdaNode addCaptures(Collection<Variable> captures) {
-        this.captures.addAll(captures);
-        return this;
-    }
-
-    public LambdaNode setCapture(int index, Variable capture) {
-        captures.set(index, capture);
-        return this;
-    }
-
-    public Variable getCapture(int index) {
-        return captures.get(index);
-    }
-
-    public LambdaNode removeCapture(Variable capture) {
-        captures.remove(capture);
-        return this;
-    }
-
-    public LambdaNode removeCapture(int index) {
-        captures.remove(index);
-        return this;
-    }
-
-    public int getCapturesSize() {
-        return captures.size();
     }
 
     public List<Variable> getCaptures() {
         return captures;
     }
 
-    public LambdaNode clearCaptures() {
-        captures.clear();
-        return this;
-    }
-
-    public LambdaNode setFuncRef(FunctionRef funcRef) {
+    public void setFuncRef(FunctionRef funcRef) {
         this.funcRef = funcRef;
-        return this;
     }
 
     public FunctionRef getFuncRef() {
         return funcRef;
-    }
-
-    @Override
-    public LambdaNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

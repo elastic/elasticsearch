@@ -22,7 +22,6 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -35,11 +34,10 @@ public class FunctionNode extends IRNode {
 
     /* ---- begin tree structure ---- */
 
-    protected BlockNode blockNode;
+    private BlockNode blockNode;
 
-    public FunctionNode setBlockNode(BlockNode blockNode) {
+    public void setBlockNode(BlockNode blockNode) {
         this.blockNode = blockNode;
-        return this;
     }
 
     public BlockNode getBlockNode() {
@@ -48,114 +46,68 @@ public class FunctionNode extends IRNode {
 
     /* ---- end tree structure, begin node data ---- */
 
-    protected String name;
-    Class<?> returnType;
-    List<Class<?>> typeParameters = new ArrayList<>();
-    protected boolean isSynthetic;
-    protected boolean doesMethodEscape;
-    protected Variable loopCounter;
-    protected int maxLoopCounter;
+    private String name;
+    private Class<?> returnType;
+    private final List<Class<?>> typeParameters = new ArrayList<>();
+    private boolean isSynthetic;
+    private boolean doesMethodEscape;
+    private Variable loopCounter;
+    private int maxLoopCounter;
 
-    public FunctionNode setName(String name) {
+    public void setName(String name) {
         this.name = name;
-        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public FunctionNode setReturnType(Class<?> returnType) {
+    public void setReturnType(Class<?> returnType) {
         this.returnType = returnType;
-        return this;
     }
 
     public Class<?> getReturnType() {
         return returnType;
     }
 
-    public FunctionNode addTypeParameter(Class<?> typeParameter) {
+    public void addTypeParameter(Class<?> typeParameter) {
         typeParameters.add(typeParameter);
-        return this;
-    }
-
-    public FunctionNode addTypeParameters(List<Class<?>> typeParameters) {
-        this.typeParameters.addAll(typeParameters);
-        return this;
-    }
-
-    public FunctionNode setTypeParameter(int index, Class<?> typeParameter) {
-        typeParameters.set(index, typeParameter);
-        return this;
-    }
-
-    public Class<?> getTypeParameter(int index) {
-        return typeParameters.get(index);
-    }
-
-    public FunctionNode removeTypeParameter(Class<?> typeParameter) {
-        typeParameters.remove(typeParameter);
-        return this;
-    }
-
-    public FunctionNode removeTypeParameter(int index) {
-        typeParameters.remove(index);
-        return this;
-    }
-
-    public int getTypeParametersSize() {
-        return typeParameters.size();
     }
 
     public List<Class<?>> getTypeParameters() {
         return typeParameters;
     }
 
-    public FunctionNode clearTypeParameters() {
-        typeParameters.clear();
-        return this;
-    }
-
-    public FunctionNode setSynthetic(boolean isSythetic) {
+    public void setSynthetic(boolean isSythetic) {
         this.isSynthetic = isSythetic;
-        return this;
     }
 
     public boolean isSynthetic() {
         return isSynthetic;
     }
 
-    public FunctionNode setMethodEscape(boolean doesMethodEscape) {
+    public void setMethodEscape(boolean doesMethodEscape) {
         this.doesMethodEscape = doesMethodEscape;
-        return this;
     }
 
     public boolean doesMethodEscape() {
         return doesMethodEscape;
     }
 
-    public FunctionNode setLoopCounter(Variable loopCounter) {
+    public void setLoopCounter(Variable loopCounter) {
         this.loopCounter = loopCounter;
-        return this;
     }
 
     public Variable getLoopCounter() {
         return loopCounter;
     }
 
-    public FunctionNode setMaxLoopCounter(int maxLoopCounter) {
+    public void setMaxLoopCounter(int maxLoopCounter) {
         this.maxLoopCounter = maxLoopCounter;
-        return this;
     }
 
     public int getMaxLoopCounter() {
         return maxLoopCounter;
-    }
-
-    @Override
-    public FunctionNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

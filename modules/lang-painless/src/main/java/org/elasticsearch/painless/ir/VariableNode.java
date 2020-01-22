@@ -22,37 +22,21 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 public class VariableNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public VariableNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private Variable variable;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected Variable variable;
-
-    public VariableNode setVariable(Variable variable) {
+    public void setVariable(Variable variable) {
         this.variable = variable;
-        return this;
     }
 
     public Variable getVariable() {
         return variable;
-    }
-
-    @Override
-    public VariableNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

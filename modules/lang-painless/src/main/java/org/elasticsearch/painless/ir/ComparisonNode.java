@@ -22,9 +22,9 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
@@ -34,62 +34,29 @@ import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 
 public class ComparisonNode extends BinaryNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    protected TypeNode comparisonTypeNode;
+    private Operation operation;
+    private Class<?> comparisonType;
 
-    public ComparisonNode setComparisonTypeNode(TypeNode comparisonTypeNode) {
-        this.comparisonTypeNode = comparisonTypeNode;
-        return this;
-    }
-
-    public TypeNode getComparisonTypeNode() {
-        return comparisonTypeNode;
-    }
-
-    public Class<?> getComparisonType() {
-        return comparisonTypeNode.getType();
-    }
-
-    public String getComparisonCanonicalTypeName() {
-        return comparisonTypeNode.getCanonicalTypeName();
-    }
-
-    @Override
-    public ComparisonNode setLeftNode(ExpressionNode leftNode) {
-        super.setLeftNode(leftNode);
-        return this;
-    }
-
-    @Override
-    public ComparisonNode setRightNode(ExpressionNode rightNode) {
-        super.setRightNode(rightNode);
-        return this;
-    }
-
-    @Override
-    public ComparisonNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected Operation operation;
-
-    public ComparisonNode setOperation(Operation operation) {
+    public void setOperation(Operation operation) {
         this.operation = operation;
-        return this;
     }
 
     public Operation getOperation() {
         return operation;
     }
 
-    @Override
-    public ComparisonNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
+    public void setComparisonType(Class<?> comparisonType) {
+        this.comparisonType = comparisonType;
+    }
+
+    public Class<?> getComparisonType() {
+        return comparisonType;
+    }
+
+    public String getComparisonCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(comparisonType);
     }
 
     /* ---- end node data ---- */
@@ -102,10 +69,10 @@ public class ComparisonNode extends BinaryNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        leftNode.write(classWriter, methodWriter, globals);
+        getLeftNode().write(classWriter, methodWriter, globals);
 
-        if (rightNode instanceof NullNode == false) {
-            rightNode.write(classWriter, methodWriter, globals);
+        if (getRightNode() instanceof NullNode == false) {
+            getRightNode().write(classWriter, methodWriter, globals);
         }
 
         Label jump = new Label();
@@ -120,21 +87,21 @@ public class ComparisonNode extends BinaryNode {
 
         boolean writejump = true;
 
-        Type type = MethodWriter.getType(getComparisonType());
+        Type type = MethodWriter.getType(comparisonType);
 
-        if (getComparisonType() == void.class || getComparisonType() == byte.class
-                || getComparisonType() == short.class || getComparisonType() == char.class) {
+        if (comparisonType == void.class || comparisonType == byte.class
+                || comparisonType == short.class || comparisonType == char.class) {
             throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                    "for type [" + getCanonicalTypeName() + "]");
-        } else if (getComparisonType() == boolean.class) {
+                    "for type [" + getExpressionCanonicalTypeName() + "]");
+        } else if (comparisonType == boolean.class) {
             if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
             else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + getCanonicalTypeName() + "]");
+                        "for type [" + getExpressionCanonicalTypeName() + "]");
             }
-        } else if (getComparisonType() == int.class || getComparisonType() == long.class
-                || getComparisonType() == float.class || getComparisonType() == double.class) {
+        } else if (comparisonType == int.class || comparisonType == long.class
+                || comparisonType == float.class || comparisonType == double.class) {
             if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
             else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
@@ -143,27 +110,27 @@ public class ComparisonNode extends BinaryNode {
             else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
             else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + getCanonicalTypeName() + "]");
+                        "for type [" + getExpressionCanonicalTypeName() + "]");
             }
 
-        } else if (getComparisonType() == def.class) {
+        } else if (comparisonType == def.class) {
             Type booleanType = Type.getType(boolean.class);
             Type descriptor = Type.getMethodType(booleanType,
-                    MethodWriter.getType(leftNode.getType()), MethodWriter.getType(rightNode.getType()));
+                    MethodWriter.getType(getLeftNode().getExpressionType()), MethodWriter.getType(getRightNode().getExpressionType()));
 
             if (eq) {
-                if (rightNode instanceof NullNode) {
+                if (getRightNode() instanceof NullNode) {
                     methodWriter.ifNull(jump);
-                } else if (leftNode instanceof NullNode == false && operation == Operation.EQ) {
+                } else if (getLeftNode() instanceof NullNode == false && operation == Operation.EQ) {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     writejump = false;
                 } else {
                     methodWriter.ifCmp(type, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
-                if (rightNode instanceof NullNode) {
+                if (getRightNode() instanceof NullNode) {
                     methodWriter.ifNonNull(jump);
-                } else if (leftNode instanceof NullNode == false && operation == Operation.NE) {
+                } else if (getLeftNode() instanceof NullNode == false && operation == Operation.NE) {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
@@ -183,11 +150,11 @@ public class ComparisonNode extends BinaryNode {
                 writejump = false;
             } else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + getCanonicalTypeName() + "]");
+                        "for type [" + getExpressionCanonicalTypeName() + "]");
             }
         } else {
             if (eq) {
-                if (rightNode instanceof NullNode) {
+                if (getRightNode() instanceof NullNode) {
                     methodWriter.ifNull(jump);
                 } else if (operation == Operation.EQ) {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
@@ -196,7 +163,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.ifCmp(type, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
-                if (rightNode instanceof NullNode) {
+                if (getRightNode() instanceof NullNode) {
                     methodWriter.ifNonNull(jump);
                 } else if (operation == Operation.NE) {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
@@ -206,7 +173,7 @@ public class ComparisonNode extends BinaryNode {
                 }
             } else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + getCanonicalTypeName() + "]");
+                        "for type [" + getExpressionCanonicalTypeName() + "]");
             }
         }
 

@@ -21,18 +21,16 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class StatementExpressionNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode expressionNode;
+    private ExpressionNode expressionNode;
 
-    public StatementExpressionNode setExpressionNode(ExpressionNode expressionNode) {
+    public void setExpressionNode(ExpressionNode expressionNode) {
         this.expressionNode = expressionNode;
-        return this;
     }
 
     public ExpressionNode getExpressionNode() {
@@ -41,21 +39,14 @@ public class StatementExpressionNode extends StatementNode {
 
     /* ---- end tree structure, begin node data ---- */
 
-    protected boolean methodEscape;
+    private boolean methodEscape;
 
-    public StatementExpressionNode setMethodEscape(boolean methodEscape) {
+    public void setMethodEscape(boolean methodEscape) {
         this.methodEscape = methodEscape;
-        return this;
     }
 
     public boolean getMethodEscape() {
         return methodEscape;
-    }
-
-    @Override
-    public StatementExpressionNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -72,7 +63,7 @@ public class StatementExpressionNode extends StatementNode {
         if (methodEscape) {
             methodWriter.returnValue();
         } else {
-            methodWriter.writePop(MethodWriter.getType(expressionNode.getType()).getSize());
+            methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
         }
     }
 }

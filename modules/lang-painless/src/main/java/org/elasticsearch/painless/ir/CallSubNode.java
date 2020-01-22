@@ -21,85 +21,30 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
-import java.util.Collection;
-
 public class CallSubNode extends ArgumentsNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public CallSubNode addArgumentNode(ExpressionNode argumentNode) {
-        super.addArgumentNode(argumentNode);
-        return this;
-    }
+    private PainlessMethod method;
+    private Class<?> box;
 
-    @Override
-    public CallSubNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
-        super.addArgumentNodes(argumentNodes);
-        return this;
-    }
-
-    @Override
-    public CallSubNode setArgumentNode(int index, ExpressionNode argumentNode) {
-        super.setArgumentNode(index, argumentNode);
-        return this;
-    }
-
-    @Override
-    public CallSubNode removeArgumentNode(ExpressionNode argumentNode) {
-        super.removeArgumentNode(argumentNode);
-        return this;
-    }
-
-    @Override
-    public CallSubNode removeArgumentNode(int index) {
-        super.removeArgumentNode(index);
-        return this;
-    }
-
-    @Override
-    public CallSubNode clearArgumentNodes() {
-        super.clearArgumentNodes();
-        return this;
-    }
-
-    @Override
-    public CallSubNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected PainlessMethod method;
-    protected Class<?> box;
-
-    public CallSubNode setMethod(PainlessMethod method) {
+    public void setMethod(PainlessMethod method) {
         this.method = method;
-        return this;
     }
 
     public PainlessMethod getMethod() {
         return method;
     }
 
-    public CallSubNode setBox(Class<?> box) {
+    public void setBox(Class<?> box) {
         this.box = box;
-        return this;
     }
 
     public Class<?> getBox() {
         return box;
-    }
-
-    @Override
-    public CallSubNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -116,7 +61,7 @@ public class CallSubNode extends ArgumentsNode {
             methodWriter.box(MethodWriter.getType(box));
         }
 
-        for (ExpressionNode argumentNode : argumentNodes) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
             argumentNode.write(classWriter, methodWriter, globals);
         }
 

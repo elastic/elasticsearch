@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -30,44 +29,17 @@ public class ConditionalNode extends BinaryNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode conditionNode;
+    private ExpressionNode conditionNode;
 
-    public ConditionalNode setConditionNode(ExpressionNode conditionNode) {
+    public void setConditionNode(ExpressionNode conditionNode) {
         this.conditionNode = conditionNode;
-        return this;
     }
 
     public ExpressionNode getConditionNode() {
         return conditionNode;
     }
 
-    @Override
-    public ConditionalNode setLeftNode(ExpressionNode leftNode) {
-        super.setLeftNode(leftNode);
-        return this;
-    }
-
-    @Override
-    public ConditionalNode setRightNode(ExpressionNode rightNode) {
-        super.setRightNode(rightNode);
-        return this;
-    }
-
-    @Override
-    public ConditionalNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public ConditionalNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public ConditionalNode() {
         // do nothing
@@ -83,10 +55,10 @@ public class ConditionalNode extends BinaryNode {
         conditionNode.write(classWriter, methodWriter, globals);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-        leftNode.write(classWriter, methodWriter, globals);
+        getLeftNode().write(classWriter, methodWriter, globals);
         methodWriter.goTo(end);
         methodWriter.mark(fals);
-        rightNode.write(classWriter, methodWriter, globals);
+        getRightNode().write(classWriter, methodWriter, globals);
         methodWriter.mark(end);
     }
 }

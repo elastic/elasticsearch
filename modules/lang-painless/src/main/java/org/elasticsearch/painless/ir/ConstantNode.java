@@ -21,36 +21,20 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class ConstantNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public ConstantNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private Object constant;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected Object constant;
-
-    public ConstantNode setConstant(Object constant) {
+    public void setConstant(Object constant) {
         this.constant = constant;
-        return this;
     }
 
     public Object getConstant() {
         return constant;
-    }
-
-    @Override
-    public ConstantNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

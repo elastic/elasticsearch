@@ -19,42 +19,30 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.Location;
-
 public abstract class ConditionNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode conditionNode;
-    protected BlockNode blockNode;
+    private ExpressionNode conditionNode;
+    private BlockNode blockNode;
 
-    public ConditionNode setConditionNode(ExpressionNode conditionNode) {
+    public void setConditionNode(ExpressionNode conditionNode) {
         this.conditionNode = conditionNode;
-        return this;
     }
 
     public ExpressionNode getConditionNode() {
         return conditionNode;
     }
 
-    public ConditionNode setBlockNode(BlockNode blockNode) {
+    public void setBlockNode(BlockNode blockNode) {
         this.blockNode = blockNode;
-        return this;
     }
 
     public BlockNode getBlockNode() {
         return blockNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public ConditionNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public ConditionNode() {
         // do nothing

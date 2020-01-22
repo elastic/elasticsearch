@@ -21,33 +21,23 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class ForEachLoopNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ConditionNode conditionNode;
+    private ConditionNode conditionNode;
 
-    public ForEachLoopNode setConditionNode(ConditionNode conditionNode) {
+    public void setConditionNode(ConditionNode conditionNode) {
         this.conditionNode = conditionNode;
-        return this;
     }
 
     public ConditionNode getConditionNode() {
         return conditionNode;
     }
 
-    /* ---- end tree structure, being node data ---- */
-
-    @Override
-    public ForEachLoopNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public ForEachLoopNode() {
         // do nothing

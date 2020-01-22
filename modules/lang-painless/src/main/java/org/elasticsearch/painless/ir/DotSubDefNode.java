@@ -22,36 +22,21 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Type;
 
 public class DotSubDefNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public DotSubDefNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private String value;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String value;
-
-    public DotSubDefNode setValue(String value) {
+    public void setValue(String value) {
         this.value = value;
-        return this;
     }
 
     public String getValue() {
         return value;
-    }
-
-    @Override
-    public DotSubDefNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -64,8 +49,7 @@ public class DotSubDefNode extends ExpressionNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(getType()), org.objectweb.asm.Type.getType(Object.class));
+        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), Type.getType(Object.class));
         methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -83,8 +67,7 @@ public class DotSubDefNode extends ExpressionNode {
     protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(getType()), org.objectweb.asm.Type.getType(Object.class));
+        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), Type.getType(Object.class));
         methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -92,8 +75,8 @@ public class DotSubDefNode extends ExpressionNode {
     protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
-            org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), MethodWriter.getType(getType()));
+        Type methodType = Type.getMethodType(
+                Type.getType(void.class), Type.getType(Object.class), MethodWriter.getType(getExpressionType()));
         methodWriter.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 }

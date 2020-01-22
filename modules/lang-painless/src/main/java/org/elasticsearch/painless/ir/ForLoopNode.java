@@ -21,71 +21,34 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
-
-import static org.elasticsearch.painless.Locals.Variable;
 
 public class ForLoopNode extends LoopNode {
 
     /* ---- begin tree structure ---- */
 
-    protected IRNode initializerNode;
-    protected ExpressionNode afterthoughtNode;
+    private IRNode initializerNode;
+    private ExpressionNode afterthoughtNode;
 
-    public ForLoopNode setInitialzerNode(IRNode initializerNode) {
+    public void setInitialzerNode(IRNode initializerNode) {
         this.initializerNode = initializerNode;
-        return this;
     }
 
     public IRNode getInitializerNode() {
         return initializerNode;
     }
 
-    public ForLoopNode setAfterthoughtNode(ExpressionNode afterthoughtNode) {
+    public void setAfterthoughtNode(ExpressionNode afterthoughtNode) {
         this.afterthoughtNode = afterthoughtNode;
-        return this;
     }
 
     public ExpressionNode getAfterthoughtNode() {
         return afterthoughtNode;
     }
 
-    @Override
-    public ForLoopNode setConditionNode(ExpressionNode conditionNode) {
-        super.setConditionNode(conditionNode);
-        return this;
-    }
-
-    @Override
-    public ForLoopNode setBlockNode(BlockNode blockNode) {
-        super.setBlockNode(blockNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public ForLoopNode setContinuous(boolean isContinuous) {
-        super.setContinuous(isContinuous);
-        return this;
-    }
-
-    @Override
-    public ForLoopNode setLoopCounter(Variable loopCounter) {
-        super.setLoopCounter(loopCounter);
-        return this;
-    }
-
-    @Override
-    public ForLoopNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public ForLoopNode() {
         // do nothing
@@ -104,44 +67,44 @@ public class ForLoopNode extends LoopNode {
         } else if (initializerNode instanceof ExpressionNode) {
             ExpressionNode initializer = (ExpressionNode)this.initializerNode;
             initializer.write(classWriter, methodWriter, globals);
-            methodWriter.writePop(MethodWriter.getType(initializer.getType()).getSize());
+            methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());
         }
 
         methodWriter.mark(start);
 
-        if (conditionNode != null && isContinuous == false) {
-            conditionNode.write(classWriter, methodWriter, globals);
+        if (getConditionNode() != null && isContinuous() == false) {
+            getConditionNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         boolean allEscape = false;
 
-        if (blockNode != null) {
-            allEscape = blockNode.doAllEscape();
+        if (getBlockNode() != null) {
+            allEscape = getBlockNode().doAllEscape();
 
-            int statementCount = Math.max(1, blockNode.statementCount);
+            int statementCount = Math.max(1, getBlockNode().getStatementCount());
 
             if (afterthoughtNode != null) {
                 ++statementCount;
             }
 
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            if (getLoopCounter() != null) {
+                methodWriter.writeLoopCounter(getLoopCounter().getSlot(), statementCount, location);
             }
 
-            blockNode.continueLabel = begin;
-            blockNode.breakLabel = end;
-            blockNode.write(classWriter, methodWriter, globals);
+            getBlockNode().continueLabel = begin;
+            getBlockNode().breakLabel = end;
+            getBlockNode().write(classWriter, methodWriter, globals);
         } else {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            if (getLoopCounter() != null) {
+                methodWriter.writeLoopCounter(getLoopCounter().getSlot(), 1, location);
             }
         }
 
         if (afterthoughtNode != null) {
             methodWriter.mark(begin);
             afterthoughtNode.write(classWriter, methodWriter, globals);
-            methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getType()).getSize());
+            methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getExpressionType()).getSize());
         }
 
         if (afterthoughtNode != null || !allEscape) {

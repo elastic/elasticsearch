@@ -30,9 +30,8 @@ public abstract class IRNode {
 
     protected Location location;
 
-    public IRNode setLocation(Location location) {
+    public void setLocation(Location location) {
         this.location = location;
-        return this;
     }
 
     public Location getLocation() {

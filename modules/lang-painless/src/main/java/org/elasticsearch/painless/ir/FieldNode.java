@@ -21,70 +21,53 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Type;
 
 public class FieldNode extends IRNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    protected TypeNode typeNode;
+    private int modifiers;
+    private Class<?> fieldType;
+    private String name;
+    private Object instance;
 
-    public FieldNode setTypeNode(TypeNode typeNode) {
-        this.typeNode = typeNode;
-        return this;
-    }
-
-    public TypeNode getTypeNode() {
-        return typeNode;
-    }
-
-    public Class<?> getType() {
-        return typeNode.getType();
-    }
-
-    public String getCanonicalTypeName() {
-        return typeNode.getCanonicalTypeName();
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected int modifiers;
-    protected String name;
-    protected Object instance;
-
-    public FieldNode setModifiers(int modifiers) {
+    public void setModifiers(int modifiers) {
         this.modifiers = modifiers;
-        return this;
     }
 
     public int getModifiers(int modifiers) {
         return modifiers;
     }
 
-    public FieldNode setName(String name) {
+    public void setFieldType(Class<?> fieldType) {
+        this.fieldType = fieldType;
+    }
+
+    public Class<?> getFieldType() {
+        return fieldType;
+    }
+
+    public String getFieldCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(fieldType);
+    }
+
+    public void setName(String name) {
         this.name = name;
-        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public FieldNode setInstance(Object instance) {
+    public void setInstance(Object instance) {
         this.instance = instance;
-        return this;
     }
 
     public Object getInstance() {
         return instance;
-    }
-
-    @Override
-    public FieldNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -96,6 +79,6 @@ public class FieldNode extends IRNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(getType()).getDescriptor(), null, null).visitEnd();
+                ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
     }
 }

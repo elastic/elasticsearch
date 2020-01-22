@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -30,47 +29,25 @@ import org.objectweb.asm.Opcodes;
 
 public class ListSubShortcutNode extends UnaryNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public ListSubShortcutNode setChildNode(ExpressionNode childNode) {
-        super.setChildNode(childNode);
-        return this;
-    }
+    private PainlessMethod setter;
+    private PainlessMethod getter;
 
-    @Override
-    public ListSubShortcutNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected PainlessMethod setter;
-    protected PainlessMethod getter;
-
-    public ListSubShortcutNode setSetter(PainlessMethod setter) {
+    public void setSetter(PainlessMethod setter) {
         this.setter = setter;
-        return this;
     }
 
     public PainlessMethod getSetter() {
         return setter;
     }
 
-    public ListSubShortcutNode setGetter(PainlessMethod getter) {
+    public void setGetter(PainlessMethod getter) {
         this.getter = getter;
-        return this;
     }
 
     public PainlessMethod getGetter() {
         return getter;
-    }
-
-    @Override
-    public ListSubShortcutNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -92,7 +69,7 @@ public class ListSubShortcutNode extends UnaryNode {
 
     @Override
     protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        childNode.write(classWriter, methodWriter, globals);
+        getChildNode().write(classWriter, methodWriter, globals);
 
         Label noFlip = new Label();
         methodWriter.dup();

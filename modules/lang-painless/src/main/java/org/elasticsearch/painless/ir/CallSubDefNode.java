@@ -22,173 +22,51 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class CallSubDefNode extends ArgumentsNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public CallSubDefNode addArgumentNode(ExpressionNode argumentNode) {
-        super.addArgumentNode(argumentNode);
-        return this;
-    }
+    private String name;
+    private String recipe;
+    private final List<String> pointers = new ArrayList<>();
+    private final List<Class<?>> typeParameters = new ArrayList<>();
 
-    @Override
-    public CallSubDefNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
-        super.addArgumentNodes(argumentNodes);
-        return this;
-    }
-
-    @Override
-    public CallSubDefNode setArgumentNode(int index, ExpressionNode argumentNode) {
-        super.setArgumentNode(index, argumentNode);
-        return this;
-    }
-
-    @Override
-    public CallSubDefNode removeArgumentNode(ExpressionNode argumentNode) {
-        super.removeArgumentNode(argumentNode);
-        return this;
-    }
-
-    @Override
-    public CallSubDefNode removeArgumentNode(int index) {
-        super.removeArgumentNode(index);
-        return this;
-    }
-
-    @Override
-    public CallSubDefNode clearArgumentNodes() {
-        super.clearArgumentNodes();
-        return this;
-    }
-
-    @Override
-    public CallSubDefNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String name;
-    protected String recipe;
-    protected List<String> pointers = new ArrayList<>();
-    protected List<Class<?>> typeParameters = new ArrayList<>();
-
-    public CallSubDefNode setName(String name) {
+    public void setName(String name) {
         this.name = name;
-        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public CallSubDefNode setRecipe(String recipe) {
+    public void setRecipe(String recipe) {
         this.recipe = recipe;
-        return this;
     }
 
     public String getRecipe() {
         return recipe;
     }
 
-    public CallSubDefNode addPointer(String pointer) {
+    public void addPointer(String pointer) {
         pointers.add(pointer);
-        return this;
-    }
-
-    public CallSubDefNode addPointers(Collection<String> pointers) {
-        this.pointers.addAll(pointers);
-        return this;
-    }
-
-    public CallSubDefNode setPointer(int index, String pointer) {
-        pointers.set(index, pointer);
-        return this;
-    }
-
-    public String getPointer(int index) {
-        return pointers.get(index);
-    }
-
-    public CallSubDefNode removePointer(String pointer) {
-        pointers.remove(pointer);
-        return this;
-    }
-
-    public CallSubDefNode removePointer(int index) {
-        pointers.remove(index);
-        return this;
-    }
-
-    public int getPointersSize() {
-        return pointers.size();
     }
 
     public List<String> getPointers() {
         return pointers;
     }
 
-    public CallSubDefNode clearPointers() {
-        pointers.clear();
-        return this;
-    }
-
-    public CallSubDefNode addTypeParameter(Class<?> typeParameter) {
+    public void addTypeParameter(Class<?> typeParameter) {
         typeParameters.add(typeParameter);
-        return this;
-    }
-
-    public CallSubDefNode addTypeParameters(Collection<Class<?>> typeParameters) {
-        this.typeParameters.addAll(typeParameters);
-        return this;
-    }
-
-    public CallSubDefNode setTypeParameter(int index, Class<?> typeParameter) {
-        typeParameters.set(index, typeParameter);
-        return this;
-    }
-
-    public Class<?> getTypeParameter(int index) {
-        return typeParameters.get(index);
-    }
-
-    public CallSubDefNode removeTypeParameter(Class<?> typeParameter) {
-        typeParameters.remove(typeParameter);
-        return this;
-    }
-
-    public CallSubDefNode removeTypeParameter(int index) {
-        typeParameters.remove(index);
-        return this;
-    }
-
-    public int getTypeParametersSize() {
-        return typeParameters.size();
     }
 
     public List<Class<?>> getTypeParameters() {
         return typeParameters;
-    }
-
-    public CallSubDefNode clearTypeParameters() {
-        typeParameters.clear();
-        return this;
-    }
-
-    @Override
-    public CallSubDefNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -201,7 +79,7 @@ public class CallSubDefNode extends ArgumentsNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        for (ExpressionNode argumentNode : argumentNodes) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
             argumentNode.write(classWriter, methodWriter, globals);
         }
 
@@ -210,7 +88,7 @@ public class CallSubDefNode extends ArgumentsNode {
         for (int index = 0; index < asmParameterTypes.length; ++index) {
             asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
-        Type methodType = Type.getMethodType(MethodWriter.getType(getType()), asmParameterTypes);
+        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), asmParameterTypes);
 
         List<Object> args = new ArrayList<>();
         args.add(recipe);

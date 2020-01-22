@@ -24,68 +24,49 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 public class CapturingFuncRefNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public CapturingFuncRefNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private String name;
+    private Variable captured;
+    private FunctionRef funcRef;
+    private String pointer;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String name;
-    protected Variable captured;
-    protected FunctionRef funcRef;
-    protected String pointer;
-
-    public CapturingFuncRefNode setName(String name) {
+    public void setName(String name) {
         this.name = name;
-        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public CapturingFuncRefNode setCaptured(Variable captured) {
+    public void setCaptured(Variable captured) {
         this.captured = captured;
-        return this;
     }
 
     public Variable getCaptured() {
         return captured;
     }
 
-    public CapturingFuncRefNode setFuncRef(FunctionRef funcRef) {
+    public void setFuncRef(FunctionRef funcRef) {
         this.funcRef = funcRef;
-        return this;
     }
 
     public FunctionRef getFuncRef() {
         return funcRef;
     }
 
-    public CapturingFuncRefNode setPointer(String pointer) {
+    public void setPointer(String pointer) {
         this.pointer = pointer;
-        return this;
     }
 
     public String getPointer() {
         return pointer;
-    }
-
-    @Override
-    public CapturingFuncRefNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -104,8 +85,8 @@ public class CapturingFuncRefNode extends ExpressionNode {
         } else if (funcRef == null) {
             // typed interface, dynamic implementation
             methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(MethodWriter.getType(getType()), MethodWriter.getType(captured.clazz));
-            methodWriter.invokeDefCall(name, methodType, DefBootstrap.REFERENCE, getCanonicalTypeName());
+            Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), MethodWriter.getType(captured.clazz));
+            methodWriter.invokeDefCall(name, methodType, DefBootstrap.REFERENCE, getExpressionCanonicalTypeName());
         } else {
             // typed interface, typed implementation
             methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());

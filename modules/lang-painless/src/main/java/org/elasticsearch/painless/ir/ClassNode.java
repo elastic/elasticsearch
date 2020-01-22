@@ -72,289 +72,116 @@ public class ClassNode extends IRNode {
 
     /* ---- begin tree structure ---- */
 
-    protected final List<FieldNode> fieldNodes = new ArrayList<>();
-    protected final List<FunctionNode> functionNodes = new ArrayList<>();
-    protected final List<StatementNode> statementNodes = new ArrayList<>();
+    private final List<FieldNode> fieldNodes = new ArrayList<>();
+    private final List<FunctionNode> functionNodes = new ArrayList<>();
+    private final List<StatementNode> statementNodes = new ArrayList<>();
 
-    public ClassNode addFieldNode(FieldNode fieldNode) {
+    public void addFieldNode(FieldNode fieldNode) {
         fieldNodes.add(fieldNode);
-        return this;
-    }
-
-    public ClassNode addFieldNodes(Collection<FieldNode> fieldNodes) {
-        this.fieldNodes.addAll(fieldNodes);
-        return this;
-    }
-
-    public ClassNode setFieldNode(int index, FieldNode fieldNode) {
-        fieldNodes.set(index, fieldNode);
-        return this;
-    }
-
-    public FieldNode getFieldNode(int index) {
-        return fieldNodes.get(index);
-    }
-
-    public ClassNode removeFieldNode(FieldNode fieldNode) {
-        fieldNodes.remove(fieldNode);
-        return this;
-    }
-
-    public ClassNode removeFieldNode(int index) {
-        fieldNodes.remove(index);
-        return this;
-    }
-
-    public int getFieldsSize() {
-        return fieldNodes.size();
     }
 
     public List<FieldNode> getFieldsNodes() {
         return fieldNodes;
     }
-
-    public ClassNode clearFieldNodes() {
-        fieldNodes.clear();
-        return this;
-    }
     
-    public ClassNode addFunctionNode(FunctionNode functionNode) {
+    public void addFunctionNode(FunctionNode functionNode) {
         functionNodes.add(functionNode);
-        return this;
-    }
-
-    public ClassNode addFunctionNode(Collection<FunctionNode> functionNodes) {
-        this.functionNodes.addAll(functionNodes);
-        return this;
-    }
-
-    public ClassNode setFunctionNode(int index, FunctionNode functionNode) {
-        functionNodes.set(index, functionNode);
-        return this;
-    }
-
-    public FunctionNode getFunctionNode(int index) {
-        return functionNodes.get(index);
-    }
-
-    public ClassNode removeFunctionNode(FunctionNode functionNode) {
-        functionNodes.remove(functionNode);
-        return this;
-    }
-
-    public ClassNode removeFunctionNode(int index) {
-        functionNodes.remove(index);
-        return this;
-    }
-
-    public int getFunctionsSize() {
-        return functionNodes.size();
     }
 
     public List<FunctionNode> getFunctionsNodes() {
         return functionNodes;
     }
 
-    public ClassNode clearFunctionNodes() {
-        functionNodes.clear();
-        return this;
-    }
-
-    public ClassNode addStatementNode(StatementNode statementNode) {
+    public void addStatementNode(StatementNode statementNode) {
         statementNodes.add(statementNode);
-        return this;
-    }
-
-    public ClassNode addStatementNodes(Collection<StatementNode> statementNodes) {
-        this.statementNodes.addAll(statementNodes);
-        return this;
-    }
-
-    public ClassNode setStatementNode(int index, StatementNode statementNode) {
-        statementNodes.set(index, statementNode);
-        return this;
-    }
-
-    public StatementNode getStatementNode(int index) {
-        return statementNodes.get(index);
-    }
-
-    public ClassNode removeStatementNode(StatementNode statementNode) {
-        statementNodes.remove(statementNode);
-        return this;
-    }
-
-    public ClassNode removeStatementNode(int index) {
-        statementNodes.remove(index);
-        return this;
-    }
-
-    public int getStatementsSize() {
-        return statementNodes.size();
     }
 
     public List<StatementNode> getStatementsNodes() {
         return statementNodes;
     }
-
-    public ClassNode clearStatementNodes() {
-        statementNodes.clear();
-        return this;
-    }
     
     /* ---- end tree structure, begin node data ---- */
 
-    protected ScriptClassInfo scriptClassInfo;
-    protected String name;
-    protected String sourceText;
-    protected Printer debugStream;
-    protected ScriptRoot scriptRoot;
-    protected Locals mainMethod;
-    protected boolean doesMethodEscape;
-    protected final Set<String> extractedVariables = new HashSet<>();
-    protected final List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
+    private ScriptClassInfo scriptClassInfo;
+    private String name;
+    private String sourceText;
+    private Printer debugStream;
+    private ScriptRoot scriptRoot;
+    private Locals mainMethod;
+    private boolean doesMethodEscape;
+    private final Set<String> extractedVariables = new HashSet<>();
+    private final List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
 
-    public ClassNode setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
+    public void setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
         this.scriptClassInfo = scriptClassInfo;
-        return this;
     }
 
     public ScriptClassInfo getScriptClassInfo() {
         return scriptClassInfo;
     }
 
-    public ClassNode setName(String name) {
+    public void setName(String name) {
         this.name = name;
-        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public ClassNode setSourceText(String sourceText) {
+    public void setSourceText(String sourceText) {
         this.sourceText = sourceText;
-        return this;
     }
 
     public String getSourceText() {
         return sourceText;
     }
 
-    public ClassNode setDebugStream(Printer debugStream) {
+    public void setDebugStream(Printer debugStream) {
         this.debugStream = debugStream;
-        return this;
     }
 
     public Printer getDebugStream() {
         return debugStream;
     }
 
-    public ClassNode setScriptRoot(ScriptRoot scriptRoot) {
+    public void setScriptRoot(ScriptRoot scriptRoot) {
         this.scriptRoot = scriptRoot;
-        return this;
     }
 
     public ScriptRoot getScriptRoot() {
         return scriptRoot;
     }
 
-    public ClassNode setMainMethod(Locals mainMethod) {
+    public void setMainMethod(Locals mainMethod) {
         this.mainMethod = mainMethod;
-        return this;
     }
 
     public Locals getMainMethod() {
         return mainMethod;
     }
 
-    public ClassNode setMethodEscape(boolean doesMethodEscape) {
+    public void setMethodEscape(boolean doesMethodEscape) {
         this.doesMethodEscape = doesMethodEscape;
-        return this;
     }
 
     public boolean doesMethodEscape() {
         return doesMethodEscape;
     }
 
-    public ClassNode addExtractedVariable(String extractedVariable) {
+    public void addExtractedVariable(String extractedVariable) {
         extractedVariables.add(extractedVariable);
-        return this;
-    }
-
-    public ClassNode addExtractedVariables(Collection<String> extractedVariables) {
-        this.extractedVariables.addAll(extractedVariables);
-        return this;
     }
 
     public boolean containsExtractedVariable(String extractedVariable) {
         return extractedVariables.contains(extractedVariable);
     }
 
-    public ClassNode removeExtractedVariable(String extractedVariable) {
-        extractedVariables.remove(extractedVariable);
-        return this;
-    }
-
-    public int getExtractedVariablesSize() {
-        return extractedVariables.size();
-    }
-
     public Set<String> getExtractedVariables() {
         return extractedVariables;
     }
 
-    public ClassNode clearExtractedVariables() {
-        extractedVariables.clear();
-        return this;
-    }
-    
-    public ClassNode addGetMethod(org.objectweb.asm.commons.Method getMethod) {
-        getMethods.add(getMethod);
-        return this;
-    }
-
-    public ClassNode addGetMethods(Collection<org.objectweb.asm.commons.Method> getMethods) {
-        this.getMethods.addAll(getMethods);
-        return this;
-    }
-
-    public ClassNode setGetMethod(int index, org.objectweb.asm.commons.Method getMethod) {
-        getMethods.set(index, getMethod);
-        return this;
-    }
-
-    public org.objectweb.asm.commons.Method getGetMethod(int index) {
-        return getMethods.get(index);
-    }
-
-    public ClassNode removeGetMethod(org.objectweb.asm.commons.Method getMethod) {
-        getMethods.remove(getMethod);
-        return this;
-    }
-
-    public ClassNode removeGetMethod(int index) {
-        getMethods.remove(index);
-        return this;
-    }
-
-    public int getGetMethodsSize() {
-        return getMethods.size();
-    }
-
     public List<org.objectweb.asm.commons.Method> getGetMethods() {
         return getMethods;
-    }
-
-    public ClassNode clearGetMethods() {
-        getMethods.clear();
-        return this;
-    }
-
-    @Override
-    public ClassNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

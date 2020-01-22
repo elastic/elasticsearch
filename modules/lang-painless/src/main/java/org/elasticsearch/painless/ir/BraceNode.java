@@ -21,40 +21,9 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-public class BraceNode extends PrefixNode {
-
-    /* ---- begin tree structure ---- */
-
-    @Override
-    public BraceNode setPrefixNode(ExpressionNode prefixNode) {
-        this.prefixNode = prefixNode;
-        return this;
-    }
-
-    @Override
-    public BraceNode setChildNode(ExpressionNode childNode) {
-        super.setChildNode(childNode);
-        return this;
-    }
-
-    @Override
-    public BraceNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public BraceNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+public class BraceNode extends BinaryNode {
 
     public BraceNode() {
         // do nothing
@@ -62,28 +31,28 @@ public class BraceNode extends PrefixNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefixNode.write(classWriter, methodWriter, globals);
-        childNode.write(classWriter, methodWriter, globals);
+        getLeftNode().write(classWriter, methodWriter, globals);
+        getRightNode().write(classWriter, methodWriter, globals);
     }
 
     @Override
     protected int accessElementCount() {
-        return childNode.accessElementCount();
+        return getRightNode().accessElementCount();
     }
 
     @Override
     protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefixNode.write(classWriter, methodWriter, globals);
-        childNode.setup(classWriter, methodWriter, globals);
+        getLeftNode().write(classWriter, methodWriter, globals);
+        getRightNode().setup(classWriter, methodWriter, globals);
     }
 
     @Override
     protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        childNode.load(classWriter, methodWriter, globals);
+        getRightNode().load(classWriter, methodWriter, globals);
     }
 
     @Override
     protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        childNode.store(classWriter, methodWriter, globals);
+        getRightNode().store(classWriter, methodWriter, globals);
     }
 }

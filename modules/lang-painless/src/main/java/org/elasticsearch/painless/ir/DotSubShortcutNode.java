@@ -21,48 +21,30 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
 public class DotSubShortcutNode extends ExpressionNode {
 
-    /* begin tree structure */
+    /* ---- begin node data ---- */
 
-    @Override
-    public DotSubShortcutNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private PainlessMethod setter;
+    private PainlessMethod getter;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected PainlessMethod setter;
-    protected PainlessMethod getter;
-
-    public DotSubShortcutNode setSetter(PainlessMethod setter) {
+    public void setSetter(PainlessMethod setter) {
         this.setter = setter;
-        return this;
     }
 
     public PainlessMethod getSetter() {
         return setter;
     }
 
-    public DotSubShortcutNode setGetter(PainlessMethod getter) {
+    public void setGetter(PainlessMethod getter) {
         this.getter = getter;
-        return this;
     }
 
     public PainlessMethod getGetter() {
         return getter;
-    }
-
-
-    @Override
-    public DotSubShortcutNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

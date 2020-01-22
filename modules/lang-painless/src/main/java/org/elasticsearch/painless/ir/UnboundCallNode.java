@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -31,123 +30,65 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
-import java.util.Collection;
-
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 public class UnboundCallNode extends ArgumentsNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public UnboundCallNode addArgumentNode(ExpressionNode argumentNode) {
-        super.addArgumentNode(argumentNode);
-        return this;
-    }
+    private LocalFunction localFunction;
+    private PainlessMethod importedMethod;
+    private PainlessClassBinding classBinding;
+    private int classBindingOffset;
+    private PainlessInstanceBinding instanceBinding;
+    private String bindingName;
 
-    @Override
-    public UnboundCallNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
-        super.addArgumentNodes(argumentNodes);
-        return this;
-    }
-
-    @Override
-    public UnboundCallNode setArgumentNode(int index, ExpressionNode argumentNode) {
-        super.setArgumentNode(index, argumentNode);
-        return this;
-    }
-
-    @Override
-    public UnboundCallNode removeArgumentNode(ExpressionNode argumentNode) {
-        super.removeArgumentNode(argumentNode);
-        return this;
-    }
-
-    @Override
-    public UnboundCallNode removeArgumentNode(int index) {
-        super.removeArgumentNode(index);
-        return this;
-    }
-
-    @Override
-    public UnboundCallNode clearArgumentNodes() {
-        super.clearArgumentNodes();
-        return this;
-    }
-
-    @Override
-    public UnboundCallNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected LocalFunction localFunction;
-    protected PainlessMethod importedMethod;
-    protected PainlessClassBinding classBinding;
-    protected int classBindingOffset;
-    protected PainlessInstanceBinding instanceBinding;
-    protected String bindingName;
-
-    public UnboundCallNode setLocalFunction(LocalFunction localFunction) {
+    public void setLocalFunction(LocalFunction localFunction) {
         this.localFunction = localFunction;
-        return this;
     }
 
     public LocalFunction getLocalFunction() {
         return localFunction;
     }
 
-    public UnboundCallNode setImportedMethod(PainlessMethod importedMethod) {
+    public void setImportedMethod(PainlessMethod importedMethod) {
         this.importedMethod = importedMethod;
-        return this;
     }
 
     public PainlessMethod getImportedMethod() {
         return importedMethod;
     }
 
-    public UnboundCallNode setClassBinding(PainlessClassBinding classBinding) {
+    public void setClassBinding(PainlessClassBinding classBinding) {
         this.classBinding = classBinding;
-        return this;
     }
 
     public PainlessClassBinding getClassBinding() {
         return classBinding;
     }
 
-    public UnboundCallNode setClassBindingOffset(int classBindingOffset) {
+    public void setClassBindingOffset(int classBindingOffset) {
         this.classBindingOffset = classBindingOffset;
-        return this;
     }
 
     public int getClassBindingOffset() {
         return classBindingOffset;
     }
 
-    public UnboundCallNode setInstanceBinding(PainlessInstanceBinding instanceBinding) {
+    public void setInstanceBinding(PainlessInstanceBinding instanceBinding) {
         this.instanceBinding = instanceBinding;
-        return this;
     }
 
     public PainlessInstanceBinding getInstanceBinding() {
         return instanceBinding;
     }
 
-    public UnboundCallNode setBindingName(String bindingName) {
+    public void setBindingName(String bindingName) {
         this.bindingName = bindingName;
-        return this;
     }
 
     public String getBindingName() {
         return bindingName;
-    }
-
-    @Override
-    public UnboundCallNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -161,13 +102,13 @@ public class UnboundCallNode extends ArgumentsNode {
         methodWriter.writeDebugInfo(location);
 
         if (localFunction != null) {
-            for (ExpressionNode argumentNode : argumentNodes) {
+            for (ExpressionNode argumentNode : getArgumentNodes()) {
                 argumentNode.write(classWriter, methodWriter, globals);
             }
 
             methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
         } else if (importedMethod != null) {
-            for (ExpressionNode argumentNode : argumentNodes) {
+            for (ExpressionNode argumentNode : getArgumentNodes()) {
                 argumentNode.write(classWriter, methodWriter, globals);
             }
 
@@ -191,7 +132,7 @@ public class UnboundCallNode extends ArgumentsNode {
             }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                argumentNodes.get(argument).write(classWriter, methodWriter, globals);
+                getArgumentNodes().get(argument).write(classWriter, methodWriter, globals);
             }
 
             methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
@@ -202,7 +143,7 @@ public class UnboundCallNode extends ArgumentsNode {
             methodWriter.getField(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                argumentNodes.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
+                getArgumentNodes().get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
@@ -213,7 +154,7 @@ public class UnboundCallNode extends ArgumentsNode {
             methodWriter.getStatic(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                argumentNodes.get(argument).write(classWriter, methodWriter, globals);
+                getArgumentNodes().get(argument).write(classWriter, methodWriter, globals);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));

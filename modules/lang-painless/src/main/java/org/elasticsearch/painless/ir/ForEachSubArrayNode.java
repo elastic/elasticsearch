@@ -22,108 +22,66 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class ForEachSubArrayNode extends LoopNode {
 
-    /* ---- being tree structure ---- */
-
-    protected TypeNode indexedTypeNode;
-
-    public ForEachSubArrayNode setIndexedTypeNode(TypeNode indexedTypeNode) {
-        this.indexedTypeNode = indexedTypeNode;
-        return this;
-    }
-
-    public TypeNode getIndexedTypeNode() {
-        return indexedTypeNode;
-    }
-
-    public Class<?> getIndexedType() {
-        return indexedTypeNode.getType();
-    }
-
-    public String getIndexedCanonicalTypeName() {
-        return indexedTypeNode.getCanonicalTypeName();
-    }
-
-    @Override
-    public ForEachSubArrayNode setConditionNode(ExpressionNode conditionNode) {
-        super.setConditionNode(conditionNode);
-        return this;
-    }
-
-    @Override
-    public ForEachSubArrayNode setBlockNode(BlockNode blockNode) {
-        super.setBlockNode(blockNode);
-        return this;
-    }
-
     /* ---- begin node data ---- */
 
-    protected Variable variable;
-    protected PainlessCast cast;
-    protected Variable array;
-    protected Variable index;
+    private Variable variable;
+    private PainlessCast cast;
+    private Variable array;
+    private Variable index;
+    private Class<?> indexedType;
 
-    public ForEachSubArrayNode setVariable(Variable variable) {
+    public void setVariable(Variable variable) {
         this.variable = variable;
-        return this;
     }
 
     public Variable getVariable() {
-        return this.variable;
+        return variable;
     }
 
-    public ForEachSubArrayNode setCast(PainlessCast cast) {
+    public void setCast(PainlessCast cast) {
         this.cast = cast;
-        return this;
     }
 
     public PainlessCast getCast() {
         return cast;
     }
 
-    public ForEachSubArrayNode setArray(Variable array) {
+    public void setArray(Variable array) {
         this.array = array;
-        return this;
     }
 
     public Variable getArray() {
-        return this.array;
+        return array;
     }
 
-    public ForEachSubArrayNode setIndex(Variable index) {
+    public void setIndex(Variable index) {
         this.index = index;
-        return this;
     }
 
     public Variable getIndex() {
-        return this.index;
+        return index;
+    }
+    
+    public void setIndexedType(Class<?> indexedType) {
+        this.indexedType = indexedType;
     }
 
-    @Override
-    public ForEachSubArrayNode setContinuous(boolean isContinuous) {
-        super.setContinuous(isContinuous);
-        return this;
+    public Class<?> getIndexedType() {
+        return indexedType;
     }
 
-    @Override
-    public ForEachSubArrayNode setLoopCounter(Variable loopCounter) {
-        super.setLoopCounter(loopCounter);
-        return this;
+    public String getIndexedCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(indexedType);
     }
-
-    @Override
-    public ForEachSubArrayNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
+    
     /* ---- end node data ---- */
 
     public ForEachSubArrayNode() {
@@ -134,7 +92,7 @@ public class ForEachSubArrayNode extends LoopNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
-        conditionNode.write(classWriter, methodWriter, globals);
+        getConditionNode().write(classWriter, methodWriter, globals);
         methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
         methodWriter.push(-1);
         methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
@@ -156,13 +114,13 @@ public class ForEachSubArrayNode extends LoopNode {
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), blockNode.getStatementCount(), location);
+        if (getLoopCounter() != null) {
+            methodWriter.writeLoopCounter(getLoopCounter().getSlot(), getBlockNode().getStatementCount(), location);
         }
 
-        blockNode.continueLabel = begin;
-        blockNode.breakLabel = end;
-        blockNode.write(classWriter, methodWriter, globals);
+        getBlockNode().continueLabel = begin;
+        getBlockNode().breakLabel = end;
+        getBlockNode().write(classWriter, methodWriter, globals);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

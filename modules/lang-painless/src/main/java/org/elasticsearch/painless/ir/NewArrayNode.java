@@ -21,74 +21,20 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Collection;
 
 public class NewArrayNode extends ArgumentsNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public NewArrayNode addArgumentNode(ExpressionNode argumentNode) {
-        super.addArgumentNode(argumentNode);
-        return this;
-    }
+    private boolean initialize;
 
-    @Override
-    public NewArrayNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
-        super.addArgumentNodes(argumentNodes);
-        return this;
-    }
-
-    @Override
-    public NewArrayNode setArgumentNode(int index, ExpressionNode argumentNode) {
-        super.setArgumentNode(index, argumentNode);
-        return this;
-    }
-
-    @Override
-    public NewArrayNode removeArgumentNode(ExpressionNode argumentNode) {
-        super.removeArgumentNode(argumentNode);
-        return this;
-    }
-
-    @Override
-    public NewArrayNode removeArgumentNode(int index) {
-        super.removeArgumentNode(index);
-        return this;
-    }
-
-    @Override
-    public NewArrayNode clearArgumentNodes() {
-        super.clearArgumentNodes();
-        return this;
-    }
-
-    @Override
-    public NewArrayNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected boolean initialize;
-
-    public NewArrayNode setInitialize(boolean initialize) {
+    public void setInitialize(boolean initialize) {
         this.initialize = initialize;
-        return this;
     }
 
     public boolean getInitialize() {
         return initialize;
-    }
-
-    @Override
-    public NewArrayNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -102,26 +48,26 @@ public class NewArrayNode extends ArgumentsNode {
         methodWriter.writeDebugInfo(location);
 
         if (initialize) {
-            methodWriter.push(argumentNodes.size());
-            methodWriter.newArray(MethodWriter.getType(getType().getComponentType()));
+            methodWriter.push(getArgumentNodes().size());
+            methodWriter.newArray(MethodWriter.getType(getExpressionType().getComponentType()));
 
-            for (int index = 0; index < argumentNodes.size(); ++index) {
-                ExpressionNode argumentNode = argumentNodes.get(index);
+            for (int index = 0; index < getArgumentNodes().size(); ++index) {
+                ExpressionNode argumentNode = getArgumentNodes().get(index);
 
                 methodWriter.dup();
                 methodWriter.push(index);
                 argumentNode.write(classWriter, methodWriter, globals);
-                methodWriter.arrayStore(MethodWriter.getType(getType().getComponentType()));
+                methodWriter.arrayStore(MethodWriter.getType(getExpressionType().getComponentType()));
             }
         } else {
-            for (ExpressionNode argumentNode : argumentNodes) {
+            for (ExpressionNode argumentNode : getArgumentNodes()) {
                 argumentNode.write(classWriter, methodWriter, globals);
             }
 
-            if (argumentNodes.size() > 1) {
-                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(getType()).getDescriptor(), argumentNodes.size());
+            if (getArgumentNodes().size() > 1) {
+                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(getExpressionType()).getDescriptor(), getArgumentNodes().size());
             } else {
-                methodWriter.newArray(MethodWriter.getType(getType().getComponentType()));
+                methodWriter.newArray(MethodWriter.getType(getExpressionType().getComponentType()));
             }
         }
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -30,36 +29,26 @@ public class CatchNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected DeclarationNode declarationNode;
-    protected BlockNode blockNode;
+    private DeclarationNode declarationNode;
+    private BlockNode blockNode;
 
-    public CatchNode setDeclarationNode(DeclarationNode declarationNode) {
+    public void setDeclarationNode(DeclarationNode declarationNode) {
         this.declarationNode = declarationNode;
-        return this;
     }
 
     public DeclarationNode getDeclarationNode() {
         return declarationNode;
     }
 
-    public CatchNode setBlockNode(BlockNode blockNode) {
+    public void setBlockNode(BlockNode blockNode) {
         this.blockNode = blockNode;
-        return this;
     }
 
     public BlockNode getBlockNode() {
         return blockNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public CatchNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public CatchNode() {
         // do nothing

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.objectweb.asm.Label;
@@ -29,43 +28,16 @@ import org.objectweb.asm.Opcodes;
 
 public class BooleanNode extends BinaryNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public BooleanNode setLeftNode(ExpressionNode leftNode) {
-        super.setLeftNode(leftNode);
-        return this;
-    }
+    private Operation operation;
 
-    @Override
-    public BooleanNode setRightNode(ExpressionNode rightNode) {
-        super.setRightNode(rightNode);
-        return this;
-    }
-
-    @Override
-    public BooleanNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected Operation operation;
-
-    public BooleanNode setOperation(Operation operation) {
+    public void setOperation(Operation operation) {
         this.operation = operation;
-        return this;
     }
 
     public Operation getOperation() {
         return operation;
-    }
-
-    @Override
-    public BooleanNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -82,9 +54,9 @@ public class BooleanNode extends BinaryNode {
             Label fals = new Label();
             Label end = new Label();
 
-            leftNode.write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            rightNode.write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(true);
@@ -97,9 +69,9 @@ public class BooleanNode extends BinaryNode {
             Label fals = new Label();
             Label end = new Label();
 
-            leftNode.write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            rightNode.write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.mark(tru);
@@ -110,7 +82,7 @@ public class BooleanNode extends BinaryNode {
             methodWriter.mark(end);
         } else {
             throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
-                    "for type [" + getCanonicalTypeName() + "]");
+                    "for type [" + getExpressionCanonicalTypeName() + "]");
         }
     }
 }

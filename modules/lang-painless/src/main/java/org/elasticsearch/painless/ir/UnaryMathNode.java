@@ -22,9 +22,9 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -32,76 +32,47 @@ import org.objectweb.asm.Type;
 
 public class UnaryMathNode extends UnaryNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    protected TypeNode unaryTypeNode;
+    private Operation operation;
+    private Class<?> unaryType;
+    private boolean cat;
+    private boolean originallyExplicit; // record whether there was originally an explicit cast
 
-    public UnaryMathNode setUnaryTypeNode(TypeNode unaryTypeNode) {
-        this.unaryTypeNode = unaryTypeNode;
-        return this;
-    }
-
-    public TypeNode getUnaryTypeNode() {
-        return unaryTypeNode;
-    }
-
-    public Class<?> getUnaryType() {
-        return unaryTypeNode.getType();
-    }
-
-    public String getUnaryCanonicalTypeName() {
-        return unaryTypeNode.getCanonicalTypeName();
-    }
-    
-    @Override
-    public UnaryMathNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    @Override
-    public UnaryMathNode setChildNode(ExpressionNode childNode) {
-        super.setChildNode(childNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected Operation operation;
-    protected boolean cat;
-    protected boolean originallyExplicit; // record whether there was originally an explicit cast
-
-    public UnaryMathNode setOperation(Operation operation) {
+    public void setOperation(Operation operation) {
         this.operation = operation;
-        return this;
     }
 
     public Operation getOperation() {
         return operation;
     }
 
-    public UnaryMathNode setCat(boolean cat) {
+    public void setUnaryType(Class<?> unaryType) {
+        this.unaryType = unaryType;
+    }
+
+    public Class<?> getUnaryType() {
+        return unaryType;
+    }
+
+    public String getUnaryCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(unaryType);
+    }
+
+    public void setCat(boolean cat) {
         this.cat = cat;
-        return this;
     }
 
     public boolean getCat() {
         return cat;
     }
 
-    public UnaryMathNode setOriginallExplicit(boolean originallyExplicit) {
+    public void setOriginallExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
-        return this;
     }
 
     public boolean getOriginallyExplicit() {
         return originallyExplicit;
-    }
-
-    @Override
-    public UnaryMathNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -118,7 +89,7 @@ public class UnaryMathNode extends UnaryNode {
             Label fals = new Label();
             Label end = new Label();
 
-            childNode.write(classWriter, methodWriter, globals);
+            getChildNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(false);
@@ -127,7 +98,7 @@ public class UnaryMathNode extends UnaryNode {
             methodWriter.push(true);
             methodWriter.mark(end);
         } else {
-            childNode.write(classWriter, methodWriter, globals);
+            getChildNode().write(classWriter, methodWriter, globals);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.
@@ -137,8 +108,8 @@ public class UnaryMathNode extends UnaryNode {
                 defFlags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
             }
 
-            Type actualType = MethodWriter.getType(getType());
-            Type childType = MethodWriter.getType(childNode.getType());
+            Type actualType = MethodWriter.getType(getExpressionType());
+            Type childType = MethodWriter.getType(getChildNode().getExpressionType());
 
             if (operation == Operation.BWNOT) {
                 if (getUnaryType() == def.class) {
@@ -151,7 +122,7 @@ public class UnaryMathNode extends UnaryNode {
                         methodWriter.push(-1L);
                     } else {
                         throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                                "for type [" + getCanonicalTypeName() + "]");
+                                "for type [" + getExpressionCanonicalTypeName() + "]");
                     }
 
                     methodWriter.math(MethodWriter.XOR, actualType);
@@ -170,7 +141,7 @@ public class UnaryMathNode extends UnaryNode {
                 }
             } else {
                 throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                        "for type [" + getCanonicalTypeName() + "]");
+                        "for type [" + getExpressionCanonicalTypeName() + "]");
             }
         }
     }

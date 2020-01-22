@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -30,38 +29,17 @@ public class IfElseNode extends ConditionNode {
 
     /* ---- begin tree structure ---- */
 
-    protected BlockNode elseBlockNode;
+    private BlockNode elseBlockNode;
 
-    public IfElseNode setElseBlockNode(BlockNode elseBlockNode) {
+    public void setElseBlockNode(BlockNode elseBlockNode) {
         this.elseBlockNode = elseBlockNode;
-        return this;
     }
 
     public BlockNode getElseBlockNode() {
         return elseBlockNode;
     }
 
-    @Override
-    public IfElseNode setConditionNode(ExpressionNode conditionNode) {
-        super.setConditionNode(conditionNode);
-        return this;
-    }
-
-    @Override
-    public IfElseNode setBlockNode(BlockNode blockNode) {
-        this.blockNode = blockNode;
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public IfElseNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public IfElseNode() {
         // do nothing
@@ -74,14 +52,14 @@ public class IfElseNode extends ConditionNode {
         Label fals = new Label();
         Label end = new Label();
 
-        conditionNode.write(classWriter, methodWriter, globals);
+        getConditionNode().write(classWriter, methodWriter, globals);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-        blockNode.continueLabel = continueLabel;
-        blockNode.breakLabel = breakLabel;
-        blockNode.write(classWriter, methodWriter, globals);
+        getBlockNode().continueLabel = continueLabel;
+        getBlockNode().breakLabel = breakLabel;
+        getBlockNode().write(classWriter, methodWriter, globals);
 
-        if (blockNode.doAllEscape() == false) {
+        if (getBlockNode().doAllEscape() == false) {
             methodWriter.goTo(end);
         }
 

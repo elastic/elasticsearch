@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -35,19 +34,12 @@ public class MapInitializationNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
 
-    protected final List<ExpressionNode> keyNodes = new ArrayList<>();
-    protected final List<ExpressionNode> valueNodes = new ArrayList<>();
+    private final List<ExpressionNode> keyNodes = new ArrayList<>();
+    private final List<ExpressionNode> valueNodes = new ArrayList<>();
 
-    public MapInitializationNode addArgumentNode(ExpressionNode keyNode, ExpressionNode valueNode) {
+    public void addArgumentNode(ExpressionNode keyNode, ExpressionNode valueNode) {
         keyNodes.add(keyNode);
         valueNodes.add(valueNode);
-        return this;
-    }
-
-    public MapInitializationNode setArgumentNode(int index, ExpressionNode keyNode, ExpressionNode valueNode) {
-        keyNodes.set(index, keyNode);
-        valueNodes.set(index, valueNode);
-        return this;
     }
 
     public ExpressionNode getKeyNode(int index) {
@@ -56,19 +48,6 @@ public class MapInitializationNode extends ExpressionNode {
 
     public ExpressionNode getValueNode(int index) {
         return valueNodes.get(index);
-    }
-
-    public ExpressionNode[] getArgumentNode(int index) {
-        return new ExpressionNode[] {
-                keyNodes.get(index),
-                valueNodes.get(index)
-        };
-    }
-
-    public MapInitializationNode removeArgumentNode(int index) {
-        keyNodes.remove(index);
-        valueNodes.remove(index);
-        return this;
     }
 
     public int getArgumentsSize() {
@@ -83,45 +62,25 @@ public class MapInitializationNode extends ExpressionNode {
         return valueNodes;
     }
 
-    public MapInitializationNode clearArgumentNodes() {
-        keyNodes.clear();
-        valueNodes.clear();
-        return this;
-    }
-
-    @Override
-    public MapInitializationNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
     /* ---- end tree structure, begin node data ---- */
 
-    protected PainlessConstructor constructor;
-    protected PainlessMethod method;
+    private PainlessConstructor constructor;
+    private PainlessMethod method;
 
-    public MapInitializationNode setConstructor(PainlessConstructor constructor) {
+    public void setConstructor(PainlessConstructor constructor) {
         this.constructor = constructor;
-        return this;
     }
 
     public PainlessConstructor getConstructor() {
         return constructor;
     }
 
-    public MapInitializationNode setMethod(PainlessMethod method) {
+    public void setMethod(PainlessMethod method) {
         this.method = method;
-        return this;
     }
 
     public PainlessMethod getMethod() {
         return method;
-    }
-
-    @Override
-    public MapInitializationNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -134,7 +93,7 @@ public class MapInitializationNode extends ExpressionNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        methodWriter.newInstance(MethodWriter.getType(getType()));
+        methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
         methodWriter.dup();
         methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));

@@ -19,75 +19,24 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.Location;
-
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public abstract class ArgumentsNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
 
-    protected List<ExpressionNode> argumentNodes = new ArrayList<>();
+    private final List<ExpressionNode> argumentNodes = new ArrayList<>();
 
-    public ArgumentsNode addArgumentNode(ExpressionNode argumentNode) {
+    public void addArgumentNode(ExpressionNode argumentNode) {
         argumentNodes.add(argumentNode);
-        return this;
     }
 
-    public ArgumentsNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
-        this.argumentNodes.addAll(argumentNodes);
-        return this;
-    }
-
-    public ArgumentsNode setArgumentNode(int index, ExpressionNode argumentNode) {
-        argumentNodes.set(index, argumentNode);
-        return this;
-    }
-
-    public ExpressionNode getArgumentNode(int index) {
-        return argumentNodes.get(index);
-    }
-
-    public ArgumentsNode removeArgumentNode(ExpressionNode argumentNode) {
-        argumentNodes.remove(argumentNode);
-        return this;
-    }
-
-    public ArgumentsNode removeArgumentNode(int index) {
-        argumentNodes.remove(index);
-        return this;
-    }
-
-    public int getArgumentsSize() {
-        return argumentNodes.size();
-    }
-
-    public List<ExpressionNode> getArgumentsNodes() {
+    public List<ExpressionNode> getArgumentNodes() {
         return argumentNodes;
     }
 
-    public ArgumentsNode clearArgumentNodes() {
-        argumentNodes.clear();
-        return this;
-    }
-
-    @Override
-    public ArgumentsNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public ArgumentsNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure */
 
     public ArgumentsNode() {
         // do nothing

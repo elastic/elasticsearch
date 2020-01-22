@@ -19,48 +19,30 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.Location;
-
 public abstract class BinaryNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode leftNode;
-    protected ExpressionNode rightNode;
+    private ExpressionNode leftNode;
+    private ExpressionNode rightNode;
 
-    public BinaryNode setLeftNode(ExpressionNode leftNode) {
+    public void setLeftNode(ExpressionNode leftNode) {
         this.leftNode = leftNode;
-        return this;
     }
 
     public ExpressionNode getLeftNode() {
         return leftNode;
     }
 
-    public BinaryNode setRightNode(ExpressionNode rightNode) {
+    public void setRightNode(ExpressionNode rightNode) {
         this.rightNode = rightNode;
-        return this;
     }
 
     public ExpressionNode getRightNode() {
         return rightNode;
     }
 
-    @Override
-    public BinaryNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public BinaryNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public BinaryNode() {
         // do nothing

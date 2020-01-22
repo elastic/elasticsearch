@@ -21,20 +21,9 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class BreakNode extends StatementNode {
-
-    /* ---- begin node data ---- */
-
-    @Override
-    public BreakNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
 
     public BreakNode() {
         // do nothing

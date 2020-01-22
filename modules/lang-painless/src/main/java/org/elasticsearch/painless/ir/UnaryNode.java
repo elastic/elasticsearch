@@ -19,38 +19,21 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.Location;
-
 public abstract class UnaryNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode childNode;
+    private ExpressionNode childNode;
 
-    public UnaryNode setChildNode(ExpressionNode childNode) {
+    public void setChildNode(ExpressionNode childNode) {
         this.childNode = childNode;
-        return this;
     }
 
     public ExpressionNode getChildNode() {
         return childNode;
     }
 
-    @Override
-    public UnaryNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public UnaryNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public UnaryNode() {
         // do nothing

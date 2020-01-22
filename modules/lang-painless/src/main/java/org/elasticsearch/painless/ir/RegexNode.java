@@ -22,7 +22,6 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 
@@ -30,51 +29,34 @@ import java.util.regex.Pattern;
 
 public class RegexNode extends ExpressionNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public RegexNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+    private String pattern;
+    private int flags;
+    private Constant constant;
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String pattern;
-    protected int flags;
-    protected Constant constant;
-
-    public RegexNode setPattern(String pattern) {
+    public void setPattern(String pattern) {
         this.pattern = pattern;
-        return this;
     }
 
     public String getPattern() {
         return pattern;
     }
 
-    public RegexNode setFlags(int flags) {
+    public void setFlags(int flags) {
         this.flags = flags;
-        return this;
     }
 
     public int getFlags() {
         return flags;
     }
 
-    public RegexNode setConstant(Constant constant) {
+    public void setConstant(Constant constant) {
         this.constant = constant;
-        return this;
     }
 
     public Object getConstant() {
         return constant;
-    }
-
-    @Override
-    public RegexNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

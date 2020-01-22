@@ -21,88 +21,44 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class BlockNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected List<StatementNode> statementNodes = new ArrayList<>();
+    private final List<StatementNode> statementNodes = new ArrayList<>();
 
-    public BlockNode addStatementNode(StatementNode statementNode) {
+    public void addStatementNode(StatementNode statementNode) {
         statementNodes.add(statementNode);
-        return this;
-    }
-
-    public BlockNode addStatementNodes(Collection<StatementNode> statementNodes) {
-        this.statementNodes.addAll(statementNodes);
-        return this;
-    }
-
-    public BlockNode setStatementNode(int index, StatementNode statementNode) {
-        statementNodes.set(index, statementNode);
-        return this;
-    }
-
-    public StatementNode getStatementNode(int index) {
-        return statementNodes.get(index);
-    }
-
-    public BlockNode removeStatementNode(StatementNode statementNode) {
-        statementNodes.remove(statementNode);
-        return this;
-    }
-
-    public BlockNode removeStatementNode(int index) {
-        statementNodes.remove(index);
-        return this;
-    }
-
-    public int getStatementsSize() {
-        return statementNodes.size();
     }
 
     public List<StatementNode> getStatementsNodes() {
         return statementNodes;
     }
 
-    public BlockNode clearStatementNodes() {
-        statementNodes.clear();
-        return this;
-    }
-
     /* ---- end tree structure, begin node data ---- */
 
-    protected boolean doAllEscape;
-    protected int statementCount;
+    private boolean doAllEscape;
+    private int statementCount;
 
-    public BlockNode setAllEscape(boolean doAllEscape) {
+    public void setAllEscape(boolean doAllEscape) {
         this.doAllEscape = doAllEscape;
-        return this;
     }
 
     public boolean doAllEscape() {
         return doAllEscape;
     }
 
-    public BlockNode setStatementCount(int statementCount) {
+    public void setStatementCount(int statementCount) {
         this.statementCount = statementCount;
-        return this;
     }
 
     public int getStatementCount() {
         return statementCount;
-    }
-
-    @Override
-    public BlockNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */

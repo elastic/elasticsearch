@@ -21,70 +21,26 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public final class DeclarationBlockNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected List<DeclarationNode> declarationNodes = new ArrayList<>();
+    private final List<DeclarationNode> declarationNodes = new ArrayList<>();
 
-    public DeclarationBlockNode addDeclarationNode(DeclarationNode declarationNode) {
+    public void addDeclarationNode(DeclarationNode declarationNode) {
         declarationNodes.add(declarationNode);
-        return this;
-    }
-
-    public DeclarationBlockNode addDeclarationNodes(Collection<DeclarationNode> declarationNodes) {
-        this.declarationNodes.addAll(declarationNodes);
-        return this;
-    }
-    
-    public DeclarationBlockNode setDeclarationNode(int index, DeclarationNode declarationNode) {
-        declarationNodes.set(index, declarationNode);
-        return this;
-    }
-
-    public DeclarationNode getDeclarationNode(int index) {
-        return declarationNodes.get(index);
-    }
-
-    public DeclarationBlockNode removeDeclarationNode(DeclarationNode declarationNode) {
-        declarationNodes.remove(declarationNode);
-        return this;
-    }
-
-    public DeclarationBlockNode removeDeclarationNode(int index) {
-        declarationNodes.remove(index);
-        return this;
-    }
-
-    public int getDeclarationsSize() {
-        return declarationNodes.size();
     }
 
     public List<DeclarationNode> getDeclarationsNodes() {
         return declarationNodes;
     }
 
-    public DeclarationBlockNode clearDeclarationNodes() {
-        declarationNodes.clear();
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public DeclarationBlockNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     public DeclarationBlockNode() {
         // do nothing

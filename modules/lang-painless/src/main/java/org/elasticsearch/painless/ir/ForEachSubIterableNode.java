@@ -23,7 +23,6 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -41,79 +40,43 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
  */
 public class ForEachSubIterableNode extends LoopNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    @Override
-    public ForEachSubIterableNode setConditionNode(ExpressionNode conditionNode) {
-        super.setConditionNode(conditionNode);
-        return this;
-    }
+    private Variable variable;
+    private PainlessCast cast;
+    private Variable iterator;
+    private PainlessMethod method;
 
-    @Override
-    public ForEachSubIterableNode setBlockNode(BlockNode blockNode) {
-        super.setBlockNode(blockNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    protected Variable variable;
-    protected PainlessCast cast;
-    protected Variable iterator;
-    protected PainlessMethod method;
-
-    public ForEachSubIterableNode setVariable(Variable variable) {
+    public void setVariable(Variable variable) {
         this.variable = variable;
-        return this;
     }
 
     public Variable getVariable() {
-        return this.variable;
+        return variable;
     }
 
-    public ForEachSubIterableNode setCast(PainlessCast cast) {
+    public void setCast(PainlessCast cast) {
         this.cast = cast;
-        return this;
     }
 
     public PainlessCast getCast() {
         return cast;
     }
 
-    public ForEachSubIterableNode setIterator(Variable iterator) {
+    public void setIterator(Variable iterator) {
         this.iterator = iterator;
-        return this;
     }
 
     public Variable getIterator() {
-        return this.iterator;
+        return iterator;
     }
 
-    public ForEachSubIterableNode setMethod(PainlessMethod method) {
+    public void setMethod(PainlessMethod method) {
         this.method = method;
-        return this;
     }
 
     public PainlessMethod getMethod() {
         return method;
-    }
-
-    @Override
-    public ForEachSubIterableNode setContinuous(boolean isContinuous) {
-        super.setContinuous(isContinuous);
-        return this;
-    }
-
-    @Override
-    public ForEachSubIterableNode setLoopCounter(Variable loopCounter) {
-        super.setLoopCounter(loopCounter);
-        return this;
-    }
-
-    @Override
-    public ForEachSubIterableNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -126,7 +89,7 @@ public class ForEachSubIterableNode extends LoopNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
-        conditionNode.write(classWriter, methodWriter, globals);
+        getConditionNode().write(classWriter, methodWriter, globals);
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
@@ -152,13 +115,13 @@ public class ForEachSubIterableNode extends LoopNode {
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), blockNode.getStatementCount(), location);
+        if (getLoopCounter() != null) {
+            methodWriter.writeLoopCounter(getLoopCounter().getSlot(), getBlockNode().getStatementCount(), location);
         }
 
-        blockNode.continueLabel = begin;
-        blockNode.breakLabel = end;
-        blockNode.write(classWriter, methodWriter, globals);
+        getBlockNode().continueLabel = begin;
+        getBlockNode().breakLabel = end;
+        getBlockNode().write(classWriter, methodWriter, globals);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

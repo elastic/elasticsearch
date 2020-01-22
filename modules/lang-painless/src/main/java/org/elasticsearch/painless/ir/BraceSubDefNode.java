@@ -22,35 +22,10 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 public class BraceSubDefNode extends UnaryNode {
-
-    /* ---- begin tree structure ---- */
-
-    @Override
-    public BraceSubDefNode setChildNode(ExpressionNode childNode) {
-        super.setChildNode(childNode);
-        return this;
-    }
-
-    @Override
-    public BraceSubDefNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public BraceSubDefNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
 
     public BraceSubDefNode() {
         // do nothing
@@ -70,9 +45,9 @@ public class BraceSubDefNode extends UnaryNode {
     @Override
     protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.dup();
-        childNode.write(classWriter, methodWriter, globals);
-        Type methodType = Type.getMethodType(
-                MethodWriter.getType(childNode.getType()), Type.getType(Object.class), MethodWriter.getType(childNode.getType()));
+        getChildNode().write(classWriter, methodWriter, globals);
+        Type methodType = Type.getMethodType(MethodWriter.getType(
+                getChildNode().getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getChildNode().getExpressionType()));
         methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
     }
 
@@ -80,8 +55,8 @@ public class BraceSubDefNode extends UnaryNode {
     protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        Type methodType =
-                Type.getMethodType(MethodWriter.getType(getType()), Type.getType(Object.class), MethodWriter.getType(childNode.getType()));
+        Type methodType = Type.getMethodType(MethodWriter.getType(
+                getExpressionType()), Type.getType(Object.class), MethodWriter.getType(getChildNode().getExpressionType()));
         methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -90,7 +65,7 @@ public class BraceSubDefNode extends UnaryNode {
         methodWriter.writeDebugInfo(location);
 
         Type methodType = Type.getMethodType(Type.getType(void.class), Type.getType(Object.class),
-                MethodWriter.getType(childNode.getType()), MethodWriter.getType(getType()));
+                MethodWriter.getType(getChildNode().getExpressionType()), MethodWriter.getType(getExpressionType()));
         methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

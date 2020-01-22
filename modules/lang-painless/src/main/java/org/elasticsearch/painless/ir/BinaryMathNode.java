@@ -26,85 +26,64 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class BinaryMathNode extends ShiftNode {
-
-    /* ---- begin tree structure ---- */
-
-    protected TypeNode binaryTypeNode;
-
-    public BinaryMathNode setBinaryTypeNode(TypeNode binaryTypeNode) {
-        this.binaryTypeNode = binaryTypeNode;
-        return this;
-    }
-
-    public TypeNode getBinaryTypeNode() {
-        return binaryTypeNode;
-    }
-
-    public Class<?> getBinaryType() {
-        return binaryTypeNode.getType();
-    }
-
-    public String getBinaryCanonicalTypeName() {
-        return binaryTypeNode.getCanonicalTypeName();
-    }
-
-    @Override
-    public BinaryMathNode setShiftTypeNode(TypeNode shiftTypeNode) {
-        super.setShiftTypeNode(shiftTypeNode);
-        return this;
-    }
-
-    @Override
-    public BinaryMathNode setLeftNode(ExpressionNode leftNode) {
-        super.setLeftNode(leftNode);
-        return this;
-    }
-
-    @Override
-    public BinaryMathNode setRightNode(ExpressionNode rightNode) {
-        super.setRightNode(rightNode);
-        return this;
-    }
-
-    @Override
-    public BinaryMathNode setTypeNode(TypeNode typeNode) {
-        super.setTypeNode(typeNode);
-        return this;
-    }
+public class BinaryMathNode extends BinaryNode {
 
     /* ---- begin node data ---- */
 
-    protected Operation operation;
-    protected boolean cat;
-    protected boolean originallyExplicit; // record whether there was originally an explicit cast
+    private Operation operation;
+    private Class<?> binaryType;
+    private Class<?> shiftType;
+    private boolean cat;
+    private boolean originallyExplicit; // record whether there was originally an explicit cast
 
-    public BinaryMathNode setOperation(Operation operation) {
+    public void setOperation(Operation operation) {
         this.operation = operation;
-        return this;
     }
 
     public Operation getOperation() {
         return operation;
     }
 
-    public BinaryMathNode setCat(boolean cat) {
+    public void setBinaryType(Class<?> binaryType) {
+        this.binaryType = binaryType;
+    }
+
+    public Class<?> getBinaryType() {
+        return binaryType;
+    }
+
+    public String getBinaryCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(binaryType);
+    }
+
+    public void setShiftType(Class<?> shiftType) {
+        this.shiftType = shiftType;
+    }
+
+    public Class<?> getShiftType() {
+        return shiftType;
+    }
+
+    public String getShiftCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(shiftType);
+    }
+
+    public void setCat(boolean cat) {
         this.cat = cat;
-        return this;
     }
 
     public boolean getCat() {
         return cat;
     }
 
-    public BinaryMathNode setOriginallExplicit(boolean originallyExplicit) {
+    public void setOriginallExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
-        return this;
     }
 
     public boolean getOriginallyExplicit() {
@@ -112,9 +91,8 @@ public class BinaryMathNode extends ShiftNode {
     }
 
     @Override
-    public BinaryMathNode setLocation(Location location) {
+    public void setLocation(Location location) {
         super.setLocation(location);
-        return this;
     }
 
     /* ---- end node data ---- */
@@ -128,28 +106,28 @@ public class BinaryMathNode extends ShiftNode {
         methodWriter.writeDebugInfo(location);
 
         if (getBinaryType() == String.class && operation == Operation.ADD) {
-            if (!cat) {
+            if (cat == false) {
                 methodWriter.writeNewStrings();
             }
 
-            leftNode.write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals);
 
-            if (!(leftNode instanceof BinaryMathNode) || !((BinaryMathNode)leftNode).cat) {
-                methodWriter.writeAppendStrings(leftNode.getType());
+            if (getLeftNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getLeftNode()).getCat() == false) {
+                methodWriter.writeAppendStrings(getLeftNode().getExpressionType());
             }
 
-            rightNode.write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals);
 
-            if (!(rightNode instanceof BinaryMathNode) || !((BinaryMathNode)rightNode).cat) {
-                methodWriter.writeAppendStrings(rightNode.getType());
+            if (getRightNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getRightNode()).getCat() == false) {
+                methodWriter.writeAppendStrings(getRightNode().getExpressionType());
             }
 
-            if (!cat) {
+            if (cat == false) {
                 methodWriter.writeToStrings();
             }
         } else if (operation == Operation.FIND || operation == Operation.MATCH) {
-            rightNode.write(classWriter, methodWriter, globals);
-            leftNode.write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals);
             methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
@@ -158,22 +136,23 @@ public class BinaryMathNode extends ShiftNode {
                 methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
                 throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
-                        "for type [" + getCanonicalTypeName() + "]");
+                        "for type [" + getExpressionCanonicalTypeName() + "]");
             }
         } else {
-            leftNode.write(classWriter, methodWriter, globals);
-            rightNode.write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals);
 
-            if (getBinaryType() == def.class || (getShiftType() != null && getShiftType() == def.class)) {
+            if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
                 // def calls adopt the wanted return value. if there was a narrowing cast,
                 // we need to flag that so that its done at runtime.
                 int flags = 0;
                 if (originallyExplicit) {
                     flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
                 }
-                methodWriter.writeDynamicBinaryInstruction(location, getType(), leftNode.getType(), rightNode.getType(), operation, flags);
+                methodWriter.writeDynamicBinaryInstruction(location,
+                        getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
             } else {
-                methodWriter.writeBinaryInstruction(location, getType(), operation);
+                methodWriter.writeBinaryInstruction(location, getExpressionType(), operation);
             }
         }
     }

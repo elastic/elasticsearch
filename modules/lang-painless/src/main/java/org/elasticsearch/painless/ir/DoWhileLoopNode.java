@@ -21,49 +21,11 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class DoWhileLoopNode extends LoopNode {
-
-    /* ---- begin tree structure ---- */
-
-    @Override
-    public DoWhileLoopNode setConditionNode(ExpressionNode conditionNode) {
-        super.setConditionNode(conditionNode);
-        return this;
-    }
-
-    @Override
-    public DoWhileLoopNode setBlockNode(BlockNode blockNode) {
-        super.setBlockNode(blockNode);
-        return this;
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public DoWhileLoopNode setContinuous(boolean isContinuous) {
-        super.setContinuous(isContinuous);
-        return this;
-    }
-
-    @Override
-    public DoWhileLoopNode setLoopCounter(Locals.Variable loopCounter) {
-        super.setLoopCounter(loopCounter);
-        return this;
-    }
-
-    @Override
-    public DoWhileLoopNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
-    }
-
-    /* ---- end node data ---- */
 
     public DoWhileLoopNode() {
         // do nothing
@@ -79,19 +41,19 @@ public class DoWhileLoopNode extends LoopNode {
 
         methodWriter.mark(start);
 
-        blockNode.continueLabel = begin;
-        blockNode.breakLabel = end;
-        blockNode.write(classWriter, methodWriter, globals);
+        getBlockNode().continueLabel = begin;
+        getBlockNode().breakLabel = end;
+        getBlockNode().write(classWriter, methodWriter, globals);
 
         methodWriter.mark(begin);
 
-        if (!isContinuous) {
-            conditionNode.write(classWriter, methodWriter, globals);
+        if (isContinuous() == false) {
+            getConditionNode().write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, blockNode.getStatementCount()), location);
+        if (getLoopCounter() != null) {
+            methodWriter.writeLoopCounter(getLoopCounter().getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
         }
 
         methodWriter.goTo(start);

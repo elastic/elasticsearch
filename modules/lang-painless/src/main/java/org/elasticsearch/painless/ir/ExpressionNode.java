@@ -19,37 +19,24 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 public abstract class ExpressionNode extends IRNode {
 
-    /* ---- begin tree structure ---- */
+    /* ---- begin node data ---- */
 
-    protected TypeNode typeNode;
+    private Class<?> expressionType;
 
-    public ExpressionNode setTypeNode(TypeNode typeNode) {
-        this.typeNode = typeNode;
-        return this;
+    public void setExpressionType(Class<?> expressionType) {
+        this.expressionType = expressionType;
     }
 
-    public TypeNode getTypeNode() {
-        return typeNode;
+    public Class<?> getExpressionType() {
+        return expressionType;
     }
 
-    public Class<?> getType() {
-        return typeNode.getType();
-    }
-
-    public String getCanonicalTypeName() {
-        return typeNode.getCanonicalTypeName();
-    }
-
-    /* ---- end tree structure, begin node data ---- */
-
-    @Override
-    public ExpressionNode setLocation(Location location) {
-        super.setLocation(location);
-        return this;
+    public String getExpressionCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(expressionType);
     }
 
     /* ---- end node data ---- */

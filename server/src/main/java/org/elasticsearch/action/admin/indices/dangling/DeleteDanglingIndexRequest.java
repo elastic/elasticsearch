@@ -49,15 +49,6 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.indexUUID == null) {
-            ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("No index UUID specified");
-            return e;
-        }
-
-        // acceptDataLoss is validated later in the transport action, so that the API call can
-        // be made to check that the UUID exists.
-
         return null;
     }
 

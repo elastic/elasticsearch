@@ -244,28 +244,6 @@ public class InferenceIngestIT extends ESRestTestCase {
         return request;
     }
 
-    public void testSimulateBasic() throws IOException {
-        String source = "{\n" +
-            "  \"pipeline\": {\n" +
-            "    \"processors\": [\n" +
-            "      {\n" +
-            "        \"set\": {\n" +
-            "          \"field\": \"my_field\",\n" +
-            "          \"value\": \"stuff\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    ]\n" +
-            "  },\n" +
-            "  \"docs\": [\n" +
-            "    {\"_source\": {\n" +
-            "      \"text\": \"this is some plain text.\"\n" +
-            "    }}]\n" +
-            "}";
-
-        Response response = client().performRequest(simulateRequest(source));
-        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"my_field\":\"stuff\""));
-    }
-
     private Map<String, Object> generateSourceDoc() {
         return new HashMap<>(){{
             put("col1", randomFrom("female", "male"));

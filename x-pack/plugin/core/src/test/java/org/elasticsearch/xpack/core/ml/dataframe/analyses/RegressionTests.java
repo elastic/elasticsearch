@@ -43,7 +43,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         return createRandom();
     }
 
-    public static Regression createRandom() {
+    private static Regression createRandom() {
         String dependentVariableName = randomAlphaOfLength(10);
         BoostedTreeParams boostedTreeParams = BoostedTreeParamsTests.createRandom();
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
@@ -110,8 +110,10 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         assertThat(createTestInstance().getFieldCardinalityLimits(), is(anEmptyMap()));
     }
 
-    public void testFieldMappingsToCopyIsNonEmpty() {
-        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
+    public void testGetExplicitlyMappedFields() {
+        assertThat(
+            new Regression("foo").getExplicitlyMappedFields(null, "results"),
+            hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
     }
 
     public void testGetStateDocId() {

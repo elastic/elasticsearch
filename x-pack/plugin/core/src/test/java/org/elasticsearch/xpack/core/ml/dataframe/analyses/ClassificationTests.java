@@ -20,13 +20,16 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -172,8 +175,40 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(anEmptyMap())));
     }
 
-    public void testFieldMappingsToCopyIsNonEmpty() {
-        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
+    public void testGetExplicitlyMappedFields() {
+        assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"), is(anEmptyMap()));
+        assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"), is(anEmptyMap()));
+        assertThat(
+            new Classification("foo").getExplicitlyMappedFields(Collections.singletonMap("foo", "not_a_map"), "results"),
+            is(anEmptyMap()));
+        assertThat(
+            new Classification("foo").getExplicitlyMappedFields(
+                Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
+                "results"),
+            allOf(
+                hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")),
+                hasEntry("results.top_classes.class_name", Collections.singletonMap("bar", "baz"))));
+        assertThat(
+            new Classification("foo").getExplicitlyMappedFields(
+                new HashMap<>() {{
+                    put("foo", new HashMap<>() {{
+                        put("type", "alias");
+                        put("path", "bar");
+                    }});
+                    put("bar", Collections.singletonMap("type", "long"));
+                }},
+                "results"),
+            allOf(
+                hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")),
+                hasEntry("results.top_classes.class_name", Collections.singletonMap("type", "long"))));
+        assertThat(
+            new Classification("foo").getExplicitlyMappedFields(
+                Collections.singletonMap("foo", new HashMap<>() {{
+                    put("type", "alias");
+                    put("path", "missing");
+                }}),
+                "results"),
+            is(anEmptyMap()));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {

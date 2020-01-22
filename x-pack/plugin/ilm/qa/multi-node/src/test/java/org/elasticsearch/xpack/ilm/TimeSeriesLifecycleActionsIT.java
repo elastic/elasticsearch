@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
+import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.hamcrest.Matchers;
@@ -1199,6 +1200,41 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
         client().performRequest(rolloverRequest);
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
+    }
+
+    public void testWaitForActiveShardsStep() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true);
+
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 142,\n" +
+            "    \"index.write.wait_for_active_shards\": \"all\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        // index document to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex).getName(), equalTo(WaitForActiveShardsStep.NAME)));
+
+        // reset the number of replicas to 0 so that the second index wait for active shard condition can be met
+        updateIndexSettings(secondIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")

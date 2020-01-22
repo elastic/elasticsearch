@@ -190,7 +190,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
 
     public void testCreateDestinationIndex_Regression() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Regression(NUMERICAL_FIELD));
-        assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("double"));
     }
 
     public void testCreateDestinationIndex_Classification() throws IOException {
@@ -291,7 +291,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
 
     public void testUpdateMappingsToDestIndex_Regression() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Regression(NUMERICAL_FIELD));
-        assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("double"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification() throws IOException {

@@ -1560,6 +1560,9 @@ public class InternalEngine extends Engine {
                 refreshed = false;
             }
         } catch (AlreadyClosedException e) {
+            // We do not hold any lock during refresh. If the engine was closed, then AlreadyClosedException is expected.
+            // In this case, we should not fail the engine.
+            ensureOpen(e);
             failOnTragicEvent(e);
             throw e;
         } catch (Exception e) {

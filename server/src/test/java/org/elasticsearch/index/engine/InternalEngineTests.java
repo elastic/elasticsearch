@@ -6044,4 +6044,22 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
     }
+
+    public void testRefreshShouldNotFailAlreadyClosedEngine() throws Exception {
+        applyOperations(engine, generateHistoryOnReplica(between(20, 200), randomBoolean(), randomBoolean(), randomBoolean()));
+        Phaser phaser = new Phaser(2);
+        Thread refresh = new Thread(() -> {
+            phaser.arriveAndAwaitAdvance();
+            try {
+                engine.refresh("test");
+            } catch (AlreadyClosedException e) {
+                assertThat(e.getMessage(), containsString("engine is closed"));
+            }
+        });
+        refresh.start();
+        phaser.arriveAndAwaitAdvance();
+        engine.close();
+        refresh.join();
+        assertNull(engine.failedEngine.get());
+    }
 }

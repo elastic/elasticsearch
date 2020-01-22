@@ -70,7 +70,8 @@ class MutableSearchResponse {
     synchronized void updatePartialResponse(int successfulShards, SearchResponseSections newSections, boolean isFinalReduce) {
         failIfFrozen();
         if (newSections.getNumReducePhases() < sections.getNumReducePhases()) {
-            // should never happen since partial response are called under a lock
+            // should never happen since partial response are updated under a lock
+            // in the search phase controller
             throw new IllegalStateException("received partial response out of order: "
                 + newSections.getNumReducePhases() + " < " + sections.getNumReducePhases());
         }
@@ -87,7 +88,6 @@ class MutableSearchResponse {
      * shards.
      */
     synchronized void updateFinalResponse(int successfulShards, SearchResponseSections newSections) {
-        assert newSections.getNumReducePhases() != sections.getNumReducePhases();
         failIfFrozen();
         ++ version;
         this.successfulShards = successfulShards;

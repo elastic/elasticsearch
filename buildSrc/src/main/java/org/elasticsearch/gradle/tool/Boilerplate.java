@@ -108,7 +108,7 @@ public abstract class Boilerplate {
         return task;
     }
 
-    public static <T extends BuildService> Provider<T> getBuildService(BuildServiceRegistry registry, String name) throws GradleException {
+    public static <T extends BuildService<?>> Provider<T> getBuildService(BuildServiceRegistry registry, String name) {
         BuildServiceRegistration<?, ?> registration = registry.getRegistrations().findByName(name);
         if (registration == null) {
             throw new GradleException("Unable to find build service with name '" + name + "'.");

@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

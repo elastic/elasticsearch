@@ -41,6 +41,6 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
 
     @Override
     public String toString() {
-        return "list dangling indices";
+        return "ListDanglingIndicesRequest{}";
     }
 }

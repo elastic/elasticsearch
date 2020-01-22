@@ -104,19 +104,26 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     } else if (remoteNode.isMasterNode() == false) {
                                         listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
                                     } else {
-                                        transportService.connectToNode(remoteNode, ActionListener.wrap(ignored -> {
-                                            logger.trace("[{}] completed full connection with [{}]", thisConnectionAttempt, remoteNode);
-                                            listener.onResponse(remoteNode);
-                                        }, e -> {
-                                            // we opened a connection and successfully performed a handshake, so we're definitely talking to
-                                            // a master-eligible node with a matching cluster name and a good version, but the attempt to
-                                            // open a full connection to its publish address failed; a common reason is that the remote
-                                            // node is listening on 0.0.0.0 but has made an inappropriate choice for its publish address.
-                                            logger.warn(new ParameterizedMessage(
-                                                "[{}] completed handshake with [{}] but followup connection failed",
-                                                thisConnectionAttempt, remoteNode), e);
-                                            listener.onFailure(e);
-                                        }));
+                                        transportService.connectToNode(remoteNode, new ActionListener<>() {
+                                            @Override
+                                            public void onResponse(Void ignored) {
+                                                logger.trace("[{}] completed full connection with [{}]", thisConnectionAttempt, remoteNode);
+                                                listener.onResponse(remoteNode);
+                                            }
+
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                // we opened a connection and successfully performed a handshake, so we're definitely
+                                                // talking to a master-eligible node with a matching cluster name and a good version, but
+                                                // the attempt to open a full connection to its publish address failed; a common reason is
+                                                // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
+                                                // publish address.
+                                                logger.warn(new ParameterizedMessage(
+                                                    "[{}] completed handshake with [{}] but followup connection failed",
+                                                    thisConnectionAttempt, remoteNode), e);
+                                                listener.onFailure(e);
+                                            }
+                                        });
                                     }
                                 } catch (Exception e) {
                                     listener.onFailure(e);

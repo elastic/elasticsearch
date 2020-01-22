@@ -19,8 +19,7 @@ import java.util.stream.IntStream;
 
 public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
-    public static Response randomResponse() {
-        int listSize = randomInt(10);
+    public static Response randomResponse(int listSize) {
         List<Response.Stats> analytics = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String failureReason = randomBoolean() ? null : randomAlphaOfLength(10);
@@ -37,7 +36,7 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
 
     @Override
     protected Response createTestInstance() {
-        return randomResponse();
+        return randomResponse(randomInt(10));
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -304,15 +305,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
-            if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
-                xContentBuilder.field("expand_wildcards", "all");
-            } else if (request.indicesOptions().expandWildcardsOpen()) {
-                xContentBuilder.field("expand_wildcards", "open");
-            } else if (request.indicesOptions().expandWildcardsClosed()) {
-                xContentBuilder.field("expand_wildcards", "closed");
-            } else {
-                xContentBuilder.field("expand_wildcards", "none");
-            }
+            WildcardStates.toXContent(request.indicesOptions().getExpandWildcards(), xContentBuilder);
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
             xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
         }

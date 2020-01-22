@@ -47,7 +47,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -627,7 +626,6 @@ public class RelocationIT extends ESIntegTestCase {
         ensureStableCluster(halfNodes * 2);
         assertAcked(
             client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))
                 .put("index.routing.allocation.include.color", "blue")));
         ensureGreen("test");

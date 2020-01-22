@@ -190,7 +190,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> parseTypedKeysObject(parser, delimiter, Boolean.class, a -> {}));
-            assertThat(e.getMessage(), endsWith("unable to parse Boolean with name [type]: parser not found"));
+            assertThat(e.getMessage(), endsWith("unknown field [type]"));
         }
 
         final long longValue = randomLong();

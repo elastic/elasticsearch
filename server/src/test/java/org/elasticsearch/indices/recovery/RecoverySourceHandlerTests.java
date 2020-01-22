@@ -446,7 +446,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(0,5))
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1,5))
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
             .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())));
         if (randomBoolean()) {

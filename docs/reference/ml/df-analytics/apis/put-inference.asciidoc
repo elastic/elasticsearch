@@ -167,6 +167,7 @@ There are two major types of nodes: leaf nodes and not-leaf nodes.
 * All other nodes need `split_feature`, `left_child`, `right_child`, 
   `threshold`, `decision_type`, and `default_left` defined.
 
+
 `tree_node`::
 (Required, object) 
 The definition of a node in a tree.

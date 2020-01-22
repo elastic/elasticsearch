@@ -73,7 +73,7 @@ realms you specify are used for authentication. If you also want to use the
 .. Add a realm configuration to `elasticsearch.yml` in the
 `xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
 the `url` of the LDAP server, and specify at least one template with the
-`user_dn_templates` option. If you are configuring multiple realms, you should
+`user_dn_templates` option. If you are configuring multiple realms, you must
 also explicitly set the `order` attribute to control the order in which the
 realms are consulted during authentication.
 See <<ref-ldap-settings>> for all of the options you can set for an `ldap` realm.

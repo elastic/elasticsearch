@@ -44,6 +44,8 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesProcessor;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesResult;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -55,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -93,6 +96,12 @@ public interface SearchPlugin {
      */
     default Map<String, Highlighter> getHighlighters() {
         return emptyMap();
+    }
+    /**
+     * The new {@link MatchesProcessor}s defined by this plugin
+     */
+    default List<MatchesProcessorSpec> getMatchesProcessors() {
+        return emptyList();
     }
     /**
      * The new {@link Suggester}s defined by this plugin.
@@ -148,6 +157,40 @@ public interface SearchPlugin {
 
         public SignificanceHeuristicSpec(String name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
             super(name, reader, parser);
+        }
+    }
+
+    class MatchesProcessorSpec {
+
+        private final String name;
+        private final Supplier<? extends MatchesProcessor> supplier;
+        private final Writeable.Reader<? extends MatchesResult> resultReader;
+        private final CheckedFunction<XContentParser, ? extends MatchesResult, IOException> resultParser;
+
+        public MatchesProcessorSpec(String name,
+                                    Supplier<? extends MatchesProcessor> supplier,
+                                    Writeable.Reader<? extends MatchesResult> resultReader,
+                                    CheckedFunction<XContentParser, ? extends MatchesResult, IOException> resultParser) {
+            this.name = name;
+            this.supplier = supplier;
+            this.resultReader = resultReader;
+            this.resultParser = resultParser;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public MatchesProcessor getInstance() {
+            return supplier.get();
+        }
+
+        public Writeable.Reader<? extends MatchesResult> getResultReader() {
+            return resultReader;
+        }
+
+        public CheckedFunction<XContentParser, ? extends MatchesResult, IOException> getResultParser() {
+            return resultParser;
         }
     }
 

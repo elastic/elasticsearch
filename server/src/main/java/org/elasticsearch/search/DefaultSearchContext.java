@@ -59,6 +59,7 @@ import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -140,6 +141,7 @@ final class DefaultSearchContext extends SearchContext {
     private int docsIdsToLoadSize;
     private SearchContextAggregations aggregations;
     private SearchContextHighlight highlight;
+    private MatchesContext matches;
     private SuggestionSearchContext suggest;
     private List<RescoreContext> rescore;
     private volatile long keepAlive;
@@ -372,6 +374,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
+    }
+
+    @Override
+    public MatchesContext matches() {
+        return matches;
+    }
+
+    @Override
+    public void matches(MatchesContext matchesContext) {
+        this.matches = matchesContext;
     }
 
     @Override

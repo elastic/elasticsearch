@@ -52,6 +52,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -163,6 +164,10 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContextHighlight highlight();
 
     public abstract void highlight(SearchContextHighlight highlight);
+
+    public abstract MatchesContext matches();
+
+    public abstract void matches(MatchesContext matchesContext);
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {

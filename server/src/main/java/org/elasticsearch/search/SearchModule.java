@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -233,7 +234,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
-import org.elasticsearch.search.fetch.subphase.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ScoreFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermFetchSubPhase;
@@ -243,6 +243,13 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesProcessor;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesResult;
+import org.elasticsearch.search.fetch.subphase.matches.MatchingTerms;
+import org.elasticsearch.search.fetch.subphase.matches.MatchingTermsProcessor;
+import org.elasticsearch.search.fetch.subphase.matches.NamedQueries;
+import org.elasticsearch.search.fetch.subphase.matches.NamedQueriesProcessor;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -264,6 +271,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -280,7 +288,7 @@ public class SearchModule {
             1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
     private final Map<String, Highlighter> highlighters;
-
+    private final Map<String, MatchesProcessor> matchesProcessors = new HashMap<>();
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
 
     private final Settings settings;
@@ -299,6 +307,7 @@ public class SearchModule {
         this.settings = settings;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
+        registerMatchesProcessors(plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
@@ -615,6 +624,24 @@ public class SearchModule {
         return unmodifiableMap(highlighters.getRegistry());
     }
 
+    private void registerMatchesProcessors(List<SearchPlugin> plugins) {
+        registerMatchesProcessor(new SearchPlugin.MatchesProcessorSpec(
+            NamedQueriesProcessor.NAME, NamedQueriesProcessor::new, NamedQueries::new, NamedQueries::fromXContent
+        ));
+        registerMatchesProcessor(new SearchPlugin.MatchesProcessorSpec(
+            MatchingTermsProcessor.NAME, MatchingTermsProcessor::new, MatchingTerms::new, MatchingTerms::fromXContent
+        ));
+        registerFromPlugin(plugins, SearchPlugin::getMatchesProcessors, this::registerMatchesProcessor);
+    }
+
+    private void registerMatchesProcessor(SearchPlugin.MatchesProcessorSpec spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+            MatchesResult.class, spec.getName(), spec.getResultReader()));
+        matchesProcessors.put(spec.getName(), spec.getInstance());
+        namedXContents.add(new NamedXContentRegistry.Entry(
+            MatchesResult.class, new ParseField(spec.getName()), spec.getResultParser()));
+    }
+
     private void registerScoreFunctions(List<SearchPlugin> plugins) {
         // ScriptScoreFunctionBuilder has it own named writable because of a new script_score query
         namedWriteables.add(new NamedWriteableRegistry.Entry(
@@ -693,7 +720,7 @@ public class SearchModule {
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new SeqNoPrimaryTermFetchSubPhase());
-        registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
+        registerFetchSubPhase(new MatchesFetchSubPhase(matchesProcessors));
         registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ScoreFetchSubPhase());
 

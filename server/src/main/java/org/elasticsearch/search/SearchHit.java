@@ -48,7 +48,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesResult;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.fetch.subphase.matches.NamedQueries;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -98,9 +100,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private Map<String, HighlightField> highlightFields = null;
 
-    private SearchSortValues sortValues = SearchSortValues.EMPTY;
+    private final List<MatchesResult> matches = new ArrayList<>();
 
-    private List<String> matchedQueries = new ArrayList<>();
+    private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
     private Explanation explanation;
 
@@ -187,13 +189,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         sortValues = new SearchSortValues(in);
 
-        size = in.readVInt();
-        if (size > 0) {
-            matchedQueries = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                matchedQueries.add(in.readString());
+        if (in.getVersion().before(Version.V_8_0_0)) {  // TODO: backport to 7.7
+            size = in.readVInt();
+            if (size > 0) {
+                List<String> matchedQueries = new ArrayList<>(size);
+                for (int i = 0; i < size; i++) {
+                    matchedQueries.add(in.readString());
+                }
+                this.matches.add(new NamedQueries(matchedQueries));
             }
+        } else {
+            this.matches.addAll(in.readNamedWriteableList(MatchesResult.class));
         }
+
         // we call the setter here because that also sets the local index parameter
         shard(in.readOptionalWriteable(SearchShardTarget::new));
         size = in.readVInt();
@@ -247,14 +255,20 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.writeTo(out);
 
-        if (matchedQueries.size() == 0) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(matchedQueries.size());
-            for (String matchedFilter : matchedQueries) {
-                out.writeString(matchedFilter);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            List<String> matchedQueries = findNamedQueries();
+            if (matchedQueries.size() == 0) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(matchedQueries.size());
+                for (String matchedFilter : matchedQueries) {
+                    out.writeString(matchedFilter);
+                }
             }
+        } else {
+            out.writeNamedWriteableList(matches);
         }
+
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
@@ -265,6 +279,16 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 entry.getValue().writeTo(out);
             }
         }
+    }
+
+    // for BWC only
+    private List<String> findNamedQueries() {
+        for (MatchesResult result : matches) {
+            if (result instanceof NamedQueries) {
+                return ((NamedQueries)result).getNamedQueries();
+            }
+        }
+        return Collections.emptyList();
     }
 
     public int docId() {
@@ -441,6 +465,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.highlightFields = highlightFields;
     }
 
+    public void addMatchResult(MatchesResult result) {
+        matches.add(result);
+    }
+
+    public List<MatchesResult> getMatchResults() {
+        return matches;
+    }
+
     public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
         sortValues(new SearchSortValues(sortValues, sortValueFormats));
     }
@@ -504,15 +536,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return clusterAlias;
     }
 
-    public void addMatchedQuery(String queryName) {
-        this.matchedQueries.add(queryName);
-    }
-
     /**
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
     public List<String> getMatchedQueries() {
-        return this.matchedQueries;
+        return findNamedQueries();
     }
 
     /**
@@ -535,6 +563,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _SCORE = "_score";
         static final String FIELDS = "fields";
         static final String HIGHLIGHT = "highlight";
+        static final String MATCHES = "match_details";
         static final String SORT = "sort";
         static final String MATCHED_QUERIES = "matched_queries";
         static final String _EXPLANATION = "_explanation";
@@ -627,6 +656,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
+        if (matches.isEmpty() == false) {
+            builder.startObject(Fields.MATCHES);
+            for (MatchesResult m : matches) {
+                m.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+        // TODO: this is a good case for REST-level versioning
+        List<String> matchedQueries = findNamedQueries();
         if (matchedQueries.size() > 0) {
             builder.startArray(Fields.MATCHED_QUERIES);
             for (String matchedFilter : matchedQueries) {
@@ -686,6 +724,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 new ParseField(SourceFieldMapper.NAME));
         parser.declareObject((map, value) -> map.put(Fields.HIGHLIGHT, value), (p, c) -> parseHighlightFields(p),
                 new ParseField(Fields.HIGHLIGHT));
+        parser.declareObject((map, value) -> map.put(Fields.MATCHES, value), (p, c) -> parseMatches(p), new ParseField(Fields.MATCHES));
         parser.declareObject((map, value) -> {
             Map<String, DocumentField> fieldMap = get(Fields.FIELDS, map, new HashMap<String, DocumentField>());
             fieldMap.putAll(value);
@@ -738,10 +777,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.explanation(get(Fields._EXPLANATION, values, null));
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
         List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
-        if (matchedQueries != null) {
-            for (String queryName : matchedQueries) {
-                searchHit.addMatchedQuery(queryName);
-            }
+        Map<String, MatchesResult> matchesResults = get(Fields.MATCHES, values, null);
+        if (matchesResults == null && matchedQueries != null) {
+            searchHit.matches.add(new NamedQueries(matchedQueries));
+        }
+        if (matchesResults != null) {
+            searchHit.matches.addAll(matchesResults.values());
         }
         return searchHit;
     }
@@ -829,6 +870,16 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return highlightFields;
     }
 
+    private static Map<String, MatchesResult> parseMatches(XContentParser parser) throws IOException {
+        Map<String, MatchesResult> matches = new HashMap<>();
+        while (parser.nextToken() != Token.END_OBJECT) {
+            String name = parser.currentName();
+            MatchesResult result = parser.namedObject(MatchesResult.class, name, null);
+            matches.put(name, result);
+        }
+        return matches;
+    }
+
     private static Explanation parseExplanation(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         XContentParser.Token token;
@@ -890,7 +941,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 && Objects.equals(source, other.source)
                 && Objects.equals(getFields(), other.getFields())
                 && Objects.equals(getHighlightFields(), other.getHighlightFields())
-                && Objects.equals(matchedQueries, other.matchedQueries)
+                && Objects.equals(matches, other.matches)
                 && Objects.equals(explanation, other.explanation)
                 && Objects.equals(shard, other.shard)
                 && Objects.equals(innerHits, other.innerHits)
@@ -901,7 +952,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public int hashCode() {
         return Objects.hash(id, nestedIdentity, version, seqNo, primaryTerm, source, fields, getHighlightFields(),
-            matchedQueries, explanation, shard, innerHits, index, clusterAlias);
+            matches, explanation, shard, innerHits, index, clusterAlias);
     }
 
     /**

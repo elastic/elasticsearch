@@ -49,6 +49,7 @@ import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -210,6 +211,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void highlight(SearchContextHighlight highlight) {
+    }
+
+    @Override
+    public MatchesContext matches() {
+        return null;
+    }
+
+    @Override
+    public void matches(MatchesContext matchesContext) {
+
     }
 
     @Override

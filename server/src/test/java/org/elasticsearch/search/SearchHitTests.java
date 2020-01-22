@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
+import org.elasticsearch.search.fetch.subphase.matches.NamedQueries;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.VersionUtils;
@@ -109,11 +110,13 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             }
             hit.highlightFields(highlightFields);
         }
-        if (randomBoolean()) {
+        if (randomBoolean()) {  // TODO add terms as well?
             int size = randomIntBetween(0, 5);
+            List<String> matchedQueries = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                hit.addMatchedQuery(randomAlphaOfLength(5));
+                matchedQueries.add(randomAlphaOfLength(5));
             }
+            hit.addMatchResult(new NamedQueries(matchedQueries));
         }
         if (randomBoolean()) {
             hit.explanation(createExplanation(randomIntBetween(0, 5)));

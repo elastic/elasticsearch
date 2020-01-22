@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.fetch.subphase;
+package org.elasticsearch.search.fetch.subphase.matches;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -26,7 +26,6 @@ import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.query.NamedQuery;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,14 +34,21 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Map;
 
-public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
+public final class MatchesFetchSubPhase implements FetchSubPhase {
+
+    private final Map<String, MatchesProcessor> processors;
+
+    public MatchesFetchSubPhase(Map<String, MatchesProcessor> processors) {
+        this.processors = processors;
+    }
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
 
-        if ((context.parsedQuery() == null || context.parsedQuery().matchNamedQueries() == false) && (
-            context.parsedPostFilter() == null || context.parsedPostFilter().matchNamedQueries() == false)) {
+        MatchesContext mc = context.matches();
+        if (mc == null) {
             return;
         }
 
@@ -58,9 +64,12 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
             if (m == null) {
                 continue;
             }
-
-            for (NamedQuery.NamedMatches nm : NamedQuery.findNamedMatches(m)) {
-                hit.addMatchedQuery(nm.getName());
+            for (String process : mc.getMatchProcesses()) {
+                MatchesProcessor processor = processors.get(process);
+                if (processor == null) {
+                    throw new IllegalArgumentException("Unknown match processor [" + process + "]");
+                }
+                hit.addMatchResult(processor.process(m, mc.getProcessSettings(process)));
             }
         }
     }

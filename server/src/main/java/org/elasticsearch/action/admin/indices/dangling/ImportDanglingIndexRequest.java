@@ -19,8 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,9 +34,9 @@ import java.io.IOException;
  * explicitly set to true, or later validation will fail.
  */
 public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingIndexRequest> {
-    private String indexUUID;
-    private boolean acceptDataLoss;
-    private String nodeId;
+    private final String indexUUID;
+    private final boolean acceptDataLoss;
+    private final String nodeId;
 
     public ImportDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
@@ -44,57 +45,33 @@ public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingI
         this.nodeId = in.readOptionalString();
     }
 
-    public ImportDanglingIndexRequest() {
+    public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss, @Nullable String nodeId) {
         super(new String[0]);
-    }
-
-    public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
-        this();
-        this.indexUUID = indexUUID;
+        this.indexUUID = Strings.requireNonEmpty(indexUUID, "indexUUID cannot be null or empty");
         this.acceptDataLoss = acceptDataLoss;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        if (this.indexUUID == null || this.indexUUID.isEmpty()) {
-            ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("No index UUID specified");
-            return e;
-        }
-
-        // acceptDataLoss is validated later in the transport action, so that the API call can
-        // be made to check that the UUID exists.
-
-        return null;
+        this.nodeId = nodeId;
     }
 
     public String getIndexUUID() {
         return indexUUID;
     }
 
-    public void setIndexUUID(String indexUUID) {
-        this.indexUUID = indexUUID;
-    }
-
     public String getNodeId() {
         return nodeId;
-    }
-
-    public void setNodeId(String nodeId) {
-        this.nodeId = nodeId;
     }
 
     public boolean isAcceptDataLoss() {
         return acceptDataLoss;
     }
 
-    public void setAcceptDataLoss(boolean acceptDataLoss) {
-        this.acceptDataLoss = acceptDataLoss;
-    }
-
     @Override
     public String toString() {
-        return "import dangling index";
+        return String.format(
+            "ImportDanglingIndexRequest{indexUUID='%s', acceptDataLoss=%s, nodeId='%s'}",
+            indexUUID,
+            acceptDataLoss,
+            nodeId
+        );
     }
 
     @Override

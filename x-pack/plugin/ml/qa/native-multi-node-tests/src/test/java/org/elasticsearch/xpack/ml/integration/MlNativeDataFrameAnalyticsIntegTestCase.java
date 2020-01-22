@@ -292,6 +292,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                 .actionGet()
                 .mappings()
                 .get(index)
+                .get("_doc")
                 .sourceAsMap();
         assertThat(
             mappings.toString(),

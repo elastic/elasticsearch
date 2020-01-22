@@ -507,7 +507,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                       | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterFilter.SPLIT_ON_NUMERICS
                       | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
-        filters.add(PreConfiguredTokenFilter.singletonWithVersion("word_delimiter_graph", false, false, (input, version) -> {
+        filters.add(PreConfiguredTokenFilter.elasticsearchVersion("word_delimiter_graph", false, false, (input, version) -> {
             boolean adjustOffsets = version.onOrAfter(Version.V_7_3_0);
             return new WordDelimiterGraphFilter(input, adjustOffsets, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                         WordDelimiterGraphFilter.GENERATE_WORD_PARTS

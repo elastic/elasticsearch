@@ -1,4 +1,5 @@
-== Testing analyzers
+[[test-analyzer]]
+=== Test an analyzer
 
 The <<indices-analyze,`analyze` API>> is an invaluable tool for viewing the
 terms produced by an analyzer. A built-in analyzer (or combination of built-in

@@ -5204,7 +5204,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (rarely()) {
                 engine.forceMerge(randomBoolean());
             }
-            try (Closeable ignored = engine.acquireHistoryRetentionLock(Engine.HistorySource.INDEX)) {
+            try (Closeable ignored = engine.acquireHistoryRetentionLock()) {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
@@ -5477,8 +5477,9 @@ public class InternalEngineTests extends EngineTestCase {
         Path translogPath = createTempDir();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData())
-            .settings(Settings.builder().put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false))
-            .build();
+            .settings(Settings.builder().put(defaultSettings.getSettings())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         try (Store store = createStore()) {
             EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);

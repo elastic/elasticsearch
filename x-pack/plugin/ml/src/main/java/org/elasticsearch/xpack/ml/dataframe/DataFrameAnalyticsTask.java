@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -15,6 +16,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRespo
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,8 +27,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -114,12 +121,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             isMarkAsCompletedCalled = true;
         }
 
-        persistProgress(() -> super.markAsCompleted());
+        persistProgress(client, taskParams.getId(), () -> super.markAsCompleted());
     }
 
     @Override
     public void markAsFailed(Exception e) {
-        persistProgress(() -> super.markAsFailed(e));
+        persistProgress(client, taskParams.getId(), () -> super.markAsFailed(e));
     }
 
     public void stop(String reason, TimeValue timeout) {
@@ -237,37 +244,73 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
     }
 
-    private void persistProgress(Runnable runnable) {
-        LOGGER.debug("[{}] Persisting progress", taskParams.getId());
-        GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(taskParams.getId());
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(
-            statsResponse -> {
-                GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
-                IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-                indexRequest.id(StoredProgress.documentId(taskParams.getId()));
-                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+    // Visible for testing
+    static void persistProgress(Client client, String jobId, Runnable runnable) {
+        LOGGER.debug("[{}] Persisting progress", jobId);
+
+        String progressDocId = StoredProgress.documentId(jobId);
+        SetOnce<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = new SetOnce<>();
+
+        // Step 4: Run the runnable provided as the argument
+        ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
+            indexResponse -> {
+                LOGGER.debug("[{}] Successfully indexed progress document", jobId);
+                runnable.run();
+            },
+            indexError -> {
+                LOGGER.error(new ParameterizedMessage(
+                    "[{}] cannot persist progress as an error occurred while indexing", jobId), indexError);
+                runnable.run();
+            }
+        );
+
+        // Step 3: Create or update the progress document:
+        //   - if the document did not exist, create the new one in the current write index
+        //   - if the document did exist, update it in the index where it resides (not necessarily the current write index)
+        ActionListener<SearchResponse> searchFormerProgressDocListener = ActionListener.wrap(
+            searchResponse -> {
+                String indexOrAlias = AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+                if (searchResponse.getHits().getHits().length > 0) {
+                    indexOrAlias = searchResponse.getHits().getHits()[0].getIndex();
+                }
+                IndexRequest indexRequest = new IndexRequest(indexOrAlias)
+                    .id(progressDocId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                    new StoredProgress(stats.getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    new StoredProgress(stats.get().getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
-                executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                    indexResponse -> {
-                        LOGGER.debug("[{}] Successfully indexed progress document", taskParams.getId());
-                        runnable.run();
-                    },
-                    indexError -> {
-                        LOGGER.error(new ParameterizedMessage(
-                        "[{}] cannot persist progress as an error occurred while indexing", taskParams.getId()), indexError);
-                        runnable.run();
-                    }
-                ));
+                executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
             },
             e -> {
                 LOGGER.error(new ParameterizedMessage(
-                "[{}] cannot persist progress as an error occurred while retrieving stats", taskParams.getId()), e);
+                    "[{}] cannot persist progress as an error occurred while retrieving former progress document", jobId), e);
                 runnable.run();
             }
-        ));
+        );
+
+        // Step 2: Search for existing progress document in .ml-state*
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> getStatsListener = ActionListener.wrap(
+            statsResponse -> {
+                stats.set(statsResponse.getResponse().results().get(0));
+                SearchRequest searchRequest =
+                    new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+                        .source(
+                            new SearchSourceBuilder()
+                                .size(1)
+                                .query(new IdsQueryBuilder().addIds(progressDocId)));
+                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+            },
+            e -> {
+                LOGGER.error(new ParameterizedMessage(
+                    "[{}] cannot persist progress as an error occurred while retrieving stats", jobId), e);
+                runnable.run();
+            }
+        );
+
+        // Step 1: Fetch progress to be persisted
+        GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(jobId);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, getStatsListener);
     }
 
     /**

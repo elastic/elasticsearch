@@ -15,9 +15,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
 /**
@@ -31,6 +33,8 @@ public class CacheService extends AbstractLifecycleComponent {
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
         Setting.Property.NodeScope);
 
+    private final ReleasableLock cacheInvalidationLock;
+    private final ReleasableLock cacheAccessLock;
     private final Cache<String, CacheFile> cache;
 
     public CacheService(final Settings settings) {
@@ -41,6 +45,13 @@ public class CacheService extends AbstractLifecycleComponent {
             // are done with reading/writing the cache file
             .removalListener(notification -> Releasables.closeWhileHandlingException(notification.getValue()))
             .build();
+
+        // Prevent new CacheFile objects to be added to the cache while the cache is being fully or partially invalidated
+        // This can happen because CacheFile objects might execute listeners at eviction time, potentially forcing more
+        // objects (like CacheDirectory's index inputs) to get new CacheFile.
+        final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
+        this.cacheInvalidationLock = new ReleasableLock(cacheLock.writeLock());
+        this.cacheAccessLock = new ReleasableLock(cacheLock.readLock());
     }
 
     @Override
@@ -50,7 +61,9 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        cache.invalidateAll();
+        try (ReleasableLock ignored = cacheInvalidationLock.acquire()) {
+            cache.invalidateAll();
+        }
     }
 
     @Override
@@ -66,17 +79,18 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public CacheFile get(final String name, final long length, final Path file) throws Exception {
         ensureLifecycleStarted();
-        return cache.computeIfAbsent(toCacheKey(file), key -> {
+        try (ReleasableLock ignored = cacheAccessLock.acquire()) {
             ensureLifecycleStarted();
+            return cache.computeIfAbsent(toCacheKey(file), key -> {
+                // generate a random UUID for the name of the cache file on disk
+                final String uuid = UUIDs.randomBase64UUID();
+                // resolve the cache file on disk w/ the expected cached file
+                final Path path = file.getParent().resolve(uuid);
+                assert Files.notExists(path) : "cache file already exists " + path;
 
-            // generate a random UUID for the name of the cache file on disk
-            final String uuid = UUIDs.randomBase64UUID();
-            // resolve the cache file on disk w/ the expected cached file
-            final Path path = file.getParent().resolve(uuid);
-            assert Files.notExists(path) : "cache file already exists " + path;
-
-            return new CacheFile(name, length, path);
-        });
+                return new CacheFile(name, length, path);
+            });
+        }
     }
 
     /**

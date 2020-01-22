@@ -66,10 +66,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     public void testMissingRepo() throws Exception {
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("missing-repo-policy", "snap",
             "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        Request putLifecycle = new Request("PUT", "/_slm/policy/test-policy");
+        Request putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
@@ -84,7 +84,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testFullPolicySnapshot() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
+        final String policyName = "full-policy";
         final String repoId = "full-policy-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
@@ -157,7 +157,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPolicyFailure() throws Exception {
-        final String policyName = "test-policy";
+        final String policyName = "failure-policy";
         final String repoName = "policy-failure-repo";
         final String indexPattern = "index-doesnt-exist";
         initializeRepo(repoName);
@@ -206,7 +206,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/48531")
     public void testPolicyManualExecution() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
+        final String policyName = "manual-policy";
         final String repoId = "manual-execution-repo";
         int docCount = randomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
@@ -353,7 +353,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/48017")
     public void testBasicTimeBasedRetention() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
+        final String policyName = "basic-time-policy";
         final String repoId = "time-based-retention-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
@@ -424,8 +424,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 int retentionRun = (int) stats.get(SnapshotLifecycleStats.RETENTION_RUNS.getPreferredName());
                 int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
                 int totalDeleted = (int) stats.get(SnapshotLifecycleStats.TOTAL_DELETIONS.getPreferredName());
-                assertThat(snapsTaken, equalTo(1));
-                assertThat(totalTaken, equalTo(1));
+                assertThat(snapsTaken, greaterThanOrEqualTo(1));
+                assertThat(totalTaken, greaterThanOrEqualTo(1));
                 assertThat(retentionRun, greaterThanOrEqualTo(1));
                 assertThat(snapsDeleted, greaterThanOrEqualTo(1));
                 assertThat(totalDeleted, greaterThanOrEqualTo(1));

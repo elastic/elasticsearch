@@ -367,7 +367,7 @@ public final class TransformInternalIndex {
                 .patterns(indexTemplateMetaData.patterns())
                 .version(indexTemplateMetaData.version())
                 .settings(indexTemplateMetaData.settings())
-                .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
+                .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -402,7 +402,7 @@ public final class TransformInternalIndex {
             )
                 .version(indexTemplateMetaData.version())
                 .settings(indexTemplateMetaData.settings())
-                .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
+                .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),

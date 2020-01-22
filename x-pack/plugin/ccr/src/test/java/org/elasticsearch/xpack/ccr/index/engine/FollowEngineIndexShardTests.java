@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -50,10 +49,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
     public void testDoNotFillGaps() throws Exception {
-        Settings settings = Settings.builder()
-            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build();
         final IndexShard indexShard = newStartedShard(false, settings, new FollowingEngineFactory());
 
         long seqNo = -1;
@@ -99,13 +95,9 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
     }
 
     public void testRestoreShard() throws IOException {
-        final Settings sourceSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
-        final IndexShard source = newStartedShard(true, sourceSettings);
+        final IndexShard source = newStartedShard(true, Settings.EMPTY);
         final Settings targetSettings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .build();
         IndexShard target = newStartedShard(true, targetSettings, new FollowingEngineFactory());
         assertThat(IndexShardTestCase.getEngine(target), instanceOf(FollowingEngine.class));

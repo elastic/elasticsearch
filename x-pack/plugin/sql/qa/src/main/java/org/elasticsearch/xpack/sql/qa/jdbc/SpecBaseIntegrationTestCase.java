@@ -121,7 +121,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         Properties connectionProperties = new Properties();
         // H2 runs with test JVM's set (randomized) timezone, while the ES node with local test machine's. Those tests that require
         // synchronization of the two are tagged with the given suffix.
-        connectionProperties.setProperty(JDBC_TIMEZONE, testName.toUpperCase().endsWith("TZSYNC") ? TimeZone.getDefault().getID() : "UTC");
+        connectionProperties.setProperty(JDBC_TIMEZONE, testName.endsWith("TZSync") ? TimeZone.getDefault().getID() : "UTC");
         return connectionProperties;
     }
 

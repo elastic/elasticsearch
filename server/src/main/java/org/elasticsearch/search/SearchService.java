@@ -566,6 +566,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // Disable timeout while searching and mark the reader as accessed when releasing the context.
             context.addReleasable(() -> reader.accessed(threadPool.relativeTimeInMillis()), Lifetime.CONTEXT);
             reader.accessed(-1L);
+            context.addReleasable(() -> reader.indexShard().getSearchOperationListener().onFreeSearchContext(context), Lifetime.CONTEXT);
         } catch (Exception e) {
             context.close();
             throw e;

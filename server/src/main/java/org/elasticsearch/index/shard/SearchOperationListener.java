@@ -117,6 +117,14 @@ public interface SearchOperationListener {
     default void validateSearchContext(SearchContext context, TransportRequest transportRequest) {}
 
     /**
+     * Executed when a search context was freed. The implementor can implement
+     * this method to release resources used by the search context.
+     */
+    default void onFreeSearchContext(SearchContext context) {
+
+    }
+
+    /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
@@ -249,6 +257,17 @@ public interface SearchOperationListener {
                 }
             }
             ExceptionsHelper.reThrowIfNotNull(exception);
+        }
+
+        @Override
+        public void onFreeSearchContext(SearchContext context) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onFreeSearchContext(context);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onFreeSearchContext listener [{}] failed", listener), e);
+                }
+            }
         }
     }
 }

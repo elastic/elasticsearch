@@ -237,7 +237,7 @@ teardown:
   - match: { transforms.0.state: "stopped" }
   - match: { transforms.0.checkpointing.last.checkpoint: 1 }
 
-  # workaround: refresh dest index, to be removed, see gh #TBD
+  # workaround: refresh dest index, to be removed, see gh #51154
   - do:
       headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
       indices.refresh:

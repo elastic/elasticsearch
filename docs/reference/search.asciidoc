@@ -176,4 +176,8 @@ include::search/field-caps.asciidoc[]
 
 include::search/rank-eval.asciidoc[]
 
+ifeval::["{release-state}"=="unreleased"]
+
 include::eql/eql-search-api.asciidoc[]
+
+endif::[]

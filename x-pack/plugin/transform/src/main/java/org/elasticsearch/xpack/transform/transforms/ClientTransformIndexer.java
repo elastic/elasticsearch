@@ -178,7 +178,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         deduplicatedFailures.values()
                     );
                     if (irrecoverableException == null) {
-                        String failureMessage = getBulkIndexDetailedFailureMessage(" Significant falures: ", deduplicatedFailures);
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Significant failures: ", deduplicatedFailures);
                         logger.debug("[{}] Bulk index experienced [{}] failures.{}", getJobId(), failureMessage);
 
                         Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();

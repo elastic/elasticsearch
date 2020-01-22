@@ -22,8 +22,9 @@ for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
     if [[ ! -e "${!VAR_NAME_FILE}" ]]; then
       # Maybe the file doesn't exist, maybe we just can't read it due to file permissions.
       # Check permissions on each part of the path
+      path=''
       if ! echo "${!VAR_NAME_FILE}" | grep -q '^/'; then
-        path=.
+        path='.'
       fi
 
       dirname "${!VAR_NAME_FILE}" | tr '/' '\n' | while read part; do

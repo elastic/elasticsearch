@@ -156,9 +156,11 @@ public class Docker {
             volumes.forEach((localPath, containerPath) -> {
                 assertTrue(localPath + " doesn't exist", Files.exists(localPath));
 
-                // The process in the Docker container doesn't run as root, so we need to ensure that
-                // it is able to read the bind-mounted files.
-                sh.run("chown -R 1000:0 " + localPath);
+                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
+                    // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
+                    // so we need to ensure that the container process is able to read the bind-mounted files.
+                    sh.run("chown -R 1000:0 " + localPath);
+                }
                 args.add("--volume \"" + localPath + ":" + containerPath + "\"");
             });
         }

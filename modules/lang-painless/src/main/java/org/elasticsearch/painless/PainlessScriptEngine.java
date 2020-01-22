@@ -440,14 +440,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private ScriptException convertToScriptException(String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
+        ScriptException.Position pos = null;
         for (StackTraceElement element : t.getStackTrace()) {
             if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
                 // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
+                int originalOffset = element.getLineNumber();
+                if (originalOffset == -1) {
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
-                    offset--; // offset is 1 based, line numbers must be!
+                    int offset = --originalOffset; // offset is 1 based, line numbers must be!
                     int startOffset = getPreviousStatement(offset);
                     int endOffset = getNextStatement(scriptSource, offset);
                     StringBuilder snippet = new StringBuilder();
@@ -468,11 +469,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
                     }
                     pointer.append("^---- HERE");
                     scriptStack.add(pointer.toString());
+                    pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
                 }
                 break;
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME);
+        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.

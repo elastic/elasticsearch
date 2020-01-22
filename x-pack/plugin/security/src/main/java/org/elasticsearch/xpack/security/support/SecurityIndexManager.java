@@ -47,7 +47,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -429,7 +428,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private static Tuple<String, Settings> parseMappingAndSettingsFromTemplateBytes(byte[] template) throws IOException {
         final PutIndexTemplateRequest request = new PutIndexTemplateRequest("name_is_not_important").source(template, XContentType.JSON);
-        final String mappingSource = request.mappings().get(MapperService.SINGLE_MAPPING_NAME);
+        final String mappingSource = request.mappings();
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappingSource)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation); // {

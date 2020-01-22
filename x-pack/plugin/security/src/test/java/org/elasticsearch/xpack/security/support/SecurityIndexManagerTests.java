@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -406,8 +407,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     private static IndexMetaData.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format,
-                                                          IndexMetaData.State state)
-            throws IOException {
+                                                          IndexMetaData.State state) {
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
         indexMetaData.settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -417,25 +417,25 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 .build());
         indexMetaData.putAlias(AliasMetaData.builder(aliasName).build());
         indexMetaData.state(state);
-        final Map<String, String> mappings = getTemplateMappings(templateName);
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            indexMetaData.putMapping(entry.getValue());
+        final String mappings = getTemplateMappings(templateName);
+        if (mappings != null) {
+            indexMetaData.putMapping(mappings);
         }
 
         return indexMetaData;
     }
 
     private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateName) throws IOException {
-        final Map<String, String> mappings = getTemplateMappings(templateName);
+        final String mappings = getTemplateMappings(templateName);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(TEMPLATE_NAME)
                 .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            templateBuilder.putMapping(entry.getKey(), entry.getValue());
+        if (mappings != null) {
+            templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
         }
         return templateBuilder;
     }
 
-    private static Map<String, String> getTemplateMappings(String templateName) {
+    private static String getTemplateMappings(String templateName) {
         String template = loadTemplate(templateName);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
@@ -534,8 +534,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build());
 
-        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-            indexMetaData.putMapping(entry.getValue());
+        if (request.mappings() != null) {
+            indexMetaData.putMapping(request.mappings());
         }
         return indexMetaData;
     }
@@ -568,8 +568,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         request.source(template, XContentType.JSON);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)
             .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
-        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-            templateBuilder.putMapping(entry.getKey(), entry.getValue());
+        if (request.mappings() != null) {
+            templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings());
         }
         return templateBuilder;
     }

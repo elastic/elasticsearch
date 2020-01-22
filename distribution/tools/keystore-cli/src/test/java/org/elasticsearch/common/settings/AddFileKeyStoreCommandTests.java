@@ -139,7 +139,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureFile("foo", file2, password);
     }
 
-    public void testForceNonExistent() throws Exception {
+    public void testForceDoesNotAlreadyExist() throws Exception {
         String password = "keystorepassword";
         createKeystore(password);
         Path file = createRandomFile();

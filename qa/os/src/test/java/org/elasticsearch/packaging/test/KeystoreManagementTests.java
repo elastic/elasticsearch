@@ -60,7 +60,9 @@ import static org.junit.Assume.assumeTrue;
 
 public class KeystoreManagementTests extends PackagingTestCase {
 
-    private static final String PASSWORD_ERROR_MESSAGE = "Provided keystore password was incorrect";
+    public static final String ERROR_INCORRECT_PASSWORD = "Provided keystore password was incorrect";
+    public static final String ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED = "ERROR: Keystore is not password-protected";
+    public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
@@ -73,7 +75,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate missing keystore",
-            r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
+            r.stderr, containsString(ERROR_KEYSTORE_NOT_FOUND));
     }
 
     /** Test initial package state */
@@ -89,7 +91,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate unprotected keystore",
-            r.stderr, containsString("ERROR: Keystore is not password-protected"));
+            r.stderr, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }
@@ -110,7 +112,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate unprotected keystore",
-            r.stdout, containsString("ERROR: Keystore is not password-protected"));
+            r.stdout, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }
@@ -168,7 +170,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         Shell.Result result = startElasticsearchStandardInputPassword("wrong");
-        assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
+        assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD);
     }
 
     @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
@@ -204,7 +206,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Shell.Result result = startElasticsearchTtyPassword("wrong");
         // error will be on stdout for "expect"
-        assertThat(result.stdout, containsString(PASSWORD_ERROR_MESSAGE));
+        assertThat(result.stdout, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
     public void test50KeystorePasswordFromFile() throws Exception {
@@ -253,7 +255,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 StandardOpenOption.WRITE);
 
             Shell.Result result = runElasticsearchStartCommand();
-            assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
+            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }
@@ -293,7 +295,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
         Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
-        assertThat(r.stderr, containsString(PASSWORD_ERROR_MESSAGE));
+        assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
     /**

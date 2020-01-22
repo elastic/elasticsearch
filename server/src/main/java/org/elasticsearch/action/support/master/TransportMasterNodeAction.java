@@ -178,7 +178,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
-                                    if (cause instanceof ConnectTransportException) {
+                                    if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException) {
                                         // we want to retry here a bit to see if a new master is elected
                                         logger.debug("connection exception while trying to forward request with action name [{}] to " +
                                                 "master node [{}], scheduling a retry. Error: [{}]",

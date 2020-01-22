@@ -149,8 +149,10 @@ end::background-persist-interval[]
 
 tag::bucket-span[]
 The size of the interval that the analysis is aggregated into, typically between
-`5m` and `1h`. The default value is `5m`. For more information about time units,
-see <<time-units>>.
+`5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
+with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
+divisible by the interval of the date histogram aggregation. For more
+information, see {ml-docs}/ml-buckets.html[Buckets]. 
 end::bucket-span[]
 
 tag::bucket-span-results[]
@@ -607,7 +609,8 @@ time. The default value is either the bucket span for short bucket spans, or,
 for longer bucket spans, a sensible fraction of the bucket span. For example:
 `150s`. When `frequency` is shorter than the bucket span, interim results for
 the last (partial) bucket are written then eventually overwritten by the full
-bucket results.
+bucket results. If the {dfeed} uses aggregations, this value must be divisible
+by the interval of the date histogram aggregation.
 end::frequency[]
 
 tag::from[]

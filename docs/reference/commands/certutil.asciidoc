@@ -135,6 +135,9 @@ This parameter cannot be used with the `csr` or `ca` parameters.
 `csr`:: Specifies to generate certificate signing requests. This parameter
 cannot be used with the `ca` or `cert` parameters.
 
+`http`:: Generates a new certificate or certificate request for the {es} HTTP
+interface.
+
 `--ca <file_path>`:: Specifies the path to an existing CA key pair
 (in PKCS#12 format). This parameter cannot be used with the `ca` or `csr` parameters.
 
@@ -165,9 +168,6 @@ parameter cannot be used with the `ca` parameter.
 `-E <KeyValuePair>`:: Configures a setting.
 
 `-h, --help`:: Returns all of the command parameters.
-
-`--http`:: Generates a new certificate or certificate request for the {es} HTTP
-interface.
 
 `--in <input_file>`:: Specifies the file that is used to run in silent mode. The
 input file must be a YAML file. This parameter cannot be used with the `ca`

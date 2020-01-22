@@ -52,9 +52,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 [[ml-put-inference-request-body]]
 ==== {api-request-body-title}
 
+`compressed_definition`::
+(Required, string) 
+The compressed (GZipped and Base64 encoded) {infer} definition of the model. 
+If `compressed_definition` is specified, then `definition` cannot be specified.
+
 `definition`::
 (Required, object) 
-The {infer} definition for the model.
+The {infer} definition for the model. If `definition` is specified, then 
+`compressed_definition` cannot be specified.
 
 `definition`.`preprocessors`:::
 (Optional, object)

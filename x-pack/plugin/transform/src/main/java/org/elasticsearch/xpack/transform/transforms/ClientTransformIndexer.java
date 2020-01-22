@@ -178,8 +178,8 @@ class ClientTransformIndexer extends TransformIndexer {
                         deduplicatedFailures.values()
                     );
                     if (irrecoverableException == null) {
-                        String failureMessage = getBulkIndexDetailedFailureMessage(deduplicatedFailures);
-                        logger.debug("[{}] Bulk index experienced [{}] failures. Significant falures: {}", getJobId(), failureMessage);
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Significant falures: ", deduplicatedFailures);
+                        logger.debug("[{}] Bulk index experienced [{}] failures.{}", getJobId(), failureMessage);
 
                         Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
                         nextPhase.onFailure(
@@ -193,11 +193,11 @@ class ClientTransformIndexer extends TransformIndexer {
                         );
                     } else {
                         deduplicatedFailures.remove(irrecoverableException.getClass().getSimpleName());
-                        String failureMessage = getBulkIndexDetailedFailureMessage(deduplicatedFailures);
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Other failures: ", deduplicatedFailures);
                         irrecoverableException = decorateBulkIndexException(irrecoverableException);
 
                         logger.debug(
-                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. Other failures: {}",
+                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}].{}",
                             getJobId(),
                             failureCount,
                             ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
@@ -356,8 +356,12 @@ class ClientTransformIndexer extends TransformIndexer {
         return seqNoPrimaryTermAndIndex.get();
     }
 
-    private static String getBulkIndexDetailedFailureMessage(Map<String, BulkItemResponse> failures) {
-        StringBuilder failureMessageBuilder = new StringBuilder();
+    private static String getBulkIndexDetailedFailureMessage(String prefix, Map<String, BulkItemResponse> failures) {
+        if (failures.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder failureMessageBuilder = new StringBuilder(prefix);
         for (Entry<String, BulkItemResponse> failure : failures.entrySet()) {
             failureMessageBuilder.append("\n[")
                 .append(failure.getKey())

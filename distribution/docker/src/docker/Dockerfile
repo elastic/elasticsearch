@@ -37,11 +37,14 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
+#
+# The tini GitHub page gives instructions for verifying the binary using
+# gpg, but the keyservers are slow to return the key and this can fail the
+# build. Instead, we check the binary against a checksum that we have
+# computed.
 ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /tini
-ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini.asc /tini.asc
-RUN gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 595E85A6B1B4779EA4DAAEC70B588DFF0527A9B7 \
- && gpg --batch --verify /tini.asc /tini
-RUN chmod +x /tini
+COPY config/tini.sha512 /tini.sha512
+RUN sha512sum -c /tini.sha512 && chmod +x /tini
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):

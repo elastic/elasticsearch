@@ -89,8 +89,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         } else {
             fullFieldName = null;
         }
-        String esType = in.readOptionalString();
-        dataType = esType != null ? loadTypeFromName(esType) : null;
+        String typeName = in.readOptionalString();
+        dataType = typeName != null ? loadTypeFromName(typeName) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         arrayLeniency = in.readBoolean();
@@ -98,8 +98,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         zoneId = readZoneId(in);
     }
 
-    protected DataType loadTypeFromName(String esType) {
-        return DataTypes.fromTypeName(esType);
+    protected DataType loadTypeFromName(String typeName) {
+        return DataTypes.fromTypeName(typeName);
     }
 
     protected abstract ZoneId readZoneId(StreamInput in) throws IOException;
@@ -306,7 +306,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return zoneId;
     }
 
-    protected DataType dataType() {
+    public DataType dataType() {
         return dataType;
     }
 

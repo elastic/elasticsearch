@@ -58,8 +58,8 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     @Override
-    protected DataType loadTypeFromName(String esType) {
-        return SqlDataTypes.fromEs(esType);
+    protected DataType loadTypeFromName(String typeName) {
+        return SqlDataTypes.fromTypeName(typeName);
     }
 
     @Override

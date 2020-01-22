@@ -358,6 +358,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             return;
         }
 
+        // Clear request deduplicator since we need to send all requests that were potentially not handled by the previous
+        // master again
+        remoteFailedRequestDeduplicator.clear();
         for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
             if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
                 Map<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshot());

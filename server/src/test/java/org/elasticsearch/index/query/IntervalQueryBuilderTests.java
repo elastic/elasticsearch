@@ -550,7 +550,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     private static IntervalsSource buildFuzzySource(String term, String label, int prefixLength, boolean transpositions, int editDistance) {
         FuzzyQuery fq = new FuzzyQuery(new Term("field", term), editDistance, prefixLength, 128, transpositions);
-        return XIntervals.multiterm(new CompiledAutomaton(fq.toAutomaton()), label);
+        CompiledAutomaton[] automata = fq.getAutomata();
+        return XIntervals.multiterm(automata[automata.length - 1], label);
     }
 
     public void testFuzzy() throws IOException {

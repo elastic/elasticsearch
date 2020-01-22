@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -40,7 +39,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
@@ -158,34 +156,11 @@ public final class DataFrameAnalyticsIndex {
         return maxValue;
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
         Map<String, Object> properties = new HashMap<>();
         properties.put(ID_COPY, Map.of("type", KeywordFieldMapper.CONTENT_TYPE));
-        for (Map.Entry<String, String> entry
-                : config.getAnalysis().getExplicitlyMappedFields(config.getDest().getResultsField()).entrySet()) {
-            String destFieldPath = entry.getKey();
-            String sourceFieldPath = entry.getValue();
-            Object sourceFieldMapping = extractMapping(sourceFieldPath, mappingsProperties);
-            if (sourceFieldMapping instanceof Map) {
-                Map<String, Object> sourceFieldMappingAsMap = (Map) sourceFieldMapping;
-                // If the source field is an alias, fetch the concrete field that the alias points to.
-                if (FieldAliasMapper.CONTENT_TYPE.equals(sourceFieldMappingAsMap.get("type"))) {
-                    String path = (String) sourceFieldMappingAsMap.get(FieldAliasMapper.Names.PATH);
-                    sourceFieldMapping = extractMapping(path, mappingsProperties);
-                }
-            }
-            // We may have updated the value of {@code sourceFieldMapping} in the "if" block above.
-            // Hence, we need to check the "instanceof" condition again.
-            if (sourceFieldMapping instanceof Map) {
-                properties.put(destFieldPath, sourceFieldMapping);
-            }
-        }
+        properties.putAll(config.getAnalysis().getExplicitlyMappedFields(mappingsProperties, config.getDest().getResultsField()));
         return properties;
-    }
-
-    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
-        return extractValue(String.join("." + PROPERTIES + ".", path.split("\\.")), mappingsProperties);
     }
 
     private static Map<String, Object> createMetaData(String analyticsId, Clock clock) {

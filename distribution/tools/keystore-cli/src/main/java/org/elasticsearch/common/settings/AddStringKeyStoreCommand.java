@@ -59,8 +59,8 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
-            if (options.has(forceOption) == false &&
-                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+            if (options.has(forceOption) == false
+                && terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
@@ -84,8 +84,10 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
         final char[] value;
         if (options.has(stdinOption)) {
-            try (BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-                 CharArrayWriter writer = new CharArrayWriter()) {
+            try (
+                BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+                CharArrayWriter writer = new CharArrayWriter()
+            ) {
                 int charInt;
                 while ((charInt = stdinReader.read()) != -1) {
                     if ((char) charInt == '\r' || (char) charInt == '\n') {

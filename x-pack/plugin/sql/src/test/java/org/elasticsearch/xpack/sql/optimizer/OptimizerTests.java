@@ -32,11 +32,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -107,6 +102,11 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
@@ -142,7 +142,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.Literal.of;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -150,6 +149,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
@@ -216,7 +216,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static Literal L(Object value) {
-        return of(EMPTY, value);
+        return literal(value);
     }
 
     private static Alias a(String name, Expression e) {
@@ -367,14 +367,14 @@ public class OptimizerTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(TRUE,
-                new ConstantFolding().rule(new Like(EMPTY, of(EMPTY, "test_emp"), new LikePattern("test%", (char) 0)))
+                new ConstantFolding().rule(new Like(EMPTY, literal("test_emp"), new LikePattern("test%", (char) 0)))
                         .canonical());
         assertEquals(TRUE,
-                new ConstantFolding().rule(new RLike(EMPTY, of(EMPTY, "test_emp"), "test.emp")).canonical());
+                new ConstantFolding().rule(new RLike(EMPTY, literal("test_emp"), "test.emp")).canonical());
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, of(EMPTY, "2018-01-19T10:23:27Z"), DATETIME);
+        Expression cast = new Cast(EMPTY, literal("2018-01-19T10:23:27Z"), DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
@@ -715,11 +715,10 @@ public class OptimizerTests extends ESTestCase {
         // END
 
         Case c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo1")),
-            new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "bar1")),
-            new IfConditional(EMPTY, new Equals(EMPTY, TWO, ONE), Literal.of(EMPTY, "bar2")),
-            new IfConditional(EMPTY, new GreaterThan(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo2")),
-            Literal.of(EMPTY, "default")));
+                new IfConditional(EMPTY, new Equals(EMPTY, getFieldAttribute(), ONE), literal("foo1")),
+                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), literal("bar1")),
+                new IfConditional(EMPTY, new Equals(EMPTY, TWO, ONE), literal("bar2")),
+                new IfConditional(EMPTY, new GreaterThan(EMPTY, getFieldAttribute(), ONE), literal("foo2")), literal("default")));
         assertFalse(c.foldable());
         Expression e = new SimplifyCase().rule(c);
         assertEquals(Case.class, e.getClass());
@@ -742,9 +741,8 @@ public class OptimizerTests extends ESTestCase {
         // 'foo2'
 
         Case c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo1")),
-            new IfConditional(EMPTY, new Equals(EMPTY, ONE, ONE), Literal.of(EMPTY, "foo2")),
-            Literal.of(EMPTY, "default")));
+                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo1")),
+                new IfConditional(EMPTY, new Equals(EMPTY, ONE, ONE), literal("foo2")), literal("default")));
         assertFalse(c.foldable());
 
         SimplifyCase rule = new SimplifyCase();
@@ -768,7 +766,7 @@ public class OptimizerTests extends ESTestCase {
         // myField (non-foldable)
 
         Case c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo1")),
+                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo1")),
                 getFieldAttribute("myField")));
         assertFalse(c.foldable());
 
@@ -783,7 +781,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionTrue_FoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), Literal.of(EMPTY, "foo"), Literal.of(EMPTY, "bar"));
+        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), literal("foo"), literal("bar"));
         assertTrue(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -797,7 +795,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionTrue_NonFoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), getFieldAttribute("myField"), Literal.of(EMPTY, "bar"));
+        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), getFieldAttribute("myField"), literal("bar"));
         assertFalse(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -812,7 +810,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionFalse_FoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo"), Literal.of(EMPTY, "bar"));
+        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo"), literal("bar"));
         assertTrue(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -826,7 +824,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionFalse_NonFoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo"), getFieldAttribute("myField"));
+        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo"), getFieldAttribute("myField"));
         assertFalse(iif.foldable());
 
         Expression e = rule.rule(iif);

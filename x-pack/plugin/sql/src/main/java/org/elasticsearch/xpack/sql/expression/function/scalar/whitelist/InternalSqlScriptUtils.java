@@ -11,7 +11,6 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalP
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -492,6 +492,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Object cast(Object value, String typeName) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return DataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName));
+        return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 }

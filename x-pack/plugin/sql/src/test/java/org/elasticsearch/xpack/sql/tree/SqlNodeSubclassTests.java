@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 /**
  * Looks for all subclasses of {@link Node} and verifies that they
@@ -85,7 +86,7 @@ public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSu
             }
         } else if (toBuildClass == CurrentDateTime.class) {
             if (argClass == Expression.class) {
-                return Literal.of(SourceTests.randomSource(), randomInt(9));
+                return new Literal(SourceTests.randomSource(), randomInt(9), INTEGER);
             }
         }
 

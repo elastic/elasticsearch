@@ -61,7 +61,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        return DataTypeConverter.convert(field().fold(), dataType);
+        return SqlDataTypeConverter.convert(field().fold(), dataType);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return DataTypeConverter.canConvert(from(), to()) ?
+        return SqlDataTypeConverter.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
                     new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
@@ -93,6 +94,6 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
     }
     
     private static Literal l(Object value) {
-        return Literal.of(EMPTY, value);
+        return TestUtils.of(EMPTY, value);
     }
 }

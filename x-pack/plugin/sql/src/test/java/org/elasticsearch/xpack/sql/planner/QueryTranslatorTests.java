@@ -24,9 +24,8 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -94,10 +94,10 @@ public class QueryTranslatorTests extends ESTestCase {
     public static void init() {
         parser = new SqlParser();
 
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
     }
@@ -247,38 +247,38 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeWithCurrentTimestamp() {
-        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, SqlTestUtils.TEST_CFG.now());
         testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIMESTAMP()", DATE_FORMAT,
-                TestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                TestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
     }
 
     public void testDateRangeWithCurrentDate() {
-        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
         testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_DATE()", DATE_FORMAT,
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
+                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
     }
 
     public void testDateRangeWithToday() {
-        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
         testDateRangeWithCurrentFunctions_AndRangeOptimization("TODAY()", DATE_FORMAT,
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(TestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
+                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
     }
 
     public void testDateRangeWithNow() {
-        testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+        testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, SqlTestUtils.TEST_CFG.now());
         testDateRangeWithCurrentFunctions_AndRangeOptimization("NOW()", DATE_FORMAT,
-                TestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                TestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
     }
 
     public void testDateRangeWithCurrentTime() {
-        testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, TestUtils.TEST_CFG.now());
+        testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, SqlTestUtils.TEST_CFG.now());
         testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIME()", TIME_FORMAT,
-                TestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                TestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
     }
 
     private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {

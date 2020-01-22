@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -519,14 +519,14 @@ public class SysColumnsTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
                 new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 }

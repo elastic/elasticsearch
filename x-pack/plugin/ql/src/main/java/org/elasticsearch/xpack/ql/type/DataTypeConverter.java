@@ -374,7 +374,8 @@ public class DataTypeConverter {
         Converter converter = converterFor(detectedType, dataType);
 
         if (converter == null) {
-            throw new QlIllegalArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType, dataType.typeName());
+            throw new QlIllegalArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType.typeName(),
+                    dataType.typeName());
         }
 
         return converter.convert(value);

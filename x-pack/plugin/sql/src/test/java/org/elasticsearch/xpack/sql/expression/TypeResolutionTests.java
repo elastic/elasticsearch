@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 
 import java.time.Period;
 
@@ -35,10 +36,10 @@ public class TypeResolutionTests extends ESTestCase {
     }
 
     private static Literal randomYearInterval() {
-        return Literal.of(EMPTY, new IntervalYearMonth(Period.ofMonths(randomInt(123)), INTERVAL_YEAR_TO_MONTH));
+        return L(new IntervalYearMonth(Period.ofMonths(randomInt(123)), INTERVAL_YEAR_TO_MONTH));
     }
 
     private static Literal L(Object value) {
-        return Literal.of(EMPTY, value);
+        return SqlTestUtils.literal(value);
     }
 }

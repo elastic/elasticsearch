@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
@@ -56,9 +55,9 @@ public class Case extends ConditionalFunction {
                 dataType = DataTypes.NULL;
 
                 for (IfConditional conditional : conditions) {
-                    dataType = DataTypeConverter.commonType(dataType, conditional.dataType());
+                    dataType = SqlDataTypeConverter.commonType(dataType, conditional.dataType());
                 }
-                dataType = DataTypeConverter.commonType(dataType, elseResult.dataType());
+                dataType = SqlDataTypeConverter.commonType(dataType, elseResult.dataType());
             }
         }
         return dataType;

@@ -10,8 +10,7 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -35,19 +34,20 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser = new SqlParser();
     private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
+            loadMapping("mapping-multi-field-with-nested.json")));
 
     private String error(String sql) {
         return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -60,18 +60,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private EsIndex getTestEsIndex() {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-with-nested.json");
         return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
     private IndexResolution incompatible() {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = loadMapping("mapping-basic-incompatible.json");
 
         assertNotEquals(basicMapping, incompatible);
         IndexResolution resolution = IndexResolverTests.merge(new EsIndex("basic", basicMapping),

@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 
 /**
  * Needed to override tests in {@link NodeSubclassTests} as Case is special since its children are not usual
@@ -85,15 +86,14 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE 'default'
         // END
         Case c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
-            Literal.of(EMPTY, "default")));
+                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), Literal.NULL), literal("default")));
         assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN 'foo'
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.of(EMPTY, "foo")),
+                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), literal("foo")),
             Literal.NULL));
         assertEquals(KEYWORD, c.dataType());
 
@@ -101,7 +101,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
+                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), Literal.NULL),
             Literal.NULL));
         assertEquals(NULL, c.dataType());
 
@@ -110,14 +110,14 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 1), Literal.of(EMPTY, 1)), Literal.NULL),
-            new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 2), Literal.of(EMPTY, 2)), Literal.of(EMPTY, "foo")),
+                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), Literal.NULL),
+                new IfConditional(EMPTY, new Equals(EMPTY, literal(2), literal(2)), literal("foo")),
             Literal.NULL));
         assertEquals(KEYWORD, c.dataType());
     }
 
     public void testAllConditionsFolded() {
-        Case c = new Case(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
+        Case c = new Case(EMPTY, Collections.singletonList(literal("foo")));
         assertEquals(KEYWORD, c.dataType());
         assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
         assertNotNull(c.info());

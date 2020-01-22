@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1182,7 +1182,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 DataType l = left.dataType();
                 DataType r = right.dataType();
                 if (l != r) {
-                    DataType common = DataTypeConverter.commonType(l, r);
+                    DataType common = SqlDataTypeConverter.commonType(l, r);
                     if (common == null) {
                         return e;
                     }

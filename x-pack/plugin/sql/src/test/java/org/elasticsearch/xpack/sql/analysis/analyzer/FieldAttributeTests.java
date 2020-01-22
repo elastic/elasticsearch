@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
@@ -29,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -49,11 +50,11 @@ public class FieldAttributeTests extends ESTestCase {
         functionRegistry = new SqlFunctionRegistry();
         verifier = new Verifier(new Metrics());
 
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
     }
 
     private LogicalPlan plan(String sql) {
@@ -172,7 +173,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(

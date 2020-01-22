@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
@@ -14,6 +13,7 @@ import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,7 +75,7 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
     }
 
     public void testConditionFolded() {
-        Iif iif = new Iif(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
+        Iif iif = new Iif(EMPTY, Collections.singletonList(SqlTestUtils.literal("foo")));
         assertEquals(DataTypes.KEYWORD, iif.dataType());
         assertEquals(Expression.TypeResolution.TYPE_RESOLVED, iif.typeResolved());
         assertNotNull(iif.info());

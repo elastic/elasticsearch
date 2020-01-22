@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.temporal.TemporalAmount;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -88,6 +87,6 @@ public abstract class Interval<I extends TemporalAmount> implements NamedWriteab
 
     @Override
     public String typeName() {
-        return dataType().esType().toUpperCase(Locale.ROOT);
+        return dataType().toString();
     }
 }

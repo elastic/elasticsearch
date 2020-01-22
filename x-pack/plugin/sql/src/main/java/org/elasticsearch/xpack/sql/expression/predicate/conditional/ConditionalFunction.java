@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
 import java.util.List;
@@ -38,7 +38,7 @@ public abstract class ConditionalFunction extends ScalarFunction {
         if (dataType == null) {
             dataType = DataTypes.NULL;
             for (Expression exp : children()) {
-                dataType = DataTypeConverter.commonType(dataType, exp.dataType());
+                dataType = SqlDataTypeConverter.commonType(dataType, exp.dataType());
             }
         }
         return dataType;

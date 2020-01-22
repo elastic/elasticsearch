@@ -9,18 +9,18 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 
 import java.time.Duration;
 import java.time.Period;
@@ -222,13 +222,13 @@ public class ExpressionTests extends ESTestCase {
         double value = randomDouble();
         StringBuilder sb = new StringBuilder("-");
         for (int i = 0; i < numberOfParentheses; i++) {
-            sb.append("(").append(TestUtils.randomWhitespaces());
+            sb.append("(").append(SqlTestUtils.randomWhitespaces());
         }
         sb.append(value);
         for (int i = 0; i < numberOfParentheses; i++) {
             sb.append(")");
             if (i < numberOfParentheses - 1) {
-                sb.append(TestUtils.randomWhitespaces());
+                sb.append(SqlTestUtils.randomWhitespaces());
             }
         }
         expr = parser.createExpression(sb.toString());

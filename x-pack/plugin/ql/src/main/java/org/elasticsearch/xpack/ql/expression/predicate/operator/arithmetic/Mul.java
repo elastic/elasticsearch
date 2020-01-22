@@ -18,8 +18,6 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  */
 public class Mul extends ArithmeticOperation {
 
-    private DataType dataType;
-
     public Mul(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.MUL);
     }
@@ -39,14 +37,6 @@ public class Mul extends ArithmeticOperation {
         }
 
         return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
-    }
-
-    @Override
-    public DataType dataType() {
-        if (dataType == null) {
-            dataType = super.dataType();
-        }
-        return dataType;
     }
 
     @Override

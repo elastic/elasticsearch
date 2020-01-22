@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
@@ -62,6 +63,6 @@ public class NamedExpressionTests extends ESTestCase {
     }
 
     private static Literal l(Object value) {
-        return Literal.of(EMPTY, value);
+        return TestUtils.of(EMPTY, value);
     }
 }

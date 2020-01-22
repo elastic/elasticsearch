@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 
@@ -20,6 +21,6 @@ public class TyperResolutionTests extends ESTestCase {
     }
 
     private static Literal L(Object value) {
-        return Literal.of(EMPTY, value);
+        return TestUtils.of(EMPTY, value);
     }
 }

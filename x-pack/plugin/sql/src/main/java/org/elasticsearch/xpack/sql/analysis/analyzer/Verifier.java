@@ -45,8 +45,8 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -812,7 +812,7 @@ public final class Verifier {
                     localFailures.add(fail(v, "Null not allowed as a PIVOT value", v.name()));
                 }
                 // and that their type is compatible with that of the column
-                else if (SqlDataTypeConverter.commonType(colType, v.dataType()) != null) {
+                else if (SqlDataTypeConverter.areCompatible(colType, v.dataType()) == false) {
                     localFailures.add(fail(v, "Literal [{}] of type [{}] does not match type [{}] of PIVOT column [{}]", v.name(),
                             v.dataType().typeName(), colType.typeName(), pv.column().sourceText()));
                 }

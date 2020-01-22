@@ -27,7 +27,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.sql.TestUtils.randomWhitespaces;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomWhitespaces;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.hamcrest.Matchers.endsWith;

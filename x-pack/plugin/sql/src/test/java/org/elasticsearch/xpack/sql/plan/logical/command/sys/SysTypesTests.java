@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.sql.JDBCType;
 import java.util.List;
@@ -33,12 +33,12 @@ public class SysTypesTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private Tuple<Command, SqlSession> sql(String sql) {
-        EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test), null);
+        EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test), null);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
 
         IndexResolver resolver = mock(IndexResolver.class);
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 
@@ -117,6 +117,6 @@ public class SysTypesTests extends ESTestCase {
     }
 
     private static SqlSession session() {
-        return new SqlSession(TestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
+        return new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
     }
 }

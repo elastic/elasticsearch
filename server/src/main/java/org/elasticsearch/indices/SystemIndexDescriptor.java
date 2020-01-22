@@ -105,8 +105,9 @@ public class SystemIndexDescriptor {
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
             .collect(Collectors.toList());
 
-        // This is O(n^2) with the number of system index descriptors, but each check is fast and the absolute number of
-        // system index descriptors should be quite small (~10s at most). If this assumption changes this might need to be reworked.
+        // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
+        // automaton, but the absolute number of system index descriptors should be quite small (~10s at most), and the number of states
+        // per pattern should be low as well. If these assumptions change, this might need to be reworked.
         sourceDescriptorPair.forEach(descriptorToCheck -> {
             List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = sourceDescriptorPair.stream()
 

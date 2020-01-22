@@ -218,6 +218,11 @@ public class HttpExporter extends Exporter {
                                         throw new SettingsException("username for [" + key + "] is set but type is [" + type + "]");
                                     }
                                 }
+
+                                // it would be ideal to validate that just one of either AUTH_PASSWORD_SETTING or
+                                // SECURE_AUTH_PASSWORD_SETTING were present here, but that is not currently possible with the settings
+                                // validation framework.
+                                // https://github.com/elastic/elasticsearch/issues/51332
                             }
 
                             @Override

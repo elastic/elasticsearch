@@ -526,36 +526,6 @@ public class InternalEngine extends Engine {
         revisitIndexDeletionPolicyOnTranslogSynced();
     }
 
-    /**
-     * Creates a new history snapshot for reading operations since the provided seqno.
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
-     */
-    @Override
-    public Translog.Snapshot readHistoryOperations(String reason, HistorySource historySource,
-                                                   MapperService mapperService, long startingSeqNo) throws IOException {
-        if (historySource == HistorySource.INDEX) {
-            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
-        } else {
-            return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
-        }
-    }
-
-    /**
-     * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
-     */
-    @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) throws IOException {
-        if (historySource == HistorySource.INDEX) {
-            try (Translog.Snapshot snapshot = newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo),
-                Long.MAX_VALUE, false)) {
-                return snapshot.totalOperations();
-            }
-        } else {
-            return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
-        }
-    }
-
     @Override
     public TranslogStats getTranslogStats() {
         return getTranslog().stats();
@@ -2597,27 +2567,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean hasCompleteOperationHistory(String reason, HistorySource historySource,
-                                               MapperService mapperService, long startingSeqNo) throws IOException {
-        if (historySource == HistorySource.INDEX) {
-            return getMinRetainedSeqNo() <= startingSeqNo;
-        } else {
-            final long currentLocalCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            // avoid scanning translog if not necessary
-            if (startingSeqNo > currentLocalCheckpoint) {
-                return true;
-            }
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
-            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        tracker.markSeqNoAsProcessed(operation.seqNo());
-                    }
-                }
-            }
-            return tracker.getProcessedCheckpoint() >= currentLocalCheckpoint;
-        }
+    public boolean hasCompleteOperationHistory(String reason, long startingSeqNo) {
+        return getMinRetainedSeqNo() <= startingSeqNo;
     }
 
     /**
@@ -2629,12 +2580,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireHistoryRetentionLock(HistorySource historySource) {
-        if (historySource == HistorySource.INDEX) {
-            return softDeletesPolicy.acquireRetentionLock();
-        } else {
-            return translog.acquireRetentionLock();
-        }
+    public Closeable acquireHistoryRetentionLock() {
+        return softDeletesPolicy.acquireRetentionLock();
     }
 
     /**

@@ -40,8 +40,9 @@ public class UpgradeKeyStoreCommand extends EnvironmentAwareCommand {
         final KeyStoreWrapper wrapper = KeyStoreWrapper.load(env.configFile());
         if (wrapper == null) {
             throw new UserException(
-                    ExitCodes.CONFIG,
-                    "keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]");
+                ExitCodes.CONFIG,
+                "keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]"
+            );
         }
         wrapper.decrypt(new char[0]);
         KeyStoreWrapper.upgrade(wrapper, env.configFile(), new char[0]);

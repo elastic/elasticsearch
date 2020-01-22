@@ -82,7 +82,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new NestedPathFieldMapper(indexSettings, Defaults.FIELD_TYPE);
+            return new NestedPathFieldMapper(indexSettings, defaultFieldType(indexSettings));
         }
     }
 

@@ -138,8 +138,9 @@ public interface ActionListener<Response> {
      *
      * Notice that it is considered a bug if the listener's onResponse or onFailure fails. onResponse failures will not call onFailure.
      *
-     * If the function fails, the listener's onFailure handler will be called. The principle is that the code using this is responsible for
-     * the function, whereas the listener/delegate should do its own exception handling since it is a different component.
+     * If the function fails, the listener's onFailure handler will be called. The principle is that the mapped listener will handle
+     * exceptions from the mapping function {@code fn} but it is the responsibility of {@code delegate} to handle its own exceptions
+     * inside `onResponse` and `onFailure`.
      *
      * @param delegate Listener to delegate to
      * @param fn Function to apply to listener response

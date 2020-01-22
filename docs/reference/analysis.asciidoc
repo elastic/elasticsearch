@@ -10,7 +10,7 @@ optimized for search.
 
 [float]
 [[when-to-configure-analysis]]
-== When to configure text analysis
+=== When to configure text analysis
 
 {es} comes with smart defaults for text analysis. These defaults work well for
 most use cases and require no configuration.
@@ -27,6 +27,20 @@ configuration if you're using {es} to:
 * Mine unstructured data
 * Fine-tune search for a specific language
 * Perform lexicographic or linguistic research
+
+[float]
+[[analysis-toc]]
+=== In this section
+
+* <<analysis-overview>>
+* <<analysis-concepts>>
+* <<configure-text-analysis>>
+* <<analysis-analyzers>>
+* <<analysis-tokenizers>>
+* <<analysis-tokenfilters>>
+* <<analysis-charfilters>>
+* <<analysis-normalizers>>
+
 --
 
 include::analysis/overview.asciidoc[]

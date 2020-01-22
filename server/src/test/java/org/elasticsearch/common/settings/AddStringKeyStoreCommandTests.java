@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import java.io.ByteArrayInputStream;
+import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -159,6 +160,48 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         setInput("secret value 2");
         execute("--stdin", "foo");
         assertSecureString("foo", "secret value 2", password);
+    }
+
+    public void testStdinNoInput() throws Exception {
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        setInput("");
+        execute("-x", "foo");
+        assertSecureString("foo", "", password);
+    }
+
+    public void testStdinInputWithLineBreaks() throws Exception {
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        setInput("Typedthisandhitenter\n");
+        execute("-x", "foo");
+        assertSecureString("foo", "Typedthisandhitenter", password);
+    }
+
+    public void testStdinInputWithCarriageReturn() throws Exception {
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        setInput("Typedthisandhitenter\r");
+        execute("-x", "foo");
+        assertSecureString("foo", "Typedthisandhitenter", password);
+    }
+
+    public void testAddUtf8String() throws Exception {
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        final int stringSize = randomIntBetween(8, 16);
+        try (CharArrayWriter secretChars = new CharArrayWriter(stringSize)) {
+            for (int i = 0; i < stringSize; i++) {
+                secretChars.write((char) randomIntBetween(129, 2048));
+            }
+            setInput(secretChars.toString());
+            execute("-x", "foo");
+            assertSecureString("foo", secretChars.toString(), password);
+        }
     }
 
     public void testMissingSettingName() throws Exception {

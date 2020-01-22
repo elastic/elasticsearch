@@ -232,8 +232,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void setTestDistribution(TestDistribution testDistribution) {
         requireNonNull(testDistribution, "null distribution passed when configuring test cluster `" + this + "`");
-        // TODO: Uncomment this workaround once we remove all the globalInfo.ready { } stuff
-        // checkFrozen();
+        checkFrozen();
         this.testDistribution = testDistribution;
         for (ElasticsearchDistribution distribution : distributions) {
             setDistributionType(distribution, testDistribution);

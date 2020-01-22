@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression;
+package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -19,9 +20,9 @@ import java.util.Set;
 public abstract class Foldables {
 
     @SuppressWarnings("unchecked")
-    public static <T> T valueOf(Expression e, DataType to) {
+    private static <T> T valueOf(Expression e, DataType to) {
         if (e.foldable()) {
-            return (T) DataTypeConverter.converterFor(e.dataType(), to).convert(e.fold());
+            return (T) SqlDataTypeConverter.convert(e.fold(), to);
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
@@ -45,7 +46,7 @@ public abstract class Foldables {
         return foldTo(list, to, new ArrayList<>(list.size()));
     }
 
-    public static <T> Set<T> valuesOfNoDuplicates(List<Expression> list, DataType to) {
+    public static <T> Set<T> valuesUnique(List<Expression> list, DataType to) {
         return foldTo(list, to, new LinkedHashSet<>(list.size()));
     }
 

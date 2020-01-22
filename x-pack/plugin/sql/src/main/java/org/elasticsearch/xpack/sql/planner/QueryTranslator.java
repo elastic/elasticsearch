@@ -105,8 +105,8 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.id;
-import static org.elasticsearch.xpack.ql.expression.Foldables.doubleValuesOf;
-import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
+import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
 
 final class QueryTranslator {
 

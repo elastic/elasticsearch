@@ -322,9 +322,15 @@ public final class SqlDataTypeConverter {
 
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = SqlDataTypes.fromJava(value);
+
+        if (detectedType == null) {
+            throw new SqlIllegalArgumentException("cannot detect datatype for [{}]", value);
+        }
+
         if (detectedType == dataType || value == null) {
             return value;
         }
+
         Converter converter = converterFor(detectedType, dataType);
 
         if (converter == null) {

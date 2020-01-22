@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -18,6 +17,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -125,7 +126,7 @@ public class In extends ScalarFunction {
         DataType dt = value.dataType();
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
-            if (DataTypes.areCompatible(dt, listValue.dataType()) == false) {
+            if (SqlDataTypes.areCompatible(dt, listValue.dataType()) == false) {
                 return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                     ordinal(i + 1),
                     sourceText(),

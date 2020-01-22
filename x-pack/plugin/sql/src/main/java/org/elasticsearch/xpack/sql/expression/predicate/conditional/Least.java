@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -35,6 +35,6 @@ public class Least extends ArbitraryConditionalFunction {
 
     @Override
     public Object fold() {
-        return LEAST.apply(Foldables.valuesOfNoDuplicates(children(), dataType));
+        return LEAST.apply(Foldables.valuesUnique(children(), dataType));
     }
 }

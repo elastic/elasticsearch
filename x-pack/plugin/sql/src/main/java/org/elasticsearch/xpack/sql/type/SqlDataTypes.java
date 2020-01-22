@@ -279,8 +279,7 @@ public class SqlDataTypes {
         if (left == right) {
             return true;
         } else {
-            return
-                (left == NULL || right == NULL)
+            return (left == NULL || right == NULL)
                     || (DataTypes.isString(left) && DataTypes.isString(right))
                     || (left.isNumeric() && right.isNumeric())
                     || (isDateBased(left) && isDateBased(right))

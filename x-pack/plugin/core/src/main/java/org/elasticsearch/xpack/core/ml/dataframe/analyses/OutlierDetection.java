@@ -230,7 +230,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
         return Collections.emptyMap();
     }
 

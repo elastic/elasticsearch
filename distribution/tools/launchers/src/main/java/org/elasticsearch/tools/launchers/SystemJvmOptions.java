@@ -28,42 +28,45 @@ import java.util.List;
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions() {
-        return Collections.unmodifiableList(Arrays.asList(
-            /*
-             * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
-             * can be set to -1 to cache forever.
-             */
-            "-Des.networkaddress.cache.ttl=60",
-            /*
-             * Cache ttl in seconds for negative DNS lookups noting that this overrides the JDK security property
-             * networkaddress.cache.negative ttl; set to -1 to cache forever.
-             */
-            "-Des.networkaddress.cache.negative.ttl=10",
-            // pre-touch JVM emory pages during initialization
-            "-XX:+AlwaysPreTouch",
-            // explicitly set the stack size
-            "-Xss1m",
-            // set to headless, just in case,
-            "-Djava.awt.headless=true",
-            // ensure UTF-8 encoding by default (e.g., filenames)
-            "-Dfile.encoding=UTF-8",
-            // use our provided JNA always versus the system one
-            "-Djna.nosys=true",
-            /*
-             * Turn off a JDK optimization that throws away stack traces for common exceptions because stack traces are important for
-             * debugging.
-             */
-            "-XX:-OmitStackTraceInFastThrow",
-            // flags to configure Netty
-            "-Dio.netty.noUnsafe=true",
-            "-Dio.netty.noKeySetOptimization=true",
-            "-Dio.netty.recycler.maxCapacityPerThread=0",
-            "-Dio.netty.allocator.numDirectArenas=0",
-            // log4j 2
-            "-Dlog4j.shutdownHookEnabled=false",
-            "-Dlog4j2.disable.jmx=true",
+        return Collections.unmodifiableList(
+            Arrays.asList(
+                /*
+                 * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
+                 * can be set to -1 to cache forever.
+                 */
+                "-Des.networkaddress.cache.ttl=60",
+                /*
+                 * Cache ttl in seconds for negative DNS lookups noting that this overrides the JDK security property
+                 * networkaddress.cache.negative ttl; set to -1 to cache forever.
+                 */
+                "-Des.networkaddress.cache.negative.ttl=10",
+                // pre-touch JVM emory pages during initialization
+                "-XX:+AlwaysPreTouch",
+                // explicitly set the stack size
+                "-Xss1m",
+                // set to headless, just in case,
+                "-Djava.awt.headless=true",
+                // ensure UTF-8 encoding by default (e.g., filenames)
+                "-Dfile.encoding=UTF-8",
+                // use our provided JNA always versus the system one
+                "-Djna.nosys=true",
+                /*
+                 * Turn off a JDK optimization that throws away stack traces for common exceptions because stack traces are important for
+                 * debugging.
+                 */
+                "-XX:-OmitStackTraceInFastThrow",
+                // flags to configure Netty
+                "-Dio.netty.noUnsafe=true",
+                "-Dio.netty.noKeySetOptimization=true",
+                "-Dio.netty.recycler.maxCapacityPerThread=0",
+                "-Dio.netty.allocator.numDirectArenas=0",
+                // log4j 2
+                "-Dlog4j.shutdownHookEnabled=false",
+                "-Dlog4j2.disable.jmx=true",
 
-            javaLocaleProviders()));
+                javaLocaleProviders()
+            )
+        );
     }
 
     private static String javaLocaleProviders() {
@@ -77,7 +80,7 @@ final class SystemJvmOptions {
          *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
          * See also: documentation in <code>server/org.elasticsearch.common.time.IsoCalendarDataProvider</code>
          */
-        if(JavaVersion.majorVersion(JavaVersion.CURRENT) == 8){
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
             return "-Djava.locale.providers=SPI,JRE";
         } else {
             return "-Djava.locale.providers=SPI,COMPAT";

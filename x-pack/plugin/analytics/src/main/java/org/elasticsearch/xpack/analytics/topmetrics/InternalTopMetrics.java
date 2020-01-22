@@ -5,29 +5,37 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class InternalTopMetrics extends InternalAggregation {
+    public static List<NamedWriteableRegistry.Entry> writeables() {
+        return Arrays.asList(
+                new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
+                new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new));
+    }
+
     private final DocValueFormat sortFormat;
     private final SortOrder sortOrder;
-    private final double sortValue;
+    private final SortValue sortValue;
     private final String metricName;
     private final double metricValue;
 
-    InternalTopMetrics(String name, DocValueFormat sortFormat, SortOrder sortOrder, double sortValue, String metricName,
+    private InternalTopMetrics(String name, DocValueFormat sortFormat, SortOrder sortOrder, SortValue sortValue, String metricName,
             double metricValue, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sortFormat = sortFormat;
@@ -37,9 +45,15 @@ public class InternalTopMetrics extends InternalAggregation {
         this.metricValue = metricValue;
     }
 
-    static InternalTopMetrics buildEmptyAggregation(String name, DocValueFormat sortFormat, SortOrder sortOrder, String metricField,
+    InternalTopMetrics(String name, DocValueFormat sortFormat, SortOrder sortOrder, Object sortValue, String metricName,
+            double metricValue, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        this(name, sortFormat, sortOrder, sortValueFor(sortValue), metricName, metricValue, pipelineAggregators, metaData);
+    }
+
+    static InternalTopMetrics buildEmptyAggregation(String name, String metricField,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTopMetrics(name, sortFormat, sortOrder, Double.NaN, metricField, Double.NaN, pipelineAggregators, metaData);
+        return new InternalTopMetrics(name, DocValueFormat.RAW, SortOrder.ASC, null, metricField, Double.NaN, pipelineAggregators,
+                metaData);
     }
 
     /**
@@ -49,7 +63,7 @@ public class InternalTopMetrics extends InternalAggregation {
         super(in);
         sortFormat = in.readNamedWriteable(DocValueFormat.class);
         sortOrder = SortOrder.readFromStream(in);
-        sortValue = in.readDouble();
+        sortValue = in.readOptionalNamedWriteable(SortValue.class);
         metricName = in.readString();
         metricValue = in.readDouble();
     }
@@ -58,7 +72,7 @@ public class InternalTopMetrics extends InternalAggregation {
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(sortFormat);
         sortOrder.writeTo(out);
-        out.writeDouble(sortValue);
+        out.writeOptionalNamedWriteable(sortValue);
         out.writeString(metricName);
         out.writeDouble(metricValue);
     }
@@ -83,38 +97,30 @@ public class InternalTopMetrics extends InternalAggregation {
     public InternalTopMetrics reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Iterator<InternalAggregation> itr = aggregations.iterator();
         InternalTopMetrics first;
-        while (true) {
+        do {
             if (false == itr.hasNext()) {
-                // Reducing a bunch of empty aggregations
-                return buildReduced(DocValueFormat.RAW, Double.NaN, Double.NaN);
+                // All of the aggregations are empty.
+                return buildEmptyAggregation(name, metricName, pipelineAggregators(), getMetaData());
             }
             first = (InternalTopMetrics) itr.next();
-            // Results with NaN sorts are empty
-            if (false == Double.isNaN(first.sortValue)) {
-                break;
-            }
-        }
+        } while (first.sortValue == null);
         DocValueFormat bestSortFormat = first.sortFormat;
-        double bestSortValue = first.sortValue;
+        SortValue bestSortValue = first.sortValue;
         double bestMetricValue = first.metricValue;
-        int reverseMul = sortOrder == SortOrder.DESC ? -1 : 1;
+        int reverseMul = first.sortOrder.reverseMul();
         while (itr.hasNext()) {
             InternalTopMetrics result = (InternalTopMetrics) itr.next();
-            // Results with NaN sorts are empty
-            if (Double.isNaN(result.sortValue)) {
+            if (result.sortValue == null) {
+                // Don't bother checking empty results.
                 continue;
             }
-            if (reverseMul * Double.compare(bestSortValue, result.sortValue) > 0) {
+            if (reverseMul * bestSortValue.compareTo(result.sortValue) > 0) {
                 bestSortFormat = result.sortFormat;
                 bestSortValue = result.sortValue;
                 bestMetricValue = result.metricValue;
             }
         }
-        return buildReduced(bestSortFormat, bestSortValue, bestMetricValue);
-    }
-
-    private InternalTopMetrics buildReduced(DocValueFormat bestSortFormat, double bestSortValue, double bestMetricValue) {
-        return new InternalTopMetrics(getName(), bestSortFormat, sortOrder, bestSortValue, metricName, bestMetricValue,
+        return new InternalTopMetrics(getName(), bestSortFormat, first.sortOrder, bestSortValue, metricName, bestMetricValue,
                 pipelineAggregators(), getMetaData());
     }
 
@@ -123,9 +129,13 @@ public class InternalTopMetrics extends InternalAggregation {
         builder.startArray("top");
         builder.startObject();
         {
-            // Sadly, this won't output dates correctly because they always come back as doubles. We 
-            SearchSortValues sortValues = new SearchSortValues(new Object[] {sortValue}, new DocValueFormat[] {sortFormat});
-            sortValues.toXContent(builder, params);
+            builder.startArray("sort");
+            if (sortFormat == DocValueFormat.RAW) {
+                builder.value(sortValue.getKey());
+            } else {
+                builder.value(sortValue.format(sortFormat));
+            }
+            builder.endArray();
             builder.startObject("metrics");
             {
                 builder.field(metricName, Double.isNaN(metricValue) ? null : metricValue);
@@ -148,7 +158,7 @@ public class InternalTopMetrics extends InternalAggregation {
         InternalTopMetrics other = (InternalTopMetrics) obj;
         return sortFormat.equals(other.sortFormat) &&
             sortOrder.equals(other.sortOrder) &&
-            sortValue == other.sortValue &&
+            sortValue.equals(other.sortValue) &&
             metricName.equals(other.metricName) &&
             metricValue == other.metricValue;
     }
@@ -161,8 +171,12 @@ public class InternalTopMetrics extends InternalAggregation {
         return sortOrder;
     }
 
-    double getSortValue() {
-        return sortValue;
+    Object getSortValue() {
+        return sortValue == null ? null : sortValue.getKey();
+    }
+
+    String getFormattedSortValue() {
+        return sortValue.format(sortFormat);
     }
 
     String getMetricName() {
@@ -171,5 +185,154 @@ public class InternalTopMetrics extends InternalAggregation {
 
     double getMetricValue() {
         return metricValue;
+    }
+
+    private static SortValue sortValueFor(Object o) {
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof Double) {
+            return new DoubleSortValue((double) o);
+        }
+        if (o instanceof Float) {
+            return new DoubleSortValue((float) o);
+        }
+        if (o instanceof Long) {
+            return new LongSortValue((long) o);
+        }
+        throw new UnsupportedOperationException("no support for non-long or double keys but got [" + o.getClass() + "]");
+    }
+    abstract static class SortValue implements NamedWriteable, Comparable<SortValue> {
+        abstract String format(DocValueFormat format);
+
+        @Override
+        public final int compareTo(SortValue other) {
+            int typeCompare = getWriteableName().compareTo(other.getWriteableName());
+            if (typeCompare != 0) {
+                return typeCompare;
+            }
+            return compareToSameType(other);
+        }
+
+        protected abstract Object getKey();
+
+        protected abstract int compareToSameType(SortValue obj);
+    }
+
+    private static class DoubleSortValue extends SortValue {
+        public static final String NAME = "double";
+
+        private final double key;
+
+        private DoubleSortValue(double key) {
+            this.key = key;
+        }
+
+        private DoubleSortValue(StreamInput in) throws IOException {
+            this.key = in.readDouble();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(key);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        protected Object getKey() {
+            return key;
+        }
+
+        @Override
+        String format(DocValueFormat format) {
+            return format.format(key).toString();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            DoubleSortValue other = (DoubleSortValue) obj;
+            return key == other.key;
+        }
+
+        @Override
+        public int hashCode() {
+            return Double.hashCode(key);
+        }
+
+        @Override
+        protected int compareToSameType(SortValue obj) {
+            DoubleSortValue other = (DoubleSortValue) obj;
+            return Double.compare(key, other.key);
+        }
+
+        @Override
+        public String toString() {
+            return Double.toString(key);
+        }
+    }
+    private static class LongSortValue extends SortValue {
+        public static final String NAME = "long";
+
+        private final long key;
+
+        LongSortValue(long key) {
+            this.key = key;
+        }
+
+        LongSortValue(StreamInput in) throws IOException {
+            key = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(key);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        protected Object getKey() {
+            return key;
+        }
+
+        @Override
+        String format(DocValueFormat format) {
+            return format.format(key).toString();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            LongSortValue other = (LongSortValue) obj;
+            return key == other.key;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(key);
+        }
+
+        @Override
+        protected int compareToSameType(SortValue obj) {
+            LongSortValue other = (LongSortValue) obj;
+            return Double.compare(key, other.key);
+        }
+
+        @Override
+        public String toString() {
+            return Long.toString(key);
+        }
     }
 }

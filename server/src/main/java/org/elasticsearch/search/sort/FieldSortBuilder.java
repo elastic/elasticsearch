@@ -324,10 +324,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
         }
 
-        boolean isUnmapped = false;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
+        Nested nested = nested(context, fieldType);
         if (fieldType == null) {
-            isUnmapped = true;
             if (unmappedType != null) {
                 fieldType = context.getMapperService().unmappedFieldType(unmappedType);
             } else {
@@ -335,26 +334,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
         }
 
-        MultiValueMode localSortMode = null;
-        if (sortMode != null) {
-            localSortMode = MultiValueMode.fromString(sortMode.toString());
-        }
-
-        boolean reverse = (order == SortOrder.DESC);
-        if (localSortMode == null) {
-            localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
-        }
-
-        Nested nested = null;
-        if (isUnmapped == false) {
-            if (nestedSort != null) {
-                validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
-                nested = resolveNested(context, nestedSort);
-            } else {
-                validateMissingNestedPath(context, fieldName);
-            }
-        }
-
+        boolean reverse = order == SortOrder.DESC;
         IndexFieldData<?> fieldData = context.getForField(fieldType);
         if (fieldData instanceof IndexNumericFieldData == false
                 && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
@@ -368,11 +348,55 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
             SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
-            field = numericFieldData.sortField(resolvedType, missing, localSortMode, nested, reverse);
+            field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
         } else {
-            field = fieldData.sortField(missing, localSortMode, nested, reverse);
+            field = fieldData.sortField(missing, localSortMode(), nested, reverse);
         }
         return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        Nested nested = nested(context, fieldType);
+        if (fieldType == null) {
+            if (unmappedType != null) {
+                fieldType = context.getMapperService().unmappedFieldType(unmappedType);
+            } else {
+                throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+            }
+        }
+
+        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        if (fieldData instanceof IndexNumericFieldData == false
+                && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+            throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+        }
+        if (numericType != null) {
+            throw new IllegalArgumentException("not yet supported");
+        }
+        return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
+                fieldType.docValueFormat(null, null));
+    }
+
+    private MultiValueMode localSortMode() {
+        if (sortMode != null) {
+            return MultiValueMode.fromString(sortMode.toString());
+        }
+
+        return order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
+    }
+
+    private Nested nested(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+        if (fieldType == null) {
+            return null;
+        }
+        if (nestedSort == null) {
+            validateMissingNestedPath(context, fieldName);
+            return null;
+        }
+        validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
+        return resolveNested(context, nestedSort);
     }
 
     /**

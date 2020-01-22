@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -46,6 +47,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     public AnalyticsPlugin() { }
 
     public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+
+    @Override
+    public List<Entry> getNamedWriteables() {
+        return InternalTopMetrics.writeables();
+    }
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {

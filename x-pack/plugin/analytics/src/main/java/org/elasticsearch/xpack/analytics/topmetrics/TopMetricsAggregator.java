@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -24,35 +21,23 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.BucketedSort;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 class TopMetricsAggregator extends MetricsAggregator {
-    /**
-     * Field comparator for doing the sort. This comes from Lucene and it isn't quite what we need
-     * but it is pretty close. We'll likely revisit this but for now it is very good at letting us
-     * use the normal sorting infrastructure.
-     */
-    private final FieldComparator<? extends Number> sortComparator;
-    private final SortOrder sortOrder;
-    private final DocValueFormat sortFormat;
-    private final boolean sortNeedsScores;
+    private final BucketedSort sort;
     private final String metricName;
     private final ValuesSource.Numeric metricValueSource;
     private DoubleArray values;
 
     TopMetricsAggregator(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData,
-            FieldComparator<? extends Number> sortComparator, SortOrder sortOrder, DocValueFormat sortFormat, boolean sortNeedsScores,
+            Map<String, Object> metaData, BucketedSort sort,
             String metricName, ValuesSource.Numeric metricValueSource) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
-        this.sortComparator = sortComparator;
-        this.sortOrder = sortOrder;
-        this.sortFormat = sortFormat;
-        this.sortNeedsScores = sortNeedsScores;
+        this.sort = sort;
         this.metricName = metricName;
         this.metricValueSource = metricValueSource;
         if (metricValueSource != null) {
@@ -63,7 +48,7 @@ class TopMetricsAggregator extends MetricsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        boolean needs = sortNeedsScores || (metricValueSource != null && metricValueSource.needsScores());
+        boolean needs = (sort != null && sort.needsScores()) || (metricValueSource != null && metricValueSource.needsScores());
         return needs ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
@@ -72,38 +57,29 @@ class TopMetricsAggregator extends MetricsAggregator {
         if (metricValueSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
         // TODO allow configuration of value mode
         NumericDoubleValues metricValues = MultiValueMode.AVG.select(metricValueSource.doubleValues(ctx));
 
-        LeafFieldComparator leafCmp = sortComparator.getLeafComparator(ctx);
-        int reverseMul = sortOrder == SortOrder.DESC ? -1 : 1;
         return new LeafBucketCollectorBase(sub, metricValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                long offset = bucket * 2;
-                if (offset + 2 > values.size()) {
+                long offset = bucket;
+                if (offset >= values.size()) {
                     long oldSize = values.size();
-                    values = context.bigArrays().grow(values, offset + 2);
+                    values = context.bigArrays().grow(values, offset + 1);
                     values.fill(oldSize, values.size(), Double.NaN);
                 }
 
-                double bestSort = values.get(offset);
-                // This generates a Double instance and throws it away. Sad, but it is the price we pay for using Lucene APIs.
-                leafCmp.copy(0, doc);
-                double sort = sortComparator.value(0).doubleValue();
-
-                // The explicit check to NaN is important here because NaN should *always* lose
-                if (Double.isNaN(bestSort) || reverseMul * Double.compare(bestSort, sort) > 0) {
-                    values.set(offset, sort);
-                    // TODO support for missing values
+                if (leafSort.hit(doc, bucket)) {
                     double metricValue = metricValues.advanceExact(doc) ? metricValues.doubleValue() : Double.NaN; 
-                    values.set(offset + 1, metricValue);
+                    values.set(offset, metricValue);
                 }
             }
 
             @Override
             public void setScorer(Scorable s) throws IOException {
-                leafCmp.setScorer(s);
+                leafSort.setScorer(s);
             }
         };
     }
@@ -113,15 +89,17 @@ class TopMetricsAggregator extends MetricsAggregator {
         if (metricValueSource == null) {
             return buildEmptyAggregation();
         }
-        long offset = bucket * 2;
-        double sortValue = values.get(offset);
-        double metricValue = values.get(offset + 1);
-        return new InternalTopMetrics(name, sortFormat, sortOrder, sortValue, metricName, metricValue, pipelineAggregators(), metaData());
+        Object sortValue = sort.getValue(bucket);
+        double metricValue = values.get(bucket);
+        return new InternalTopMetrics(name, sort.getFormat(), sort.getOrder(), sortValue, metricName, metricValue, pipelineAggregators(),
+                metaData());
     }
 
     @Override
     public InternalTopMetrics buildEmptyAggregation() {
-        return InternalTopMetrics.buildEmptyAggregation(name, sortFormat, sortOrder, metricName, pipelineAggregators(), metaData());
+        // The sort format and sort order aren't used in reduction so we pass the simplest thing.
+        return InternalTopMetrics.buildEmptyAggregation(name, metricName, pipelineAggregators(),
+                metaData());
     }
 
     @Override

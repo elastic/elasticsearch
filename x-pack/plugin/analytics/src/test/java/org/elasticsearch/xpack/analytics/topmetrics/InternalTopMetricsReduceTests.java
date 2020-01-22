@@ -16,15 +16,16 @@ import java.util.Collections;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notANumber;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InternalTopMetricsReduceTests extends ESTestCase {
     public void testAllEmpty() {
         InternalTopMetrics first = buildEmpty();
         InternalTopMetrics reduced = reduce(first, buildEmpty(), buildEmpty(), buildEmpty());
         assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getSortValue(), notANumber());
+        assertThat(reduced.getSortValue(), nullValue());
         assertThat(reduced.getSortFormat(), equalTo(DocValueFormat.RAW));
-        assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
+        assertThat(reduced.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(reduced.getMetricValue(), notANumber());
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
@@ -36,7 +37,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getSortValue(), equalTo(filled.getSortValue()));
         assertThat(reduced.getSortFormat(), equalTo(filled.getSortFormat()));
-        assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
+        assertThat(reduced.getSortOrder(), equalTo(filled.getSortOrder()));
         assertThat(reduced.getMetricValue(), equalTo(filled.getMetricValue()));
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
@@ -48,20 +49,19 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
                 min, buildEmpty(), buildFilled(2.0, randomDouble()), buildEmpty(), max
         };
         Collections.shuffle(Arrays.asList(metrics), random());
-        InternalTopMetrics winner = metrics[0].getSortOrder() == SortOrder.ASC ? min : max; 
+        SortOrder sortOrder = Arrays.stream(metrics).filter(i -> i.getSortValue() != null).findFirst().get().getSortOrder();
+        InternalTopMetrics winner = sortOrder == SortOrder.ASC ? min : max; 
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getSortValue(), equalTo(winner.getSortValue()));
         assertThat(reduced.getSortFormat(), equalTo(winner.getSortFormat()));
-        assertThat(reduced.getSortOrder(), equalTo(metrics[0].getSortOrder()));
+        assertThat(reduced.getSortOrder(), equalTo(sortOrder));
         assertThat(reduced.getMetricValue(), equalTo(winner.getMetricValue()));
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
 
     private InternalTopMetrics buildEmpty() {
-        DocValueFormat sortFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
-        SortOrder sortOrder = randomFrom(SortOrder.values());
-        return InternalTopMetrics.buildEmptyAggregation("test", sortFormat, sortOrder, "test", emptyList(), null);
+        return InternalTopMetrics.buildEmptyAggregation("test", "test", emptyList(), null);
     }
 
     private InternalTopMetrics buildFilled(double sortValue, double metricValue) {

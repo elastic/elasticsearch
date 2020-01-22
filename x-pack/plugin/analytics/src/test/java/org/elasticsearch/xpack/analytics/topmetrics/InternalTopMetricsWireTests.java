@@ -13,12 +13,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static java.util.stream.Collectors.toList;
 
 public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase<InternalTopMetrics> {
     private static final List<DocValueFormat> RANDOM_FORMATS = unmodifiableList(Arrays.asList(
@@ -27,9 +27,12 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(RANDOM_FORMATS.stream()
-                .map(f -> new NamedWriteableRegistry.Entry(DocValueFormat.class, f.getWriteableName(), in -> f))
-                .collect(toList())); 
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
+        for (DocValueFormat format : RANDOM_FORMATS) {
+            writeables.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, format.getWriteableName(), in -> format));
+        }
+        writeables.addAll(InternalTopMetrics.writeables());
+        return new NamedWriteableRegistry(writeables); 
     }
 
     @Override
@@ -37,18 +40,18 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
         String name = randomAlphaOfLength(5);
         DocValueFormat sortFormat = randomFrom(RANDOM_FORMATS);
         SortOrder sortOrder = randomFrom(SortOrder.values());
-        double sortValue = randomDouble();
+        Object sortValue = randomBoolean() ? randomLong() : randomDouble();
         String metricName = randomAlphaOfLength(5);
         double metricValue = randomDouble();
         return new InternalTopMetrics(name, sortFormat, sortOrder, sortValue, metricName, metricValue, emptyList(), null);
     }
-    
+
     @Override
     protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) throws IOException {
         String name = instance.getName();
         DocValueFormat sortFormat = instance.getSortFormat();
         SortOrder sortOrder = instance.getSortOrder();
-        double sortValue = instance.getSortValue();
+        Object sortValue = instance.getSortValue();
         String metricName = instance.getMetricName();
         double metricValue = instance.getMetricValue();
         switch (randomInt(5)) {
@@ -62,7 +65,7 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
             sortOrder = sortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
             break;
         case 3:
-            sortValue = randomValueOtherThan(sortValue, () -> randomDouble());
+            sortValue = randomValueOtherThan(sortValue, () -> randomBoolean() ? randomLong() : randomDouble());
             break;
         case 4:
             metricName = randomAlphaOfLength(6);

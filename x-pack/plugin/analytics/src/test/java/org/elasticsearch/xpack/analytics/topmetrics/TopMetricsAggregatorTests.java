@@ -6,24 +6,40 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -32,14 +48,15 @@ import java.util.Arrays;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notANumber;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {},
-                numberField(NumberType.DOUBLE, "s"), numberField(NumberType.DOUBLE, "m"));
+                doubleFields());
         assertThat(result.getSortFormat(), equalTo(DocValueFormat.RAW));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), notANumber());
+        assertThat(result.getSortValue(), nullValue());
         assertThat(result.getMetricValue(), notANumber());
     }
 
@@ -47,8 +64,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(singletonList(doubleField("s", 1.0)));
                 },
-                numberField(NumberType.DOUBLE, "s"));
-        assertThat(result.getSortValue(), notANumber());
+                numberFieldType(NumberType.DOUBLE, "s"));
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), nullValue());
         assertThat(result.getMetricValue(), notANumber());
     }
 
@@ -56,7 +74,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(singletonList(doubleField("s", 1.0)));
                 },
-                numberField(NumberType.DOUBLE, "s"), numberField(NumberType.DOUBLE, "m"));
+                doubleFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getSortValue(), equalTo(1.0d));
         assertThat(result.getMetricValue(), notANumber());
     }
@@ -65,42 +84,177 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
                 },
-                numberField(NumberType.DOUBLE, "s"), numberField(NumberType.DOUBLE, "m"));
+                doubleFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getSortValue(), equalTo(1.0d));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
-    public void testAscending() throws IOException {
-        TopMetricsAggregationBuilder builder = simpleBuilder();
-        builder.getSortBuilders().get(0).order(SortOrder.ASC);
-        InternalTopMetrics empty = collect(builder, new MatchAllDocsQuery(), writer -> {
+    public void testSortByDoubleAscending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
                     writer.addDocument(Arrays.asList(doubleField("s", 2.0), doubleField("m", 3.0)));
                 },
-                numberField(NumberType.DOUBLE, "s"), numberField(NumberType.DOUBLE, "m"));
-        assertThat(empty.getSortValue(), equalTo(1.0d));
-        assertThat(empty.getMetricValue(), equalTo(2.0d));
+                doubleFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
-    public void testDescending() throws IOException {
-        TopMetricsAggregationBuilder builder = simpleBuilder();
-        builder.getSortBuilders().get(0).order(SortOrder.DESC);
-        InternalTopMetrics empty = collect(builder, new MatchAllDocsQuery(), writer -> {
+    public void testSortByDoubleDescending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
                     writer.addDocument(Arrays.asList(doubleField("s", 2.0), doubleField("m", 3.0)));
                 },
-                numberField(NumberType.DOUBLE, "s"), numberField(NumberType.DOUBLE, "m"));
-        assertThat(empty.getSortValue(), equalTo(2.0d));
-        assertThat(empty.getMetricValue(), equalTo(3.0d));
+                doubleFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getSortValue(), equalTo(2.0d));
+        assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
-    private TopMetricsAggregationBuilder simpleBuilder() {
-        return new TopMetricsAggregationBuilder("test", singletonList(new FieldSortBuilder("s")),
+    public void testSortByFloatAscending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(floatField("s", 1.0F), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(floatField("s", 2.0F), doubleField("m", 3.0)));
+                },
+                floatAndDoubleField());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getMetricValue(), equalTo(2.0d));
+    }
+
+    public void testSortByFloatDescending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(floatField("s", 1.0F), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(floatField("s", 2.0F), doubleField("m", 3.0)));
+                },
+                floatAndDoubleField());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getSortValue(), equalTo(2.0d));
+        assertThat(result.getMetricValue(), equalTo(3.0d));
+    }
+
+    public void testSortByLongAscending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(longField("s", 10), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(longField("s", 20), doubleField("m", 3.0)));
+                },
+                longAndDoubleField());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), equalTo(10L));
+        assertThat(result.getMetricValue(), equalTo(2.0d));
+    }
+
+    public void testSortByLongDescending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(longField("s", 10), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(longField("s", 20), doubleField("m", 3.0)));
+                },
+                longAndDoubleField());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getSortValue(), equalTo(20L));
+        assertThat(result.getMetricValue(), equalTo(3.0d));
+    }
+
+    public void testSortByScoreDescending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new ScoreSortBuilder().order(SortOrder.DESC));
+        InternalTopMetrics result = collect(builder, boostFoo(), writer -> {
+                    writer.addDocument(Arrays.asList(textField("s", "foo"), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(textField("s", "bar"), doubleField("m", 3.0)));
+                },
+                textAndDoubleField());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getSortValue(), equalTo(2.0d));
+        assertThat(result.getMetricValue(), equalTo(2.0d));
+    }
+
+    public void testSortByScoreAscending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new ScoreSortBuilder().order(SortOrder.ASC));
+        InternalTopMetrics result = collect(builder, boostFoo(), writer -> {
+                    writer.addDocument(Arrays.asList(textField("s", "foo"), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(textField("s", "bar"), doubleField("m", 3.0)));
+                },
+                textAndDoubleField());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getMetricValue(), equalTo(3.0d));
+    }
+
+    public void testBuckets() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.DOUBLE).field("c").subAggregation(builder);
+        Terms result = (Terms) collect(terms, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 1.0), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 2.0), doubleField("m", 3.0)));
+                    writer.addDocument(Arrays.asList(doubleField("c", 2.0), doubleField("s", 4.0), doubleField("m", 9.0)));
+                },
+                numberFieldType(NumberType.DOUBLE, "c"), numberFieldType(NumberType.DOUBLE, "s"), numberFieldType(NumberType.DOUBLE, "m"));
+        Terms.Bucket bucket1 = result.getBuckets().get(0);
+        assertThat(bucket1.getKey(), equalTo(1.0));
+        InternalTopMetrics top1 = bucket1.getAggregations().get("test");
+        assertThat(top1.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(top1.getSortValue(), equalTo(1.0d));
+        assertThat(top1.getMetricValue(), equalTo(2.0d));
+        Terms.Bucket bucket2 = result.getBuckets().get(1);
+        assertThat(bucket2.getKey(), equalTo(2.0));
+        InternalTopMetrics top2 = bucket2.getAggregations().get("test");
+        assertThat(top2.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(top2.getSortValue(), equalTo(4.0d));
+        assertThat(top2.getMetricValue(), equalTo(9.0d));
+    }
+
+    private TopMetricsAggregationBuilder simpleBuilder(SortBuilder<?> sort) {
+        return new TopMetricsAggregationBuilder("test", singletonList(sort),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName("m").build());
     }
 
-    private MappedFieldType numberField(NumberType numberType, String name) {
+    private TopMetricsAggregationBuilder simpleBuilder() {
+        return simpleBuilder(new FieldSortBuilder("s"));
+    }
+
+    /**
+     * Build a query that matches all documents but adds 1 to the score of
+     * all docs that contain "foo". We use this instead of a term query
+     * directly because the score that can come from the term query can
+     * very quite a bit but this is super predictable.
+     */
+    private Query boostFoo() {
+        return new BooleanQuery.Builder()
+                .add(new BooleanClause(new MatchAllDocsQuery(), Occur.MUST))
+                .add(new BooleanClause(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("s", "foo"))), 1.0f), Occur.SHOULD))
+                .build();
+    }
+
+    private MappedFieldType[] doubleFields() {
+        return new MappedFieldType[] {numberFieldType(NumberType.DOUBLE, "s"), numberFieldType(NumberType.DOUBLE, "m")};
+    }
+
+    private MappedFieldType[] floatAndDoubleField() {
+        return new MappedFieldType[] {numberFieldType(NumberType.FLOAT, "s"), numberFieldType(NumberType.DOUBLE, "m")};
+    }
+
+    private MappedFieldType[] longAndDoubleField() {
+        return new MappedFieldType[] {numberFieldType(NumberType.LONG, "s"), numberFieldType(NumberType.DOUBLE, "m")};
+    }
+
+    private MappedFieldType[] textAndDoubleField() {
+        return new MappedFieldType[] {textFieldType("s"), numberFieldType(NumberType.DOUBLE, "m")};
+    }
+
+    private MappedFieldType numberFieldType(NumberType numberType, String name) {
         NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(numberType);
+        type.setName(name);
+        return type;
+    }
+
+    private MappedFieldType textFieldType(String name) {
+        TextFieldMapper.TextFieldType type = new TextFieldMapper.TextFieldType();
         type.setName(name);
         return type;
     }
@@ -109,7 +263,27 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         return new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value));
     }
 
+    private IndexableField floatField(String name, float value) {
+        return new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value));
+    }
+
+    private IndexableField longField(String name, long value) {
+        return new SortedNumericDocValuesField(name, value);
+    }
+
+    private IndexableField textField(String name, String value) {
+        return new Field(name, value, textFieldType(name));
+    }
+
     private InternalTopMetrics collect(TopMetricsAggregationBuilder builder, Query query,
+            CheckedConsumer<RandomIndexWriter, IOException> buildIndex, MappedFieldType... fields) throws IOException {
+        InternalTopMetrics result = (InternalTopMetrics) collect((AggregationBuilder) builder, query, buildIndex, fields);
+        assertThat(result.getSortFormat(), equalTo(DocValueFormat.RAW));
+        assertThat(result.getMetricName(), equalTo(builder.getMetricField().getFieldName()));
+        return result;
+    }
+
+    private InternalAggregation collect(AggregationBuilder builder, Query query,
             CheckedConsumer<RandomIndexWriter, IOException> buildIndex, MappedFieldType... fields) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -118,11 +292,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                InternalTopMetrics result = (InternalTopMetrics) search(indexSearcher, query, builder, fields);
-                assertThat(result.getSortFormat(), equalTo(DocValueFormat.RAW));
-                assertThat(result.getSortOrder(), equalTo(builder.getSortBuilders().get(0).order()));
-                assertThat(result.getMetricName(), equalTo(builder.getMetricField().getFieldName()));
-                return result;
+                return search(indexSearcher, query, builder, fields);
             }
         }
     }

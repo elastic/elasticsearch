@@ -49,12 +49,12 @@ import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -405,7 +405,7 @@ public class HttpExporter extends Exporter {
      */
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
-    private static final Map<String, String> SECURE_AUTH_PASSWORDS = new HashMap<>();
+    private static final ConcurrentHashMap<String, SecureString> SECURE_AUTH_PASSWORDS = new ConcurrentHashMap<>();
     private final ThreadContext threadContext;
     private final DateFormatter dateTimeFormatter;
 
@@ -703,14 +703,10 @@ public class HttpExporter extends Exporter {
     public static List<String> loadSettings(Settings settings) {
         final List<String> changedExporters = new ArrayList<>();
         for (final String namespace : SECURE_AUTH_PASSWORD_SETTING.getNamespaces(settings)) {
-            final Setting<?> s = SECURE_AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace);
-            final String password = s.get(settings).toString();
-            String existingPassword;
-            synchronized (SECURE_AUTH_PASSWORDS) {
-                existingPassword = SECURE_AUTH_PASSWORDS.get(namespace);
-                SECURE_AUTH_PASSWORDS.put(namespace, password);
-            }
-            if (password.equals(existingPassword) == false) {
+            final Setting<SecureString> s = SECURE_AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace);
+            final SecureString securePassword = s.get(settings);
+            final SecureString existingPassword = SECURE_AUTH_PASSWORDS.put(namespace, securePassword);
+            if (securePassword.equals(existingPassword) == false) {
                 changedExporters.add(namespace);
             }
         }
@@ -729,12 +725,10 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-        String password;
-        synchronized (SECURE_AUTH_PASSWORDS) {
-            password = SECURE_AUTH_PASSWORDS.containsKey(config.name())
-                ? SECURE_AUTH_PASSWORDS.get(config.name())
-                : AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        }
+        final SecureString securePassword = SECURE_AUTH_PASSWORDS.get(config.name());
+        final String password = securePassword == null
+            ? AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())
+            : securePassword.toString();
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));

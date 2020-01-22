@@ -108,7 +108,6 @@ subprojects {
     def projectPathsToFormat = [
       ':build-tools',
       ':distribution:tools:java-version-checker',
-      ':distribution:tools:keystore-cli',
       ':distribution:tools:launchers',
       ':distribution:tools:plugin-cli',
       ':x-pack:plugin:autoscaling',

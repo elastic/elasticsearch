@@ -31,8 +31,8 @@ final class SystemJvmOptions {
         return Collections.unmodifiableList(
             Arrays.asList(
                 /*
-                 * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
-                 * can be set to -1 to cache forever.
+                 * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
+                 * networkaddress.cache.ttl; can be set to -1 to cache forever.
                  */
                 "-Des.networkaddress.cache.ttl=60",
                 /*

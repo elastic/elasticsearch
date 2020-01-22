@@ -25,10 +25,8 @@ import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**
@@ -52,7 +50,6 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
                 return;
             }
         }
-
 
         char[] password = new char[0];// terminal.readSecret("Enter passphrase (empty for no passphrase): ");
         /* TODO: uncomment when entering passwords on startup is supported

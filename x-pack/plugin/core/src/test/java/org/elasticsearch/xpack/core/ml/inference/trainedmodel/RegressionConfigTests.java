@@ -7,15 +7,17 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RegressionConfigTests extends AbstractWireSerializingTestCase<RegressionConfig> {
+public class RegressionConfigTests extends AbstractSerializingTestCase<RegressionConfig> {
 
     public static RegressionConfig randomRegressionConfig() {
         return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10));
@@ -45,4 +47,8 @@ public class RegressionConfigTests extends AbstractWireSerializingTestCase<Regre
         return RegressionConfig::new;
     }
 
+    @Override
+    protected RegressionConfig doParseInstance(XContentParser parser) throws IOException {
+        return RegressionConfig.fromXContent(parser);
+    }
 }

@@ -33,7 +33,8 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex);
+            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex)
+                .masterNodeTimeout(getMasterTimeout(currentClusterState));
             getClient().admin().indices().close(closeIndexRequest, ActionListener.wrap(
                 r -> {
                     assert r.isAcknowledged() : "close index response is not acknowledged";

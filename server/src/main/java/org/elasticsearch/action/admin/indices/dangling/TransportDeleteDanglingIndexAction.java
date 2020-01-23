@@ -21,16 +21,12 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -47,7 +44,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -94,63 +90,68 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     @Override
     protected void masterOperation(
         Task task,
-        DeleteDanglingIndexRequest request,
+        DeleteDanglingIndexRequest deleteRequest,
         ClusterState state,
-        ActionListener<DeleteDanglingIndexResponse> listener
+        ActionListener<DeleteDanglingIndexResponse> deleteListener
     ) throws Exception {
-        IndexMetaData indexMetaDataToDelete;
-        try {
-            indexMetaDataToDelete = getIndexMetaDataToDelete(request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        final String indexName = indexMetaDataToDelete.getIndex().getName();
+        verifyDanglingIndexUUID(deleteRequest.getIndexUUID(), new ActionListener<>() {
 
-        final ActionListener<ClusterStateUpdateResponse> actionListener = new ActionListener<>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                listener.onResponse(new DeleteDanglingIndexResponse());
+            public void onResponse(Index indexToDelete) {
+                // This flag is checked at this point so that we always check that the supplied index ID
+                // does correspond to a dangling index.
+                if (deleteRequest.isAcceptDataLoss() == false) {
+                    deleteListener.onFailure(new IllegalArgumentException("accept_data_loss must be set to true"));
+                }
+
+                String indexName = indexToDelete.getName();
+
+                final ActionListener<DeleteDanglingIndexResponse> updateClusterStateListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(DeleteDanglingIndexResponse response) {
+                        deleteListener.onResponse(response);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failed to delete dangling index [{}]" + indexName, e);
+                        deleteListener.onFailure(e);
+                    }
+                };
+
+                clusterService.submitStateUpdateTask(
+                    "delete-dangling-index " + indexName,
+                    new AckedClusterStateUpdateTask<>(new DeleteIndexRequest(), updateClusterStateListener) {
+
+                        @Override
+                        protected DeleteDanglingIndexResponse newResponse(boolean acknowledged) {
+                            return new DeleteDanglingIndexResponse(acknowledged);
+                        }
+
+                        @Override
+                        public ClusterState execute(final ClusterState currentState) {
+                            return deleteDanglingIndex(currentState, indexToDelete);
+                        }
+                    }
+                );
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("Failed to delete dangling index [{}]" + indexName, e);
-                listener.onFailure(e);
+                logger.debug("Failed to list dangling indices", e);
+                deleteListener.onFailure(e);
             }
-        };
-
-        // This flag is checked at this point so that we always check that the supplied index ID
-        // does correspond to a dangling index.
-        if (request.isAcceptDataLoss() == false) {
-            throw new IllegalArgumentException("accept_data_loss must be set to true");
-        }
-
-        this.clusterService.submitStateUpdateTask(
-            "delete-dangling-index " + indexName,
-            new AckedClusterStateUpdateTask<>(new DeleteIndexRequest(), actionListener) {
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    return deleteDanglingIndex(currentState, indexMetaDataToDelete);
-                }
-            }
-        );
+        });
     }
 
-    private ClusterState deleteDanglingIndex(ClusterState currentState, IndexMetaData indexMetaDataToDelete) {
+    private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final MetaData meta = currentState.metaData();
 
         MetaData.Builder metaDataBuilder = MetaData.builder(meta);
 
         final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
 
-        final IndexGraveyard newGraveyard = graveyardBuilder.addTombstone(indexMetaDataToDelete.getIndex()).build(settings);
+        final IndexGraveyard newGraveyard = graveyardBuilder.addTombstone(indexToDelete).build(settings);
         metaDataBuilder.indexGraveyard(newGraveyard);
 
         return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();
@@ -161,34 +162,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         return null;
     }
 
-    private IndexMetaData getIndexMetaDataToDelete(DeleteDanglingIndexRequest request) {
-        String indexUUID = request.getIndexUUID();
-
-        List<IndexMetaData> matchingMetaData = new ArrayList<>();
-
-        final List<NodeDanglingIndicesResponse> nodes = fetchDanglingIndices().actionGet().getNodes();
-
-        for (NodeDanglingIndicesResponse response : nodes) {
-            for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
-                if (danglingIndex.getIndexUUID().equals(indexUUID)) {
-                    matchingMetaData.add(danglingIndex);
-                }
-            }
-        }
-
-        if (matchingMetaData.isEmpty()) {
-            throw new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]");
-        }
-
-        // Although we could find metadata for the same index on multiple nodes, we return the first
-        // metadata here because only the index part goes into the graveyard, which is basically the
-        // name and UUID.
-        return matchingMetaData.get(0);
-    }
-
-    private ActionFuture<ListDanglingIndicesResponse> fetchDanglingIndices() {
-        final PlainActionFuture<ListDanglingIndicesResponse> future = PlainActionFuture.newFuture();
-
+    private void verifyDanglingIndexUUID(String indexUUID, ActionListener<Index> listener) {
         this.transportService.sendRequest(
             this.transportService.getLocalNode(),
             ListDanglingIndicesAction.NAME,
@@ -196,12 +170,23 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             new TransportResponseHandler<ListDanglingIndicesResponse>() {
                 @Override
                 public void handleResponse(ListDanglingIndicesResponse response) {
-                    future.onResponse(response);
+                    final List<NodeDanglingIndicesResponse> nodes = response.getNodes();
+
+                    for (NodeDanglingIndicesResponse nodeResponse : nodes) {
+                        for (IndexMetaData danglingIndexMetaData : nodeResponse.getDanglingIndices()) {
+                            if (danglingIndexMetaData.getIndexUUID().equals(indexUUID)) {
+                                listener.onResponse(danglingIndexMetaData.getIndex());
+                                return;
+                            }
+                        }
+                    }
+
+                    listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    future.onFailure(exp);
+                    listener.onFailure(exp);
                 }
 
                 @Override
@@ -215,7 +200,5 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                 }
             }
         );
-
-        return future;
     }
 }

@@ -29,11 +29,19 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 public class DeleteDanglingIndexResponse extends ActionResponse implements StatusToXContentObject {
-    public DeleteDanglingIndexResponse() {
+    private final boolean isAcknowledged;
+
+    public DeleteDanglingIndexResponse(boolean isAcknowledged) {
+        this.isAcknowledged = isAcknowledged;
     }
 
     public DeleteDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
+        this.isAcknowledged = in.readBoolean();
+    }
+
+    public boolean isAcknowledged() {
+        return isAcknowledged;
     }
 
     @Override
@@ -43,11 +51,11 @@ public class DeleteDanglingIndexResponse extends ActionResponse implements Statu
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("acknowledged", true).endObject();
+        return builder.startObject().field("acknowledged", this.isAcknowledged).endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // no fields to write
+        out.writeBoolean(this.isAcknowledged);
     }
 }

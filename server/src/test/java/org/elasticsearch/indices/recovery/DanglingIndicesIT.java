@@ -20,11 +20,11 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.NodeDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 /**
  * This class tests how dangling indices are handled, in terms of how they
@@ -468,12 +467,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         assertBusy(() -> {
             final List<IndexMetaData> results = listDanglingIndices();
 
-            assertThat(results, not(empty()));
+            // Both the stopped nodes should have found a dangling index.
+            assertThat(results, hasSize(2));
             danglingIndices.set(results);
         });
-
-        // Both the stopped nodes should have found a dangling index.
-        assertThat(danglingIndices.get(), hasSize(2));
 
         // Try to delete the index - this request should succeed
         client().admin()

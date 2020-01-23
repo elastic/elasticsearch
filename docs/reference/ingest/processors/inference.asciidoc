@@ -12,7 +12,7 @@ ingested in the pipeline.
 [options="header"]
 |======
 | Name               | Required  | Default                        | Description
-| `model_id`      | yes       | -                              | (String) The ID of the model to load and infer against.
+| `model_id`         | yes       | -                              | (String) The ID of the model to load and infer against.
 | `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
 | `field_mappings`   | yes       | -                              | (Object) Maps the document field names to the known field names of the model.
 | `inference_config` | yes       | -                              | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
@@ -23,13 +23,13 @@ include::common-options.asciidoc[]
 [source,js]
 --------------------------------------------------
 {
-  	"inference": {
-      	"model_id": "flight_delay_regression-1571767128603",
-      	"target_field": "FlightDelayMin_prediction_infer",
-      	"field_mappings": {},
-      	"inference_config": {"regression": {}},
-      	"model_info_field": "ml"
-    }
+  "inference": {
+    "model_id": "flight_delay_regression-1571767128603",
+    "target_field": "FlightDelayMin_prediction_infer",
+    "field_mappings": {},
+    "inference_config": { "regression": {} },
+    "model_info_field": "ml"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -73,10 +73,10 @@ Specifies the field to which the top classes are written. Defaults to
 --------------------------------------------------
 {
   "inference_config": {
-    “regression”: {
-    “results_field”: “my_regression”
+    "regression": {
+      "results_field": "my_regression"
     }
-  },
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -90,12 +90,12 @@ object.
 --------------------------------------------------
 {
   "inference_config": {
-    “classification”: {
-      “num_top_classes”: 2, 
-      “results_field”: “prediction”, 
-      “top_classes_results_field”: “probabilities”
-      }
+    "classification": {
+      "num_top_classes": 2,
+      "results_field": "prediction",
+      "top_classes_results_field": "probabilities"
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

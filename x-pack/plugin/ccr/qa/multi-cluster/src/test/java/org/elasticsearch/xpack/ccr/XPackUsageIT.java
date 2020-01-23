@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
@@ -70,11 +68,8 @@ public class XPackUsageIT extends ESCCRRestTestCase {
 
     private void createLeaderIndex(String indexName) throws IOException {
         try (RestClient leaderClient = buildLeaderClient()) {
-            Settings settings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
-                .build();
             Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{\"settings\": " + Strings.toString(settings) + "}");
+            request.setJsonEntity("{}");
             assertOK(leaderClient.performRequest(request));
         }
     }

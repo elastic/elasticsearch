@@ -378,7 +378,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             });
             if (!success) {
                 throw new BindTransportException(
-                    "Failed to bind to [" + port + "] on " + hostAddress.getHostAddress(),
+                    "Failed to bind to " + NetworkAddress.format(hostAddress, portsRange),
                     lastException.get()
                 );
             }

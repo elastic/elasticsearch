@@ -41,6 +41,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -203,7 +204,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                     xContentRegistry(), new NullDispatcher())) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
                 assertEquals(
-                    "Failed to bind to [" + remoteAddress.getPort() + "] on " + remoteAddress.address().getAddress().getHostAddress(),
+                    "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),
                     bindHttpException.getMessage()
                 );
             }

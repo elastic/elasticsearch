@@ -211,6 +211,16 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 validationFailures.add("duplicate field [" + usedNames.get(i) + "] detected");
             }
         }
+
+        for (String name : usedNames) {
+            if (name.startsWith(".")) {
+                validationFailures.add("field [" + name + "] must not start with '.'");
+            }
+            if (name.endsWith(".")) {
+                validationFailures.add("field [" + name + "] must not end with '.'");
+            }
+        }
+
         return validationFailures;
     }
 

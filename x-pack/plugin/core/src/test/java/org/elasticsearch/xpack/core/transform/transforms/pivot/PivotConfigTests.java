@@ -205,6 +205,20 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
         );
     }
 
+    public void testAggNameValidationsWithInvalidFieldnames() {
+        List<String> failures = PivotConfig.aggFieldValidation(Arrays.asList(".at_start", "at_end.", ".start_and_end."));
+
+        assertThat(
+            failures,
+            containsInAnyOrder(
+                "field [.at_start] must not start with '.'",
+                "field [at_end.] must not end with '.'",
+                "field [.start_and_end.] must not start with '.'",
+                "field [.start_and_end.] must not end with '.'"
+            )
+        );
+    }
+
     private static String dotJoin(String... fields) {
         return Strings.arrayToDelimitedString(fields, ".");
     }

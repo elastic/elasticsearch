@@ -867,7 +867,8 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(false, results.getObject("test_keyword", Boolean.class));
         });
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50035")
     public void testGettingDateWithoutCalendar() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");

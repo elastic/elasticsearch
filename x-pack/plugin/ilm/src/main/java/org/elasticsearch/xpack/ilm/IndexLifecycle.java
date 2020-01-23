@@ -333,7 +333,7 @@ public class IndexLifecycle extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         //TODO: The SLM history store should be non-dot-prefixed hidden indices, but need to be here for now
         // to prevent warnings
-        return Arrays.asList(new SystemIndexDescriptor(".slm-history-*",
+        return Collections.singletonList(new SystemIndexDescriptor(".slm-history-*",
             "Contains a history of Snapshot Lifecycle Management operations"));
     }
 }

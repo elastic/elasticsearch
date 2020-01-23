@@ -1069,13 +1069,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Arrays.asList(
+        return Collections.unmodifiableList(Arrays.asList(
             new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, this.getClass().getSimpleName()),
 
             new SystemIndexDescriptor(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, this.getClass().getSimpleName())
-            );
+            ));
     }
 }

@@ -317,11 +317,11 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Arrays.asList(
+        return Collections.unmodifiableList(Arrays.asList(
             // TODO: Verify that these should be system indices, rather than hidden indices
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED, this.getClass().getSimpleName())
-        );
+        ));
     }
 }

@@ -23,8 +23,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
@@ -35,6 +35,6 @@ public class TasksPlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Arrays.asList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
+        return Collections.singletonList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
     }
 }

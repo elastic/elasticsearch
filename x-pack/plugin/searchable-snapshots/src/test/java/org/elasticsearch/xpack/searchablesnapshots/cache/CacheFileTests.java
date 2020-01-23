@@ -54,7 +54,7 @@ public class CacheFileTests extends ESTestCase {
         assertThat("Channel is open", fileChannel.isOpen(), is(true));
 
         assertThat("Cache file is not evicted: eviction listener is not executed notified", listener.isCalled(), is(false));
-        cacheFile.close();
+        cacheFile.startEviction();
 
         assertThat("Cache file has been evicted: eviction listener was executed", listener.isCalled(), is(true));
         assertThat("Cache file is evicted but not fully released: file still exists", Files.exists(file), is(true));
@@ -87,7 +87,7 @@ public class CacheFileTests extends ESTestCase {
             assertTrue("Cache file is released", released);
         }
 
-        cacheFile.close();
+        cacheFile.startEviction();
         assertThat(cacheFile.getChannel(), nullValue());
         assertFalse(Files.exists(file));
     }
@@ -115,7 +115,7 @@ public class CacheFileTests extends ESTestCase {
         }
 
         assertTrue(Files.exists(file));
-        cacheFile.close();
+        cacheFile.startEviction();
 
         releasedListeners.forEach(l -> assertFalse("Released listeners before cache file eviction are not called", l.isCalled()));
         acquiredListeners.forEach(l -> assertTrue("Released listeners after cache file eviction are called", l.isCalled()));

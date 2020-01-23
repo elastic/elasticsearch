@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 import java.io.IOException;
@@ -26,7 +25,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-class CacheFile implements Releasable {
+class CacheFile {
 
     @FunctionalInterface
     public interface EvictionListener {
@@ -42,7 +41,7 @@ class CacheFile implements Releasable {
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
-            CacheFile.this.closeInternal();
+            CacheFile.this.finishEviction();
         }
     };
 
@@ -131,7 +130,7 @@ class CacheFile implements Releasable {
         return success;
     }
 
-    private void closeInternal() {
+    private void finishEviction() {
         assert Thread.holdsLock(this);
         assert listeners.isEmpty();
         assert channel == null;
@@ -142,8 +141,7 @@ class CacheFile implements Releasable {
         }
     }
 
-    @Override
-    public void close() {
+    public void startEviction() {
         if (closed == false) {
             final Set<EvictionListener> evictionListeners = new HashSet<>();
             synchronized (this) {

@@ -65,7 +65,7 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
         Provider<TestClustersThrottle> throttleProvider = Boilerplate.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
         SharedResource resource = serviceRegistry.forService(throttleProvider);
 
-        int nodeCount = (int) clusters.stream().flatMap(cluster -> cluster.getNodes().stream()).count();
+        int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
             locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
         }

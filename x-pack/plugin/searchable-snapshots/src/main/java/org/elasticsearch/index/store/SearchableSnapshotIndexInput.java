@@ -126,7 +126,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                 length -= read;
 
                 if (streamForSequentialReads.isFullyRead()) {
-                    if (streamForSequentialReadsRef.compareAndSet(streamForSequentialReads, null) != false) {
+                    if (streamForSequentialReadsRef.compareAndSet(streamForSequentialReads, null)) {
                         streamForSequentialReads.close();
                     } else {
                         // something happened concurrently, defensively stop optimizing

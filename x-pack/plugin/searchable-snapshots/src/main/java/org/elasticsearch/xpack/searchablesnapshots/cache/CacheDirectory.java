@@ -23,7 +23,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -113,13 +112,17 @@ public class CacheDirectory extends FilterDirectory {
             return null;
         }
 
-        @Override
-        public void onEviction(final CacheFile evictedCacheFile) {
+        private void releaseAndClear(final CacheFile cacheFileToRelease) {
             try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
-                if (cacheFile.compareAndSet(evictedCacheFile, null)) {
-                    evictedCacheFile.release(this);
+                if (cacheFile.compareAndSet(cacheFileToRelease, null)) {
+                    cacheFileToRelease.release(this);
                 }
             }
+        }
+
+        @Override
+        public void onEviction(final CacheFile evictedCacheFile) {
+            releaseAndClear(evictedCacheFile);
         }
 
         @Override
@@ -145,6 +148,7 @@ public class CacheDirectory extends FilterDirectory {
                 final int len = length - bytesRead;
 
                 CacheFile cacheFile = null;
+                boolean success = false;
                 try {
                     cacheFile = getOrAcquire();
                     if (cacheFile == null) {
@@ -161,24 +165,23 @@ public class CacheDirectory extends FilterDirectory {
                             (start, end) -> writeCacheFile(channel, start, end))
                             .get();
                     }
-                } catch (Exception e) {
-                    if (isEvictionException(e) == false) {
-                        throw new IOException("Fail to read data from cache", e);
+                    success = true;
+                } catch (final Exception e) {
+                    if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
+                        try {
+                            // cache file was evicted during the range fetching, read bytes directly from source
+                            bytesRead += copySource(pos, pos + len, buffer, off);
+                            continue;
+                        } catch (Exception inner) {
+                            e.addSuppressed(inner);
+                        }
                     }
-                    // cache file was evicted during the range fetching, read bytes directly from source
-                    bytesRead += copySource(pos, pos + len, buffer, off);
+                    throw new IOException("Fail to read data from cache", e);
 
                 } finally {
-                    if (bytesRead >= length) {
-                        // once all bytes are read, clones immediately release the last acquired cache file
-                        if (isClone) {
-                            if (cacheFile != null) {
-                                try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
-                                    if (this.cacheFile.compareAndSet(cacheFile, null)) {
-                                        cacheFile.release(this);
-                                    }
-                                }
-                            }
+                    if (isClone && (success == false || bytesRead >= length)) {
+                        if (cacheFile != null) {
+                            releaseAndClear(cacheFile);
                         }
                     }
                 }
@@ -276,15 +279,6 @@ public class CacheDirectory extends FilterDirectory {
             }
             return bytesCopied;
         }
-    }
-
-    private static boolean isEvictionException(final Throwable t) {
-        if (t instanceof AlreadyClosedException) {
-            return true;
-        } else if (t instanceof ExecutionException) {
-            return isEvictionException(t.getCause());
-        }
-        return false;
     }
 
     private static boolean assertFileChannelOpen(FileChannel fileChannel) {

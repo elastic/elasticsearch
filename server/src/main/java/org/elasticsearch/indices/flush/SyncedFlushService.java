@@ -42,6 +42,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -111,8 +113,13 @@ public class SyncedFlushService implements IndexEventListener {
 
     @Override
     public void onShardInactive(final IndexShard indexShard) {
-        // we only want to call sync flush once, so only trigger it when we are on a primary
-        if (indexShard.routingEntry().primary()) {
+        // A normal flush has the same effect as a synced flush if all nodes are on 7.6 or later.
+        final boolean preferNormalFlush = StreamSupport.stream(clusterService.state().nodes().spliterator(), false)
+            .allMatch(node -> node.getVersion().onOrAfter(Version.V_7_6_0));
+        if (preferNormalFlush) {
+            performNormalFlushOnInactive(indexShard);
+        } else if (indexShard.routingEntry().primary()) {
+            // we only want to call sync flush once, so only trigger it when we are on a primary
             attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
                 @Override
                 public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
@@ -126,6 +133,23 @@ public class SyncedFlushService implements IndexEventListener {
                 }
             });
         }
+    }
+
+    private void performNormalFlushOnInactive(IndexShard shard) {
+        logger.debug("flushing shard {} on inactive", shard.routingEntry());
+        shard.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                if (shard.state() != IndexShardState.CLOSED) {
+                    logger.warn(new ParameterizedMessage("failed to flush shard {} on inactive", shard.routingEntry()), e);
+                }
+            }
+
+            @Override
+            protected void doRun() {
+                shard.flush(new FlushRequest().force(false).waitIfOngoing(false));
+            }
+        });
     }
 
     /**

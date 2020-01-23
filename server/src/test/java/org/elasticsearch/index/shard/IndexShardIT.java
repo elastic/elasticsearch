@@ -176,13 +176,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
         assertBusy(() -> {
-                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
-                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().setTranslog(true).get().getIndex("test");
+                assertThat(indexStats.getTotal().translog.getUncommittedOperations(), equalTo(0));
                 indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
             }
         );
-        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
     public void testDurableFlagHasEffect() throws Exception {

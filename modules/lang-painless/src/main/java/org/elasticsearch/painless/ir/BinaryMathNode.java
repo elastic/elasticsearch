@@ -39,7 +39,7 @@ public class BinaryMathNode extends BinaryNode {
     private Operation operation;
     private Class<?> binaryType;
     private Class<?> shiftType;
-    private boolean cat;
+    private boolean cat; // set to true for a String concatenation
     private boolean originallyExplicit; // record whether there was originally an explicit cast
 
     public void setOperation(Operation operation) {

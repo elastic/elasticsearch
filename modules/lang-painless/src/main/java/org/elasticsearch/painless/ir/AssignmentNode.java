@@ -37,7 +37,7 @@ public class AssignmentNode extends BinaryNode {
     private boolean post;
     private Operation operation;
     private boolean read;
-    private boolean cat;
+    private boolean cat; // set to true for a compound assignment String concatenation
     private Class<?> compoundType;
     private PainlessCast there;
     private PainlessCast back;

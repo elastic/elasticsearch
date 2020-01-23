@@ -4,7 +4,7 @@
 === Create {infer} trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Crerate {infer} trained model</titleabbrev>
+<titleabbrev>Create {infer} trained model</titleabbrev>
 ++++
 
 Creates an {infer} trained model.

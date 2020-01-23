@@ -127,10 +127,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
                 if (streamForSequentialReads.isFullyRead()) {
                     if (streamForSequentialReadsRef.compareAndSet(streamForSequentialReads, null)) {
+                        // the only way this can fail is if we were concurrently closed
                         streamForSequentialReads.close();
-                    } else {
-                        // something happened concurrently, defensively stop optimizing
-                        sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
                     }
 
                     if (length == 0) {
@@ -182,8 +180,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             final StreamForSequentialReads newStreamForSequentialReads
                 = new StreamForSequentialReads(inputStream, part, pos, streamLength);
             if (streamForSequentialReadsRef.compareAndSet(null, newStreamForSequentialReads) == false) {
-                // something happened concurrently, defensively stop optimizing and fall through to the unoptimized behaviour
-                this.sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
+                // concurrently closed
                 inputStream.close();
                 return false;
             }
@@ -236,6 +233,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     public void close() throws IOException {
         closed = true;
+        sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION; // in case there's a concurrent read
         IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
     }
 

@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -536,9 +535,9 @@ public class ReadOnlyEngine extends Engine {
             maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 
-    protected DirectoryReader openDirectory(Directory dir, IndexSettings indexSettings) throws IOException {
-        final DirectoryReader reader = DirectoryReader.open(dir, OFF_HEAP_READER_ATTRIBUTES);
-        if (indexSettings.isSoftDeleteEnabled()) {
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
+        final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
+        if (wrapSoftDeletes) {
             return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {
             return reader;

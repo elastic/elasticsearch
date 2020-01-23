@@ -161,7 +161,7 @@ public class CacheDirectory extends FilterDirectory {
                             throw new AlreadyClosedException("Cache file evicted before accessing the file channel");
                         }
                         bytesRead += cacheFile.fetchRange(pos,
-                            (start, end) -> readCacheFile(channel, start, end, pos, buffer, off, len),
+                            (start, end) -> readCacheFile(channel, end, pos, buffer, off, len),
                             (start, end) -> writeCacheFile(channel, start, end))
                             .get();
                     }
@@ -189,7 +189,7 @@ public class CacheDirectory extends FilterDirectory {
             assert bytesRead == length : "partial read operation, read [" + bytesRead + "] bytes of [" + length + "]";
         }
 
-        int readCacheFile(FileChannel fc, long start, long end, long position, byte[] buffer, int offset, long length) throws IOException {
+        int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
             assert assertFileChannelOpen(fc);
             return Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
         }

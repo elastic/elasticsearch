@@ -484,3 +484,10 @@ Example of a `weighted_mode` object:
 }
 ----------------------------------
 //NOTCONSOLE
+
+
+[[ml-put-inference-json-schema]]
+===== {infer-cap} JSON schema
+
+For the full JSON schema of model {infer}, 
+https://github.com/elastic/ml_json_schemas[click here].

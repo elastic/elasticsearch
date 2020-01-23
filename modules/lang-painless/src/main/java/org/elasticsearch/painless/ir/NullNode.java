@@ -26,10 +26,6 @@ import org.objectweb.asm.Opcodes;
 
 public class NullNode extends ExpressionNode {
 
-    public NullNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.visitInsn(Opcodes.ACONST_NULL);

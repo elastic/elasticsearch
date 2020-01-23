@@ -189,10 +189,6 @@ public class ClassNode extends IRNode {
     protected Globals globals;
     protected byte[] bytes;
 
-    public ClassNode() {
-        // do nothing
-    }
-
     public BitSet getStatements() {
         return globals.getStatements();
     }

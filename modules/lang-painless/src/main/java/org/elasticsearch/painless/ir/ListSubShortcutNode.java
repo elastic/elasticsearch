@@ -52,10 +52,6 @@ public class ListSubShortcutNode extends UnaryNode {
 
     /* ---- end node data ---- */
 
-    public ListSubShortcutNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         setup(classWriter, methodWriter, globals);

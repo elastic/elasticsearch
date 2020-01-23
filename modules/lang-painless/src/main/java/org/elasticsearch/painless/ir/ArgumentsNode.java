@@ -38,7 +38,4 @@ public abstract class ArgumentsNode extends ExpressionNode {
 
     /* ---- end tree structure */
 
-    public ArgumentsNode() {
-        // do nothing
-    }
 }

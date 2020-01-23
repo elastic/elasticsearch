@@ -25,10 +25,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 public class ContinueNode extends StatementNode {
 
-    public ContinueNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.goTo(continueLabel);

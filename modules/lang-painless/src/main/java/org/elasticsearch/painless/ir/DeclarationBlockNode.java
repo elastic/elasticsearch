@@ -42,10 +42,6 @@ public final class DeclarationBlockNode extends StatementNode {
 
     /* ---- end tree structure ---- */
 
-    public DeclarationBlockNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         for (DeclarationNode declarationNode : declarationNodes) {

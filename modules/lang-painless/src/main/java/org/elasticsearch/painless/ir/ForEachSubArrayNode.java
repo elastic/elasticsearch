@@ -84,10 +84,6 @@ public class ForEachSubArrayNode extends LoopNode {
     
     /* ---- end node data ---- */
 
-    public ForEachSubArrayNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);

@@ -61,10 +61,6 @@ public class RegexNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public RegexNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

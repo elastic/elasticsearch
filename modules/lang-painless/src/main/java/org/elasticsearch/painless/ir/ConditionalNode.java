@@ -41,10 +41,6 @@ public class ConditionalNode extends BinaryNode {
 
     /* ---- end tree structure ---- */
 
-    public ConditionalNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

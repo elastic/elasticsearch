@@ -61,10 +61,6 @@ public class ComparisonNode extends BinaryNode {
 
     /* ---- end node data ---- */
 
-    public ComparisonNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

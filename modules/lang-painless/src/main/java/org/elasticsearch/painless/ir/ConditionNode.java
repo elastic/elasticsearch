@@ -44,7 +44,4 @@ public abstract class ConditionNode extends StatementNode {
 
     /* ---- end tree structure ---- */
 
-    public ConditionNode() {
-        // do nothing
-    }
 }

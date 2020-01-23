@@ -41,7 +41,4 @@ public abstract class ExpressionNode extends IRNode {
 
     /* ---- end node data ---- */
 
-    public ExpressionNode() {
-        // do nothing
-    }
 }

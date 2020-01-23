@@ -49,10 +49,6 @@ public class CallSubNode extends ArgumentsNode {
 
     /* ---- end node data ---- */
 
-    public CallSubNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

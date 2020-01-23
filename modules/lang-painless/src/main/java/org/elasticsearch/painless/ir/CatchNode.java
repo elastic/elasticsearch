@@ -50,10 +50,6 @@ public class CatchNode extends StatementNode {
 
     /* ---- end tree structure ---- */
 
-    public CatchNode() {
-        // do nothing
-    }
-
     Label begin = null;
     Label end = null;
     Label exception = null;

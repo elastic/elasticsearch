@@ -38,10 +38,6 @@ public class ConstantNode extends ExpressionNode {
     }
 
     /* ---- end node data ---- */
-    
-    public ConstantNode() {
-        // do nothing
-    }
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {

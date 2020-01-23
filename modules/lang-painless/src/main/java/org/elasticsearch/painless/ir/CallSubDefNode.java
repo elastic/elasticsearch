@@ -71,10 +71,6 @@ public class CallSubDefNode extends ArgumentsNode {
 
     /* ---- end node data ---- */
 
-    public CallSubDefNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

@@ -39,10 +39,6 @@ public class ThrowNode extends StatementNode {
 
     /* ---- end tree structure ---- */
 
-    public ThrowNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);

@@ -112,10 +112,6 @@ public class FunctionNode extends IRNode {
 
     /* ---- end node data ---- */
 
-    public FunctionNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;

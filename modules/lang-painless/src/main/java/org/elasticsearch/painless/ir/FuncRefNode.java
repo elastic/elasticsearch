@@ -40,10 +40,6 @@ public class FuncRefNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public FuncRefNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (funcRef != null) {

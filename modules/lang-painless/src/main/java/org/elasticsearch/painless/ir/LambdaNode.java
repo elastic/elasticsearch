@@ -54,10 +54,6 @@ public class LambdaNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public LambdaNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

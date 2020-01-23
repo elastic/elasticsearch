@@ -46,7 +46,4 @@ public abstract class LoopNode extends ConditionNode {
 
     /* ---- end node data ---- */
 
-    public LoopNode() {
-        // do nothing
-    }
 }

@@ -25,10 +25,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 public class StaticNode extends ExpressionNode {
 
-    public StaticNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         // do nothing

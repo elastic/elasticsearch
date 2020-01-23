@@ -39,10 +39,6 @@ public class NewArrayNode extends ArgumentsNode {
 
     /* ---- end node data ---- */
 
-    public NewArrayNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

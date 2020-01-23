@@ -40,10 +40,6 @@ public class DotSubNode extends ExpressionNode {
     }
 
     /* ---- end node data ---- */
-    
-    public DotSubNode() {
-        // do nothing
-    }
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {

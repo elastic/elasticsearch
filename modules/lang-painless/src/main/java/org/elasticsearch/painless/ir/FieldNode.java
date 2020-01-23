@@ -72,10 +72,6 @@ public class FieldNode extends IRNode {
 
     /* ---- end node data ---- */
 
-    public FieldNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         classWriter.getClassVisitor().visitField(

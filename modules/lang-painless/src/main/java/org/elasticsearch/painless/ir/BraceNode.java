@@ -25,10 +25,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 public class BraceNode extends BinaryNode {
 
-    public BraceNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         getLeftNode().write(classWriter, methodWriter, globals);

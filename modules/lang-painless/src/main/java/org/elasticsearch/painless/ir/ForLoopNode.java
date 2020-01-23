@@ -50,10 +50,6 @@ public class ForLoopNode extends LoopNode {
 
     /* ---- end tree structure ---- */
 
-    public ForLoopNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);

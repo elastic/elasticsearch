@@ -40,10 +40,6 @@ public class CastNode extends UnaryNode {
 
     /* ---- end node data ---- */
 
-    public CastNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         getChildNode().write(classWriter, methodWriter, globals);

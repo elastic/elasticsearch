@@ -51,10 +51,6 @@ public final class NewObjectNode extends ArgumentsNode {
 
     /* ---- end node data ---- */
 
-    public NewObjectNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

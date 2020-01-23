@@ -40,10 +40,6 @@ public abstract class IRNode {
 
     /* end node data */
 
-    public IRNode() {
-        // do nothing
-    }
-
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
 
     protected int accessElementCount() {throw new UnsupportedOperationException();}

@@ -26,10 +26,6 @@ import org.objectweb.asm.Label;
 
 public class ElvisNode extends BinaryNode {
 
-    public ElvisNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

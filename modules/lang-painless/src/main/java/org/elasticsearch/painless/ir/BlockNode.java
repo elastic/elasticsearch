@@ -63,10 +63,6 @@ public class BlockNode extends StatementNode {
 
     /* ---- end node data ---- */
 
-    public BlockNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         for (StatementNode statementNode : statementNodes) {

@@ -39,10 +39,6 @@ public class ReturnNode extends StatementNode {
 
     /* ---- end tree structure ---- */
 
-    public ReturnNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);

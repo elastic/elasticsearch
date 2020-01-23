@@ -25,10 +25,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 public class BreakNode extends StatementNode {
 
-    public BreakNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.goTo(breakLabel);

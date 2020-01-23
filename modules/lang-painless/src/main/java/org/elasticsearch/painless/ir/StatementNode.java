@@ -26,7 +26,4 @@ public abstract class StatementNode extends IRNode {
     protected Label continueLabel = null;
     protected Label breakLabel = null;
 
-    public StatementNode() {
-        // do nothing
-    }
 }

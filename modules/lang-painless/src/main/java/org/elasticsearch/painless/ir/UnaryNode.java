@@ -35,7 +35,4 @@ public abstract class UnaryNode extends ExpressionNode {
 
     /* ---- end tree structure ---- */
 
-    public UnaryNode() {
-        // do nothing
-    }
 }

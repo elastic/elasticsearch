@@ -67,10 +67,6 @@ public class InstanceofNode extends UnaryNode {
 
     /* ---- end node data ---- */
 
-    public InstanceofNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         getChildNode().write(classWriter, methodWriter, globals);

@@ -25,10 +25,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 public class DotNode extends BinaryNode {
 
-    public DotNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         getLeftNode().write(classWriter, methodWriter, globals);

@@ -41,10 +41,6 @@ public class VariableNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public VariableNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ILOAD), variable.getSlot());

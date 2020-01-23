@@ -77,10 +77,6 @@ public class UnaryMathNode extends UnaryNode {
 
     /* ---- end node data ---- */
 
-    public UnaryMathNode() {
-        // do nothing
-    }
-
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

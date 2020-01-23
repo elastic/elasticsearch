@@ -42,10 +42,6 @@ public class BooleanNode extends BinaryNode {
 
     /* ---- end node data ---- */
 
-    public BooleanNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

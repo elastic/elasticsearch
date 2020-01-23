@@ -40,10 +40,6 @@ public class NewArrayFuncRefNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public NewArrayFuncRefNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (funcRef != null) {

@@ -27,10 +27,6 @@ import org.objectweb.asm.Type;
 
 public class BraceSubDefNode extends UnaryNode {
 
-    public BraceSubDefNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         setup(classWriter, methodWriter, globals);

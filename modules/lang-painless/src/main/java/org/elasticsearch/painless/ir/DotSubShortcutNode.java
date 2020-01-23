@@ -49,10 +49,6 @@ public class DotSubShortcutNode extends ExpressionNode {
 
     /* ---- end node data ---- */
 
-    public DotSubShortcutNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

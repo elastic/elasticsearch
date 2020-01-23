@@ -39,10 +39,6 @@ public class ForEachLoopNode extends StatementNode {
 
     /* ---- end tree structure ---- */
 
-    public ForEachLoopNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         conditionNode.write(classWriter, methodWriter, globals);

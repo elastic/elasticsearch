@@ -44,7 +44,4 @@ public abstract class BinaryNode extends ExpressionNode {
 
     /* ---- end tree structure ---- */
 
-    public BinaryNode() {
-        // do nothing
-    }
 }

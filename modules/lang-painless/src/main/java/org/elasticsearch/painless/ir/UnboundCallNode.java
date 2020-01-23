@@ -93,10 +93,6 @@ public class UnboundCallNode extends ArgumentsNode {
 
     /* ---- end node data ---- */
 
-    public UnboundCallNode() {
-        // do nothing
-    }
-
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);

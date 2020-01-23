@@ -89,7 +89,7 @@ until [process where event_subtype_full == "termination_event"]
 
 process where descendant of [process where process_name == "lsass.exe"] and process_name == "cmd.exe";
 
- join 			[process where process_name == "*"] [file where file_path == "*"
+ join    [process where process_name == "*"] [file where file_path == "*"
  ];
 
  join by pid [process where name == "*"] [file where path == "*"] until [process where opcode == 2];

@@ -27,7 +27,7 @@ process where command_line == "~!@#$%^&*();'[]{}\\|<>?,./:\"-= ' ";
 
 process where
 
- pid ==	 4;
+ pid ==  4;
 
 process where process_name in ("net.exe", "cmd.exe", "at.exe");
 

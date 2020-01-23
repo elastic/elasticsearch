@@ -23,7 +23,7 @@ import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
+public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
 
     private Client client;
 
@@ -64,13 +64,18 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
     public void testIndexSurvives() {
         assertFalse(createRandomInstance().indexSurvives());
     }
 
     public void testDeleted() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -91,7 +96,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -111,8 +116,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
     }
 
     public void testExceptionThrown() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData indexMetaData = getIndexMetaData();
         Exception exception = new RuntimeException();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
@@ -138,7 +142,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

@@ -124,20 +124,22 @@ SELECT first_name FROM test_emp ORDER BY NOW(), first_name NULLS LAST LIMIT 5;
 groupByCurrentTimestamp
 SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
 
-minuteFromStringDateTime
-SELECT MINUTE(CAST('2018-09-03T18:09:03Z' AS TIMESTAMP)) AS result;
-
-minuteFromStringTime
-SELECT MINUTE(CAST('18:09:03' AS TIME)) AS result;
-
 // ES will consider a TIME in UTC, if no other indication is given and H2 doesn't consider the timezone for times, so no TZSync'ing needed.
 hourFromStringTime
 SELECT HOUR(CAST('18:09:03' AS TIME)) AS result;
 
 //
-// current
 // For these -TZSync tests, H2's test-random timezone and ES'es need to be in sync
 //
+
+minuteFromStringDateTime-TZSync
+SELECT MINUTE(CAST('2018-09-03T18:09:03Z' AS TIMESTAMP)) AS result;
+
+// H2 doesn't consider timezones with times
+minuteFromStringTime-TZSync-Ignore
+SELECT MINUTE(CAST('18:09:03' AS TIME)) AS result;
+
+// current
 currentTimestampYear-TZSync
 SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
 

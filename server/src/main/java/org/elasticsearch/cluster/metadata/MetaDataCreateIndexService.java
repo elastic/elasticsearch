@@ -151,7 +151,7 @@ public class MetaDataCreateIndexService {
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
-    public void validateIndexName(String index, ClusterState state) {
+    public void validateIndexName(String index, ClusterState state, boolean isHidden) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
@@ -161,9 +161,9 @@ public class MetaDataCreateIndexService {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
-            if (matchingDescriptors.isEmpty()) {
-                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
-                    "names starting with a dot will fail as these names are reserved for system indices", index);
+            if (matchingDescriptors.isEmpty() && isHidden == false) {
+                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
+                    "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {
                 // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
                 StringBuilder errorMessage = new StringBuilder()
@@ -683,7 +683,8 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        validateIndexName(request.index(), state);
+        boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings());
+        validateIndexName(request.index(), state, isHidden);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 

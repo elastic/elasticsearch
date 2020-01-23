@@ -353,7 +353,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         request = new Request("DELETE", "/_snapshot/" + repo);
         assertOK(client().performRequest(request));
     }
-    
+
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));

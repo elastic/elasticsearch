@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;

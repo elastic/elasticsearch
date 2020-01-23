@@ -27,7 +27,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
@@ -384,7 +383,7 @@ public class RestClientDocumentation {
         {
             String keyStorePass = "";
             //tag::rest-client-config-encrypted-communication
-            Path trustStorePath = Paths.get("/path/to/your/truststore.p12");
+            Path trustStorePath = Paths.get("/path/to/truststore.p12");
             KeyStore truststore = KeyStore.getInstance("pkcs12");
             try (InputStream is = Files.newInputStream(trustStorePath)) {
                 truststore.load(is, keyStorePass.toCharArray());
@@ -405,22 +404,25 @@ public class RestClientDocumentation {
         }
         {
             //tag::rest-client-config-trust-ca-pem
-            Path caCertificatePath = Paths.get("/path/to/your/ca.crt");
-            CertificateFactory factory = CertificateFactory.getInstance("X.509");
+            Path caCertificatePath = Paths.get("/path/to/ca.crt");
+            CertificateFactory factory =
+                CertificateFactory.getInstance("X.509");
             Certificate trustedCa;
             try (InputStream is = Files.newInputStream(caCertificatePath)) {
                 trustedCa = factory.generateCertificate(is);
             }
-            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            KeyStore trustStore = KeyStore.getInstance("pkcs12");
             trustStore.load(null, null);
             trustStore.setCertificateEntry("ca", trustedCa);
-            SSLContextBuilder sslContextBuilder = SSLContexts.custom().loadTrustMaterial(trustStore, null);
+            SSLContextBuilder sslContextBuilder = SSLContexts.custom()
+                .loadTrustMaterial(trustStore, null);
             final SSLContext sslContext = sslContextBuilder.build();
             RestClient.builder(
                 new HttpHost("localhost", 9200, "https"))
-                .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+                .setHttpClientConfigCallback(new HttpClientConfigCallback() {
                     @Override
-                    public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                    public HttpAsyncClientBuilder customizeHttpClient(
+                        HttpAsyncClientBuilder httpClientBuilder) {
                         return httpClientBuilder.setSSLContext(sslContext);
                     }
                 });
@@ -459,7 +461,9 @@ public class RestClientDocumentation {
             //tag::rest-client-auth-bearer-token
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"));
-            Header[] defaultHeaders = new Header[]{new BasicHeader("Authorization", "Bearer u6iuAxZ0RG1Kcm5jVFI4eU4tZU9aVFEwT2F3")};
+            Header[] defaultHeaders =
+                new Header[]{new BasicHeader("Authorization",
+                    "Bearer u6iuAxZ0RG1Kcm5jVFI4eU4tZU9aVFEwT2F3")};
             builder.setDefaultHeaders(defaultHeaders);
             //end::rest-client-auth-bearer-token
         }
@@ -467,7 +471,9 @@ public class RestClientDocumentation {
             //tag::rest-client-auth-api-key
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"));
-            Header[] defaultHeaders = new Header[]{new BasicHeader("Authorization", "ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==")};
+            Header[] defaultHeaders =
+                new Header[]{new BasicHeader("Authorization",
+                    "ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3gdWkybHAdzw==")};
             builder.setDefaultHeaders(defaultHeaders);
             //end::rest-client-auth-api-key
         }

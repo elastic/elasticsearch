@@ -202,7 +202,7 @@ public class CacheDirectory extends FilterDirectory {
                 int bytesCopied = 0;
                 long remaining = end - start;
                 while (remaining > 0) {
-                    final int size = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
+                    final int size = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
                     input.readBytes(copyBuffer, 0, size);
                     fc.write(ByteBuffer.wrap(copyBuffer, 0, size), start + bytesCopied);
                     bytesCopied += size;

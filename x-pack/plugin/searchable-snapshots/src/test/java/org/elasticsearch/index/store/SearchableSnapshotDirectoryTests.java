@@ -11,9 +11,13 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -144,13 +148,46 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     assertThat(snapshotReader.getVersion(), equalTo(reader.getVersion()));
                     assertThat(snapshotReader.getIndexCommit().getGeneration(), equalTo(reader.getIndexCommit().getGeneration()));
 
-                    String field = randomFrom("id", "text");
-                    Terms terms = reader.leaves().get(0).reader().terms(field);
-                    Terms snapshotTerms = snapshotReader.leaves().get(0).reader().terms(field);
-                    assertThat(snapshotTerms.size(), equalTo(terms.size()));
-                    assertThat(snapshotTerms.getDocCount(), equalTo(terms.getDocCount()));
-                    assertThat(snapshotTerms.getMin(), equalTo(terms.getMin()));
-                    assertThat(snapshotTerms.getMax(), equalTo(terms.getMax()));
+                    for (int i = 0; i < reader.leaves().size(); i++) {
+                        LeafReader leafReader = reader.leaves().get(i).reader();
+                        LeafReader snapshotLeafReader = snapshotReader.leaves().get(i).reader();
+                        assertThat(snapshotLeafReader.numDocs(), equalTo(leafReader.numDocs()));
+                        assertThat(snapshotLeafReader.numDeletedDocs(), equalTo(leafReader.numDeletedDocs()));
+                        assertThat(snapshotLeafReader.maxDoc(), equalTo(leafReader.maxDoc()));
+
+                        FieldInfos fieldInfos = leafReader.getFieldInfos();
+                        FieldInfos snapshotFieldInfos = snapshotLeafReader.getFieldInfos();
+                        assertThat(snapshotFieldInfos.size(), equalTo(fieldInfos.size()));
+
+                        for (int j = 0; j < fieldInfos.size(); j++) {
+                            FieldInfo fieldInfo = fieldInfos.fieldInfo(j);
+                            FieldInfo snapshotFieldInfo = snapshotFieldInfos.fieldInfo(j);
+
+                            assertThat(snapshotFieldInfo.name, equalTo(fieldInfo.name));
+                            assertThat(snapshotFieldInfo.number, equalTo(fieldInfo.number));
+
+                            assertThat(snapshotLeafReader.getDocCount(fieldInfo.name), equalTo(leafReader.getDocCount(fieldInfo.name)));
+                            assertThat(snapshotLeafReader.getSumDocFreq(fieldInfo.name), equalTo(leafReader.getSumDocFreq(fieldInfo.name)));
+
+                            assertThat(snapshotFieldInfo.getDocValuesType(), equalTo(fieldInfo.getDocValuesType()));
+                            assertThat(snapshotFieldInfo.getDocValuesGen(), equalTo(fieldInfo.getDocValuesGen()));
+                            assertThat(snapshotFieldInfo.getPointDataDimensionCount(), equalTo(fieldInfo.getPointDataDimensionCount()));
+                            assertThat(snapshotFieldInfo.getPointIndexDimensionCount(), equalTo(fieldInfo.getPointIndexDimensionCount()));
+                            assertThat(snapshotFieldInfo.getPointNumBytes(), equalTo(fieldInfo.getPointNumBytes()));
+
+                            if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                                Terms terms = leafReader.terms(fieldInfo.name);
+                                Terms snapshotTerms = snapshotLeafReader.terms(fieldInfo.name);
+
+                                assertThat(snapshotTerms.size(), equalTo(terms.size()));
+                                assertThat(snapshotTerms.getDocCount(), equalTo(terms.getDocCount()));
+                                assertThat(snapshotTerms.getMin(), equalTo(terms.getMin()));
+                                assertThat(snapshotTerms.getMax(), equalTo(terms.getMax()));
+                                assertThat(snapshotTerms.getSumTotalTermFreq(), equalTo(terms.getSumTotalTermFreq()));
+                                assertThat(snapshotTerms.getSumDocFreq(), equalTo(terms.getSumDocFreq()));
+                            }
+                        }
+                    }
                 }
             }
         });

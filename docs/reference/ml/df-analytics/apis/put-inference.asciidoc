@@ -26,8 +26,6 @@ built-in roles and privileges:
 
 * `machine_learning_admin`
 
-
-  
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
@@ -288,6 +286,8 @@ weights into account) is returned.
 (Required, double) 
 The weights to multiply by the input values (the inference values of the trained 
 models).
+
+See <<ml-put-inference-aggregated-output-example>> for more details.
 
 
 [[ml-put-inference-example]]

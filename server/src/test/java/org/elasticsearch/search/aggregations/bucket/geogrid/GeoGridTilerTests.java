@@ -53,17 +53,17 @@ public class GeoGridTilerTests extends ESTestCase {
 
         // test shape within tile bounds
         {
-            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 13);
             assertThat(count, equalTo(1));
         }
         {
-            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 14);
             assertThat(count, equalTo(4));
         }
         {
-            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 15);
             assertThat(count, equalTo(16));
         }
@@ -93,13 +93,13 @@ public class GeoGridTilerTests extends ESTestCase {
         geometry = indexer.prepareForIndexing(geometry);
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+        GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOTILE);
         int recursiveCount;
         {
             recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0,
                                                               precision, value, value.boundingBox());
         }
-        CellIdSource.GeoShapeCellValues bruteForceValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+        GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOTILE);
         int bruteForceCount;
         {
             final double tiles = 1 << precision;
@@ -124,12 +124,12 @@ public class GeoGridTilerTests extends ESTestCase {
         geometry = indexer.prepareForIndexing(geometry);
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOHASH);
+        GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOHASH);
         int recursiveCount;
         {
             recursiveCount = GEOHASH.setValuesByRasterization("", recursiveValues, 0, precision, value, value.boundingBox());
         }
-        CellIdSource.GeoShapeCellValues bruteForceValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOHASH);
+        GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOHASH);
         int bruteForceCount;
         {
             MultiGeoValues.BoundingBox bounds = value.boundingBox();
@@ -158,17 +158,17 @@ public class GeoGridTilerTests extends ESTestCase {
 
         // test shape within tile bounds
         {
-            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOHASH.setValues(values, value, 5);
             assertThat(count, equalTo(1));
         }
         {
-            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOHASH.setValues(values, value, 6);
             assertThat(count, equalTo(32));
         }
         {
-            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOHASH.setValues(values, value, 7);
             assertThat(count, equalTo(1024));
         }

@@ -49,7 +49,7 @@ The filter produces the following tokens:
 
 [source,text]
 --------------------------------------------------
-[ t, th, q, ui, b, br, f, fo, j, ju ]
+[ t, th, q, qu, b, br, f, fo, j, ju ]
 --------------------------------------------------
 
 /////////////////////

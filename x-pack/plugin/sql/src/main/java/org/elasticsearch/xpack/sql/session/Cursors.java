@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.ql.expression.literal.Literals;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.sql.expression.literal.SqlLiterals;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public final class Cursors {
         entries.addAll(SqlBucketExtractors.getNamedWriteables());
 
         // and custom types
-        entries.addAll(Literals.getNamedWriteables());
+        entries.addAll(SqlLiterals.getNamedWriteables());
 
         return entries;
     }

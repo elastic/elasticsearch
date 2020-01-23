@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -60,11 +61,10 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.Geo> createFactory(
         String name, ValuesSourceConfig<ValuesSource.Geo> config, int precision, int requiredSize, int shardSize,
-        QueryShardContext queryShardContext, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metaData
-    ) throws IOException {
-        return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,
-            subFactoriesBuilder, metaData);
+        GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext, AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
+            queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     private GeoTileGridAggregationBuilder(GeoTileGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,

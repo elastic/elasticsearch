@@ -106,9 +106,9 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new SizeFieldMapper(indexSettings, fieldType);
+            return new SizeFieldMapper(indexSettings, defaultFieldType(Version.indexCreated(indexSettings)));
         }
     }
 

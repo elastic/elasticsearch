@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -41,14 +42,17 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
+    private final GeoBoundingBox geoBoundingBox;
 
     GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.Geo> config, int precision, int requiredSize,
-                                 int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+                                 int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
+                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                 Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.geoBoundingBox = geoBoundingBox;
     }
 
     @Override
@@ -76,8 +80,8 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoGridTiler.GeoHashGridTiler.INSTANCE);
-        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, searchContext, parent,
-            pipelineAggregators, metaData);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, GeoGridTiler.GeoHashGridTiler.INSTANCE);
+        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+            searchContext, parent, pipelineAggregators, metaData);
     }
 }

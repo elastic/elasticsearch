@@ -133,7 +133,7 @@ The name of the resulting feature.
 (Required, object map of string:double) 
 Object that maps the field value to the target mean value.
 
-`target_mean_encoding`.`default.value`:::
+`target_mean_encoding`.`default_value`:::
 (Required, double) 
 The feature value if the field value is not in the `target_map`.
 

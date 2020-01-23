@@ -487,7 +487,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals("Elasticsearch exception [type=resource_not_found_exception, " +
-                "reason=Document not found [index]/[does_not_exist]]", exception.getMessage());
+                "reason=Document not found [index]/[_doc]/[does_not_exist]]", exception.getMessage());
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");

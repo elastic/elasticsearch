@@ -250,6 +250,10 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public void validate() {
+        if (this.models.isEmpty()) {
+            throw ExceptionsHelper.badRequestException("[trained_models] must not be empty");
+        }
+
         if (outputAggregator.compatibleWith(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
                 "aggregate_output [{}] is not compatible with target_type [{}]",

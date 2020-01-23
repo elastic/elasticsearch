@@ -32,13 +32,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Models a response to a {@link ListDanglingIndicesRequest}. A list request queries every node in the
  * cluster and aggregates their responses. When the aggregated response is converted to {@link XContent},
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
- * in the cluster failed to answer, the details are presented under the "failed_nodes" key.
+ * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
  */
 public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
 
@@ -59,29 +63,51 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
         return this.hasFailures() ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    private Collection<AggregatedDanglingIndexInfo> resultsByIndexUUID() {
+        Map<String, AggregatedDanglingIndexInfo> byIndexUUID = new HashMap<>();
 
-        builder.startArray("dangling_indices");
         for (NodeDanglingIndicesResponse nodeResponse : this.getNodes()) {
             for (IndexMetaData indexMetaData : nodeResponse.getDanglingIndices()) {
-                DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
-                    nodeResponse.getNode(),
-                    indexMetaData.getIndex().getName(),
-                    indexMetaData.getIndexUUID(),
-                    indexMetaData.getCreationDate()
-                );
-                danglingIndexInfo.toXContent(builder, params);
+                final String indexUUID = indexMetaData.getIndexUUID();
+
+                if (byIndexUUID.containsKey(indexUUID) == false) {
+                    AggregatedDanglingIndexInfo info = new AggregatedDanglingIndexInfo(indexMetaData.getIndex()
+                        .getName(), indexUUID, indexMetaData.getCreationDate());
+
+                    byIndexUUID.put(indexUUID, info);
+                }
+
+                byIndexUUID.get(indexUUID).getNodeIds().add(nodeResponse.getNode().getId());
             }
         }
-        builder.endArray();
 
+        return byIndexUUID.values();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         int numNodes = this.getNodes().size();
         int numFailures = this.failures().size();
         int numSuccessful = numNodes - numFailures;
 
         RestActions.buildNodesHeader(builder, params, numNodes, numSuccessful, numFailures, this.failures());
+
+        builder.startObject();
+        builder.startArray("dangling_indices");
+
+        for (AggregatedDanglingIndexInfo info : this.resultsByIndexUUID()) {
+            builder.startObject();
+
+            builder.field("index_name", info.indexName);
+            builder.field("index_uuid", info.indexUUID);
+            builder.timeField("creation_date_millis", "creation_date", info.creationDate);
+
+            builder.array("node_ids", info.nodeIds.toArray(new String[0]));
+
+            builder.endObject();
+        }
+
+        builder.endArray();
 
         return builder.endObject();
     }
@@ -94,5 +120,35 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeDanglingIndicesResponse> nodes) throws IOException {
         out.writeList(nodes);
+    }
+
+    private static class AggregatedDanglingIndexInfo {
+        private final String indexUUID;
+        private final String indexName;
+        private final long creationDate;
+        private final List<String> nodeIds;
+
+        private AggregatedDanglingIndexInfo(String indexUUID, String indexName, long creationDate) {
+            this.indexUUID = indexUUID;
+            this.indexName = indexName;
+            this.creationDate = creationDate;
+            this.nodeIds = new ArrayList<>();
+        }
+
+        public String getIndexUUID() {
+            return indexUUID;
+        }
+
+        public String getIndexName() {
+            return indexName;
+        }
+
+        public long getCreationDate() {
+            return creationDate;
+        }
+
+        public List<String> getNodeIds() {
+            return nodeIds;
+        }
     }
 }

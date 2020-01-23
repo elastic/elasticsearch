@@ -11,13 +11,28 @@ distributes these calculations across your cluster. You can then feed this
 aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
-There are some limitations to using aggregations in {dfeeds}, however.
-Your aggregation must include a `date_histogram` aggregation, which in turn must
-contain a `max` aggregation on the time field. This requirement ensures that the
-aggregated data is a time series and the timestamp of each bucket is the time
-of the last record in the bucket. If you use a terms aggregation and the
-cardinality of a term is high, then the aggregation might not be effective and
-you might want to just use the default search and scroll behavior.
+TIP: If you use a terms aggregation and the cardinality of a term is high, the
+aggregation might not be effective and you might want to just use the default
+search and scroll behavior.
+
+There are some limitations to using aggregations in {dfeeds}. Your aggregation
+must include a `date_histogram` aggregation, which in turn must contain a `max`
+aggregation on the time field. This requirement ensures that the aggregated data
+is a time series and the timestamp of each bucket is the time of the last record
+in the bucket.
+
+You must also consider the interval of the date histogram aggregation carefully.
+The bucket span of your {anomaly-job} must be divisible by the value of the
+`calendar_interval` or `fixed_interval` in your aggregation (with no remainder).
+If you specify a `frequency` for your {dfeed}, it must also be divisible by this
+interval.
+
+TIP: As a rule of thumb, if your detectors use <<ml-metric-functions,metric>> or
+<<ml-sum-functions,sum>> analytical functions, set the date histogram
+aggregation interval to a tenth of the bucket span. This suggestion creates
+finer, more granular time buckets, which are ideal for this type of analysis. If
+your detectors use <<ml-count-functions,count>> or <<ml-rare-functions,rare>>
+functions, set the interval to the same value as the bucket span.
 
 When you create or update an {anomaly-job}, you can include the names of
 aggregations, for example:
@@ -143,9 +158,9 @@ pipeline aggregation to find the first order derivative of the counter
 ----------------------------------
 // NOTCONSOLE
 
-{dfeeds-cap} not only supports multi-bucket aggregations, but also single bucket aggregations.
-The following shows two `filter` aggregations, each gathering the number of unique entries for
-the `error` field.
+{dfeeds-cap} not only supports multi-bucket aggregations, but also single bucket
+aggregations. The following shows two `filter` aggregations, each gathering the
+number of unique entries for the `error` field.
 
 [source,js]
 ----------------------------------
@@ -225,14 +240,15 @@ When you define an aggregation in a {dfeed}, it must have the following form:
 ----------------------------------
 // NOTCONSOLE
 
-The top level aggregation must be either a {ref}/search-aggregations-bucket.html[Bucket Aggregation]
-containing as single sub-aggregation that is a `date_histogram` or the top level aggregation
-is the required `date_histogram`. There must be exactly 1 `date_histogram` aggregation.
+The top level aggregation must be either a
+{ref}/search-aggregations-bucket.html[bucket aggregation] containing as single
+sub-aggregation that is a `date_histogram` or the top level aggregation is the
+required `date_histogram`. There must be exactly 1 `date_histogram` aggregation.
 For more information, see
-{ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date Histogram Aggregation].
+{ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date histogram aggregation].
 
-NOTE: The `time_zone` parameter in the date histogram aggregation must be set to `UTC`,
-which is the default value.
+NOTE: The `time_zone` parameter in the date histogram aggregation must be set to
+`UTC`, which is the default value.
 
 Each histogram bucket has a key, which is the bucket start time. This key cannot
 be used for aggregations in {dfeeds}, however, because they need to know the
@@ -269,16 +285,9 @@ By default, {es} limits the maximum number of terms returned to 10000. For high
 cardinality fields, the query might not run. It might return errors related to
 circuit breaking exceptions that indicate that the data is too large. In such
 cases, do not use aggregations in your {dfeed}. For more
-information, see {ref}/search-aggregations-bucket-terms-aggregation.html[Terms Aggregation].
+information, see
+{ref}/search-aggregations-bucket-terms-aggregation.html[Terms aggregation].
 
-You can also optionally specify multiple sub-aggregations.
-The sub-aggregations are aggregated for the buckets that were created by their
-parent aggregation. For more information, see
-{ref}/search-aggregations.html[Aggregations].
-
-TIP: If your detectors use metric or sum analytical functions, set the
-`interval` of the date histogram aggregation to a tenth of the `bucket_span`
-that was defined in the job. This suggestion creates finer, more granular time
-buckets, which are ideal for this type of analysis. If your detectors use count
-or rare functions, set `interval` to the same value as `bucket_span`. For more
-information about analytical functions, see <<ml-functions>>.
+You can also optionally specify multiple sub-aggregations. The sub-aggregations
+are aggregated for the buckets that were created by their parent aggregation.
+For more information, see {ref}/search-aggregations.html[Aggregations].

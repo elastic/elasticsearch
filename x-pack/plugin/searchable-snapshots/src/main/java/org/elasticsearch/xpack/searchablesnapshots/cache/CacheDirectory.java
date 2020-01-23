@@ -192,14 +192,14 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
-        int writeCacheFile(FileChannel fc, long start, long end) throws IOException {
+        void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(8192L, end - start))];
-            int bytesCopied = 0;
             try (IndexInput input = in.openInput(fileName, ioContext)) {
                 if (start > 0) {
                     input.seek(start);
                 }
+                int bytesCopied = 0;
                 long remaining = end - start;
                 while (remaining > 0) {
                     final int size = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
@@ -209,7 +209,6 @@ public class CacheDirectory extends FilterDirectory {
                     remaining -= size;
                 }
             }
-            return bytesCopied;
         }
 
         @Override

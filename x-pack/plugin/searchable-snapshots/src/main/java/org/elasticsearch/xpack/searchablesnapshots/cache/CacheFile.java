@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -222,7 +223,7 @@ class CacheFile implements Releasable {
 
     CompletableFuture<Integer> fetchRange(long position,
                                           CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
-                                          CheckedBiFunction<Long, Long, Integer, IOException> onRangeMissing) {
+                                          CheckedBiConsumer<Long, Long, IOException> onRangeMissing) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
             if (position < 0 || position > tracker.getLength()) {
@@ -248,7 +249,7 @@ class CacheFile implements Releasable {
 
                 try {
                     ensureOpen();
-                    onRangeMissing.apply(rangeStart, rangeEnd);
+                    onRangeMissing.accept(rangeStart, rangeEnd);
                     range.onResponse(null);
                 } catch (Exception e) {
                     range.onFailure(e);

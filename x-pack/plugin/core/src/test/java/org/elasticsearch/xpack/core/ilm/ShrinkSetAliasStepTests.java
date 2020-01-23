@@ -20,12 +20,12 @@ import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAliasStep> {
@@ -104,22 +104,17 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
-                assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                listener.onResponse(new AcknowledgedResponse(true));
-                return null;
-            }
-
+        Mockito.doAnswer( invocation -> {
+            IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
+            assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            listener.onResponse(new AcknowledgedResponse(true));
+            return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -150,20 +145,15 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                listener.onFailure(exception);
-                return null;
-            }
-
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

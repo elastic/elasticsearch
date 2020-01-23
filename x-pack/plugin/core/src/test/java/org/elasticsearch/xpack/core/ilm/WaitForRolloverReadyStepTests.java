@@ -167,7 +167,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, conditionsMet.get());
 
@@ -199,7 +199,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -229,7 +229,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -257,7 +257,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, conditionsMet.get());
     }
@@ -286,7 +286,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 assertTrue(e instanceof IllegalStateException);
                 correctFailureCalled.set(true);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, correctFailureCalled.get());
     }
@@ -342,7 +342,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(false, actionCompleted.get());
 
@@ -402,7 +402,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 assertSame(exception, e);
                 exceptionThrown.set(true);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, exceptionThrown.get());
 
@@ -429,7 +429,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 exceptionThrown.set(e);
             }
-        });
+        }, MASTER_TIMEOUT);
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
             "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
@@ -454,7 +454,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 exceptionThrown.set(e);
             }
-        });
+        }, MASTER_TIMEOUT);
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
             "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,

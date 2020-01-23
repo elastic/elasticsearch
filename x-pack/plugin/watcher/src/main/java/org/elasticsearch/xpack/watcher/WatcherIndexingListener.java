@@ -156,7 +156,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         } else {
             logger.debug(
                 () -> new ParameterizedMessage("not removing watch [{}] from trigger, because [{}] != [{}] configuration.active=[{}]",
-                index.id(), shardId.getIndexName(), configuration.index, configuration.active, ex));
+                index.id(), shardId.getIndexName(), configuration.index, configuration.active), ex);
         }
     }
 

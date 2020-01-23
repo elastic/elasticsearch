@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[slm-retention]]
-== Snapshot lifecycle management retention
+=== Snapshot retention
 
 Automatic deletion of older snapshots is an optional feature of snapshot lifecycle management.
 Retention is run as a cluster level task that is not associated with a particular policy's schedule
@@ -11,7 +11,7 @@ run and for how long, the second configured on a policy for which snapshots shou
 retention.
 
 The cluster level settings for retention are shown below, and can be changed dynamically using the
-<<cluster-update-settings,cluster-update-settings>> API:
+<<cluster-update-settings>> API:
 
 |=====================================
 | Setting | Default value | Description
@@ -19,7 +19,7 @@ The cluster level settings for retention are shown below, and can be changed dyn
 | `slm.retention_schedule` | `0 30 1 * * ?` | A periodic or absolute time schedule for when
   retention should be run. Supports all values supported by the cron scheduler: <<schedule-cron,Cron
   scheduler configuration>>. Retention can also be manually run using the
-  <<slm-api-execute-retention,Execute retention API>>. Defaults to daily at 1:30am in the master
+  <<slm-api-execute-retention>> API. Defaults to daily at 1:30am in the master
   node's timezone.
 
 | `slm.retention_duration` | `"1h"` | A limit of how long SLM should spend deleting old snapshots.
@@ -70,12 +70,12 @@ successful snapshots.
 ____
 
 If multiple policies are configured to snapshot to the same repository, or manual snapshots have
-been taken without using the <<slm-api-execute,Execute Policy API>>, they are treated as not
+been taken without using the <<slm-api-execute-lifecycle>> API, they are treated as not
 eligible for retention, and do not count towards any limits. This allows multiple policies to have
 differing retention configuration while using the same snapshot repository.
 
-Statistics for snapshot retention can be retrieved using the <<slm-get-stats,Get Snapshot Lifecycle
-Stats API>>:
+Statistics for snapshot retention can be retrieved using the 
+<<slm-api-get-stats>> API:
 
 [source,console]
 --------------------------------------------------

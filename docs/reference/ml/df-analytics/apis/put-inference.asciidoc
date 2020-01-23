@@ -77,6 +77,10 @@ A human-readable description of the {infer} trained model.
 (Required, object) 
 The input field names for the model definition.
 
+`input`.`field_names`:::
+(Required, string) 
+An array of input field names for the model.
+
 `metadata`::
 (Optional, object) 
 An object map that contains metadata about the model.
@@ -292,7 +296,7 @@ models).
 [[ml-put-inference-preprocessor-example]]
 ===== Preprocessor examples
 
-The example above shows a `frequency_encoding` preprocessor object:
+The example below shows a `frequency_encoding` preprocessor object:
 
 [source,js]
 ----------------------------------
@@ -441,13 +445,29 @@ The following example shows an `ensemble` model object:
 
 
 [[ml-put-inference-aggregated-output-example]]
-===== Aggregated output examples
+===== Aggregated output example
 
-For the following examples, we use `[1.0, 2.0, 2.0, 3.0, 5.0]` as input. 
+The examples below show `aggregate_output` objects:
 
-If `weighted_mode: { weights: [1.0, -1.0, .5, 1.0, 5.0]}`, then the aggregated 
-output will return `5.0` as that is the most common input value given the 
-weights.
 
-If `weighted_mode: { weights: [1.0, 1.0, 1.0, 1.0, 1.0]}`, then it would return 
-`2.0`, as `2.0` appears the most in the input and the weights are uniform.
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "weighted_sum" : {
+    "weights" : [1.0, -1.0, .5, 1.0, 5.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+source,js]
+----------------------------------
+"aggregate_output" : {
+  "weighted_mode" : {
+    "weights" : [1.0, 1.0, 1.0, 1.0, 1.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+

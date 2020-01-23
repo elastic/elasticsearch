@@ -167,14 +167,13 @@ class CacheFile {
     private void maybeCloseFileChannel(Set<EvictionListener> listeners) {
         assert Thread.holdsLock(this);
         if (listeners.size() == 0) {
-            if (channel != null) {
-                try {
-                    channel.close();
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Exception when closing channel", e);
-                } finally {
-                    channel = null;
-                }
+            assert channel != null;
+            try {
+                channel.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Exception when closing channel", e);
+            } finally {
+                channel = null;
             }
         }
     }

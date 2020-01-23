@@ -22,6 +22,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,18 +53,19 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
     }
 
     private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
-        T instance = createRandomInstance();
-        instance.setClient(new NoOpClient(pool) {
+        AtomicBoolean timeoutChecked = new AtomicBoolean();
+        client = new NoOpClient(pool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                       Request request,
                                                                                                       ActionListener<Response> listener) {
                 if (request instanceof MasterNodeRequest) {
                     assertThat(((MasterNodeRequest<?>) request).masterNodeTimeout(), equalTo(timeValue));
+                    timeoutChecked.set(true);
                 }
             }
-        });
-        instance.performAction(getIndexMetaData(), currentClusterState, null, new AsyncActionStep.Listener() {
+        };
+        createRandomInstance().performAction(getIndexMetaData(), currentClusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
 
@@ -73,6 +76,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
 
             }
         });
+        assertTrue(timeoutChecked.get());
     }
 
     protected abstract IndexMetaData getIndexMetaData();

@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -108,9 +109,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
                 .findFirst()
                 .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
+                .filter(allRepos -> allRepos.stream()
+                    .anyMatch(snapMap -> Optional.ofNullable((String) snapMap.get("snapshot"))
+                        .map(snapName -> snapName.startsWith("snap-"))
+                        .orElse(false)))
                 .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-            assertThat(snapResponse.size(), greaterThan(0));
-            assertThat(snapResponse.get(0).get("snapshot").toString(), startsWith("snap-"));
             assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
             Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);

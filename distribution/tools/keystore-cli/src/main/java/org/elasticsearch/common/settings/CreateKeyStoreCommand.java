@@ -46,7 +46,6 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
             }
         }
 
-
         char[] password = new char[0];// terminal.readSecret("Enter passphrase (empty for no passphrase): ");
         /* TODO: uncomment when entering passwords on startup is supported
         char[] passwordRepeat = terminal.readSecret("Enter same passphrase again: ");

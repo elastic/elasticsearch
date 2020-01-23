@@ -55,8 +55,8 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
-            if (options.has(forceOption) == false &&
-                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+            if (options.has(forceOption) == false
+                && terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
@@ -87,14 +87,16 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
         }
         if (argumentValues.size() > 2) {
-            throw new UserException(ExitCodes.USAGE, "Unrecognized extra arguments [" +
-                String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Unrecognized extra arguments [" + String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath"
+            );
         }
         keystore.setFile(setting, Files.readAllBytes(file));
         keystore.save(env.configFile(), new char[0]);
     }
 
-    @SuppressForbidden(reason="file arg for cli")
+    @SuppressForbidden(reason = "file arg for cli")
     private Path getPath(String file) {
         return PathUtils.get(file);
     }

@@ -56,7 +56,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaults() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -65,7 +65,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -111,7 +111,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDisableIndex() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -121,7 +121,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -143,7 +143,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDisableDocValues() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -153,7 +153,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -195,7 +195,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIndexOptions() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -205,12 +205,12 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
             String invalidMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "flattened")
@@ -220,14 +220,14 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> parser.parse("_doc", new CompressedXContent(invalidMapping)));
+                    () -> parser.parse("type", new CompressedXContent(invalidMapping)));
             assertEquals("The [flattened] field does not support positions, got [index_options]=" + indexOptions, e.getMessage());
         }
     }
 
     public void testNullField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -236,7 +236,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -250,7 +250,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testMalformedJson() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -259,7 +259,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc1 = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -276,7 +276,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testFieldMultiplicity() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -285,7 +285,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -318,7 +318,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
     public void testDepthLimit() throws IOException {
         // First verify the default behavior when depth_limit is not set.
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -327,7 +327,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -344,7 +344,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
         // Set a lower value for depth_limit and check that the field is rejected.
         String newMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -355,7 +355,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
         .endObject());
 
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("_doc", new CompressedXContent(newMapping)).mapping());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping());
 
         expectThrows(MapperParsingException.class, () ->
             newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
@@ -363,7 +363,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEagerGlobalOrdinals() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -371,7 +371,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
@@ -381,7 +381,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
     public void testIgnoreAbove() throws IOException {
         // First verify the default behavior when ignore_above is not set.
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -390,7 +390,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
@@ -427,7 +427,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testNullValues() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("_doc")
+            .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "flattened")
@@ -440,7 +440,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()

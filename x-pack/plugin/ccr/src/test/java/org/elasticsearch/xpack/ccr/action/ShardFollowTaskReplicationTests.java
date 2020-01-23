@@ -341,7 +341,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetaData indexMetaData = buildIndexMetaData(between(0, 1), settings, indexMapping);
@@ -427,7 +426,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ReplicationGroup createLeaderGroup(int replicas) throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
             .build();
         return createGroup(replicas, settings);
@@ -435,10 +433,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ReplicationGroup createFollowGroup(ReplicationGroup leaderGroup, int replicas) throws IOException {
         final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(
-                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                        new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                     new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
                 .build();
         IndexMetaData indexMetaData = buildIndexMetaData(replicas, settings, indexMapping);
         return new ReplicationGroup(indexMetaData) {

@@ -22,7 +22,6 @@ import java.util.Objects;
  * Represents one part of the execution of a {@link LifecycleAction}.
  */
 public abstract class Step {
-
     private final StepKey key;
     private final StepKey nextStepKey;
 
@@ -61,7 +60,7 @@ public abstract class Step {
         }
         Step other = (Step) obj;
         return Objects.equals(key, other.key) &&
-            Objects.equals(nextStepKey, other.nextStepKey);
+                Objects.equals(nextStepKey, other.nextStepKey);
     }
 
     @Override
@@ -79,7 +78,6 @@ public abstract class Step {
         public static final ParseField NAME_FIELD = new ParseField("name");
         private static final ConstructingObjectParser<StepKey, Void> PARSER =
             new ConstructingObjectParser<>("stepkey", a -> new StepKey((String) a[0], (String) a[1], (String) a[2]));
-
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), PHASE_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTION_FIELD);
@@ -136,8 +134,8 @@ public abstract class Step {
             }
             StepKey other = (StepKey) obj;
             return Objects.equals(phase, other.phase) &&
-                Objects.equals(action, other.action) &&
-                Objects.equals(name, other.name);
+                    Objects.equals(action, other.action) &&
+                    Objects.equals(name, other.name);
         }
 
         @Override

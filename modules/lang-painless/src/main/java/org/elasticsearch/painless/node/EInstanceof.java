@@ -83,6 +83,8 @@ public final class EInstanceof extends AExpression {
     InstanceofNode write() {
         InstanceofNode instanceofNode = new InstanceofNode();
 
+        instanceofNode.setChildNode(expression.write());
+
         instanceofNode.setLocation(location);
         instanceofNode.setExpressionType(actual);
         instanceofNode.setInstanceType(instanceType);

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.ActionFuture;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +44,7 @@ import java.util.List;
  * to perform the actual allocation.
  */
 public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, ImportDanglingIndexResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);
 
     private final TransportService transportService;
     private final LocalAllocateDangledIndices danglingIndexAllocator;
@@ -60,77 +61,85 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
     }
 
     @Override
-    protected void doExecute(Task task, ImportDanglingIndexRequest request, ActionListener<ImportDanglingIndexResponse> listener) {
-        IndexMetaData indexMetaDataToImport;
-        try {
-            indexMetaDataToImport = getIndexMetaDataToImport(request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        // This flag is checked at this point so that we always check that the supplied index UUID
-        // does correspond to a dangling index.
-        if (request.isAcceptDataLoss() == false) {
-            throw new IllegalArgumentException("accept_data_loss must be set to true");
-        }
-
-        this.danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToImport), new ActionListener<>() {
+    protected void doExecute(
+        Task task,
+        ImportDanglingIndexRequest importRequest,
+        ActionListener<ImportDanglingIndexResponse> importListener
+    ) {
+        fetchDanglingIndices(importRequest, new ActionListener<>() {
             @Override
-            public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
-                listener.onResponse(new ImportDanglingIndexResponse());
+            public void onResponse(IndexMetaData indexMetaDataToImport) {
+                // This flag is checked at this point so that we always check that the supplied index UUID
+                // does correspond to a dangling index.
+                if (importRequest.isAcceptDataLoss() == false) {
+                    throw new IllegalArgumentException("accept_data_loss must be set to true");
+                }
+
+                danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToImport), new ActionListener<>() {
+                    @Override
+                    public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
+                        importListener.onResponse(new ImportDanglingIndexResponse());
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug("Failed to import dangling index [" + indexMetaDataToImport.getIndexUUID() + "]", e);
+                        importListener.onFailure(e);
+                    }
+                });
             }
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                logger.debug("Failed to list dangling indices", e);
+                importListener.onFailure(e);
             }
         });
     }
 
-    private IndexMetaData getIndexMetaDataToImport(ImportDanglingIndexRequest request) {
-        String indexUUID = request.getIndexUUID();
-        String nodeId = request.getNodeId();
-
-        List<IndexMetaData> matchingMetaData = new ArrayList<>();
-
-        for (NodeDanglingIndicesResponse response : fetchDanglingIndices().actionGet().getNodes()) {
-            for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
-                if (danglingIndex.getIndexUUID().equals(indexUUID) && (nodeId == null || response.getNode().getId().equals(nodeId))) {
-                    matchingMetaData.add(danglingIndex);
-                }
-            }
-        }
-
-        if (matchingMetaData.isEmpty()) {
-            throw new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]");
-        }
-
-        if (matchingMetaData.size() > 1) {
-            throw new IllegalArgumentException(
-                "Multiple nodes contain dangling index [" + indexUUID + "]. " + "Specify a node ID to import a specific dangling index."
-            );
-        }
-
-        return matchingMetaData.get(0);
-    }
-
-    private ActionFuture<ListDanglingIndicesResponse> fetchDanglingIndices() {
-        final PlainActionFuture<ListDanglingIndicesResponse> future = PlainActionFuture.newFuture();
-
+    private void fetchDanglingIndices(ImportDanglingIndexRequest request, ActionListener<IndexMetaData> listener) {
         this.transportService.sendRequest(
             this.transportService.getLocalNode(),
             ListDanglingIndicesAction.NAME,
             new ListDanglingIndicesRequest(),
             new TransportResponseHandler<ListDanglingIndicesResponse>() {
+
                 @Override
                 public void handleResponse(ListDanglingIndicesResponse response) {
-                    future.onResponse(response);
+                    String indexUUID = request.getIndexUUID();
+                    String nodeId = request.getNodeId();
+
+                    List<IndexMetaData> matchingMetaData = new ArrayList<>();
+
+                    for (NodeDanglingIndicesResponse nodeResponse : response.getNodes()) {
+                        for (IndexMetaData danglingIndex : nodeResponse.getDanglingIndices()) {
+                            if (danglingIndex.getIndexUUID().equals(indexUUID)
+                                && (nodeId == null || nodeResponse.getNode().getId().equals(nodeId))) {
+                                matchingMetaData.add(danglingIndex);
+                            }
+                        }
+                    }
+
+                    if (matchingMetaData.isEmpty()) {
+                        listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                    }
+
+                    if (matchingMetaData.size() > 1) {
+                        listener.onFailure(
+                            new IllegalArgumentException(
+                                "Multiple nodes contain dangling index ["
+                                    + indexUUID
+                                    + "]. Specify a node ID to import a specific dangling index."
+                            )
+                        );
+                    }
+
+                    listener.onResponse(matchingMetaData.get(0));
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    future.onFailure(exp);
+                    listener.onFailure(exp);
                 }
 
                 @Override
@@ -144,7 +153,5 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 }
             }
         );
-
-        return future;
     }
 }

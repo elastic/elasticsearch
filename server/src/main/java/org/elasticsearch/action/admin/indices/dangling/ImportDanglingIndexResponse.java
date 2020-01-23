@@ -43,7 +43,7 @@ public class ImportDanglingIndexResponse extends ActionResponse implements Statu
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("status", "ok").endObject();
+        return builder.startObject().field("acknowledged", true).endObject();
     }
 
     @Override

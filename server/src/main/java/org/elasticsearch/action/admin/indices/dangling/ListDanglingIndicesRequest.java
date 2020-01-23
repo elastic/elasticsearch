@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

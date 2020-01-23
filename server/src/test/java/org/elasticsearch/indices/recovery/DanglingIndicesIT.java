@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -355,7 +356,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         }
 
         assertNotNull("No exception thrown", caughtException);
-        assertThat(caughtException, instanceOf(IllegalArgumentException.class));
+        assertThat(caughtException, instanceOf(ResponseHandlerFailureTransportException.class));
         assertThat(caughtException.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 
@@ -470,7 +471,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             // Both the stopped nodes should have found a dangling index.
             assertThat(results, hasSize(2));
             danglingIndices.set(results);
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // Try to delete the index - this request should succeed
         client().admin()

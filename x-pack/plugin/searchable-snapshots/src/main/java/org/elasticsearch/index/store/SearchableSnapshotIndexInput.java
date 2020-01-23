@@ -172,7 +172,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         throws IOException {
 
         assert streamForSequentialReadsRef.get() == null : "should only be called when a new stream is needed";
-        assert currentSequentialReadSize > 0L : "should not be called if ";
+        assert currentSequentialReadSize > 0L : "should only be called if optimizing sequential reads";
 
         final long streamLength = Math.min(currentSequentialReadSize, fileInfo.partBytes(part) - pos);
         if (length < streamLength) {

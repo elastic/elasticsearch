@@ -80,10 +80,6 @@ class CacheFile implements Releasable {
         return channel;
     }
 
-    public synchronized boolean isAcquired(final EvictionListener listener) {
-        return listeners.contains(listener);
-    }
-
     public boolean acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 
@@ -94,11 +90,8 @@ class CacheFile implements Releasable {
                 try {
                     ensureOpen();
                     final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                    final boolean added = newListeners.add(Objects.requireNonNull(listener));
+                    final boolean added = newListeners.add(listener);
                     assert added : "listener already exists " + listener;
-                    if (added == false) {
-                        throw new IllegalStateException("Cannot add the same listener twice");
-                    }
                     maybeOpenFileChannel(newListeners);
                     listeners = Collections.unmodifiableSet(newListeners);
                     success = true;

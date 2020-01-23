@@ -62,6 +62,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51360")
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
@@ -100,6 +101,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51360")
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);

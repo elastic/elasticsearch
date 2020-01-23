@@ -475,7 +475,7 @@ Example of a `weighted_sum` object:
 
 Example of a `weighted_mode` object:
 
-source,js]
+[source,js]
 ----------------------------------
 "aggregate_output" : {
   "weighted_mode" : {

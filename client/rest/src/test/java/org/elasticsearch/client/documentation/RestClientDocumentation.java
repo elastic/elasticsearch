@@ -382,11 +382,11 @@ public class RestClientDocumentation {
             //end::rest-client-config-disable-preemptive-auth
         }
         {
-            Path keyStorePath = Paths.get("");
             String keyStorePass = "";
             //tag::rest-client-config-encrypted-communication
+            Path trustStorePath = Paths.get("/path/to/your/truststore.p12");
             KeyStore truststore = KeyStore.getInstance("pkcs12");
-            try (InputStream is = Files.newInputStream(keyStorePath)) {
+            try (InputStream is = Files.newInputStream(trustStorePath)) {
                 truststore.load(is, keyStorePass.toCharArray());
             }
             SSLContextBuilder sslBuilder = SSLContexts.custom()
@@ -404,8 +404,8 @@ public class RestClientDocumentation {
             //end::rest-client-config-encrypted-communication
         }
         {
-            Path caCertificatePath = Paths.get("");
             //tag::rest-client-config-trust-ca-pem
+            Path caCertificatePath = Paths.get("/path/to/your/ca.crt");
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             Certificate trustedCa;
             try (InputStream is = Files.newInputStream(caCertificatePath)) {
@@ -427,11 +427,11 @@ public class RestClientDocumentation {
             //end::rest-client-config-trust-ca-pem
         }
         {
-            Path trustStorePath = Paths.get("");
             String trustStorePass = "";
-            Path keyStorePath = Paths.get("");
             String keyStorePass = "";
             //tag::rest-client-config-mutual-tls-authentication
+            Path trustStorePath = Paths.get("/path/to/your/truststore.p12");
+            Path keyStorePath = Paths.get("/path/to/your/keystore.p12");
             KeyStore trustStore = KeyStore.getInstance("pkcs12");
             KeyStore keyStore = KeyStore.getInstance("pkcs12");
             try (InputStream is = Files.newInputStream(trustStorePath)) {

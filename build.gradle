@@ -106,6 +106,12 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
+      ':build-tools',
+      ':distribution:tools:java-version-checker',
+      ':distribution:tools:keystore-cli',
+      ':distribution:tools:launchers',
+      ':distribution:tools:plugin-cli',
+      ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]
 
@@ -114,6 +120,10 @@ subprojects {
 
       spotless {
         java {
+          // Normally this isn't necessary, but we have Java sources in
+          // non-standard places
+          target '**/*.java'
+
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()

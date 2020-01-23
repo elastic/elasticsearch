@@ -918,12 +918,4 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
         deleteIndex(indexName);
     }
-
-    private void assertOnePivotValue(String query, double expected) throws IOException {
-        Map<String, Object> searchResult = getAsMap(query);
-
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
-        assertEquals(expected, actual, 0.000001);
-    }
 }

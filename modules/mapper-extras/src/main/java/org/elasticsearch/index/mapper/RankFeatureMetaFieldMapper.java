@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -79,14 +78,9 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            if (fieldType != null) {
-                return new RankFeatureMetaFieldMapper(indexSettings, fieldType);
-            } else {
-                return parse(NAME, Collections.emptyMap(), context)
-                        .build(new BuilderContext(indexSettings, new ContentPath(1)));
-            }
+            return new RankFeatureMetaFieldMapper(indexSettings, Defaults.FIELD_TYPE);
         }
     }
 

@@ -620,11 +620,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             if (preserveReposUponCompletion() == false) {
-                logger.debug("wiping snapshot repository [{}]", repoName);
-                adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+                deleteRepository(repoName);
             }
         }
         return inProgressSnapshots;
+    }
+
+    protected void deleteRepository(String repoName) throws IOException {
+        logger.debug("wiping snapshot repository [{}]", repoName);
+        adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
     }
 
     /**
@@ -659,7 +663,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeRollupJobs() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+        final Response response;
+        try {
+            response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+        } catch (ResponseException e) {
+            // If we don't see the rollup endpoint (possibly because of running against an older ES version) we just bail
+            if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                return;
+            }
+            throw e;
+        }
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
@@ -1207,5 +1220,62 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         assertNotNull(minVersion);
         return minVersion;
+    }
+
+    protected void syncedFlush(String indexName) throws Exception {
+        final List<String> deprecationMessages = List.of(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
+        final List<String> transitionMessages = List.of(
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
+        final WarningsHandler warningsHandler;
+        if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
+            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
+        } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
+            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
+        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
+            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
+        } else {
+            warningsHandler = warnings -> warnings.isEmpty() == false;
+        }
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                final Request request = new Request("POST", indexName + "/_flush/synced");
+                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
+                Response resp = client().performRequest(request);
+                if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("failed"), equalTo(0));
+                }
+            } catch (ResponseException ex) {
+                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
+                    && ex.getResponse().getWarnings().equals(transitionMessages)) {
+                    logger.info("a normal flush was performed instead");
+                } else {
+                    throw new AssertionError(ex); // cause assert busy to retry
+                }
+            }
+        });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(indexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
     }
 }

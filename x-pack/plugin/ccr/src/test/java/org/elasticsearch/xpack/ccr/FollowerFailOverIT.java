@@ -21,7 +21,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -56,8 +54,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         int numberOfReplicas = between(1, 2);
         getFollowerCluster().startMasterOnlyNode();
         getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
-        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 8)];
@@ -122,7 +119,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
-        String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(3, 1);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
 
@@ -176,8 +173,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
     public void testAddNewReplicasOnFollower() throws Exception {
         int numberOfReplicas = between(0, 1);
-        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas);
         assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
@@ -244,7 +240,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 .setSettings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")
                     .put("index.routing.allocation.require.box", "large"))
                 .get()
         );

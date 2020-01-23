@@ -9,7 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -49,10 +49,10 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private static final Logger LOGGER = LogManager.getLogger(UnusedStateRemover.class);
 
-    private final Client client;
+    private final OriginSettingClient client;
     private final ClusterService clusterService;
 
-    public UnusedStateRemover(Client client, ClusterService clusterService) {
+    public UnusedStateRemover(OriginSettingClient client, ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
     }

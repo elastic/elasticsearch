@@ -53,7 +53,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -104,7 +103,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -278,8 +276,10 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
+        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+            IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index())) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHidden)) :
             List.of();
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));
@@ -437,10 +437,10 @@ public class MetaDataCreateIndexService {
          * that will be used to create this index.
          */
         MetaDataCreateIndexService.checkShardLimit(indexSettings, currentState);
-        if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("soft_deletes_disabled",
-                "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
-                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_8_0_0)) {
+            throw new IllegalArgumentException("Creating indices with soft-deletes disabled is no longer supported. " +
+                "Please do not specify a value for setting [index.soft_deletes.enabled].");
         }
         return indexSettings;
     }
@@ -649,7 +649,7 @@ public class MetaDataCreateIndexService {
                 "]: cannot be greater than number of shard copies [" +
                 (tmpImd.getNumberOfReplicas() + 1) + "]");
         }
-        return indicesService.createIndex(tmpImd, Collections.emptyList());
+        return indicesService.createIndex(tmpImd, Collections.emptyList(), false);
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {

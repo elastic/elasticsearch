@@ -154,7 +154,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -885,6 +884,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
             .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY))
+            .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1000) // o.w. some tests might block
             .build());
     }
 
@@ -1201,7 +1201,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NodeMappingRefreshAction(transportService, metaDataMappingService),
                     repositoriesService,
                     mock(SearchService.class),
-                    new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
                     new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
@@ -1276,7 +1275,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters, indexNameExpressionResolver
                     ));
                 actions.put(CleanupRepositoryAction.INSTANCE, new TransportCleanupRepositoryAction(transportService, clusterService,
-                    repositoriesService, threadPool, actionFilters, indexNameExpressionResolver));
+                    repositoriesService, snapshotsService, threadPool, actionFilters, indexNameExpressionResolver));
                 actions.put(CreateSnapshotAction.INSTANCE,
                     new TransportCreateSnapshotAction(
                         transportService, clusterService, threadPool,

@@ -43,6 +43,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
             }
+
             @Override
             InputStream getStdin() {
                 return input;
@@ -180,10 +181,8 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("value");
         final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
-        final String exceptionString= "Setting name [" + key + "] does not match the allowed setting name pattern [[A-Za-z0-9_\\-.]+]";
-        assertThat(
-                e,
-                hasToString(containsString(exceptionString)));
+        final String exceptionString = "Setting name [" + key + "] does not match the allowed setting name pattern [[A-Za-z0-9_\\-.]+]";
+        assertThat(e, hasToString(containsString(exceptionString)));
     }
 
     void setInput(String inputStr) {

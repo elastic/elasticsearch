@@ -350,7 +350,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expectBadRequest(() -> {
                 client().performRequest(request);
                 return Collections.emptyMap();
-            }, containsString("unknown field [columnar], parser not found"));
+            }, containsString("unknown field [columnar]"));
     }
 
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
@@ -538,8 +538,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         } else {
             expected.put("rows", Arrays.asList(Arrays.asList("foo", 10)));
         }
+        
+        String params = mode.equals("jdbc") ? "{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}" :
+            "10, \"foo\"";
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
-                "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]"
+                "\"params\":[" + params + "]"
                 + mode(mode) + columnarParameter(columnar) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 

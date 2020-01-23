@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.RegexNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
@@ -89,15 +88,15 @@ public final class ERegex extends AExpression {
 
     @Override
     RegexNode write() {
-        return new RegexNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setFlags(flags)
-                .setPattern(pattern)
-                .setConstant(constant);
+        RegexNode regexNode = new RegexNode();
+        regexNode.setLocation(location);
+
+        regexNode.setExpressionType(actual);
+        regexNode.setFlags(flags);
+        regexNode.setPattern(pattern);
+        regexNode.setConstant(constant);
+
+        return regexNode;
     }
 
     private void initializeConstant(MethodWriter writer) {

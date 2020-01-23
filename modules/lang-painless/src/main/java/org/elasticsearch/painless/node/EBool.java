@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -77,15 +76,16 @@ public final class EBool extends AExpression {
 
     @Override
     BooleanNode write() {
-        return new BooleanNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLeftNode(left.write())
-                .setRightNode(right.write())
-                .setLocation(location)
-                .setOperation(operation);
+        BooleanNode booleanNode = new BooleanNode();
+
+        booleanNode.setLeftNode(left.write());
+        booleanNode.setRightNode(right.write());
+
+        booleanNode.setLocation(location);
+        booleanNode.setExpressionType(actual);
+        booleanNode.setOperation(operation);
+
+        return booleanNode;
     }
 
     @Override

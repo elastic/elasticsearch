@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.ir.UnaryNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -185,19 +184,17 @@ public final class EUnary extends AExpression {
 
     @Override
     UnaryNode write() {
-        return new UnaryMathNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(child.write())
-                .setUnaryTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(promote)
-                )
-                .setLocation(location)
-                .setOperation(operation)
-                .setOriginallExplicit(originallyExplicit);
+        UnaryMathNode unaryMathNode = new UnaryMathNode();
+
+        unaryMathNode.setChildNode(child.write());
+
+        unaryMathNode.setLocation(location);
+        unaryMathNode.setExpressionType(actual);
+        unaryMathNode.setUnaryType(promote);
+        unaryMathNode.setOperation(operation);
+        unaryMathNode.setOriginallExplicit(originallyExplicit);
+
+        return unaryMathNode;
     }
 
     @Override

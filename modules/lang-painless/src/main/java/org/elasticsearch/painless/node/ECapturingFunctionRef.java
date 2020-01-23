@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CapturingFuncRefNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -82,16 +81,17 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
 
     @Override
     CapturingFuncRefNode write() {
-        return new CapturingFuncRefNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setCaptured(captured)
-                .setName(call)
-                .setPointer(defPointer)
-                .setFuncRef(ref);
+        CapturingFuncRefNode capturingFuncRefNode = new CapturingFuncRefNode();
+
+        capturingFuncRefNode.setLocation(location);
+        capturingFuncRefNode.setExpressionType(actual);
+        capturingFuncRefNode.setCaptured(captured);
+        capturingFuncRefNode.setName(call);
+        capturingFuncRefNode.setPointer(defPointer);
+        capturingFuncRefNode.setFuncRef(ref);;
+
+        return capturingFuncRefNode;
+
     }
 
     @Override

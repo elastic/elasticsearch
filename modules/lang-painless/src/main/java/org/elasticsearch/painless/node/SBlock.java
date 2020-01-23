@@ -81,14 +81,15 @@ public final class SBlock extends AStatement {
 
     @Override
     BlockNode write() {
-        BlockNode blockNode = new BlockNode()
-                .setLocation(location)
-                .setAllEscape(allEscape)
-                .setStatementCount(statementCount);
+        BlockNode blockNode = new BlockNode();
 
         for (AStatement statement : statements) {
             blockNode.addStatementNode(statement.write());
         }
+
+        blockNode.setLocation(location);
+        blockNode.setAllEscape(allEscape);
+        blockNode.setStatementCount(statementCount);
 
         return blockNode;
     }

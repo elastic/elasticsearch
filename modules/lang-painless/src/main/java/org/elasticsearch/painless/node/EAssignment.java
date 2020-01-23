@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.AssignmentNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -240,25 +239,23 @@ public final class EAssignment extends AExpression {
      */
     @Override
     AssignmentNode write() {
-        return new AssignmentNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLeftNode(lhs.write())
-                .setRightNode(rhs.write())
-                .setCompoundTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(promote)
-                )
-                .setLocation(location)
-                .setPre(pre)
-                .setPost(post)
-                .setOperation(operation)
-                .setRead(read)
-                .setCat(cat)
-                .setThere(there)
-                .setBack(back);
+        AssignmentNode assignmentNode = new AssignmentNode();
+
+        assignmentNode.setLeftNode(lhs.write());
+        assignmentNode.setRightNode(rhs.write());
+
+        assignmentNode.setLocation(location);
+        assignmentNode.setExpressionType(actual);
+        assignmentNode.setCompoundType(promote);
+        assignmentNode.setPre(pre);
+        assignmentNode.setPost(post);
+        assignmentNode.setOperation(operation);
+        assignmentNode.setRead(read);
+        assignmentNode.setCat(cat);
+        assignmentNode.setThere(there);
+        assignmentNode.setBack(back);
+
+        return assignmentNode;
     }
 
     @Override

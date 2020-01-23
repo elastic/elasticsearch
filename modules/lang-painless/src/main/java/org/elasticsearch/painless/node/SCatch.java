@@ -89,10 +89,14 @@ public final class SCatch extends AStatement {
 
     @Override
     CatchNode write() {
-        return new CatchNode()
-                .setDeclarationNode(declaration.write())
-                .setBlockNode(block == null ? null : block.write())
-                .setLocation(location);
+        CatchNode catchNode = new CatchNode();
+
+        catchNode.setDeclarationNode(declaration.write());
+        catchNode.setBlockNode(block == null ? null : block.write());
+
+        catchNode.setLocation(location);
+
+        return catchNode;
     }
 
     @Override

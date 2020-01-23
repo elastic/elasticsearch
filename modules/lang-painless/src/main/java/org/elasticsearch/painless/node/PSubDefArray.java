@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -59,13 +58,14 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     BraceSubDefNode write() {
-        return new BraceSubDefNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(index.write())
-                .setLocation(location);
+        BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
+
+        braceSubDefNode.setChildNode(index.write());
+
+        braceSubDefNode.setLocation(location);
+        braceSubDefNode.setExpressionType(actual);
+
+        return braceSubDefNode;
     }
 
     @Override

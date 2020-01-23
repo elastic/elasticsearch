@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.ComparisonNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -424,19 +423,17 @@ public final class EComp extends AExpression {
 
     @Override
     ComparisonNode write() {
-        return new ComparisonNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLeftNode(left.write())
-                .setRightNode(right.write())
-                .setComparisonTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(promotedType)
-                )
-                .setLocation(location)
-                .setOperation(operation);
+        ComparisonNode comparisonNode = new ComparisonNode();
+
+        comparisonNode.setLeftNode(left.write());
+        comparisonNode.setRightNode(right.write());
+
+        comparisonNode.setLocation(location);
+        comparisonNode.setExpressionType(actual);
+        comparisonNode.setComparisonType(promotedType);
+        comparisonNode.setOperation(operation);
+
+        return comparisonNode;
     }
 
     @Override

@@ -78,10 +78,14 @@ public final class SIf extends AStatement {
 
     @Override
     IfNode write() {
-        return new IfNode()
-                .setConditionNode(condition.write())
-                .setBlockNode(ifblock.write())
-                .setLocation(location);
+        IfNode ifNode = new IfNode();
+
+        ifNode.setConditionNode(condition.write());
+        ifNode.setBlockNode(ifblock.write());
+
+        ifNode.setLocation(location);
+
+        return ifNode;
     }
 
     @Override

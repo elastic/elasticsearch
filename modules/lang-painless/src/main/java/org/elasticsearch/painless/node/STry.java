@@ -96,13 +96,15 @@ public final class STry extends AStatement {
 
     @Override
     TryNode write() {
-        TryNode tryNode = new TryNode()
-                .setBlockNode(block.write())
-                .setLocation(location);
+        TryNode tryNode = new TryNode();
 
         for (SCatch catc : catches) {
             tryNode.addCatchNode(catc.write());
         }
+
+        tryNode.setBlockNode(block.write());
+
+        tryNode.setLocation(location);
 
         return tryNode;
     }

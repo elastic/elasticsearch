@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.MapInitializationNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -108,18 +107,16 @@ public final class EMapInit extends AExpression {
 
     @Override
     MapInitializationNode write() {
-        MapInitializationNode mapInitializationNode = new MapInitializationNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setConstructor(constructor)
-                .setMethod(method);
+        MapInitializationNode mapInitializationNode = new MapInitializationNode();
 
         for (int index = 0; index < keys.size(); ++index) {
             mapInitializationNode.addArgumentNode(keys.get(index).write(), values.get(index).write());
         }
+
+        mapInitializationNode.setLocation(location);
+        mapInitializationNode.setExpressionType(actual);
+        mapInitializationNode.setConstructor(constructor);
+        mapInitializationNode.setMethod(method);
 
         return mapInitializationNode;
     }

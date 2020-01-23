@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -63,12 +62,12 @@ final class PSubArrayLength extends AStoreable {
 
     @Override
     DotSubArrayLengthNode write() {
-        return new DotSubArrayLengthNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location);
+        DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
+
+        dotSubArrayLengthNode.setLocation(location);
+        dotSubArrayLengthNode.setExpressionType(actual);
+
+        return dotSubArrayLengthNode;
     }
 
     @Override

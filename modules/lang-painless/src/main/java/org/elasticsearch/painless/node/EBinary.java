@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryMathNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -618,25 +617,20 @@ public final class EBinary extends AExpression {
 
     @Override
     BinaryMathNode write() {
-        return new BinaryMathNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLeftNode(left.write())
-                .setRightNode(right.write())
-                .setShiftTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(shiftDistance)
-                )
-                .setBinaryTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(promote)
-                )
-                .setLocation(location)
-                .setOperation(operation)
-                .setCat(cat)
-                .setOriginallExplicit(originallyExplicit);
+        BinaryMathNode binaryMathNode = new BinaryMathNode();
+
+        binaryMathNode.setLeftNode(left.write());
+        binaryMathNode.setRightNode(right.write());
+
+        binaryMathNode.setLocation(location);
+        binaryMathNode.setExpressionType(actual);
+        binaryMathNode.setBinaryType(promote);
+        binaryMathNode.setShiftType(shiftDistance);
+        binaryMathNode.setOperation(operation);
+        binaryMathNode.setCat(cat);
+        binaryMathNode.setOriginallExplicit(originallyExplicit);
+
+        return binaryMathNode;
     }
 
     @Override

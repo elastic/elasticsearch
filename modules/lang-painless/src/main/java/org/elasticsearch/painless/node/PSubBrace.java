@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BraceSubNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -58,13 +57,14 @@ final class PSubBrace extends AStoreable {
     }
 
     BraceSubNode write() {
-        return new BraceSubNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(index.write())
-                .setLocation(location);
+        BraceSubNode braceSubNode = new BraceSubNode();
+
+        braceSubNode.setChildNode(index.write());
+
+        braceSubNode.setLocation(location);
+        braceSubNode.setExpressionType(actual);
+
+        return braceSubNode;
     }
 
     @Override

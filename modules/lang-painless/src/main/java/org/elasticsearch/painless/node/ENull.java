@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.NullNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -64,12 +63,12 @@ public final class ENull extends AExpression {
 
     @Override
     NullNode write() {
-        return new NullNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location);
+        NullNode nullNode = new NullNode();
+
+        nullNode.setLocation(location);
+        nullNode.setExpressionType(actual);
+
+        return nullNode;
     }
 
     @Override

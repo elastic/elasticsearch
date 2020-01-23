@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.LambdaNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -187,14 +186,14 @@ public final class ELambda extends AExpression implements ILambda {
 
     @Override
     LambdaNode write() {
-        return new LambdaNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setFuncRef(ref)
-                .addCaptures(captures);
+        LambdaNode lambdaNode = new LambdaNode();
+
+        lambdaNode.setLocation(location);
+        lambdaNode.setExpressionType(actual);
+        lambdaNode.setFuncRef(ref);
+        lambdaNode.getCaptures().addAll(captures);
+
+        return lambdaNode;
     }
 
     @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
@@ -71,13 +70,13 @@ final class EConstant extends AExpression {
 
     @Override
     ConstantNode write() {
-        return new ConstantNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setConstant(constant);
+        ConstantNode constantNode = new ConstantNode();
+
+        constantNode.setLocation(location);
+        constantNode.setExpressionType(actual);
+        constantNode.setConstant(constant);
+
+        return constantNode;
     }
 
     @Override

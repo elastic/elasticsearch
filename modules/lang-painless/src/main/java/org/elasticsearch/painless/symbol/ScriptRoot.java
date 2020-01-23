@@ -23,7 +23,6 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 

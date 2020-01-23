@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
@@ -79,15 +78,15 @@ public class SField extends ANode {
     }
 
     FieldNode writeField() {
-        return new FieldNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(type)
-                )
-                .setLocation(location)
-                .setModifiers(modifiers)
-                .setName(name)
-                .setInstance(instance);
+        FieldNode fieldNode = new FieldNode();
+
+        fieldNode.setLocation(location);
+        fieldNode.setModifiers(modifiers);
+        fieldNode.setName(name);
+        fieldNode.setFieldType(type);
+        fieldNode.setInstance(instance);
+
+        return fieldNode;
     }
 
     @Override

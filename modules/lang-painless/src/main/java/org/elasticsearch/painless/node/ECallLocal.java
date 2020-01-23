@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.ir.UnboundCallNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -159,22 +158,20 @@ public final class ECallLocal extends AExpression {
 
     @Override
     UnboundCallNode write() {
-        UnboundCallNode unboundCallNode = new UnboundCallNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setLocalFunction(localFunction)
-                .setImportedMethod(importedMethod)
-                .setClassBinding(classBinding)
-                .setClassBindingOffset(classBindingOffset)
-                .setBindingName(bindingName)
-                .setInstanceBinding(instanceBinding);
+        UnboundCallNode unboundCallNode = new UnboundCallNode();
 
         for (AExpression argument : arguments) {
             unboundCallNode.addArgumentNode(argument.write());
         }
+
+        unboundCallNode.setLocation(location);
+        unboundCallNode.setExpressionType(actual);
+        unboundCallNode.setLocalFunction(localFunction);
+        unboundCallNode.setImportedMethod(importedMethod);
+        unboundCallNode.setClassBinding(classBinding);
+        unboundCallNode.setClassBindingOffset(classBindingOffset);
+        unboundCallNode.setBindingName(bindingName);
+        unboundCallNode.setInstanceBinding(instanceBinding);
 
         return unboundCallNode;
     }

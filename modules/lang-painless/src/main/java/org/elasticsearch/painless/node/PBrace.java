@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BraceNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -82,14 +81,15 @@ public final class PBrace extends AStoreable {
 
     @Override
     BraceNode write() {
-        return new BraceNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(sub.write())
-                .setPrefixNode(prefix.write())
-                .setLocation(location);
+        BraceNode braceNode = new BraceNode();
+
+        braceNode.setLeftNode(prefix.write());
+        braceNode.setRightNode(sub.write());
+
+        braceNode.setLocation(location);
+        braceNode.setExpressionType(actual);
+
+        return braceNode;
     }
 
     @Override

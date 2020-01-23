@@ -84,16 +84,20 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     ForEachSubIterableNode write() {
-        return new ForEachSubIterableNode()
-                .setConditionNode(expression.write())
-                .setBlockNode(block.write())
-                .setLocation(location)
-                .setVariable(variable)
-                .setCast(cast)
-                .setIterator(iterator)
-                .setMethod(method)
-                .setLoopCounter(loopCounter)
-                .setContinuous(false);
+        ForEachSubIterableNode forEachSubIterableNode = new ForEachSubIterableNode();
+
+        forEachSubIterableNode.setConditionNode(expression.write());
+        forEachSubIterableNode.setBlockNode(block.write());
+
+        forEachSubIterableNode.setLocation(location);
+        forEachSubIterableNode.setVariable(variable);
+        forEachSubIterableNode.setCast(cast);
+        forEachSubIterableNode.setIterator(iterator);
+        forEachSubIterableNode.setMethod(method);
+        forEachSubIterableNode.setLoopCounter(loopCounter);
+        forEachSubIterableNode.setContinuous(false);
+
+        return forEachSubIterableNode;
     }
 
     @Override

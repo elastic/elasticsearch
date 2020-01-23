@@ -95,12 +95,16 @@ public final class SDo extends AStatement {
 
     @Override
     DoWhileLoopNode write() {
-        return new DoWhileLoopNode()
-                .setConditionNode(condition.write())
-                .setBlockNode(block.write())
-                .setLocation(location)
-                .setLoopCounter(loopCounter)
-                .setContinuous(continuous);
+        DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
+
+        doWhileLoopNode.setConditionNode(condition.write());
+        doWhileLoopNode.setBlockNode(block.write());
+
+        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setLoopCounter(loopCounter);
+        doWhileLoopNode.setContinuous(continuous);
+
+        return doWhileLoopNode;
     }
 
     @Override

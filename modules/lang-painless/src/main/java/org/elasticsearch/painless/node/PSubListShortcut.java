@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -87,15 +86,16 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     ListSubShortcutNode write() {
-        return new ListSubShortcutNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(index.write())
-                .setLocation(location)
-                .setGetter(getter)
-                .setSetter(setter);
+        ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
+
+        listSubShortcutNode.setChildNode(index.write());
+
+        listSubShortcutNode.setLocation(location);
+        listSubShortcutNode.setExpressionType(actual);
+        listSubShortcutNode.setGetter(getter);
+        listSubShortcutNode.setSetter(setter);
+
+        return listSubShortcutNode;
     }
 
     @Override

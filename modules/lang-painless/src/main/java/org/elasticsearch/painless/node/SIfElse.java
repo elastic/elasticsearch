@@ -104,11 +104,15 @@ public final class SIfElse extends AStatement {
 
     @Override
     IfElseNode write() {
-        return new IfElseNode()
-                .setConditionNode(condition.write())
-                .setBlockNode(ifblock.write())
-                .setElseBlockNode(elseblock.write())
-                .setLocation(location);
+        IfElseNode ifElseNode = new IfElseNode();
+
+        ifElseNode.setConditionNode(condition.write());
+        ifElseNode.setBlockNode(ifblock.write());
+        ifElseNode.setElseBlockNode(elseblock.write());
+
+        ifElseNode.setLocation(location);
+
+        return ifElseNode;
     }
 
     @Override

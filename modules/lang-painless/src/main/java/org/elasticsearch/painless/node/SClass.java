@@ -172,17 +172,7 @@ public final class SClass extends AStatement {
     }
 
     public ClassNode writeClass() {
-        ClassNode classNode = new ClassNode()
-                .setLocation(location)
-                .setScriptClassInfo(scriptClassInfo)
-                .setScriptRoot(scriptRoot)
-                .setDebugStream(debugStream)
-                .setName(name)
-                .setSourceText(sourceText)
-                .setMainMethod(mainMethod)
-                .setMethodEscape(methodEscape)
-                .addGetMethods(getMethods)
-                .addExtractedVariables(extractedVariables);
+        ClassNode classNode = new ClassNode();
 
         for (SField field : fields) {
             classNode.addFieldNode(field.writeField());
@@ -195,6 +185,17 @@ public final class SClass extends AStatement {
         for (AStatement statement : statements) {
             classNode.addStatementNode(statement.write());
         }
+
+        classNode.setLocation(location);
+        classNode.setScriptClassInfo(scriptClassInfo);
+        classNode.setScriptRoot(scriptRoot);
+        classNode.setDebugStream(debugStream);
+        classNode.setName(name);
+        classNode.setSourceText(sourceText);
+        classNode.setMainMethod(mainMethod);
+        classNode.setMethodEscape(methodEscape);
+        classNode.getGetMethods().addAll(getMethods);
+        classNode.getExtractedVariables().addAll(extractedVariables);
 
         return classNode;
     }

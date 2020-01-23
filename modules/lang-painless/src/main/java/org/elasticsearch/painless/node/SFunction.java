@@ -142,16 +142,20 @@ public final class SFunction extends AStatement {
     }
 
     FunctionNode writeFunction() {
-        return new FunctionNode()
-                .setBlockNode(block.write())
-                .setLocation(location)
-                .setName(name)
-                .setReturnType(returnType)
-                .addTypeParameters(typeParameters)
-                .setSynthetic(synthetic)
-                .setMethodEscape(methodEscape)
-                .setLoopCounter(loopCounter)
-                .setMaxLoopCounter(maxLoopCounter);
+        FunctionNode functionNode = new FunctionNode();
+
+        functionNode.setBlockNode(block.write());
+
+        functionNode.setLocation(location);
+        functionNode.setName(name);
+        functionNode.setReturnType(returnType);
+        functionNode.getTypeParameters().addAll(typeParameters);
+        functionNode.setSynthetic(synthetic);
+        functionNode.setMethodEscape(methodEscape);
+        functionNode.setLoopCounter(loopCounter);
+        functionNode.setMaxLoopCounter(maxLoopCounter);
+
+        return functionNode;
     }
 
     @Override

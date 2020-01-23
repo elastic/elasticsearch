@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.NewArrayNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
@@ -79,17 +78,15 @@ public final class ENewArray extends AExpression {
 
     @Override
     NewArrayNode write() {
-        NewArrayNode newArrayNode = new NewArrayNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setInitialize(initialize);
+        NewArrayNode newArrayNode = new NewArrayNode();
 
         for (AExpression argument : arguments) {
             newArrayNode.addArgumentNode(argument.write());
         }
+
+        newArrayNode.setLocation(location);
+        newArrayNode.setExpressionType(actual);
+        newArrayNode.setInitialize(initialize);
 
         return newArrayNode;
     }

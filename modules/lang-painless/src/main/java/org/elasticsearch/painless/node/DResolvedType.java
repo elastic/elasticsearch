@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
@@ -73,15 +72,6 @@ public class DResolvedType extends DType {
 
     public Class<?> getType() {
         return type;
-    }
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    TypeNode write() {
-        return new TypeNode()
-                .setLocation(location)
-                .setType(type);
     }
 
     @Override

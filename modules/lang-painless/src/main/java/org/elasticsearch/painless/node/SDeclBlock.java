@@ -61,12 +61,13 @@ public final class SDeclBlock extends AStatement {
 
     @Override
     DeclarationBlockNode write() {
-        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode()
-                .setLocation(location);
+        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
         for (SDeclaration declaration : declarations) {
             declarationBlockNode.addDeclarationNode(declaration.write());
         }
+
+        declarationBlockNode.setLocation(location);
 
         return declarationBlockNode;
     }

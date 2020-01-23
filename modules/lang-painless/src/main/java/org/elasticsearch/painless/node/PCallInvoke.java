@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CallNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
@@ -98,14 +97,15 @@ public final class PCallInvoke extends AExpression {
 
     @Override
     CallNode write() {
-        return new CallNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(sub.write())
-                .setPrefixNode(prefix.write())
-                .setLocation(location);
+        CallNode callNode = new CallNode();
+
+        callNode.setLeftNode(prefix.write());
+        callNode.setRightNode(sub.write());
+
+        callNode.setLocation(location);
+        callNode.setExpressionType(actual);
+
+        return callNode;
     }
 
     @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CastNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -57,14 +56,15 @@ final class ECast extends AExpression {
 
     @Override
     CastNode write() {
-        return new CastNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(child.write())
-                .setLocation(location)
-                .setCast(cast);
+        CastNode castNode = new CastNode();
+
+        castNode.setChildNode(child.write());
+
+        castNode.setLocation(location);
+        castNode.setExpressionType(actual);
+        castNode.setCast(cast);
+
+        return castNode;
     }
 
     @Override

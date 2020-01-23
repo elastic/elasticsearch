@@ -23,7 +23,6 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.FuncRefNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
@@ -68,13 +67,13 @@ public final class EFunctionRef extends AExpression implements ILambda {
 
     @Override
     FuncRefNode write() {
-        return new FuncRefNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setFuncRef(ref);
+        FuncRefNode funcRefNode = new FuncRefNode();
+
+        funcRefNode.setLocation(location);
+        funcRefNode.setExpressionType(actual);
+        funcRefNode.setFuncRef(ref);
+
+        return funcRefNode;
     }
 
     @Override

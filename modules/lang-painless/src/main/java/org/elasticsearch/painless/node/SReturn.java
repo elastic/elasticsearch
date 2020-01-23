@@ -71,9 +71,13 @@ public final class SReturn extends AStatement {
 
     @Override
     ReturnNode write() {
-        return new ReturnNode()
-                .setExpressionNode(expression == null ? null : expression.write())
-                .setLocation(location);
+        ReturnNode returnNode = new ReturnNode();
+
+        returnNode.setExpressionNode(expression == null ? null : expression.write());
+
+        returnNode.setLocation(location);
+
+        return returnNode;
     }
 
     @Override

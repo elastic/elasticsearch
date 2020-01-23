@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CallSubDefNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -92,20 +91,18 @@ final class PSubDefCall extends AExpression {
 
     @Override
     CallSubDefNode write() {
-        CallSubDefNode callSubDefNode = new CallSubDefNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setName(name)
-                .setRecipe(recipe.toString())
-                .addPointers(pointers)
-                .addTypeParameters(parameterTypes);
+        CallSubDefNode callSubDefNode = new CallSubDefNode();
 
         for (AExpression argument : arguments) {
             callSubDefNode.addArgumentNode(argument.write());
         }
+
+        callSubDefNode.setLocation(location);
+        callSubDefNode.setExpressionType(actual);
+        callSubDefNode.setName(name);
+        callSubDefNode.setRecipe(recipe.toString());
+        callSubDefNode.getPointers().addAll(pointers);
+        callSubDefNode.getTypeParameters().addAll(parameterTypes);
 
         return callSubDefNode;
     }

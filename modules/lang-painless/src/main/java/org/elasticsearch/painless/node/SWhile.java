@@ -99,12 +99,16 @@ public final class SWhile extends AStatement {
 
     @Override
     WhileNode write() {
-        return new WhileNode()
-                .setConditionNode(condition.write())
-                .setBlockNode(block == null ? null : block.write())
-                .setLocation(location)
-                .setLoopCounter(loopCounter)
-                .setContinuous(continuous);
+        WhileNode whileNode = new WhileNode();
+
+        whileNode.setConditionNode(condition.write());
+        whileNode.setBlockNode(block == null ? null : block.write());
+
+        whileNode.setLocation(location);
+        whileNode.setLoopCounter(loopCounter);
+        whileNode.setContinuous(continuous);
+
+        return whileNode;
     }
 
     @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.StaticNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -57,12 +56,12 @@ public final class EStatic extends AExpression {
 
     @Override
     StaticNode write() {
-        return new StaticNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location);
+        StaticNode staticNode = new StaticNode();
+
+        staticNode.setLocation(location);
+        staticNode.setExpressionType(actual);
+
+        return staticNode;
     }
 
     @Override

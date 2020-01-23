@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ElvisNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
@@ -93,14 +92,15 @@ public class EElvis extends AExpression {
 
     @Override
     ElvisNode write() {
-        return new ElvisNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLeftNode(lhs.write())
-                .setRightNode(rhs.write())
-                .setLocation(location);
+        ElvisNode elvisNode = new ElvisNode();
+
+        elvisNode.setLeftNode(lhs.write());
+        elvisNode.setRightNode(rhs.write());
+
+        elvisNode.setLocation(location);
+        elvisNode.setExpressionType(actual);
+
+        return elvisNode;
     }
 
     @Override

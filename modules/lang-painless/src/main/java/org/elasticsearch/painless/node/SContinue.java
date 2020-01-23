@@ -57,8 +57,11 @@ public final class SContinue extends AStatement {
 
     @Override
     ContinueNode write() {
-        return new ContinueNode()
-                .setLocation(location);
+        ContinueNode continueNode = new ContinueNode();
+
+        continueNode.setLocation(location);
+
+        return continueNode;
     }
 
     @Override

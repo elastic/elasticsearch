@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.NewObjectNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
@@ -98,18 +97,16 @@ public final class ENewObj extends AExpression {
 
     @Override
     NewObjectNode write() {
-        NewObjectNode newObjectNode = new NewObjectNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setRead(read)
-                .setConstructor(constructor);
+        NewObjectNode newObjectNode = new NewObjectNode();
 
         for (AExpression argument : arguments) {
             newObjectNode.addArgumentNode(argument.write());
         }
+
+        newObjectNode.setLocation(location);
+        newObjectNode.setExpressionType(actual);
+        newObjectNode.setRead(read);
+        newObjectNode.setConstructor(constructor);
 
         return newObjectNode;
     }

@@ -54,8 +54,11 @@ public final class SBreak extends AStatement {
 
     @Override
     BreakNode write() {
-        return new BreakNode()
-                .setLocation(location);
+        BreakNode breakNode = new BreakNode();
+
+        breakNode.setLocation(location);
+
+        return breakNode;
     }
 
     @Override

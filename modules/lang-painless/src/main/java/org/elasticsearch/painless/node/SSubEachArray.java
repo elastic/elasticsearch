@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -70,20 +69,21 @@ final class SSubEachArray extends AStatement {
 
     @Override
     ForEachSubArrayNode write() {
-        return new ForEachSubArrayNode()
-                .setConditionNode(expression.write())
-                .setBlockNode(block.write())
-                .setIndexedTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(indexed)
-                )
-                .setLocation(location)
-                .setVariable(variable)
-                .setCast(cast)
-                .setArray(array)
-                .setIndex(index)
-                .setLoopCounter(loopCounter)
-                .setContinuous(false);
+        ForEachSubArrayNode forEachSubArrayNode = new ForEachSubArrayNode();
+
+        forEachSubArrayNode.setConditionNode(expression.write());
+        forEachSubArrayNode.setBlockNode(block.write());
+
+        forEachSubArrayNode.setLocation(location);
+        forEachSubArrayNode.setVariable(variable);
+        forEachSubArrayNode.setCast(cast);
+        forEachSubArrayNode.setArray(array);
+        forEachSubArrayNode.setIndex(index);
+        forEachSubArrayNode.setIndexedType(indexed);
+        forEachSubArrayNode.setLoopCounter(loopCounter);
+        forEachSubArrayNode.setContinuous(false);
+
+        return forEachSubArrayNode;
     }
 
     @Override

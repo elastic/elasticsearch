@@ -71,10 +71,14 @@ public final class SExpression extends AStatement {
 
     @Override
     StatementExpressionNode write() {
-        return new StatementExpressionNode()
-                .setExpressionNode(expression.write())
-                .setLocation(location)
-                .setMethodEscape(methodEscape);
+        StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
+
+        statementExpressionNode.setExpressionNode(expression.write());
+
+        statementExpressionNode.setLocation(location);
+        statementExpressionNode.setMethodEscape(methodEscape);
+
+        return statementExpressionNode;
     }
 
     @Override

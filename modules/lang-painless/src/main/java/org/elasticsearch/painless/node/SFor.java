@@ -152,14 +152,18 @@ public final class SFor extends AStatement {
 
     @Override
     ForLoopNode write() {
-        return new ForLoopNode()
-                .setInitialzerNode(initializer == null ? null : initializer.write())
-                .setConditionNode(condition == null ? null : condition.write())
-                .setAfterthoughtNode(afterthought == null ? null : afterthought.write())
-                .setBlockNode(block == null ? null : block.write())
-                .setLocation(location)
-                .setLoopCounter(loopCounter)
-                .setContinuous(continuous);
+        ForLoopNode forLoopNode = new ForLoopNode();
+
+        forLoopNode.setInitialzerNode(initializer == null ? null : initializer.write());
+        forLoopNode.setConditionNode(condition == null ? null : condition.write());
+        forLoopNode.setAfterthoughtNode(afterthought == null ? null : afterthought.write());
+        forLoopNode.setBlockNode(block == null ? null : block.write());
+
+        forLoopNode.setLocation(location);
+        forLoopNode.setLoopCounter(loopCounter);
+        forLoopNode.setContinuous(continuous);
+
+        return forLoopNode;
     }
 
     @Override

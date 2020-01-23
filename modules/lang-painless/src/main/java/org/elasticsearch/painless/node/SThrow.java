@@ -59,9 +59,13 @@ public final class SThrow extends AStatement {
 
     @Override
     ThrowNode write() {
-        return new ThrowNode()
-                .setExpressionNode(expression.write())
-                .setLocation(location);
+        ThrowNode throwNode = new ThrowNode();
+
+        throwNode.setExpressionNode(expression.write());
+
+        throwNode.setLocation(location);
+
+        return throwNode;
     }
 
     @Override

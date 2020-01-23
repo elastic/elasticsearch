@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.DotNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -124,14 +123,15 @@ public final class PField extends AStoreable {
 
     @Override
     DotNode write() {
-        return new DotNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(sub.write())
-                .setPrefixNode(prefix.write())
-                .setLocation(location);
+        DotNode dotNode = new DotNode();
+
+        dotNode.setLeftNode(prefix.write());
+        dotNode.setRightNode(sub.write());
+
+        dotNode.setLocation(location);
+        dotNode.setExpressionType(actual);
+
+        return dotNode;
     }
 
     @Override

@@ -111,9 +111,13 @@ public class SEach extends AStatement {
 
     @Override
     ForEachLoopNode write() {
-        return new ForEachLoopNode()
-                .setConditionNode((ConditionNode)sub.write())
-                .setLocation(location);
+        ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
+
+        forEachLoopNode.setConditionNode((ConditionNode)sub.write());
+
+        forEachLoopNode.setLocation(location);
+
+        return forEachLoopNode;
     }
 
     @Override

@@ -71,10 +71,14 @@ public final class SDeclaration extends AStatement {
 
     @Override
     DeclarationNode write() {
-        return new DeclarationNode()
-                .setExpressionNode(expression == null ? null : expression.write())
-                .setLocation(location)
-                .setVariable(variable);
+        DeclarationNode declarationNode = new DeclarationNode();
+
+        declarationNode.setExpressionNode(expression == null ? null : expression.write());
+
+        declarationNode.setLocation(location);
+        declarationNode.setVariable(variable);
+
+        return declarationNode;
     }
 
     @Override

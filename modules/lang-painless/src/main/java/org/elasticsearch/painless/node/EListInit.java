@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ListInitializationNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -89,18 +88,16 @@ public final class EListInit extends AExpression {
 
     @Override
     ListInitializationNode write() {
-        ListInitializationNode listInitializationNode = new ListInitializationNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setConstructor(constructor)
-                .setMethod(method);
+        ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (AExpression value : values) {
             listInitializationNode.addArgumentNode(value.write());
         }
+
+        listInitializationNode.setLocation(location);
+        listInitializationNode.setExpressionType(actual);
+        listInitializationNode.setConstructor(constructor);
+        listInitializationNode.setMethod(method);
 
         return listInitializationNode;
     }

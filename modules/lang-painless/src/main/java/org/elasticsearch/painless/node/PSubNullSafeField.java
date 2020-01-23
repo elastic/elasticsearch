@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
@@ -68,13 +67,14 @@ public class PSubNullSafeField extends AStoreable {
 
     @Override
     NullSafeSubNode write() {
-        return new NullSafeSubNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setChildNode(guarded.write())
-                .setLocation(location);
+        NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
+
+        nullSafeSubNode.setChildNode(guarded.write());
+
+        nullSafeSubNode.setLocation(location);
+        nullSafeSubNode.setExpressionType(actual);
+
+        return nullSafeSubNode;
     }
 
     @Override

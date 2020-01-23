@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CallSubNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -69,18 +68,16 @@ final class PSubCallInvoke extends AExpression {
 
     @Override
     CallSubNode write() {
-        CallSubNode callSubNode = new CallSubNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLocation(location)
-                .setMethod(method)
-                .setBox(box);
+        CallSubNode callSubNode = new CallSubNode();
 
         for (AExpression argument : arguments) {
             callSubNode.addArgumentNode(argument.write());
         }
+
+        callSubNode.setLocation(location);
+        callSubNode.setExpressionType(actual);
+        callSubNode.setMethod(method);
+        callSubNode .setBox(box);
 
         return callSubNode;
     }

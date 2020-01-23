@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ConditionalNode;
-import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -88,15 +87,16 @@ public final class EConditional extends AExpression {
 
     @Override
     ConditionalNode write() {
-        return new ConditionalNode()
-                .setTypeNode(new TypeNode()
-                        .setLocation(location)
-                        .setType(actual)
-                )
-                .setLeftNode(left.write())
-                .setRightNode(right.write())
-                .setConditionNode(condition.write())
-                .setLocation(location);
+        ConditionalNode conditionalNode = new ConditionalNode();
+
+        conditionalNode.setLeftNode(left.write());
+        conditionalNode.setRightNode(right.write());
+        conditionalNode.setConditionNode(condition.write());
+
+        conditionalNode.setLocation(location);
+        conditionalNode.setExpressionType(actual);
+
+        return conditionalNode;
     }
 
     @Override

@@ -42,6 +42,10 @@ public class TryNode extends StatementNode {
         return blockNode;
     }
 
+    public void addCatchNode(CatchNode catchNode) {
+        catchNodes.add(catchNode);
+    }
+
     public List<CatchNode> getCatchsNodes() {
         return catchNodes;
     }

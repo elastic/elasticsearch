@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
+package org.elasticsearch.test.hamcrest;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.hamcrest.Description;

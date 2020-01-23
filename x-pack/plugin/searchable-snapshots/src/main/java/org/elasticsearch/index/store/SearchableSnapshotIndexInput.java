@@ -106,60 +106,65 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     }
 
     private void readInternalBytes(final int part, long pos, final byte[] b, int offset, int length) throws IOException {
-        final long currentSequentialReadSize = sequentialReadSize;
-        if (currentSequentialReadSize != NO_SEQUENTIAL_READ_OPTIMIZATION) {
-            final StreamForSequentialReads streamForSequentialReads = streamForSequentialReadsRef.get();
-            if (streamForSequentialReads == null) {
-                // start a new sequential read
-                if (tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
-                    return;
-                }
-            } else if (streamForSequentialReads.part == part && streamForSequentialReads.pos == pos) {
-                // continuing a sequential read that we started previously
-                assert streamForSequentialReads.isFullyRead() == false;
-                int read = streamForSequentialReads.inputStream.read(b, offset, length);
-                assert read <= length : read + " vs " + length;
-                streamForSequentialReads.pos += read;
-                position += read;
-                pos += read;
-                offset += read;
-                length -= read;
+        int optimizedReadSize = readOptimized(part, pos, b, offset, length);
+        assert optimizedReadSize <= length;
+        position += optimizedReadSize;
 
-                if (streamForSequentialReads.isFullyRead()) {
-                    if (streamForSequentialReadsRef.compareAndSet(streamForSequentialReads, null)) {
-                        // the only way this can fail is if we were concurrently closed
-                        streamForSequentialReads.close();
-                    }
-
-                    if (length == 0) {
-                        // the current stream contained precisely enough data for this read, so we're good.
-                        return;
-                    } else {
-                        // the current stream didn't contain enough data for this read, so we must read more
-                        if (sequentialReadSize != NO_SEQUENTIAL_READ_OPTIMIZATION
-                            && tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
-                            return;
-                        }
-                    }
-                } else {
-                    // the current stream contained enough data for this read and more besides, so we leave it alone.
-                    assert length == 0 : length + " remaining";
-                    return;
-                }
-            } else {
-                // not a sequential read, so stop optimizing for this usage pattern and fall through to the unoptimized behaviour
-                assert streamForSequentialReads.isFullyRead() == false;
-                sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
-                IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
+        if (optimizedReadSize < length) {
+            // we did not read everything in an optimized fashion, so read the remainder directly
+            try (InputStream inputStream
+                     = blobContainer.readBlob(fileInfo.partName(part), pos + optimizedReadSize, length - optimizedReadSize)) {
+                final int directReadSize = inputStream.read(b, offset + optimizedReadSize, length - optimizedReadSize);
+                assert optimizedReadSize + directReadSize == length : optimizedReadSize + " and " + directReadSize + " vs " + length;
+                position += directReadSize;
             }
         }
+    }
 
-        // read part of a blob directly; the code above falls through to this case where there is no optimization possible
-        try (InputStream inputStream = blobContainer.readBlob(fileInfo.partName(part), pos, length)) {
-            final int read = inputStream.read(b, offset, length);
-            assert read == length : read + " vs " + length;
-            position += read;
+    /**
+     * Attempt to satisfy this read in an optimized fashion using {@code streamForSequentialReadsRef}.
+     * @return the number of bytes read
+     */
+    private int readOptimized(int part, long pos, byte[] b, int offset, int length) throws IOException {
+        final long currentSequentialReadSize = sequentialReadSize;
+        if (currentSequentialReadSize == NO_SEQUENTIAL_READ_OPTIMIZATION) {
+            return 0;
         }
+
+        final StreamForSequentialReads streamForSequentialReads = streamForSequentialReadsRef.get();
+        int read = 0;
+        if (streamForSequentialReads == null) {
+            // starting a new sequential read
+            if (tryReadAndKeepStreamOpen(part, pos, b, offset, length, currentSequentialReadSize)) {
+                read = length;
+            }
+        } else if (streamForSequentialReads.part == part && streamForSequentialReads.pos == pos) {
+            // continuing a sequential read that we started previously
+            read = streamForSequentialReads.read(b, offset, length);
+            if (streamForSequentialReads.isFullyRead()) {
+                if (streamForSequentialReadsRef.compareAndSet(streamForSequentialReads, null)) {
+                    streamForSequentialReads.close();
+                } // else we were concurrently closed
+            } else {
+                // the current stream contained enough data for this read and more besides, so we leave it alone.
+                assert read == length : length + " remaining";
+            }
+
+            if (read < length) {
+                // the current stream didn't contain enough data for this read, so we must read more
+                if (sequentialReadSize != NO_SEQUENTIAL_READ_OPTIMIZATION // not concurrently closed
+                    && tryReadAndKeepStreamOpen(part, pos + read, b,
+                    offset + read, length - read, currentSequentialReadSize)) {
+                    read = length;
+                }
+            }
+        } else {
+            // not a sequential read, so stop optimizing for this usage pattern and fall through to the unoptimized behaviour
+            assert streamForSequentialReads.isFullyRead() == false;
+            sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
+            IOUtils.close(streamForSequentialReadsRef.getAndSet(null));
+        }
+        return read;
     }
 
     /**
@@ -187,7 +192,6 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
             final int read = newStreamForSequentialReads.inputStream.read(b, offset, length);
             assert read == length : read + " vs " + length;
-            position += read;
             newStreamForSequentialReads.pos += read;
             assert newStreamForSequentialReads.isFullyRead() == false;
             return true;
@@ -259,6 +263,15 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             this.part = part;
             this.pos = pos;
             this.maxPos = pos + streamLength;
+        }
+
+        int read(byte[] b, int offset, int length) throws IOException {
+            int read;
+            assert this.pos < maxPos : "should not try and read from a fully-read stream";
+            read = inputStream.read(b, offset, length);
+            assert read <= length : read + " vs " + length;
+            pos += read;
+            return read;
         }
 
         boolean isFullyRead() {

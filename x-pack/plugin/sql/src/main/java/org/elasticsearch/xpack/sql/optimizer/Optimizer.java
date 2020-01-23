@@ -1385,7 +1385,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private Expression combine(Or or) {
             List<BinaryComparison> bcs = new ArrayList<>();
             List<Range> ranges = new ArrayList<>();
-            List<NotEquals> notEquals = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
@@ -1398,8 +1397,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof NotEquals) {
-                    notEquals.add((NotEquals) ex);
                 } else if (ex instanceof BinaryComparison) {
                     BinaryComparison bc = (BinaryComparison) ex;
                     if (bc.right().foldable() && findExistingComparison(bc, bcs, false)) {
@@ -1412,14 +1409,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            Boolean updated = filterDisjunctionByNotEquals(notEquals, bcs, ranges);
-            if (updated == null) {
-                return new Literal(or.source(), Boolean.TRUE, DataType.BOOLEAN);
-            } else if (updated) {
-                changed = true;
-            }
-
-            return changed ? Predicates.combineOr(CollectionUtils.combine(exps, bcs, ranges, notEquals)) : or;
+            return changed ? Predicates.combineOr(CollectionUtils.combine(exps, bcs, ranges)) : or;
         }
 
         private static boolean findExistingRange(Range main, List<Range> ranges, boolean conjunctive) {
@@ -1765,43 +1755,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return false;
         }
 
-        // a != X OR Y < a < Z -> a != X (plus equivalent inequalities)
-        // a != X OR X <= a < Z -> TRUE (plus equality on upper bound, plus equivalent inequalities)
-        private static Boolean filterDisjunctionByNotEquals(List<NotEquals> notEquals, List<BinaryComparison> bcs, List<Range> ranges) {
-            Boolean updated = false;
-
-            for (NotEquals neq : notEquals) {
-                for (Iterator<BinaryComparison> bcIterator = bcs.iterator(); bcIterator.hasNext(); ) {
-                    BinaryComparison bc = bcIterator.next();
-                    if (neq.left().semanticEquals(bc.left())) {
-                        if (bc instanceof LessThan || bc instanceof GreaterThan) { // a != 2 OR a < 3 -> a != 2 (plus LessThen)
-                            bcIterator.remove();
-                            updated = true;
-                        } else if (bc instanceof LessThanOrEqual || bc instanceof GreaterThanOrEqual) {
-                            if (neq.right().semanticEquals(bc.right())) { // a != X or a <= X -> TRUE (plus GreaterThenOrEqual)
-                                return null;
-                            }
-                        }
-                    }
-                }
-
-                for (Iterator<Range> rangeIterator = ranges.iterator(); rangeIterator.hasNext(); ) {
-                    Range range = rangeIterator.next();
-                    if (neq.left().semanticEquals(range.value())) {
-                        if (range.includeLower() && neq.right().semanticEquals(range.lower())) { // a != X OR X <= a < ? -> TRUE
-                            return null;
-                        }
-                        if (range.includeUpper() && neq.right().semanticEquals(range.upper())) { // a != X OR ? <= a < X -> TRUE
-                            return null;
-                        }
-                        rangeIterator.remove();
-                        updated = true;
-                    }
-                }
-            }
-
-            return updated;
-        }
     }
 
 

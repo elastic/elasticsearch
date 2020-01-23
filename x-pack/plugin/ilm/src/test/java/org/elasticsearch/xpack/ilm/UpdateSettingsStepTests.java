@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ilm.UpdateSettingsStep;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +47,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(SettingsTestingService.VALUE);
+            return Collections.singletonList(SettingsTestingService.VALUE);
         }
 
         @Override
@@ -59,7 +60,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            return List.of(service);
+            return Collections.singletonList(service);
         }
 
     }
@@ -104,7 +105,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(SettingsListenerPlugin.class);
+        return Collections.singletonList(SettingsListenerPlugin.class);
     }
 
     public void testUpdateSettingsStepRetriesOnError() throws InterruptedException {

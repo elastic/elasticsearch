@@ -170,7 +170,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         Shell.Result result = startElasticsearchStandardInputPassword("wrong");
-        assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD);
+        assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, null);
     }
 
     @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
@@ -254,8 +254,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
 
+            String elasticsearchStartTime = sh.run("sleep 2 && date +\"%Y-%m-%d %H:%M:%S\"").stdout.trim();
             Shell.Result result = runElasticsearchStartCommand();
-            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD);
+            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, elasticsearchStartTime);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }

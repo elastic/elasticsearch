@@ -79,6 +79,8 @@ public class TransformMessages {
             + "please simplify job or increase heap size on data nodes.";
     public static final String LOG_TRANSFORM_PIVOT_SCRIPT_ERROR =
             "Failed to execute script with error: [{0}], stack trace: {1}";
+    public static final String LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR =
+            "Failed to index documents into destination index due to permanent error: [{0}]";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";

@@ -16,26 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.esplugin'
+package org.elasticsearch.client.core;
 
-esplugin {
-  name 'painless-whitelist'
-  description 'An example whitelisting additional classes and methods in painless'
-  classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
-  extendedPlugins = ['lang-painless']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.Map;
+
+public final class GetSourceResponse {
+
+    private final Map<String, Object> source;
+
+    public GetSourceResponse(Map<String, Object> source) {
+        this.source = source;
+    }
+
+    public static GetSourceResponse fromXContent(XContentParser parser) throws IOException {
+        return new GetSourceResponse(parser.map());
+    }
+
+    public Map<String, Object> getSource() {
+        return this.source;
+    }
+
+    @Override
+    public String toString() {
+        return source.toString();
+    }
 }
-
-dependencies {
-  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
-}
-
-testClusters.integTest {
-  testDistribution = BuildParams.inFipsJvm ? 'DEFAULT' : 'OSS'
-}
-
-test.enabled = false

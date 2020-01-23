@@ -23,15 +23,20 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
+public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<CloseFollowerIndexStep> {
 
-    public void testCloseFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+    }
+
+    public void testCloseFollowingIndex() {
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Client client = Mockito.mock(Client.class);
         AdminClient adminClient = Mockito.mock(AdminClient.class);
@@ -51,7 +56,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -67,12 +72,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
     }
 
     public void testCloseFollowingIndexFailed() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         // Mock pause follow api call:
         Client client = Mockito.mock(Client.class);
@@ -93,7 +93,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

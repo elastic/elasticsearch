@@ -57,7 +57,8 @@ public class ShrinkStep extends AsyncActionStep {
             .build();
 
         String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
-        ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName());
+        ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName())
+            .masterNodeTimeout(getMasterTimeout(currentState));
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
         getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {

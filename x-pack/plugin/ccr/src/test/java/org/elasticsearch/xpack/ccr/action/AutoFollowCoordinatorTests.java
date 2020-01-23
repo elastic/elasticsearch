@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;

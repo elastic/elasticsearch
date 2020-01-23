@@ -251,7 +251,7 @@ See <<ml-put-inference-model-example>> for more details.
 ===== Aggregated output types
 
 `logistic_regression`::
-(Optional, boolean) 
+(Optional, object) 
 This `aggregated_output` type works with binary classification (classification 
 for values [0, 1]). It multiplies the outputs (in the case of the `ensemble` 
 model, the inference model values) by the supplied `weights`. The resulting 

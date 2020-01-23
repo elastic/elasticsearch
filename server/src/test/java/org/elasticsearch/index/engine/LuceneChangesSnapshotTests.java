@@ -157,15 +157,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     public void testSkipNonRootOfNestedDocuments() throws Exception {
         Map<Long, Long> seqNoToTerm = new HashMap<>();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
-        int totalOps = 0;
         for (Engine.Operation op : operations) {
             if (engine.getLocalCheckpointTracker().hasProcessed(op.seqNo()) == false) {
                 seqNoToTerm.put(op.seqNo(), op.primaryTerm());
-                if (op instanceof Engine.Index) {
-                    totalOps += ((Engine.Index) op).docs().size();
-                } else {
-                    totalOps++;
-                }
             }
             applyOperation(engine, op);
             if (rarely()) {
@@ -182,14 +176,12 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         engine.refresh("test");
         Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
         try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, between(1, 100), 0, maxSeqNo, false)) {
-                searcher = null;
+            assertThat(snapshot.totalOperations(), equalTo(seqNoToTerm.size()));
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(seqNoToTerm.get(op.seqNo())));
             }
-            assertThat(snapshot.skippedOperations(), equalTo(totalOps - seqNoToTerm.size()));
-        } finally {
-            IOUtils.close(searcher);
+            assertThat(snapshot.skippedOperations(), equalTo(0));
         }
     }
 

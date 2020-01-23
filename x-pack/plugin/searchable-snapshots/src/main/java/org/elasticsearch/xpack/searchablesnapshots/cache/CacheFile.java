@@ -32,7 +32,7 @@ class CacheFile {
         void onEviction(CacheFile evictedCacheFile);
     }
 
-    private static final int RANGE_SIZE = 1 << 15;
+    static final int RANGE_SIZE = 1 << 15;
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[]{
         StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE

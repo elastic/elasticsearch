@@ -447,8 +447,20 @@ The following example shows an `ensemble` model object:
 [[ml-put-inference-aggregated-output-example]]
 ===== Aggregated output example
 
-The examples below show `aggregate_output` objects:
+Example of a `logistic_regression` object:
 
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "logistic_regression" : {
+    "weights" : [2.0, 1.0, .5, -1.0, 5.0, 1.0, 1.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+Example of a `weighted_sum` object:
 
 [source,js]
 ----------------------------------
@@ -461,6 +473,8 @@ The examples below show `aggregate_output` objects:
 //NOTCONSOLE
 
 
+Example of a `weighted_mode` object:
+
 source,js]
 ----------------------------------
 "aggregate_output" : {
@@ -470,4 +484,3 @@ source,js]
 }
 ----------------------------------
 //NOTCONSOLE
-

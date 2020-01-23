@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
 
@@ -158,6 +159,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
         long skipped = inputStream.skip(position); // NORELEASE
         assert skipped == position;
         return org.elasticsearch.common.io.Streams.limitStream(inputStream, length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that are cheap to close early, so we can well tell consumers to request as much data as possible.
+        return Long.MAX_VALUE;
     }
 
     @Override

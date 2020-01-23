@@ -27,7 +27,6 @@ built-in roles and privileges:
 * `machine_learning_admin`
 
 
-* source index: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
 * cluster: `monitor_ml`
   

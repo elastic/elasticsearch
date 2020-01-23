@@ -505,7 +505,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         final PlainActionFuture<AuthenticationResult> future1 = new PlainActionFuture<>();
 
-        // Call the top level method because it has been know to be buggy in async situations
+        // Call the top level authenticate... method because it has been known to be buggy in async situations
         writeCredentialsToThreadContext(creds);
         mockSourceDocument(creds.getId(), sourceMap);
 

@@ -29,10 +29,12 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -119,8 +121,14 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(), searchContext, parent, pipelineAggregators,
-                metaData);
+        AggregatorSupplier aggregatorSupplier = ValuesSourceRegistry.getInstance().getAggregator(config.valueSourceType(),
+            CardinalityAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected CardinalityAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        CardinalityAggregatorSupplier cardinalityAggregatorSupplier = (CardinalityAggregatorSupplier) aggregatorSupplier;
+        return cardinalityAggregatorSupplier.build(name, valuesSource, precision(), searchContext, parent, pipelineAggregators, metaData);
     }
 
     private int precision() {

@@ -129,7 +129,7 @@ The field name to encode.
 (Required, string) 
 The name of the resulting feature.
 
-`target_mean_encoding`.`target.map`:::
+`target_mean_encoding`.`target_map`:::
 (Required, object map of string:double) 
 Object that maps the field value to the target mean value.
 

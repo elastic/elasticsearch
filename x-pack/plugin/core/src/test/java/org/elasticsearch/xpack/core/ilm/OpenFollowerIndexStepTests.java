@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowerIndexStep> {
+public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<OpenFollowerIndexStep> {
 
     @Override
     protected OpenFollowerIndexStep createRandomInstance() {
@@ -51,14 +51,19 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         return new OpenFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .state(IndexMetaData.State.OPEN)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+    }
+
+    public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
+        IndexMetaData indexMetadata = getIndexMetaData();
         Client client = Mockito.mock(Client.class);
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
@@ -102,7 +107,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -144,7 +149,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

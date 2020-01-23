@@ -134,7 +134,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
                 logger.warn("unexpected onFailure call", e);
                 throw new AssertionError("unexpected method call");
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetResult.get());
         assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
@@ -192,7 +192,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
                 logger.warn("unexpected onFailure call", e);
                 throw new AssertionError("unexpected method call");
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetResult.get());
         assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
@@ -253,7 +253,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
                 logger.warn("unexpected onFailure call", e);
                 throw new AssertionError("unexpected method call: " + e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetResult.get());
         assertEquals(new SegmentCountStep.Info(-1L), conditionInfo.get());
@@ -293,7 +293,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
                 assertThat(e, equalTo(exception));
                 exceptionThrown.set(true);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(exceptionThrown.get());
     }

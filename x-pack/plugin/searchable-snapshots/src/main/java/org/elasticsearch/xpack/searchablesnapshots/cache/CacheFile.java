@@ -62,10 +62,6 @@ class CacheFile {
         assert invariant();
     }
 
-    public String getName() {
-        return name;
-    }
-
     public long getLength() {
         return tracker.getLength();
     }

@@ -132,7 +132,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testCreateApiKey() throws Exception{
-        final Instant start = Instant.now();
+        // Get an instant without nanoseconds as the expiration has millisecond precision
+        final Instant start = Instant.ofEpochMilli(Instant.now().toEpochMilli());
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
@@ -148,7 +149,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response.getKey());
         Instant expiration = response.getExpiration();
         // Expiration has millisecond precision
-        final long daysBetween = ChronoUnit.DAYS.between(start.minusNanos(start.getNano()), expiration);
+        final long daysBetween = ChronoUnit.DAYS.between(start, expiration);
         assertThat(daysBetween, is(7L));
 
         // create simple api key

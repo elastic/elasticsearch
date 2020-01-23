@@ -102,8 +102,6 @@ public class BootstrapForTesting {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
-        Bootstrap.fixJDK14EAFileChannelMap();
-
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {

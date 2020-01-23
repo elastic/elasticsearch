@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -274,7 +275,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext));
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            if (slicedQuery instanceof MatchNoDocsQuery) {
+                return slicedQuery;
+            } else {
+                filters.add(slicedQuery);
+            }
         }
 
         if (filters.isEmpty()) {

@@ -25,6 +25,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -259,16 +260,19 @@ public class JobResultsPersister {
      * Persist the quantiles (blocking)
      */
     public void persistQuantiles(Quantiles quantiles, Supplier<Boolean> shouldRetry) {
-        String quantilesDocId = Quantiles.documentId(quantiles.getJobId());
-
-        SearchRequest searchRequest =
-            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .source(new SearchSourceBuilder().size(1).query(new IdsQueryBuilder().addIds(quantilesDocId)));
-        SearchResponse searchResponse = client.search(searchRequest).actionGet();
-        String indexOrAlias = AnomalyDetectorsIndex.jobStateIndexWriteAlias();
-        if (searchResponse.getHits().getHits().length > 0) {
-            indexOrAlias = searchResponse.getHits().getHits()[0].getIndex();
-        }
+        String jobId = quantiles.getJobId();
+        String quantilesDocId = Quantiles.documentId(jobId);
+        SearchRequest searchRequest = buildQuantilesDocIdSearch(quantilesDocId);
+        SearchResponse searchResponse =
+            resultsPersisterService.searchWithRetry(
+                searchRequest,
+                jobId,
+                shouldRetry,
+                (msg) -> auditor.warning(jobId, quantilesDocId + " " + msg));
+        String indexOrAlias =
+            searchResponse.getHits().getHits().length > 0
+                ? searchResponse.getHits().getHits()[0].getIndex()
+                : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
 
         Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
         persistable.persist(shouldRetry);
@@ -285,10 +289,10 @@ public class JobResultsPersister {
         //   - if the document did exist, update it in the index where it resides (not necessarily the current write index)
         ActionListener<SearchResponse> searchFormerQuantilesDocListener = ActionListener.wrap(
             searchResponse -> {
-                String indexOrAlias = AnomalyDetectorsIndex.jobStateIndexWriteAlias();
-                if (searchResponse.getHits().getHits().length > 0) {
-                    indexOrAlias = searchResponse.getHits().getHits()[0].getIndex();
-                }
+                String indexOrAlias =
+                    searchResponse.getHits().getHits().length > 0
+                        ? searchResponse.getHits().getHits()[0].getIndex()
+                        : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
 
                 Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
                 persistable.setRefreshPolicy(refreshPolicy);
@@ -298,11 +302,19 @@ public class JobResultsPersister {
         );
 
         // Step 1: Search for existing quantiles document in .ml-state*
-        SearchRequest searchRequest =
-            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .source(new SearchSourceBuilder().size(1).query(new IdsQueryBuilder().addIds(quantilesDocId)));
+        SearchRequest searchRequest = buildQuantilesDocIdSearch(quantilesDocId);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest, searchFormerQuantilesDocListener, client::search);
+    }
+
+    private static SearchRequest buildQuantilesDocIdSearch(String quantilesDocId) {
+        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder()
+                    .size(1)
+                    .trackTotalHits(false)
+                    .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(quantilesDocId))));
     }
 
     /**

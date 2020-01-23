@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -303,6 +304,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void testPersistQuantilesSync(SearchHits searchHits, String expectedIndexOrAlias) {
         SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getHits()).thenReturn(searchHits);
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 

@@ -238,9 +238,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             return null;
         }
 
-        public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-            throw new IllegalArgumentException("Unsupported field type"); // NOCOMMIT error message should be better
-        }
+        /**
+         * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
+         */
+        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format);
     }
 
     interface Builder {

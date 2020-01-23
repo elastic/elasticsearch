@@ -431,7 +431,6 @@ testClusters {
       }
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.monitoring.enabled', 'true'
-      setting 'xpack.eql.enabled', 'true'
       setting 'xpack.sql.enabled', 'true'
       setting 'xpack.rollup.enabled', 'true'
       keystore 'bootstrap.password', 'password'

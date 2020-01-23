@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -384,21 +385,12 @@ public class TrainedModelProvider {
                           Set<String> tags,
                           ActionListener<Tuple<Long, Set<String>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
-        BoolQueryBuilder tagQuery = QueryBuilders.boolQuery();
-        for(String tag : tags) {
-            tagQuery.filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), tag));
-        }
-
-        QueryBuilder query = QueryBuilders.constantScoreQuery(
-            QueryBuilders.boolQuery()
-                .filter(tagQuery.hasClauses() ? tagQuery : QueryBuilders.matchAllQuery())
-                .filter(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName())));
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
             .sort(SortBuilders.fieldSort(TrainedModelConfig.MODEL_ID.getPreferredName())
                 // If there are no resources, there might be no mapping for the id field.
                 // This makes sure we don't get an error if that happens.
                 .unmappedType("long"))
-            .query(query);
+            .query(buildExpandIdsQuery(tokens, tags));
         if (pageParams != null) {
             sourceBuilder.from(pageParams.getFrom()).size(pageParams.getSize());
         }
@@ -453,7 +445,15 @@ public class TrainedModelProvider {
                 idsListener::onFailure
             ),
             client::search);
+    }
 
+    static QueryBuilder buildExpandIdsQuery(String[] tokens, Collection<String> tags) {
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName()));
+        for(String tag : tags) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), tag));
+        }
+        return QueryBuilders.constantScoreQuery(boolQueryBuilder);
     }
 
     TrainedModelConfig loadModelFromResource(String modelId, boolean nullOutDefinition) {
@@ -487,7 +487,7 @@ public class TrainedModelProvider {
         }
     }
 
-    private QueryBuilder buildQueryIdExpressionQuery(String[] tokens, String resourceIdField) {
+    private static QueryBuilder buildQueryIdExpressionQuery(String[] tokens, String resourceIdField) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME));
 

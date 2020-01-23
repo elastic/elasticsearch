@@ -516,7 +516,12 @@ public class ReadOnlyEngine extends Engine {
             maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 
-    protected static DirectoryReader openDirectory(Directory dir) throws IOException {
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir, OFF_HEAP_READER_ATTRIBUTES), Lucene.SOFT_DELETES_FIELD);
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
+        final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
+        if (wrapSoftDeletes) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
     }
 }

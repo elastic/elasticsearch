@@ -37,20 +37,18 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     List<RequiredField> getRequiredFields();
 
     /**
-     * @return {@link Map} containing cardinality limits for the selected (analysis-specific) fields
+     * @return {@link List} containing cardinality constraints for the selected (analysis-specific) fields
      */
-    Map<String, Long> getFieldCardinalityLimits();
+    List<FieldCardinalityConstraint> getFieldCardinalityConstraints();
 
     /**
-     * Returns fields for which the mappings should be copied from source index to destination index.
-     * Each entry of the returned {@link Map} is of the form:
-     *   key   - field path in the destination index
-     *   value - field path in the source index from which the mapping should be taken
+     * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
      *
+     * @param mappingsProperties mappings.properties portion of the index mappings
      * @param resultsFieldName name of the results field under which all the results are stored
-     * @return {@link Map} containing fields for which the mappings should be copied from source index to destination index
+     * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
-    Map<String, String> getExplicitlyMappedFields(String resultsFieldName);
+    Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values

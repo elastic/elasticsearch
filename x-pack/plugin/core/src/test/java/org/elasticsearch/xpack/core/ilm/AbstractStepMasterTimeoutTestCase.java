@@ -30,12 +30,12 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
     protected ThreadPool pool;
 
     @Before
-    public void setup() {
+    public void setupThreadPool() {
         pool = new TestThreadPool("timeoutTestPool");
     }
 
     @After
-    public void teardown() {
+    public void shutdownThreadPool() {
         pool.shutdownNow();
     }
 

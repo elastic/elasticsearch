@@ -54,6 +54,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
@@ -172,6 +173,10 @@ public class RequestConvertersTests extends ESTestCase {
         doTestSourceExists((index, id) -> new GetRequest(index, type, id));
     }
 
+    public void testGetSource() throws IOException {
+        doTestGetSource((index, id) -> new GetSourceRequest(index, id));
+    }
+
     private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
@@ -210,6 +215,44 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             assertEquals("/" + index + "/" + type + "/" + id + "/_source", request.getEndpoint());
         }
+
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    private static void doTestGetSource(BiFunction<String, String, GetSourceRequest> requestFunction) throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        final GetSourceRequest getRequest = requestFunction.apply(index, id);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            String preference = randomAlphaOfLengthBetween(3, 10);
+            getRequest.preference(preference);
+            expectedParams.put("preference", preference);
+        }
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            getRequest.routing(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            boolean realtime = randomBoolean();
+            getRequest.realtime(realtime);
+            if (realtime == false) {
+                expectedParams.put("realtime", "false");
+            }
+        }
+        if (randomBoolean()) {
+            boolean refresh = randomBoolean();
+            getRequest.refresh(refresh);
+            if (refresh) {
+                expectedParams.put("refresh", "true");
+            }
+        }
+        Request request = RequestConverters.getSource(getRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
 
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());

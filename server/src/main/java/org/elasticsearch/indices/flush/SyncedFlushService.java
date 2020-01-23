@@ -74,7 +74,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.StreamSupport;
 
 public class SyncedFlushService implements IndexEventListener {
 
@@ -114,8 +113,7 @@ public class SyncedFlushService implements IndexEventListener {
     @Override
     public void onShardInactive(final IndexShard indexShard) {
         // A normal flush has the same effect as a synced flush if all nodes are on 7.6 or later.
-        final boolean preferNormalFlush = StreamSupport.stream(clusterService.state().nodes().spliterator(), false)
-            .allMatch(node -> node.getVersion().onOrAfter(Version.V_7_6_0));
+        final boolean preferNormalFlush = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0);
         if (preferNormalFlush) {
             performNormalFlushOnInactive(indexShard);
         } else if (indexShard.routingEntry().primary()) {
@@ -161,7 +159,7 @@ public class SyncedFlushService implements IndexEventListener {
                                    IndicesOptions indicesOptions,
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
-        if (StreamSupport.stream(state.nodes().spliterator(), false).allMatch(n -> n.getVersion().onOrAfter(Version.V_7_6_0))) {
+        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
         }
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);

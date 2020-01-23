@@ -56,7 +56,6 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             + "  }"
             + "}";
 
-
         createIndexTemplateRequest.setJsonEntity(template);
         Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
         assertThat(createIndexTemplateResponse.get("acknowledged"), equalTo(Boolean.TRUE));

@@ -38,12 +38,14 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRpcOptionUtils;
 import com.google.cloud.storage.StorageTestUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
@@ -52,6 +54,8 @@ import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -63,10 +67,12 @@ import java.util.stream.Stream;
  */
 class MockStorage implements Storage {
 
+    private final Random random;
     private final String bucketName;
     private final ConcurrentMap<String, byte[]> blobs;
 
-    MockStorage(final String bucket, final ConcurrentMap<String, byte[]> blobs) {
+    MockStorage(final String bucket, final ConcurrentMap<String, byte[]> blobs, final Random random) {
+        this.random = random;
         this.bucketName = Objects.requireNonNull(bucket);
         this.blobs = Objects.requireNonNull(blobs);
     }
@@ -228,11 +234,15 @@ class MockStorage implements Storage {
         return null;
     }
 
+    private final Set<BlobInfo> simulated410s = ConcurrentCollections.newConcurrentSet();
+
     @Override
     public WriteChannel writer(BlobInfo blobInfo, BlobWriteOption... options) {
         if (bucketName.equals(blobInfo.getBucket())) {
             final ByteArrayOutputStream output = new ByteArrayOutputStream();
             return new WriteChannel() {
+
+                private volatile boolean failed;
 
                 final WritableByteChannel writableByteChannel = Channels.newChannel(output);
 
@@ -248,6 +258,11 @@ class MockStorage implements Storage {
 
                 @Override
                 public int write(ByteBuffer src) throws IOException {
+                    // Only fail a blob once on a 410 error since the error is so unlikely in practice
+                    if (simulated410s.add(blobInfo) && random.nextBoolean()) {
+                        failed = true;
+                        throw new StorageException(HttpURLConnection.HTTP_GONE, "Simulated lost resumeable upload session");
+                    }
                     return writableByteChannel.write(src);
                 }
 
@@ -259,13 +274,15 @@ class MockStorage implements Storage {
                 @Override
                 public void close() {
                     IOUtils.closeWhileHandlingException(writableByteChannel);
-                    if (Stream.of(options).anyMatch(option -> option.equals(BlobWriteOption.doesNotExist()))) {
-                        byte[] existingBytes = blobs.putIfAbsent(blobInfo.getName(), output.toByteArray());
-                        if (existingBytes != null) {
-                            throw new StorageException(412, "Blob already exists");
+                    if (failed == false) {
+                        if (Stream.of(options).anyMatch(option -> option.equals(BlobWriteOption.doesNotExist()))) {
+                            byte[] existingBytes = blobs.putIfAbsent(blobInfo.getName(), output.toByteArray());
+                            if (existingBytes != null) {
+                                throw new StorageException(412, "Blob already exists");
+                            }
+                        } else {
+                            blobs.put(blobInfo.getName(), output.toByteArray());
                         }
-                    } else {
-                        blobs.put(blobInfo.getName(), output.toByteArray());
                     }
                 }
             };

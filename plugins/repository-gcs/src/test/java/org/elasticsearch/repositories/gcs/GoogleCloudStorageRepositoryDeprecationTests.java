@@ -46,7 +46,7 @@ public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
                 new GoogleCloudStorageService() {
                     @Override
                     public Storage client(String clientName) throws IOException {
-                        return new MockStorage("test", new ConcurrentHashMap<>());
+                        return new MockStorage("test", new ConcurrentHashMap<>(), random());
                     }
                 });
 

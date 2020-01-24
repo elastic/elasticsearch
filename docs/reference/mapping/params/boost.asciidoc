@@ -1,8 +1,7 @@
 [[mapping-boost]]
 === `boost`
 
-Individual fields can be _boosted_ automatically -- count more towards the relevance score
--- at query time, with the `boost` parameter as follows:
+Individual fields can be _boosted_ automatically at index time (to count more towards the relevance score), with the `boost` parameter as follows:
 
 [source,console]
 --------------------------------------------------

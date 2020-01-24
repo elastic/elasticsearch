@@ -23,6 +23,7 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Docker;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -254,9 +255,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
 
-            String elasticsearchStartTime = sh.run("sleep 2 && date +\"%Y-%m-%d %H:%M:%S\"").stdout.trim();
+            Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
             Shell.Result result = runElasticsearchStartCommand();
-            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, elasticsearchStartTime);
+            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, journaldWrapper);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }

@@ -311,7 +311,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
 
-    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, String elasticsearchStartTime) {
+    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
 
         if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
 
@@ -325,8 +325,7 @@ public abstract class PackagingTestCase extends Assert {
 
             // For systemd, retrieve the error from journalctl
             assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
-            Shell.Result error = sh.run("journalctl --boot --unit elasticsearch.service"
-                + (elasticsearchStartTime == null ? "" : " --since=\"" + elasticsearchStartTime + "\""));
+            Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout, containsString(expectedMessage));
 
         } else if (Platforms.WINDOWS == true) {

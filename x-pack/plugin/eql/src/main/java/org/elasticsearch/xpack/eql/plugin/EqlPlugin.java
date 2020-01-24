@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -20,15 +22,42 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
+
+    public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(
+        "xpack.eql.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class)
         );
+    }
+
+    /**
+     * The settings defined by EQL plugin.
+     *
+     * @return the settings
+     */
+    @Override
+    public List<Setting<?>> getSettings() {
+        if (isSnapshot()) {
+            return List.of(EQL_ENABLED_SETTING);
+        } else {
+            return List.of();
+        }
+    }
+
+    boolean isSnapshot() {
+        return Build.CURRENT.isSnapshot();
     }
 
     @Override
@@ -39,7 +68,11 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(
-            new RestEqlSearchAction(restController));
+
+        boolean enabled = EQL_ENABLED_SETTING.get(settings);
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(new RestEqlSearchAction(restController));
     }
 }

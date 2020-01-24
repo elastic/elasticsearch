@@ -23,8 +23,8 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Type;
 import org.elasticsearch.painless.symbol.ScopeTable;
+import org.objectweb.asm.Type;
 
 public class DotSubDefNode extends ExpressionNode {
 

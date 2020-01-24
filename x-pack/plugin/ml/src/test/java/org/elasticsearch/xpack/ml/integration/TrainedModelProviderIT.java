@@ -199,7 +199,6 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
-
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)

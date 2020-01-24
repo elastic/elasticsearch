@@ -85,7 +85,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .endObject()
             .endObject()
             .endObject();
-
         return xcb;
     }
 
@@ -230,21 +229,21 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         gcb.shape(new PolygonBuilder(cb));
 
         logger.info("Created Random GeometryCollection containing {} shapes using {} tree", gcb.numShapes(),
-            usePrefixTrees ? "default" : "quadtree");
+            usePrefixTrees ? "geohash" : "quadtree");
 
-        client().admin().indices()
-            .prepareCreate("test")
-            .addMapping("type", "location", usePrefixTrees ? "type=geo_shape" : "type=geo_shape,tree=quadtree")
-            .execute().actionGet();
+        XContentBuilder mapping = createPrefixTreeMapping(usePrefixTrees ? "geohash" : "quadtree");
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
+        ensureGreen();
 
-        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         // Create a random geometry collection to query
         GeometryCollectionBuilder queryCollection = RandomShapeGenerator.createGeometryCollection(random());
         queryCollection.shape(new PolygonBuilder(cb));
 
-        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("location", queryCollection);
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", queryCollection);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
@@ -255,7 +254,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     // Test for issue #34418
     public void testEnvelopeSpanningDateline() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         String doc1 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-33.918711,\r\n" + "18.847685\r\n" + "],\r\n" +
@@ -317,7 +316,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testGeometryCollectionRelations() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
@@ -643,27 +643,25 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testFieldAlias() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
-            .startObject("location")
+            .startObject("geo")
             .field("type", "geo_shape")
             .field("tree", randomBoolean() ? "quadtree" : "geohash")
             .endObject()
             .startObject("alias")
             .field("type", "alias")
-            .field("path", "location")
+            .field("path", "geo")
             .endObject()
             .endObject()
-            .endObject()
-            .endObject();
-        createIndex("test", Settings.EMPTY, "type", mapping);
+            .endObject());
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
         client().prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("location", shape).endObject())
+            .setSource(jsonBuilder().startObject().field("geo", shape).endObject())
             .setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse response = client().prepareSearch("test")
@@ -672,7 +670,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         assertEquals(1, response.getHits().getTotalHits().value);
     }
 
-    // TBC whether the following tests will be applicable to geo_point
     public void testQueryRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
         String mapping = Strings.toString(randomBoolean() ? createDefaultMapping() : createPrefixTreeMapping(

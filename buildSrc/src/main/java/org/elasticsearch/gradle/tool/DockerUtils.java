@@ -31,10 +31,7 @@ public class DockerUtils {
      */
     public static Optional<String> getDockerPath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_BINARIES)
-            .stream()
-            .filter(path -> new File(path).exists())
-            .findFirst();
+        return List.of(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
     }
 
     /**
@@ -144,7 +141,8 @@ public class DockerUtils {
                 "Docker (checked [%s]) is required to run the following task%s: \n%s",
                 String.join(", ", DOCKER_BINARIES),
                 tasks.size() > 1 ? "s" : "",
-                String.join("\n", tasks));
+                String.join("\n", tasks)
+            );
             throwDockerRequiredException(message);
         }
 
@@ -153,7 +151,8 @@ public class DockerUtils {
                 Locale.ROOT,
                 "Docker is required to run the following task%s, but it doesn't appear to be running: \n%s",
                 tasks.size() > 1 ? "s" : "",
-                String.join("\n", tasks));
+                String.join("\n", tasks)
+            );
             throwDockerRequiredException(message);
         }
 
@@ -161,20 +160,22 @@ public class DockerUtils {
             final String message = String.format(
                 Locale.ROOT,
                 "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
-                availability.version);
+                availability.version
+            );
             throwDockerRequiredException(message);
         }
 
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
-                "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+            "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n"
+                + "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
             availability.path,
             tasks.size() > 1 ? "s" : "",
             String.join("\n", tasks),
             availability.lastCommand.exitCode,
-            availability.lastCommand.stderr.trim());
+            availability.lastCommand.stderr.trim()
+        );
         throwDockerRequiredException(message);
     }
 
@@ -184,9 +185,12 @@ public class DockerUtils {
 
     private static void throwDockerRequiredException(final String message, Exception e) {
         throw new GradleException(
-            message + "\nyou can address this by attending to the reported issue, "
+            message
+                + "\nyou can address this by attending to the reported issue, "
                 + "removing the offending tasks from being executed, "
-                + "or by passing -Dbuild.docker=false", e);
+                + "or by passing -Dbuild.docker=false",
+            e
+        );
     }
 
     /**

@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -34,14 +34,14 @@ public abstract class BatchedDocumentsIterator<T>  {
     private static final String CONTEXT_ALIVE_DURATION = "5m";
     private static final int BATCH_SIZE = 10000;
 
-    private final Client client;
+    private final OriginSettingClient client;
     private final String index;
     private volatile long count;
     private volatile long totalHits;
     private volatile String scrollId;
     private volatile boolean isScrollInitialised;
 
-    protected BatchedDocumentsIterator(Client client, String index) {
+    protected BatchedDocumentsIterator(OriginSettingClient client, String index) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
         this.totalHits = 0;

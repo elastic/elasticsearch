@@ -19,7 +19,10 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -138,7 +141,13 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
         // use a mock for the checkpoint service
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
-        transformCheckpointService = new TransformCheckpointService(mockClientForCheckpointing, transformsConfigManager, mockAuditor);
+        transformCheckpointService = new TransformCheckpointService(
+            mockClientForCheckpointing,
+            Settings.EMPTY,
+            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            transformsConfigManager,
+            mockAuditor
+        );
     }
 
     @AfterClass

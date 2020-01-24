@@ -31,8 +31,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends ESTestCase {
+
+    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(false);
+    public static final QueryShardContext MOCK_QSC_DISALLOW_SLOW = createMockQueryShardContext(true);
 
     /** Abstraction for mutating a property of a MappedFieldType */
     public abstract static class Modifier {
@@ -241,6 +247,15 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             ", nullValue=" + ft.nullValue() +
             ", nullValueAsString='" + ft.nullValueAsString() + "'" +
             "} " + super.toString();
+    }
+
+    protected QueryShardContext randomMockShardContext() {
+        return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_SLOW);
+    }
+    static QueryShardContext createMockQueryShardContext(boolean disallowSlowQueries) {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.isDisallowSlowQueries()).thenReturn(disallowSlowQueries);
+        return queryShardContext;
     }
 
     public void testClone() {

@@ -328,7 +328,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         String rewrite = this.rewrite;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
+            query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
         }
         if (query == null) {
             int maxEdits = fuzziness.asDistance(BytesRefs.toString(value));

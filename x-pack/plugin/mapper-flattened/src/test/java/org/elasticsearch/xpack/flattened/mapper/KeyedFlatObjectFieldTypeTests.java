@@ -15,6 +15,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -98,7 +99,12 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         Query expected = new PrefixQuery(new Term("field", "key\0val"));
-        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, null));
+        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_SLOW));
+        assertEquals("prefix queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                ee.getMessage());
     }
 
     public void testFuzzyQuery() {
@@ -106,7 +112,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
+            () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
         assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
@@ -140,7 +146,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("valu*", 0, 10, null, null));
+            () -> ft.regexpQuery("valu*", 0, 10, null, randomMockShardContext()));
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
@@ -149,7 +155,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("valu*", null, null));
+            () -> ft.wildcardQuery("valu*", null, randomMockShardContext()));
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 }

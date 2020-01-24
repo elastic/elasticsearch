@@ -68,3 +68,8 @@ increases the relevance score.
 `rewrite`::
 (Optional, string) Method used to rewrite the query. For valid values and more information, see the
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+==== Notes
+===== Disallow slow queries
+Wildcard queries will not be executed if <<query-dsl-disallow-slow, `search.disallow_slow_queries`>>
+is set to true.

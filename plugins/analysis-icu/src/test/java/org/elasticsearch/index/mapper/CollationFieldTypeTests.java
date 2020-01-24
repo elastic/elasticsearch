@@ -102,7 +102,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("foo.*", 0, 10, null, null));
+            () -> ft.regexpQuery("foo.*", 0, 10, null, randomMockShardContext()));
     }
 
     public void testFuzzyQuery() {
@@ -110,7 +110,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         expectThrows(UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true));
+            () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
     }
 
     public void testPrefixQuery() {
@@ -118,7 +118,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         expectThrows(UnsupportedOperationException.class,
-            () -> ft.prefixQuery("prefix", null, null));
+            () -> ft.prefixQuery("prefix", null, randomMockShardContext()));
     }
 
     public void testWildcardQuery() {
@@ -126,7 +126,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         expectThrows(UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("foo*", null, null));
+            () -> ft.wildcardQuery("foo*", null, randomMockShardContext()));
     }
 
     public void testRangeQuery() {

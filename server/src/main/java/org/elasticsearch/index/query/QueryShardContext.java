@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -92,6 +93,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
+    private final BooleanSupplier isDisallowSlowQueries;
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
@@ -112,18 +114,40 @@ public class QueryShardContext extends QueryRewriteContext {
                              IndexSearcher searcher,
                              LongSupplier nowInMillis,
                              String clusterAlias,
+                             Predicate<String> indexNameMatcher,
+                             BooleanSupplier isDisallowSlowQueries) {
+        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
+                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
+                new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                        indexSettings.getIndex().getUUID()), isDisallowSlowQueries);
+    }
+
+    public QueryShardContext(int shardId,
+                             IndexSettings indexSettings,
+                             BigArrays bigArrays,
+                             BitsetFilterCache bitsetFilterCache,
+                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                             MapperService mapperService,
+                             SimilarityService similarityService,
+                             ScriptService scriptService,
+                             NamedXContentRegistry xContentRegistry,
+                             NamedWriteableRegistry namedWriteableRegistry,
+                             Client client,
+                             IndexSearcher searcher,
+                             LongSupplier nowInMillis,
+                             String clusterAlias,
                              Predicate<String> indexNameMatcher) {
         this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
             scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
             new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                indexSettings.getIndex().getUUID()));
+                indexSettings.getIndex().getUUID()), () -> false);
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex);
+            source.fullyQualifiedIndex, source.isDisallowSlowQueries);
     }
 
     private QueryShardContext(int shardId,
@@ -140,7 +164,8 @@ public class QueryShardContext extends QueryRewriteContext {
                               IndexSearcher searcher,
                               LongSupplier nowInMillis,
                               Predicate<String> indexNameMatcher,
-                              Index fullyQualifiedIndex) {
+                              Index fullyQualifiedIndex,
+                              BooleanSupplier isDisallowSlowQueries) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -155,6 +180,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.searcher = searcher;
         this.indexNameMatcher = indexNameMatcher;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
+        this.isDisallowSlowQueries = isDisallowSlowQueries;
     }
 
     private void reset() {
@@ -190,6 +216,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitSetProducer bitsetFilter(Query filter) {
         return bitsetFilterCache.getBitSetProducer(filter);
+    }
+
+    public boolean isDisallowSlowQueries() {
+        return isDisallowSlowQueries.getAsBoolean();
     }
 
     @SuppressWarnings("unchecked")

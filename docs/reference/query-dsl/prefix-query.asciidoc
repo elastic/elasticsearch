@@ -65,3 +65,11 @@ You can speed up prefix queries using the <<index-prefixes,`index_prefixes`>>
 mapping parameter. If enabled, {es} indexes prefixes between 2 and 5
 characters in a separate field. This lets {es} run prefix queries more
 efficiently at the cost of a larger index.
+
+[[prefix-query-disallow-slow]]
+===== Disallow slow queries
+Prefix queries will not be executed if <<query-dsl-disallow-slow, `search.disallow_slow_queries`>>
+is set to true. If <<index-prefixes, `index prefixes`>> are enabled though, an optimised query is
+built, which is not considered slow and is executed despite of the fact that the
+<<query-dsl-disallow-slow, `search.disallow_slow_queries`>> set to true.
+

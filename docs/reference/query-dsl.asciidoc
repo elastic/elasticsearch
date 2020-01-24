@@ -25,6 +25,14 @@ or to alter their behaviour (such as the
 
 Query clauses behave differently depending on whether they are used in
 <<query-filter-context,query context or filter context>>.
+
+[[query-dsl-disallow-slow]]
+== Disallow slow queries
+Certain queries like <<query-dsl-fuzzy-query,`fuzzy`>>, <<query-dsl-prefix-query,`prefix`>>,
+<<query-dsl-regexp-query,`regexp`>> and <<query-dsl-bool-query,`wildcard`>> ,
+that are usually slow performance can affect the cluster performance.
+The execution of such queries can be prevented by setting the value of the `search.disallow_slow_queries`
+setting to `true` (defaults tp `false`).
 --
 
 include::query-dsl/query_filter_context.asciidoc[]

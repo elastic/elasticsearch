@@ -23,6 +23,7 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Docker;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -34,7 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -173,7 +173,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         Shell.Result result = startElasticsearchStandardInputPassword("wrong");
-        assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD);
+        assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, null);
     }
 
     @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
@@ -257,8 +257,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
 
+            Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
             Shell.Result result = runElasticsearchStartCommand();
-            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD);
+            assertElasticsearchFailure(result, ERROR_INCORRECT_PASSWORD, journaldWrapper);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }

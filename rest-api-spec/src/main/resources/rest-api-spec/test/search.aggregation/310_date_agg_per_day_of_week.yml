@@ -1,8 +1,8 @@
 
 setup:
   - skip:
-      version: "all"
-      reason:  "Start of the week Monday was backported to 7.6. Awaitsfix https://github.com/elastic/elasticsearch/issues/51367"
+      version: " - 7.6.99"
+      reason:  "Start of the week Monday was enabled in a backport to 7.7 PR#50916"
       features: "spi_on_classpath_jdk9"
 
   - do:

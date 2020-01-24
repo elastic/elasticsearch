@@ -209,7 +209,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {
-        return new Supplier<>() {
+        return new Supplier<Boolean>() {
             int retries = 0;
             @Override
             public Boolean get() {
@@ -223,7 +223,6 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
                 new BulkResponse(new BulkItemResponse[0], 0L))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
->>>>>>> 7c31d39e842... Update quantiles document in the index the document belongs to (#51135)
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);

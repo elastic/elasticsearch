@@ -9,6 +9,7 @@ setup:
         body: >
           {
             "description": "empty model for tests",
+            "tags": ["regression", "tag1"],
             "input": {"field_names": ["field1", "field2"]},
             "definition": {
                "preprocessors": [],
@@ -33,6 +34,7 @@ setup:
           {
             "description": "empty model for tests",
             "input": {"field_names": ["field1", "field2"]},
+            "tags": ["regression", "tag2"],
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -55,6 +57,7 @@ setup:
           {
             "description": "empty model for tests",
             "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -127,6 +130,38 @@ setup:
         size: 1
   - match: { count: 4 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+---
+"Test get models with tags":
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        tags: "regression,tag1"
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "a-regression*"
+        tags: "tag1"
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        tags: "tag2"
+  - match: { count: 2 }
+  - match: { trained_model_configs.0.model_id: "a-classification-model" }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        tags: "tag2"
+        from: 1
+        size: 1
+  - match: { count: 2 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
 ---
 "Test delete given unused trained model":
   - do:

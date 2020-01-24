@@ -834,6 +834,7 @@ public class MLRequestConvertersTests extends ESTestCase {
             .setAllowNoMatch(false)
             .setDecompressDefinition(true)
             .setIncludeDefinition(false)
+            .setTags("tag1", "tag2")
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getTrainedModels(getRequest);
@@ -845,6 +846,7 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("size", "300"),
                 hasEntry("allow_no_match", "false"),
                 hasEntry("decompress_definition", "true"),
+                hasEntry("tags", "tag1,tag2"),
                 hasEntry("include_model_definition", "false")
             ));
         assertNull(request.getEntity());

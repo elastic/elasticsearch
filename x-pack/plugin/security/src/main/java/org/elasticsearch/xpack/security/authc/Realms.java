@@ -186,7 +186,7 @@ public class Realms implements Iterable<Realm> {
         List<Realm> realms = new ArrayList<>();
         List<String> kerberosRealmNames = new ArrayList<>();
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
-        Map<Integer, Set<String>> orderToRealmIdentifier = new HashMap<>();
+        Map<Integer, Set<String>> orderToRealmName = new HashMap<>();
         for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
@@ -219,12 +219,12 @@ public class Realms implements Iterable<Realm> {
             Realm realm = factory.create(config);
             nameToRealmIdentifier.computeIfAbsent(realm.name(), k ->
                 new HashSet<>()).add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
-            orderToRealmIdentifier.computeIfAbsent(realm.order(), k -> new HashSet<>())
-                .add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
+            orderToRealmName.computeIfAbsent(realm.order(), k -> new HashSet<>())
+                .add(realm.name());
             realms.add(realm);
         }
 
-        checkUniqueOrders(orderToRealmIdentifier);
+        checkUniqueOrders(orderToRealmName);
 
         if (!realms.isEmpty()) {
             Collections.sort(realms);
@@ -331,8 +331,8 @@ public class Realms implements Iterable<Realm> {
         return Settings.builder().put(settings).put(orderSettingKey, order).build();
     }
 
-    private void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmIdentifier) {
-        String duplicateOrders = orderToRealmIdentifier.entrySet().stream()
+    private void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmName) {
+        String duplicateOrders = orderToRealmName.entrySet().stream()
             .filter(entry -> entry.getValue().size() > 1)
             .map(entry -> entry.getKey() + ": " + entry.getValue())
             .collect(Collectors.joining("; "));

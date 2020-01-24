@@ -68,9 +68,9 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disa
 
 ==== Elasticsearch Token Service tokens
 
-Configuring the client to authenticate with an elasticsearch access token can be accomplished by setting the relevant HTTP request header.
+If you want the client to authenticate with an Elasticsearch access token, set the relevant HTTP request header.
 If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
-in the following example
+in the following example:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -79,9 +79,9 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-bearer
 
 ==== Elasticsearch API keys
 
-Configuring the client to authenticate with an elasticsearch API Key can be also accomplished by setting the relevant HTTP request header.
+If you want the client to authenticate with an Elasticsearch API key, set the relevant HTTP request header.
 If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
-in the following example
+in the following example:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -97,9 +97,9 @@ https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org
  communication: `setSSLContext`, `setSSLSessionStrategy` and
  `setConnectionManager`, in order of precedence from the least important.
 
-When accessing an elasticsearch cluster that is setup for TLS on the HTTP layer, the client needs to trust the certificate that
-elasticsearch is using.
- The following is an example of setting up the client to trust the CA that has signed the certificate that elasticsearch is using, when
+When accessing an Elasticsearch cluster that is setup for TLS on the HTTP layer, the client needs to trust the certificate that
+Elasticsearch is using.
+ The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
  that CA certificate is available in a PKCS#12 keystore:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -107,7 +107,7 @@ elasticsearch is using.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-encrypted-communication]
 --------------------------------------------------
 
-The following is an example of setting up the client to trust the CA that has signed the certificate that elasticsearch is using, when
+The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
 that CA certificate is available as a PEM encoded file.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -115,7 +115,7 @@ that CA certificate is available as a PEM encoded file.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-trust-ca-pem]
 --------------------------------------------------
 
-When elasticsearch is configured to require client TLS authentication, i.e. when a PKI realm is configured, the client needs to provide
+When Elasticsearch is configured to require client TLS authentication, i.e. when a PKI realm is configured, the client needs to provide
 a client certificate during the TLS handshake in order to authenticate. The following is an example of setting up the client for TLS
 authentication with a certificate and a private key that are stored in a PKCS#12 keystore.
 
@@ -124,8 +124,8 @@ authentication with a certificate and a private key that are stored in a PKCS#12
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-mutual-tls-authentication]
 --------------------------------------------------
 
-if the client certificate and key are not available in a keystore but as PEM encoded files, there is no possibility to use them
-directly to build an SSLContext, without relying on external libraries to parse the PEM key into a PrivateKey instance. Alternatively, you
+If the client certificate and key are not available in a keystore but rather as PEM encoded files, you cannot use them
+directly to build an SSLContext. You must rely on external libraries to parse the PEM key into a PrivateKey instance. Alternatively, you
 can use external tools to build a keystore from your PEM files, as shown in the following example:
 
 ```

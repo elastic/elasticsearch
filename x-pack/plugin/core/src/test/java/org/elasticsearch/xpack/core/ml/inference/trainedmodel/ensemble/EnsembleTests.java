@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -200,6 +201,14 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .validate();
         });
         assertThat(ex.getMessage(), equalTo(msg));
+    }
+
+    public void testEnsembleWithEmptyModels() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder().setTrainedModels(Collections.emptyList()).setFeatureNames(featureNames).build().validate();
+        });
+        assertThat(ex.getMessage(), equalTo("[trained_models] must not be empty"));
     }
 
     public void testClassificationProbability() {

@@ -97,4 +97,6 @@ testClusters.integTest {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+
+  systemProperty 'tests.es.use_ram_dir_for_metadata', 'true' // to speed up tests
 }

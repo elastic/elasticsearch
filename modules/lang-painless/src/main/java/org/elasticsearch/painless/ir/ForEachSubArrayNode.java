@@ -35,14 +35,14 @@ public class ForEachSubArrayNode extends LoopNode {
 
     /* ---- begin node data ---- */
 
-    protected Class<?> variableType;
-    protected String variableName;
-    protected PainlessCast cast;
-    protected Class<?> arrayType;
-    protected String arrayName;
-    protected Class<?> indexType;
-    protected String indexName;
-    protected Class<?> indexedType;
+    private Class<?> variableType;
+    private String variableName;
+    private PainlessCast cast;
+    private Class<?> arrayType;
+    private String arrayName;
+    private Class<?> indexType;
+    private String indexName;
+    private Class<?> indexedType;
 
     public void setVariableType(Class<?> variableType) {
         this.variableType = variableType;

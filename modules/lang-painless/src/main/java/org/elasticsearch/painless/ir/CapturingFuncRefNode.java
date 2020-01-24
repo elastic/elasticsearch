@@ -33,10 +33,10 @@ public class CapturingFuncRefNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
-    protected String name;
-    protected String capturedName;
-    protected FunctionRef funcRef;
-    protected String pointer;
+    private String name;
+    private String capturedName;
+    private FunctionRef funcRef;
+    private String pointer;
 
     public void setName(String name) {
         this.name = name;

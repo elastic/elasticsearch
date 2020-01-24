@@ -43,12 +43,12 @@ public class ForEachSubIterableNode extends LoopNode {
 
     /* ---- begin node data ---- */
 
-    protected Class<?> variableType;
-    protected String variableName;
-    protected PainlessCast cast;
-    protected Class<?> iteratorType;
-    protected String iteratorName;
-    protected PainlessMethod method;
+    private Class<?> variableType;
+    private String variableName;
+    private PainlessCast cast;
+    private Class<?> iteratorType;
+    private String iteratorName;
+    private PainlessMethod method;
 
     public void setVariableType(Class<?> variableType) {
         this.variableType = variableType;

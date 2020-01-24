@@ -428,27 +428,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         createConfiguration();
 
-        final List<String> pluginsToInstall = new ArrayList<>();
         if (plugins.isEmpty() == false) {
-            pluginsToInstall.addAll(plugins.stream().map(URI::toString).collect(Collectors.toList()));
-        }
-
-        if (getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT) {
-            logToProcessStdout("emulating the " + testDistribution + " flavor for " + getVersion() + " by installing x-pack");
-            pluginsToInstall.add("x-pack");
-        }
-
-        if (pluginsToInstall.isEmpty() == false) {
             if (getVersion().onOrAfter("7.6.0")) {
-                logToProcessStdout("installing " + pluginsToInstall.size() + " plugins in a single transaction");
-                final String[] arguments = Stream.concat(Stream.of("install", "--batch"), pluginsToInstall.stream()).toArray(String[]::new);
+                logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
+                final String[] arguments = Stream.concat(Stream.of("install", "--batch"), plugins.stream().map(URI::toString))
+                    .toArray(String[]::new);
                 runElasticsearchBinScript("elasticsearch-plugin", arguments);
-                logToProcessStdout("installed plugins");
             } else {
-                logToProcessStdout("installing " + pluginsToInstall.size() + " plugins sequentially");
-                pluginsToInstall.forEach(plugin -> runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", plugin));
-                logToProcessStdout("installed plugins");
+                logToProcessStdout("installing " + plugins.size() + " plugins sequentially");
+                plugins.forEach(plugin -> runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", plugin.toString()));
             }
+            logToProcessStdout("installed plugins");
         }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {

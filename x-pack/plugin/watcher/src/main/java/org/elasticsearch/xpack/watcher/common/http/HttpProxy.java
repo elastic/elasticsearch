@@ -32,7 +32,7 @@ public class HttpProxy implements ToXContentFragment {
         this.port = port;
     }
 
-    public  HttpProxy(String host, Integer port, Scheme scheme) {
+    public HttpProxy(String host, Integer port, Scheme scheme) {
         this.host = host;
         this.port = port;
         this.scheme = scheme;

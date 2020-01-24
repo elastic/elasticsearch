@@ -53,14 +53,20 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
         return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetaData.State.OPEN)
+            .state(IndexMetaData.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
     }
 
     public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
-        IndexMetaData indexMetadata = getIndexMetaData();
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetaData.State.OPEN)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
@@ -77,13 +83,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     }
 
     public void testOpenFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetaData.State.CLOSE)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Mockito.doAnswer(invocation -> {
             OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];

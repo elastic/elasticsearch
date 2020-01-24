@@ -48,7 +48,9 @@ public class RestCatJobsAction extends AbstractCatAction {
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
             request.allowNoJobs()));
-        return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
+        return channel -> client.execute(GetJobsStatsAction.INSTANCE,
+            request,
+            new RestResponseListener<GetJobsStatsAction.Response>(channel) {
             @Override
             public RestResponse buildResponse(GetJobsStatsAction.Response getJobStatsResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(restRequest, getJobStatsResponse), channel);

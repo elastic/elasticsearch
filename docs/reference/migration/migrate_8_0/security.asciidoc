@@ -16,7 +16,7 @@ The cluster will fail to start if the requirements are not met.
 For example, the following configuration is invalid:
 [source,yaml]
 --------------------------------------------------
-xpack.security.authc.relams.kerberos.kerb1:
+xpack.security.authc.realms.kerberos.kerb1:
   keytab.path: es.keytab
   remove_realm_name: false
 --------------------------------------------------
@@ -24,7 +24,7 @@ xpack.security.authc.relams.kerberos.kerb1:
 And must be configured as:
 [source,yaml]
 --------------------------------------------------
-xpack.security.authc.relams.kerberos.kerb1:
+xpack.security.authc.realms.kerberos.kerb1:
   order: 0
   keytab.path: es.keytab
   remove_realm_name: false

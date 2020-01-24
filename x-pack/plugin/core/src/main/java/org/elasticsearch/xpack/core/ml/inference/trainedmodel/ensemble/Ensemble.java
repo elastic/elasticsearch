@@ -251,7 +251,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public void validate() {
         if (this.models.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[trained_models] must not be empty");
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty", TRAINED_MODELS.getPreferredName());
         }
 
         if (outputAggregator.compatibleWith(targetType) == false) {

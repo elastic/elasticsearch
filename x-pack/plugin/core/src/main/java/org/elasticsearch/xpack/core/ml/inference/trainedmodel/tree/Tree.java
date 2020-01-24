@@ -254,7 +254,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public void validate() {
         if (featureNames.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[feature_names] must not be empty for tree model");
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty for tree model", FEATURE_NAMES.getPreferredName());
         }
         checkTargetType();
         detectMissingNodes();

@@ -431,7 +431,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (plugins.isEmpty() == false) {
             if (getVersion().onOrAfter("7.6.0")) {
                 logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
-                final String[] arguments = Stream.concat(Stream.of("install", "--batch"), plugins.stream().map(URI::toString)).toArray(String[]::new);
+                final String[] arguments =
+                    Stream.concat(Stream.of("install", "--batch"), plugins.stream().map(URI::toString)).toArray(String[]::new);
                 runElasticsearchBinScript("elasticsearch-plugin", arguments);
             } else {
                 logToProcessStdout("installing " + plugins.size() + " plugins sequentially");

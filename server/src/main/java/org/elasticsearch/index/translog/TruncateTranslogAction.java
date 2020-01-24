@@ -178,13 +178,16 @@ public class TruncateTranslogAction {
             final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
             long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
-            // We open translog to check for corruption, do not clean anything.
+            final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
             try (Translog translog = new Translog(translogConfig, translogUUID,
-                new TranslogDeletionPolicy(), () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
                  Translog.Snapshot snapshot = translog.newSnapshot()) {
                 //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
                 }
+                // We open translog to check for corruption, do not clean anything.
+                translogDeletionPolicy.setTranslogGenerationOfLastCommit(translog.getMinFileGeneration());
+                translogDeletionPolicy.setMinTranslogGenerationForRecovery(translog.getMinFileGeneration());
             }
             return true;
         } catch (TranslogCorruptedException e) {

@@ -144,16 +144,24 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Runnable beforePrimary() {
+        RunOnce release = new RunOnce(activeOperations::decrementAndGet);
         int active = activeOperations.incrementAndGet();
         ThreadPool.Info info = threadPool.info(ThreadPool.Names.WRITE);
         // todo: deterministic task queue does not obey this: assert info.getQueueSize() != null;
         long max = info.getQueueSize() != null ? info.getQueueSize().singles() + info.getMax() : Long.MAX_VALUE;
         if (active > max) {
-            activeOperations.decrementAndGet();
+            release.run();
             throw new EsRejectedExecutionException("rejected executing primary bulk operation on " + ThreadPool.Names.WRITE
                 + " has " + (active - 1) + " active operations");
         }
-        return new RunOnce(activeOperations::decrementAndGet);
+        return release;
+    }
+
+    @Override
+    protected Runnable beforeReplica() {
+        RunOnce release = new RunOnce(activeOperations::decrementAndGet);
+        activeOperations.incrementAndGet();
+        return release;
     }
 
     public static void performOnPrimary(

@@ -489,8 +489,30 @@ public abstract class TransportReplicationAction<
 
     protected void handleReplicaRequest(final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
                                         final TransportChannel channel, final Task task) {
-        new AsyncReplicaAction(
-            replicaRequest, new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), (ReplicationTask) task).run();
+        ActionListener<ReplicaResponse> onCompletionListener = new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest);
+        try {
+            Runnable afterPrimary = beforeReplica();
+            if (afterPrimary != null) {
+                onCompletionListener = ActionListener.runAfter(onCompletionListener, afterPrimary);
+            }
+        } catch (RuntimeException e) {
+            onCompletionListener.onFailure(e);
+            return;
+        }
+        try {
+            new AsyncReplicaAction(
+                replicaRequest, onCompletionListener, (ReplicationTask) task).run();
+        } catch (RuntimeException e) {
+            onCompletionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Override this to execute code before (and after) replica action.
+     * @return runnable to invoke after completion of replica action. Returning null means no action to perform after.
+     */
+    protected Runnable beforeReplica() {
+        return null;
     }
 
     public static class RetryOnReplicaException extends ElasticsearchException {

@@ -535,6 +535,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     break;
                 }
             }
+            if (input != null && input.getFieldNames().isEmpty()) {
+                validationException = addValidationError("[input.field_names] must not be empty", validationException);
+            }
             if (forCreation) {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);

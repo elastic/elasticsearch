@@ -40,7 +40,7 @@ public class KerberosRealmSettingsTests extends ESTestCase {
             keytabPathConfig, maxUsers, cacheTTL, enableDebugLogs, removeRealmName);
         final RealmIdentifier identifier = new RealmIdentifier(KerberosRealmSettings.TYPE, KerberosRealmTestCase.REALM_NAME);
         final RealmConfig config = new RealmConfig(identifier,
-            settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE);
+            settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
 
         assertThat(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH), equalTo(keytabPathConfig));
         assertThat(config.getSetting(KerberosRealmSettings.CACHE_TTL_SETTING),

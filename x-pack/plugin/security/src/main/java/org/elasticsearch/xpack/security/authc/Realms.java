@@ -224,7 +224,7 @@ public class Realms implements Iterable<Realm> {
             realms.add(realm);
         }
 
-        ensureNoDuplicateOrders(orderToRealmIdentifier);
+        checkUniqueOrders(orderToRealmIdentifier);
 
         if (!realms.isEmpty()) {
             Collections.sort(realms);
@@ -310,19 +310,28 @@ public class Realms implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
+            var realmIdentifier = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE);
             realms.add(fileRealm.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    settings, env, threadContext, Integer.MIN_VALUE)));
+                realmIdentifier,
+                ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 1),
+                env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
+            var realmIdentifier = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE);
             realms.add(indexRealmFactory.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext, Integer.MIN_VALUE + 1)));
+                realmIdentifier,
+                ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 2),
+                env, threadContext)));
         }
     }
 
-    private void ensureNoDuplicateOrders(Map<Integer, Set<String>> orderToRealmIdentifier) {
+    private Settings ensureOrderSetting(Settings settings, RealmConfig.RealmIdentifier realmIdentifier, int order) {
+        String orderSettingKey = RealmSettings.realmSettingPrefix(realmIdentifier) + "order";
+        return Settings.builder().put(settings).put(orderSettingKey, order).build();
+    }
+
+    private void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmIdentifier) {
         String duplicateOrders = orderToRealmIdentifier.entrySet().stream()
             .filter(entry -> entry.getValue().size() > 1)
             .map(entry -> entry.getKey() + ": " + entry.getValue())

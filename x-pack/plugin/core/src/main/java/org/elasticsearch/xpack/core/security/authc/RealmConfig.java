@@ -29,22 +29,13 @@ public class RealmConfig {
         this.env = env;
         this.threadContext = threadContext;
         this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
-        if (hasSetting(RealmSettings.ORDER_SETTING.apply(type())) == false) {
+        if (false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
             throw new IllegalArgumentException("'order' is a mandatory parameter for realm config. " +
-                "Found invalid realm config: '" + identifier.name + "'\n" +
+                "Found invalid config for realm: '" + identifier.name + "'\n" +
                 "Please see the breaking changes documentation."
             );
         }
         this.order = getSetting(RealmSettings.ORDER_SETTING);
-    }
-
-    public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext, int order) {
-        this.identifier = identifier;
-        this.settings = settings;
-        this.env = env;
-        this.threadContext = threadContext;
-        this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
-        this.order = order;
     }
 
     public RealmIdentifier identifier() {

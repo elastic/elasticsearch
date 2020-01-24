@@ -18,6 +18,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -163,7 +164,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String realmName = "test-kerb-realm";
         settings = buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
         config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName), settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings), Integer.MAX_VALUE);
+            TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -174,8 +175,12 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     public void testDelegatedAuthorization() throws Exception {
         final String username = randomPrincipalName();
         final String expectedUsername = maybeRemoveRealmName(username);
-        final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
-            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE)));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "other_realm");
+        final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(globalSettings)
+                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings))));
         final User lookupUser = new User(expectedUsername, new String[] { "admin-role" }, expectedUsername,
                 expectedUsername + "@example.com", Collections.singletonMap("k1", "v1"), true);
         otherRealm.registerUser(lookupUser);

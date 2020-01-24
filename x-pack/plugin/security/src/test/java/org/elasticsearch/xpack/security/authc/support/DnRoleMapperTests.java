@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.junit.After;
 import org.junit.Before;
@@ -296,9 +297,10 @@ public class DnRoleMapperTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
             .put(settings)
             .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
         RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -313,9 +315,10 @@ public class DnRoleMapperTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(settings)
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
+                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -330,9 +333,10 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put(settings)
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), false)
+                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
 
@@ -345,8 +349,9 @@ public class DnRoleMapperTests extends ESTestCase {
         Settings mergedSettings = Settings.builder()
                 .put(settings)
                 .put(getFullSettingKey(identifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
-        RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY), Integer.MAX_VALUE);
+        RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY));
         return new DnRoleMapper(config, watcherService);
     }
 }

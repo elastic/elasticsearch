@@ -123,7 +123,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     protected KerberosRealm createKerberosRealm(final List<Realm> delegatedRealms, final String... userForRoleMapping) {
         final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, REALM_NAME);
         config = new RealmConfig(id, merge(id, settings, globalSettings),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings), Integer.MAX_VALUE);
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList(userForRoleMapping));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final KerberosRealm kerberosRealm =
@@ -137,6 +137,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         return Settings.builder().put(realmSettings)
             .normalizePrefix(RealmSettings.realmSettingPrefix(identifier))
             .put(globalSettings)
+            .put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
             .build();
     }
 
@@ -266,6 +267,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.CACHE_TTL_SETTING), cacheTTL)
             .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE), enableDebugging)
             .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.SETTING_REMOVE_REALM_NAME), removeRealmName)
+            .put(RealmSettings.getFullSettingKey(realmName, RealmSettings.ORDER_SETTING.apply(KerberosRealmSettings.TYPE)), 0)
             .put(globalSettings);
         return builder.build();
     }

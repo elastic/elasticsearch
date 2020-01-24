@@ -87,15 +87,16 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     private RealmConfig configureRealm(String name, String type, Settings settings) {
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(type, name);
         final Settings mergedSettings = Settings.builder()
             .put(settings)
             .normalizePrefix("xpack.security.authc.realms." + type + "." + name + ".")
             .put(globalSettings)
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
             .build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
         this.sslService = new SSLService(env);
-        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(type, name);
-        return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings), Integer.MAX_VALUE);
+        return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings));
     }
 
     public void testNetbiosAuth() throws Exception {

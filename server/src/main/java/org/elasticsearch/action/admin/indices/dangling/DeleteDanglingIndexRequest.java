@@ -65,7 +65,7 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
 
     @Override
     public String toString() {
-        return "DeleteDanglingIndexRequest{" + "indexUUID='" + indexUUID + '\'' + ", acceptDataLoss=" + acceptDataLoss + '}';
+        return "DeleteDanglingIndexRequest{" + "indexUUID='" + indexUUID + "', acceptDataLoss=" + acceptDataLoss + '}';
     }
 
     @Override

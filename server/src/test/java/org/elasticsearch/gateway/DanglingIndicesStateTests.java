@@ -199,15 +199,17 @@ public class DanglingIndicesStateTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
+
             final Settings allocateSettings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false).build();
 
             final ClusterService clusterServiceMock = mock(ClusterService.class);
             when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
 
-            DanglingIndicesState danglingIndicesState = new DanglingIndicesState(
+            final DanglingIndicesState danglingIndicesState = new DanglingIndicesState(
                 env,
                 metaStateService,
-                localAllocateDangledIndices, clusterServiceMock
+                localAllocateDangledIndices,
+                clusterServiceMock
             );
 
             assertFalse("Expected dangling imports to be disabled", danglingIndicesState.isAutoImportDanglingIndicesEnabled());

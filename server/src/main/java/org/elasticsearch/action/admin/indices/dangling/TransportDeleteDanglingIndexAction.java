@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.dangling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -94,7 +93,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         ClusterState state,
         ActionListener<DeleteDanglingIndexResponse> deleteListener
     ) throws Exception {
-        verifyDanglingIndexUUID(deleteRequest.getIndexUUID(), new ActionListener<>() {
+        findDanglingIndex(deleteRequest.getIndexUUID(), new ActionListener<>() {
 
             @Override
             public void onResponse(Index indexToDelete) {
@@ -106,7 +105,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                 String indexName = indexToDelete.getName();
 
-                final ActionListener<DeleteDanglingIndexResponse> updateClusterStateListener = new ActionListener<>() {
+                final ActionListener<DeleteDanglingIndexResponse> clusterStateUpdatedListener = new ActionListener<>() {
                     @Override
                     public void onResponse(DeleteDanglingIndexResponse response) {
                         deleteListener.onResponse(response);
@@ -121,7 +120,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                 clusterService.submitStateUpdateTask(
                     "delete-dangling-index " + indexName,
-                    new AckedClusterStateUpdateTask<>(new DeleteIndexRequest(), updateClusterStateListener) {
+                    new AckedClusterStateUpdateTask<>(deleteRequest, clusterStateUpdatedListener) {
 
                         @Override
                         protected DeleteDanglingIndexResponse newResponse(boolean acknowledged) {
@@ -162,7 +161,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         return null;
     }
 
-    private void verifyDanglingIndexUUID(String indexUUID, ActionListener<Index> listener) {
+    private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
         this.transportService.sendRequest(
             this.transportService.getLocalNode(),
             ListDanglingIndicesAction.NAME,

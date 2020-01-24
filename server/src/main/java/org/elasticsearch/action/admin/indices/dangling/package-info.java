@@ -31,7 +31,6 @@
  * <li>A cluster loses all master nodes and those are (unsafely) restored from backup, but the backup does not contain the index</li>
  * </ul>
  *
- * <p>The classes in this package form an API for managing dangling
- * indices, allowing them to be listed, imported or deleted.
+ * <p>The classes in this package form an API for managing dangling indices, allowing them to be listed, imported or deleted.
  */
 package org.elasticsearch.action.admin.indices.dangling;

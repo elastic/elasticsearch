@@ -641,6 +641,12 @@ to `false`. When `true`, only a single model must match the ID patterns
 provided, otherwise a bad request is returned.
 end::include-model-definition[]
 
+tag::tags[]
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+When supplied, only {infer} models that contain all the supplied tags are
+returned.
+end::tags[]
+
 tag::indices[]
 An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.

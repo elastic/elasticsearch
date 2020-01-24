@@ -1,5 +1,5 @@
 {
-  "cat.ml.job_stats":{
+  "cat.ml.jobs":{
     "documentation":{
       "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"
     },
@@ -7,13 +7,13 @@
     "url":{
       "paths":[
         {
-          "path":"/_cat/ml/anomaly_detectors/_stats",
+          "path":"/_cat/ml/anomaly_detectors",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_cat/ml/anomaly_detectors/{job_id}/_stats",
+          "path":"/_cat/ml/anomaly_detectors/{job_id}",
           "methods":[
             "GET"
           ],

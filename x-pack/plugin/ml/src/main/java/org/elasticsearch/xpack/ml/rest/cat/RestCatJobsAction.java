@@ -27,16 +27,16 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestCatJobStatsAction extends AbstractCatAction {
+public class RestCatJobsAction extends AbstractCatAction {
 
-    public RestCatJobStatsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors/_stats", this);
+    public RestCatJobsAction(RestController controller) {
+        controller.registerHandler(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
+        controller.registerHandler(GET, "_cat/ml/anomaly_detectors", this);
     }
 
     @Override
     public String getName() {
-        return "cat_ml_get_job_stats_action";
+        return "cat_ml_get_jobs_action";
     }
 
     @Override
@@ -58,8 +58,8 @@ public class RestCatJobStatsAction extends AbstractCatAction {
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/ml/anomaly_detectors/_stats\n");
-        sb.append("/_cat/ml/anomaly_detectors/{job_id}/_stats\n");
+        sb.append("/_cat/ml/anomaly_detectors\n");
+        sb.append("/_cat/ml/anomaly_detectors/{job_id}\n");
     }
 
     @Override
@@ -120,7 +120,7 @@ public class RestCatJobStatsAction extends AbstractCatAction {
                 .build());
         table.addCell("data.empty_buckets",
             TableColumnAttributeBuilder.builder("number of empty buckets", false)
-                .setAliases("deb", "dataEmptyBuckes")
+                .setAliases("deb", "dataEmptyBuckets")
                 .build());
         table.addCell("data.sparse_buckets",
             TableColumnAttributeBuilder.builder("number of sparse buckets", false)
@@ -128,7 +128,7 @@ public class RestCatJobStatsAction extends AbstractCatAction {
                 .build());
         table.addCell("data.buckets",
             TableColumnAttributeBuilder.builder("total bucket count", false)
-                .setAliases("db", "dataBuckes")
+                .setAliases("db", "dataBuckets")
                 .build());
         table.addCell("data.earliest_record",
             TableColumnAttributeBuilder.builder("earliest record time", false)
@@ -336,33 +336,20 @@ public class RestCatJobStatsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 
             ForecastStats forecastStats = job.getForecastStats();
+            boolean missingForecastStats = forecastStats == null || forecastStats.getTotal() <= 0L;
             table.addCell(forecastStats == null ? null : forecastStats.getTotal());
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                new ByteSizeValue((long)forecastStats.getMemoryStats().getMin()));
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                new ByteSizeValue((long)forecastStats.getMemoryStats().getMax()));
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                new ByteSizeValue(Math.round(forecastStats.getMemoryStats().getAvg())));
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                new ByteSizeValue((long)forecastStats.getMemoryStats().getTotal()));
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ? null : forecastStats.getRecordStats().getMin());
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ? null : forecastStats.getRecordStats().getMax());
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ? null : forecastStats.getRecordStats().getAvg());
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ? null : forecastStats.getRecordStats().getTotal());
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                TimeValue.timeValueMillis((long)forecastStats.getRuntimeStats().getMin()));
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                TimeValue.timeValueMillis((long)forecastStats.getRuntimeStats().getMax()));
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ? null : forecastStats.getRuntimeStats().getAvg());
-            table.addCell(forecastStats == null || forecastStats.getTotal() <= 0L ?
-                null :
-                TimeValue.timeValueMillis((long)forecastStats.getRuntimeStats().getTotal()));
+            table.addCell(missingForecastStats ? null : new ByteSizeValue((long)forecastStats.getMemoryStats().getMin()));
+            table.addCell(missingForecastStats ? null : new ByteSizeValue((long)forecastStats.getMemoryStats().getMax()));
+            table.addCell(missingForecastStats ? null : new ByteSizeValue(Math.round(forecastStats.getMemoryStats().getAvg())));
+            table.addCell(missingForecastStats ? null : new ByteSizeValue((long)forecastStats.getMemoryStats().getTotal()));
+            table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getMin());
+            table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getMax());
+            table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getAvg());
+            table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getTotal());
+            table.addCell(missingForecastStats ? null : TimeValue.timeValueMillis((long)forecastStats.getRuntimeStats().getMin()));
+            table.addCell(missingForecastStats ? null : TimeValue.timeValueMillis((long)forecastStats.getRuntimeStats().getMax()));
+            table.addCell(missingForecastStats ? null : forecastStats.getRuntimeStats().getAvg());
+            table.addCell(missingForecastStats ? null : TimeValue.timeValueMillis((long)forecastStats.getRuntimeStats().getTotal()));
 
             DiscoveryNode node = job.getNode();
             table.addCell(node == null ? null : node.getId());

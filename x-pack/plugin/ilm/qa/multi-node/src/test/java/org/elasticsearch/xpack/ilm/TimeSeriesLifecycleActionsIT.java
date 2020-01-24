@@ -203,8 +203,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testRetryFailedShrinkAction() throws Exception {
-        int numShards = 6;
-        int divisor = randomFrom(2, 3, 6);
+        int numShards = 4;
+        int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
@@ -351,7 +351,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         request = new Request("DELETE", "/_snapshot/" + repo);
         assertOK(client().performRequest(request));
     }
-    
+
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -490,8 +490,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testShrinkAction() throws Exception {
-        int numShards = 6;
-        int divisor = randomFrom(2, 3, 6);
+        int numShards = 4;
+        int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)

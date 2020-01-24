@@ -93,7 +93,10 @@ end::analysis-limits[]
 
 tag::analyzed-fields[]
 Specify `includes` and/or `excludes` patterns to select which fields will be 
-included in the analysis.
+included in the analysis. The patterns specified in `excludes` are applied last, 
+therefore `excludes` takes precedence. In other words, if the same field is 
+specified in both `includes` and `excludes`, then the field will not be included 
+in the analysis.
 +
 --
 The supported fields for each type of analysis are as follows:

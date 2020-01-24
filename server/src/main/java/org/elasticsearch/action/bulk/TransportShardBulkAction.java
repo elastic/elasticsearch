@@ -127,14 +127,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         private final BulkShardRequest request;
         private final IndexShard indexShard;
         private final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener;
+        private final BulkPrimaryExecutionContext context;
 
         private ShardOp(BulkShardRequest request, IndexShard indexShard,
                         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
             this.request = request;
             this.indexShard = indexShard;
             this.listener = listener;
+            this.context = new BulkPrimaryExecutionContext(request, indexShard);
         }
     }
+
+    private static final int MAX_OPS = 1000;
 
     @Override
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
@@ -142,22 +146,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ConcurrentLinkedQueue<ShardOp> shardQueue = getOrCreateShardQueue(request.shardId());
         shardQueue.add(new ShardOp(request, primary, listener));
 
-        threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
-            ConcurrentLinkedQueue<ShardOp> shardOps = shardQueues.get(request.shardId());
-            ShardOp shardOp;
-            while((shardOp = shardOps.poll()) != null) {
-                thing(shardOp);
-            }
-        });
+        threadPool.executor(ThreadPool.Names.WRITE).execute(() -> pollRun(request.shardId()));
     }
 
-    private void thing(ShardOp shardOp) {
+    private void pollRun(ShardId shardId) {
+        ConcurrentLinkedQueue<ShardOp> shardOps = shardQueues.get(shardId);
+        ShardOp shardOp;
+        int i = 0;
+        while(++i <= MAX_OPS && (shardOp = shardOps.poll()) != null) {
+            performShardOperation(shardOp);
+        }
+    }
+
+    private void performShardOperation(ShardOp shardOp) {
         BulkShardRequest request = shardOp.request;
-        IndexShard primary = shardOp.indexShard;
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener = shardOp.listener;
+        Runnable reschedule = () -> performShardOperation(shardOp);
 
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
+        newPerformOnPrimary(shardOp, reschedule, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, mappingListener) -> {
                 assert update != null;
                 assert shardId != null;
@@ -180,6 +187,59 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }), listener, threadPool
         );
+    }
+
+    public static void newPerformOnPrimary(
+        ShardOp shardOp,
+        Runnable reschedule,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool) {
+
+        BulkPrimaryExecutionContext context = shardOp.context;
+        new ActionRunnable<>(listener) {
+
+            private final Executor executor = threadPool.executor(ThreadPool.Names.WRITE);
+
+            @Override
+            protected void doRun() throws Exception {
+                while (context.hasMoreOperationsToExecute()) {
+                    if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
+                        ActionListener.wrap(v -> executor.execute(reschedule), this::onRejection)) == false) {
+                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
+                        // so we just break out here.
+                        return;
+                    }
+                    assert context.isInitial(); // either completed and moved to next or reset
+                }
+                // We're done, there's no more operations to execute so we resolve the wrapped listener
+                finishRequest();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
+                while (context.hasMoreOperationsToExecute()) {
+                    context.setRequestToExecute(context.getCurrent());
+                    final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
+                    onComplete(
+                        exceptionToResult(
+                            e,  shardOp.indexShard, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
+                        context, null);
+                }
+                finishRequest();
+            }
+
+            private void finishRequest() {
+                ActionListener.completeWith(listener,
+                    () -> new WritePrimaryResult<>(
+                        context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(), null,
+                        context.getPrimary(), logger));
+            }
+        }.run();
     }
 
     public static void performOnPrimary(
@@ -241,8 +301,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      *                      a mapping update that will finish and invoke the listener on a different thread
      */
     static boolean executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-                                       MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
-                                       ActionListener<Void> itemDoneListener) throws Exception {
+                                          MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
+                                          ActionListener<Void> itemDoneListener) throws Exception {
+        // TODO: ItemDoneListener is more of a rescheduler
+
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         final UpdateHelper.Result updateResult;

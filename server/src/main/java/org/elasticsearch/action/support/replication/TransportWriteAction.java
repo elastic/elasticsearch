@@ -325,22 +325,48 @@ public abstract class TransportWriteAction<
         }
     }
 
-    private static class FsyncAfterWriteAction {
+    private static class RefreshAfterWriteAction {
 
         private final ActionListener<Void> listener;
         private final Logger logger;
         private final IndexShard indexShard;
         private final Location location;
 
-        FsyncAfterWriteAction(final IndexShard indexShard,
-                              @Nullable final Translog.Location location,
-                              final ActionListener<Void> listener,
-                              final Logger logger) {
+        RefreshAfterWriteAction(final IndexShard indexShard,
+                                @Nullable final Translog.Location location,
+                                final ActionListener<Void> listener,
+                                final Logger logger) {
             this.indexShard = indexShard;
-
             this.location = location;
             this.listener = listener;
             this.logger = logger;
+        }
+
+        void refresh() {
+            indexShard.addRefreshListener(location, forcedRefresh -> {
+                if (forcedRefresh) {
+//                    logger.warn(
+//                        "block until refresh ran out of slots and forced a refresh: [{}]",
+//                        request);
+                }
+//                refreshed.set(forcedRefresh);
+                listener.onResponse(null);
+            });
+        }
+    }
+
+    private static class FsyncAfterWriteAction {
+
+        private final ActionListener<Void> listener;
+        private final IndexShard indexShard;
+        private final Location location;
+
+        FsyncAfterWriteAction(final IndexShard indexShard,
+                              @Nullable final Translog.Location location,
+                              final ActionListener<Void> listener) {
+            this.indexShard = indexShard;
+            this.location = location;
+            this.listener = listener;
         }
 
         void sync() {

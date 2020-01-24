@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -114,12 +115,19 @@ public class ResultsPersisterService {
                                           Consumer<String> msgHandler) {
         RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
         while (true) {
-            SearchResponse searchResponse = client.search(searchRequest).actionGet();
-            if (searchResponse.status().getStatus() == 200) {
-                return searchResponse;
+            String failureMessage;
+            try {
+                SearchResponse searchResponse = client.search(searchRequest).actionGet();
+                if (RestStatus.OK.equals(searchResponse.status())) {
+                    return searchResponse;
+                }
+                failureMessage = searchResponse.status().toString();
+            } catch (ElasticsearchException e) {
+                LOGGER.warn("[" + jobId + "] Exception while executing search action", e);
+                failureMessage = e.getDetailedMessage();
             }
 
-            retryContext.nextIteration("search", searchResponse.status().toString());
+            retryContext.nextIteration("search", failureMessage);
         }
     }
 
@@ -153,7 +161,7 @@ public class ResultsPersisterService {
                 String msg = new ParameterizedMessage(
                     "[{}] should not retry {} after [{}] attempts. {}", jobId, actionName, currentAttempt, failureMessage)
                     .getFormattedMessage();
-                LOGGER.info(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+                LOGGER.info(msg);
                 throw new ElasticsearchException(msg);
             }
 
@@ -161,7 +169,7 @@ public class ResultsPersisterService {
             if (currentAttempt > maxFailureRetries) {
                 String msg = new ParameterizedMessage(
                     "[{}] failed to {} after [{}] attempts. {}", jobId, actionName, currentAttempt, failureMessage).getFormattedMessage();
-                LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+                LOGGER.warn(msg);
                 throw new ElasticsearchException(msg);
             }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,14 +57,43 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class ResultsPersisterServiceTests extends ESTestCase {
 
-    private static final int MAX_FAILURE_RETRIES = 10;
+    // Common constants
     private static final String JOB_ID = "results_persister_test_job";
+
+    // Constants for searchWithRetry tests
+    private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
+    private static final SearchResponse SEARCH_RESPONSE_SUCCESS =
+        new SearchResponse(null, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+    private static final SearchResponse SEARCH_RESPONSE_FAILURE =
+        new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+
+    // Constants for bulkIndexWithRetry tests
+    private static final IndexRequest INDEX_REQUEST_SUCCESS =
+        new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
+    private static final IndexRequest INDEX_REQUEST_FAILURE =
+        new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
+    private static final BulkItemResponse BULK_ITEM_RESPONSE_SUCCESS =
+        new BulkItemResponse(
+            1,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
+                INDEX_REQUEST_SUCCESS.id(),
+                0,
+                0,
+                1,
+                true));
+    private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE =
+        new BulkItemResponse(
+            2,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
 
     private Client client;
     private OriginSettingClient originSettingClient;
@@ -77,89 +107,103 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_ImmediateSuccess() {
-        SearchRequest searchRequest = new SearchRequest("my-index");
-        SearchResponse searchResponseOk = new SearchResponse(null, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-
-        doAnswer(withResponse(searchResponseOk))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS))
+            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
-        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(searchRequest, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(searchResponseOk));
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
+        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, is(empty()));
 
-        verify(client).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        verify(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_SuccessAfterRetry() {
-        SearchRequest searchRequest = new SearchRequest("my-index");
-        SearchResponse searchResponseOk = new SearchResponse(null, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-        SearchResponse searchResponseFailure = new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-
-        doAnswerWithResponses(searchResponseFailure, searchResponseOk)
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        doAnswerWithResponses(SEARCH_RESPONSE_FAILURE, SEARCH_RESPONSE_SUCCESS)
+            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
-        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(searchRequest, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(searchResponseOk));
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
+        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, hasSize(1));
 
-        verify(client, times(2)).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        verify(client, times(2)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
-    public void testSearchWithRetries_FailureAfterTooManyRetries() {
-        SearchRequest searchRequest = new SearchRequest("my-index");
-        SearchResponse searchResponseFailure = new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+    public void testSearchWithRetries_SuccessAfterRetryDueToException() {
+        doThrow(new IndexNotFoundException("my-index")).doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS))
+            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
-        doAnswer(withResponse(searchResponseFailure))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        List<String> messages = new ArrayList<>();
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
+        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
+        assertThat(messages, hasSize(1));
+
+        verify(client, times(2)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+    }
+
+    private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
+        resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
+
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE))
+            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e =
             expectThrows(
                 ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(searchRequest, JOB_ID, () -> true, messages::add));
-        assertThat(e.getMessage(), containsString("failed to search after [" + (MAX_FAILURE_RETRIES + 1) + "] attempts."));
-        assertThat(messages, hasSize(MAX_FAILURE_RETRIES));
+                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add));
+        assertThat(e.getMessage(), containsString("failed to search after [" + (maxFailureRetries + 1) + "] attempts."));
+        assertThat(messages, hasSize(maxFailureRetries));
 
-        verify(client, times(MAX_FAILURE_RETRIES + 1)).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        verify(client, times(maxFailureRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
-    public void testSearchWithRetries_Failure_ShouldNotRetry() {
-        SearchRequest searchRequest = new SearchRequest("my-index");
-        SearchResponse searchResponseFailure = new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+    public void testSearchWithRetries_FailureAfterTooManyRetries_0() {
+        testSearchWithRetries_FailureAfterTooManyRetries(0);
+    }
 
-        doAnswer(withResponse(searchResponseFailure))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+    public void testSearchWithRetries_FailureAfterTooManyRetries_1() {
+        testSearchWithRetries_FailureAfterTooManyRetries(1);
+    }
+
+    public void testSearchWithRetries_FailureAfterTooManyRetries_10() {
+        testSearchWithRetries_FailureAfterTooManyRetries(10);
+    }
+
+    public void testSearchWithRetries_Failure_ShouldNotRetryFromTheBeginning() {
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE))
+            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e =
             expectThrows(
                 ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(searchRequest, JOB_ID, () -> false, messages::add));
+                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> false, messages::add));
         assertThat(e.getMessage(), containsString("should not retry search after [1] attempts. SERVICE_UNAVAILABLE"));
         assertThat(messages, empty());
 
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_Failure_ShouldNotRetryAfterRandomNumberOfRetries() {
-        SearchRequest searchRequest = new SearchRequest("my-index");
-        SearchResponse searchResponseFailure = new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+        int maxFailureRetries = 10;
+        resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(searchResponseFailure))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE))
+            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
+        int maxRetries = randomIntBetween(1, maxFailureRetries);
         List<String> messages = new ArrayList<>();
-        int maxRetries = randomIntBetween(1, MAX_FAILURE_RETRIES);
         ElasticsearchException e =
             expectThrows(
                 ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(searchRequest, JOB_ID, shouldRetryUntil(maxRetries), messages::add));
-        assertThat(e.getMessage(), containsString("should not retry search after [" + maxRetries + "] attempts. SERVICE_UNAVAILABLE"));
-        assertThat(messages, hasSize(maxRetries - 1));
+                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, shouldRetryUntil(maxRetries), messages::add));
+        assertThat(
+            e.getMessage(), containsString("should not retry search after [" + (maxRetries + 1) + "] attempts. SERVICE_UNAVAILABLE"));
+        assertThat(messages, hasSize(maxRetries));
 
-        verify(client, times(maxRetries)).execute(eq(SearchAction.INSTANCE), eq(searchRequest), any());
+        verify(client, times(maxRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {
@@ -167,33 +211,20 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             int retries = 0;
             @Override
             public Boolean get() {
-                return ++retries < maxRetries;
+                return ++retries <= maxRetries;
             }
         };
     }
 
     public void testBulkRequestChangeOnFailures() {
-        IndexRequest indexRequestSuccess = new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
-        IndexRequest indexRequestFail = new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
-        BulkItemResponse successItem = new BulkItemResponse(1,
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
-                indexRequestSuccess.id(),
-                0,
-                0,
-                1,
-                true));
-        BulkItemResponse failureItem = new BulkItemResponse(2,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
         doAnswerWithResponses(
-                new BulkResponse(new BulkItemResponse[]{ failureItem, successItem }, 0L),
+                new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
                 new BulkResponse(new BulkItemResponse[0], 0L))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(indexRequestFail);
-        bulkRequest.add(indexRequestSuccess);
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
         AtomicReference<String> lastMessage = new AtomicReference<>();
 
@@ -210,27 +241,14 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testBulkRequestDoesNotRetryWhenSupplierIsFalse() {
-        IndexRequest indexRequestSuccess = new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
-        IndexRequest indexRequestFail = new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
-        BulkItemResponse successItem = new BulkItemResponse(1,
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
-                indexRequestSuccess.id(),
-                0,
-                0,
-                1,
-                true));
-        BulkItemResponse failureItem = new BulkItemResponse(2,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
         doAnswerWithResponses(
-                new BulkResponse(new BulkItemResponse[]{ failureItem, successItem }, 0L),
+                new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
                 new BulkResponse(new BulkItemResponse[0], 0L))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(indexRequestFail);
-        bulkRequest.add(indexRequestSuccess);
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
         AtomicReference<String> lastMessage = new AtomicReference<>();
 
@@ -242,47 +260,33 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testBulkRequestRetriesConfiguredAttemptNumber() {
-        IndexRequest indexRequestFail = new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
-        BulkItemResponse failureItem = new BulkItemResponse(2,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ failureItem }, 0L)))
+        int maxFailureRetries = 10;
+        resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
+
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE}, 0L)))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(indexRequestFail);
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
 
         AtomicReference<String> lastMessage = new AtomicReference<>();
 
         expectThrows(ElasticsearchException.class,
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set));
-        verify(client, times(11)).execute(eq(BulkAction.INSTANCE), any(), any());
+        verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
 
         assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again in"));
     }
 
     public void testBulkRequestRetriesMsgHandlerIsCalled() {
-        IndexRequest indexRequestSuccess = new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
-        IndexRequest indexRequestFail = new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
-        BulkItemResponse successItem = new BulkItemResponse(1,
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
-                indexRequestSuccess.id(),
-                0,
-                0,
-                1,
-                true));
-        BulkItemResponse failureItem = new BulkItemResponse(2,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
         doAnswerWithResponses(
-                new BulkResponse(new BulkItemResponse[]{ failureItem, successItem }, 0L),
+                new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
                 new BulkResponse(new BulkItemResponse[0], 0L))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(indexRequestFail);
-        bulkRequest.add(indexRequestSuccess);
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
         AtomicReference<String> lastMessage = new AtomicReference<>();
 
@@ -323,8 +327,6 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
 
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(sleeper, client, clusterService, Settings.EMPTY);
-        resultsPersisterService.setMaxFailureRetries(MAX_FAILURE_RETRIES);
-        return resultsPersisterService;
+        return new ResultsPersisterService(sleeper, client, clusterService, Settings.EMPTY);
     }
 }

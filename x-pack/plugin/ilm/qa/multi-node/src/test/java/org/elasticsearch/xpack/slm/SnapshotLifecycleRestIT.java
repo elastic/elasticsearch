@@ -105,9 +105,14 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
-            assertThat(((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).size(), greaterThan(0));
-            Map<String, Object> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).get(0);
-            assertThat(snapResponse.get("snapshot").toString(), startsWith("snap-"));
+            final Map<String, Object> snapResponse;
+            try {
+                List<Map<String, Object>> snapshots = (List<Map<String, Object>>) snapshotResponseMap.get("snapshots");
+                assertTrue(snapshots.stream().anyMatch(s -> s.containsKey("snapshot") && s.get("snapshot").toString().startsWith("snap-")));
+                snapResponse = snapshots.get(0);
+            } catch (Exception e) {
+                throw new AssertionError("failed to find snapshot response in " + snapshotResponseMap, e);
+            }
             assertThat(snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
             Map<String, Object> metadata = (Map<String, Object>) snapResponse.get("metadata");
             assertNotNull(metadata);

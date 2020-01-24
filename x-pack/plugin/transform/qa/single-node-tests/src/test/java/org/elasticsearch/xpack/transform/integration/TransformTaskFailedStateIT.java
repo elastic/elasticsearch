@@ -73,10 +73,10 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
         final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "\\[BulkIndexingException\\[Bulk index experienced \\[7\\] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "\\[TransformException\\[Destination index mappings are "
+            + "incompatible with the transform configuration.\\];.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 
@@ -111,10 +111,10 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
         final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "\\[BulkIndexingException\\[Bulk index experienced \\[7\\] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "\\[TransformException\\[Destination index mappings are "
+            + "incompatible with the transform configuration.\\];.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 

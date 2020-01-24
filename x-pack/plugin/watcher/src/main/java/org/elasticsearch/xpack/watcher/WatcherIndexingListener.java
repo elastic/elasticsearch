@@ -167,6 +167,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
+            logger.debug("removing watch [{}] to trigger service via delete", delete.id());
             triggerService.remove(delete.id());
         }
 

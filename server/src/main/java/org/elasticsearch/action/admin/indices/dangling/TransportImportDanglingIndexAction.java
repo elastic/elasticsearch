@@ -35,8 +35,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.CollectionUtils.map;
 
 /**
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},
@@ -107,34 +110,30 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 @Override
                 public void handleResponse(ListDanglingIndicesResponse response) {
                     String indexUUID = request.getIndexUUID();
-                    String nodeId = request.getNodeId();
 
-                    List<IndexMetaData> matchingMetaData = new ArrayList<>();
+                    final List<IndexMetaData> metaDataSortedByVersion = response.getNodes()
+                        .stream()
+                        .flatMap(each -> each.getDanglingIndices().stream())
+                        .filter(each -> each.getIndexUUID().equals(indexUUID))
+                        .sorted(Comparator.comparingLong(IndexMetaData::getVersion))
+                        .collect(Collectors.toList());
 
-                    for (NodeDanglingIndicesResponse nodeResponse : response.getNodes()) {
-                        for (IndexMetaData danglingIndex : nodeResponse.getDanglingIndices()) {
-                            if (danglingIndex.getIndexUUID().equals(indexUUID)
-                                && (nodeId == null || nodeResponse.getNode().getId().equals(nodeId))) {
-                                matchingMetaData.add(danglingIndex);
-                            }
-                        }
-                    }
-
-                    if (matchingMetaData.isEmpty()) {
+                    if (metaDataSortedByVersion.isEmpty()) {
                         listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                        return;
                     }
 
-                    if (matchingMetaData.size() > 1) {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "Multiple nodes contain dangling index ["
-                                    + indexUUID
-                                    + "]. Specify a node ID to import a specific dangling index."
-                            )
+                    if (metaDataSortedByVersion.size() > 1) {
+                        logger.debug(
+                            "Metadata versions "
+                                + map(metaDataSortedByVersion, IndexMetaData::getVersion)
+                                + " found for UUID ["
+                                + indexUUID
+                                + "], selecting the highest"
                         );
                     }
 
-                    listener.onResponse(matchingMetaData.get(0));
+                    listener.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
                 }
 
                 @Override

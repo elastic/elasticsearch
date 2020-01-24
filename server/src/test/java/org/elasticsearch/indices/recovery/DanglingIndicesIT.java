@@ -270,7 +270,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         });
 
-        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), true, null);
+        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), true);
 
         final ImportDanglingIndexResponse restoreResponse = client().admin().cluster().importDanglingIndex(request).actionGet();
 
@@ -286,7 +286,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesMustExistToBeRestored() {
         internalCluster().startNodes(1, buildSettings(0, true, false));
 
-        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true, null);
+        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true);
 
         boolean noExceptionThrown = false;
         try {
@@ -345,7 +345,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         });
 
-        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), false, null);
+        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), false);
 
         Exception caughtException = null;
 

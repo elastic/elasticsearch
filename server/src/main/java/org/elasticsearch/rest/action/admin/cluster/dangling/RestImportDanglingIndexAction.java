@@ -45,26 +45,18 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String indexUUID = request.param("index_uuid");
         boolean acceptDataLoss = false;
-        String nodeId = null;
 
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            switch (key) {
-                case "accept_data_loss":
-                    acceptDataLoss = Boolean.parseBoolean(value);
-                    break;
-
-                case "node_id":
-                    nodeId = value;
-                    break;
-
-                default:
-                    throw new IllegalArgumentException("Unknown URL parameter [" + key + "]");
+            if ("accept_data_loss".equals(key)) {
+                acceptDataLoss = Boolean.parseBoolean(value);
+            } else {
+                throw new IllegalArgumentException("Unknown URL parameter [" + key + "]");
             }
         }
 
-        final ImportDanglingIndexRequest importRequest = new ImportDanglingIndexRequest(indexUUID, acceptDataLoss, nodeId);
+        final ImportDanglingIndexRequest importRequest = new ImportDanglingIndexRequest(indexUUID, acceptDataLoss);
 
         return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestStatusToXContentListener<>(channel));
     }

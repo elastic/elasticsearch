@@ -339,6 +339,21 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertThat(ex.getMessage(), equalTo(msg));
     }
 
+    public void testTreeWithEmptyFeatureNames() {
+        String msg = "[feature_names] must not be empty for tree model";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Tree.builder()
+                .setRoot(TreeNode.builder(0)
+                    .setLeftChild(1)
+                    .setSplitFeature(1)
+                    .setThreshold(randomDouble()))
+                .setFeatureNames(Collections.emptyList())
+                .build()
+                .validate();
+        });
+        assertThat(ex.getMessage(), equalTo(msg));
+    }
+
     public void testOperationsEstimations() {
         Tree tree = buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
         assertThat(tree.estimatedNumOperations(), equalTo(7L));

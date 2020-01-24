@@ -56,6 +56,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
@@ -492,13 +494,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         ApiKeyService realService = createApiKeyService(Settings.EMPTY);
         ApiKeyService service  = Mockito.spy(realService);
 
-        final Object hashWait = new Object();
+        // Used to block the hashing of the first api-key secret so that we can guarantee
+        // that a second api key authentication takes place while hashing is "in progress".
+        final Semaphore hashWait = new Semaphore(0);
         final AtomicInteger hashCounter = new AtomicInteger(0);
         doAnswer(invocationOnMock -> {
             hashCounter.incrementAndGet();
-            synchronized (hashWait) {
-                hashWait.wait();
-            }
+            hashWait.acquire();
             return invocationOnMock.callRealMethod();
         }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class));
 
@@ -530,9 +532,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             fail("Expected authentication to be blocked, but was " + future2.actionGet());
         }
 
-        synchronized (hashWait) {
-            hashWait.notify();
-        }
+        hashWait.release();
 
         assertThat(future1.actionGet(TimeValue.timeValueSeconds(2)).isAuthenticated(), is(true));
         assertThat(future2.actionGet(TimeValue.timeValueMillis(100)).isAuthenticated(), is(true));

@@ -45,10 +45,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
@@ -317,7 +317,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 
     protected void createFieldNamesField(ParseContext context, List<IndexableField> fields) {
-        FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.docMapper()
+        FieldNamesFieldType fieldNamesFieldType = context.docMapper()
                 .metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
@@ -363,6 +363,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         multiFields = multiFields.merge(fieldMergeWith.multiFields);
 
         // apply changeable values
+        List<String> conflicts = new ArrayList<>();
+        this.fieldType.checkCompatibility(fieldMergeWith.fieldType, conflicts);
+        if (conflicts.size() > 0) {
+            throw new IllegalArgumentException("Mapper for [" + fieldType.name() + "] conflicts with existing mapping:\n" + conflicts);
+        }
         this.fieldType = fieldMergeWith.fieldType;
         this.copyTo = fieldMergeWith.copyTo;
     }

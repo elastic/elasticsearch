@@ -1273,4 +1273,31 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
+
+    public void testInternalMergewWithIncompatibleFieldtypesThrows() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("o1")
+                            .field("type", "object")
+                            .startObject("properties")
+                                .startObject("f1")
+                                    .field("type", "text")
+                                    .field("index", "false")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject("o1.f1")
+                            .field("type", "text")
+                            .field("term_vector", "yes")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("_doc", new CompressedXContent(mapping)));
+        assertEquals("Mapper for [o1.f1] conflicts with existing mapping:\n" +
+                "[mapper [o1.f1] has different [index] values, mapper [o1.f1] has different [store_term_vector] values]", ex.getMessage());
+    }
 }

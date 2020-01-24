@@ -1080,7 +1080,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (state.failed()) {
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                     } else if (state.completed() == false) {
-                        shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, "Not attempted [" + state + "]"));
+                        shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, "skipped"));
                     } else {
                         assert state == ShardState.SUCCESS;
                     }

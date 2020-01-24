@@ -20,13 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.ir.ElvisNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
 
@@ -94,17 +91,16 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    ElvisNode write() {
+        ElvisNode elvisNode = new ElvisNode();
 
-        Label end = new Label();
+        elvisNode.setLeftNode(lhs.write());
+        elvisNode.setRightNode(rhs.write());
 
-        lhs.write(classWriter, methodWriter, globals);
-        methodWriter.dup();
-        methodWriter.ifNonNull(end);
-        methodWriter.pop();
-        rhs.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
+        elvisNode.setLocation(location);
+        elvisNode.setExpressionType(actual);
+
+        return elvisNode;
     }
 
     @Override

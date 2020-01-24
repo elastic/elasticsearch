@@ -82,7 +82,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             public void onFailure(Exception e) {
                 exceptionHolder[0] = e;
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -118,7 +118,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             public void onFailure(Exception e) {
                 exceptionHolder[0] = e;
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
@@ -153,7 +153,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             public void onFailure(Exception e) {
                 exceptionHolder[0] = e;
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());

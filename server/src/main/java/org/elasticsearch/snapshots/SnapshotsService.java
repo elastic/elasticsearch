@@ -1076,8 +1076,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                     ShardId shardId = shardStatus.key;
                     ShardSnapshotStatus status = shardStatus.value;
-                    if (status.state().failed()) {
+                    final ShardState state = status.state();
+                    if (state.failed()) {
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
+                    } else if (state.completed() == false) {
+                        shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, "skipped"));
+                    } else {
+                        assert state == ShardState.SUCCESS;
                     }
                 }
                 final ShardGenerations shardGenerations = buildGenerations(entry, metaData);

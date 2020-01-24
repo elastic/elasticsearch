@@ -56,7 +56,6 @@ public class WildflyIT extends LuceneTestCase {
 
     private Logger logger = LogManager.getLogger(WildflyIT.class);
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45625")
     public void testRestClient() throws URISyntaxException, IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             final String str = String.format(

@@ -426,7 +426,7 @@ class BuildPlugin implements Plugin<Project> {
                             dependencyNode.appendNode('groupId', dependency.group)
                             dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
                             dependencyNode.appendNode('version', dependency.version)
-                            dependencyNode.appendNode('scope', 'runtime')
+                            dependencyNode.appendNode('scope', 'compile')
                         }
                     }
                 }

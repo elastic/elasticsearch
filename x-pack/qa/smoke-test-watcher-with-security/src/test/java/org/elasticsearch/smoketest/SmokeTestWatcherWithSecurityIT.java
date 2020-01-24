@@ -6,7 +6,6 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -200,7 +198,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -231,7 +228,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "some-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -252,7 +248,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -276,7 +271,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "index_not_allowed_to_read")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();

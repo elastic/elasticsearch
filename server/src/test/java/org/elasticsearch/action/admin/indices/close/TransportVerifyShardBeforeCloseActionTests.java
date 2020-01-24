@@ -161,8 +161,6 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
-
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));

@@ -1588,44 +1588,8 @@ public class InternalEngine extends Engine {
         refresh("write indexing buffer", SearcherScope.INTERNAL, false);
     }
 
-    @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        // best effort attempt before we acquire locks
-        ensureOpen();
-        if (indexWriter.hasUncommittedChanges()) {
-            logger.trace("can't sync commit [{}]. have pending changes", syncId);
-            return SyncedFlushResult.PENDING_OPERATIONS;
-        }
-        if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
-            logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-            return SyncedFlushResult.COMMIT_MISMATCH;
-        }
-        try (ReleasableLock lock = writeLock.acquire()) {
-            ensureOpen();
-            ensureCanFlush();
-            // lets do a refresh to make sure we shrink the version map. This refresh will be either a no-op (just shrink the version map)
-            // or we also have uncommitted changes and that causes this syncFlush to fail.
-            refresh("sync_flush", SearcherScope.INTERNAL, true);
-            if (indexWriter.hasUncommittedChanges()) {
-                logger.trace("can't sync commit [{}]. have pending changes", syncId);
-                return SyncedFlushResult.PENDING_OPERATIONS;
-            }
-            if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
-                logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-                return SyncedFlushResult.COMMIT_MISMATCH;
-            }
-            logger.trace("starting sync commit [{}]", syncId);
-            commitIndexWriter(indexWriter, translog, syncId);
-            logger.debug("successfully sync committed. sync id [{}].", syncId);
-            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            return SyncedFlushResult.SUCCESS;
-        } catch (IOException ex) {
-            maybeFailEngine("sync commit", ex);
-            throw new EngineException(shardId, "failed to sync commit", ex);
-        }
-    }
-
     final boolean tryRenewSyncCommit() {
+        // TODO: Remove syncId things entirely in 9.0
         boolean renewed = false;
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
@@ -1685,14 +1649,13 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
             throw new IllegalArgumentException(
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing);
         }
-        final byte[] newCommitId;
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
          * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
@@ -1703,13 +1666,12 @@ public class InternalEngine extends Engine {
             ensureOpen();
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
-                if (waitIfOngoing) {
-                    logger.trace("waiting for in-flight flush to finish");
-                    flushLock.lock();
-                    logger.trace("acquired flush lock after blocking");
-                } else {
-                    return new CommitId(lastCommittedSegmentInfos.getId());
+                if (waitIfOngoing == false) {
+                    return;
                 }
+                logger.trace("waiting for in-flight flush to finish");
+                flushLock.lock();
+                logger.trace("acquired flush lock after blocking");
             } else {
                 logger.trace("acquired flush lock immediately");
             }
@@ -1741,7 +1703,6 @@ public class InternalEngine extends Engine {
                     refreshLastCommittedSegmentInfos();
 
                 }
-                newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
                 throw ex;
@@ -1754,10 +1715,9 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return new CommitId(newCommitId);
     }
 
-    private void refreshLastCommittedSegmentInfos() {
+    final void refreshLastCommittedSegmentInfos() {
     /*
      * we have to inc-ref the store here since if the engine is closed by a tragic event
      * we don't acquire the write lock and wait until we have exclusive access. This might also

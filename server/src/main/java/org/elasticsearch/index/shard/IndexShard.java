@@ -1039,9 +1039,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes the given flush request against the engine.
      *
      * @param request the flush request
-     * @return the commit ID
      */
-    public Engine.CommitId flush(FlushRequest request) {
+    public void flush(FlushRequest request) {
         final boolean waitIfOngoing = request.waitIfOngoing();
         final boolean force = request.force();
         logger.trace("flush with {}", request);
@@ -1052,9 +1051,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         verifyNotClosed();
         final long time = System.nanoTime();
-        final Engine.CommitId commitId = getEngine().flush(force, waitIfOngoing);
+        getEngine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
-        return commitId;
     }
 
     /**

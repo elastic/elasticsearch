@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.BraceSubNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -58,15 +56,15 @@ final class PSubBrace extends AStoreable {
         actual = clazz.getComponentType();
     }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        setup(classWriter, methodWriter, globals);
-        load(classWriter, methodWriter, globals);
-    }
+    BraceSubNode write() {
+        BraceSubNode braceSubNode = new BraceSubNode();
 
-    @Override
-    int accessElementCount() {
-        return 2;
+        braceSubNode.setChildNode(index.write());
+
+        braceSubNode.setLocation(location);
+        braceSubNode.setExpressionType(actual);
+
+        return braceSubNode;
     }
 
     @Override
@@ -77,24 +75,6 @@ final class PSubBrace extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        index.write(classWriter, methodWriter, globals);
-        writeIndexFlip(methodWriter, MethodWriter::arrayLength);
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.arrayLoad(MethodWriter.getType(actual));
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.arrayStore(MethodWriter.getType(actual));
     }
 
     @Override

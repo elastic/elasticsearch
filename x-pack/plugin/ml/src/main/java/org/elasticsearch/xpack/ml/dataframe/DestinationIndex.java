@@ -42,9 +42,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
- * {@link DataFrameAnalyticsIndex} class encapsulates logic for creating destination index based on source index metadata.
+ * {@link DestinationIndex} class encapsulates logic for creating destination index based on source index metadata.
  */
-public final class DataFrameAnalyticsIndex {
+public final class DestinationIndex {
 
     public static final String ID_COPY = "ml__id_copy";
 
@@ -65,7 +65,7 @@ public final class DataFrameAnalyticsIndex {
      */
     private static final String[] PRESERVED_SETTINGS = new String[] {"index.number_of_shards", "index.number_of_replicas"};
 
-    private DataFrameAnalyticsIndex() {}
+    private DestinationIndex() {}
 
     /**
      * Creates destination index based on source index metadata.

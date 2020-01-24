@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -106,16 +105,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
-            List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
-                .findFirst()
-                .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
-                .filter(allRepos -> allRepos.stream()
-                    .anyMatch(snapMap -> Optional.ofNullable((String) snapMap.get("snapshot"))
-                        .map(snapName -> snapName.startsWith("snap-"))
-                        .orElse(false)))
-                .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-            assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
-            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
+            final Map<String, Object> snapResponse;
+            try {
+                Map<String, Object> responseMap = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).get(0);
+                List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
+                assertTrue(snapshots.stream().anyMatch(s -> s.containsKey("snapshot") && s.get("snapshot").toString().startsWith("snap-")));
+                snapResponse = snapshots.get(0);
+            } catch (Exception e) {
+                throw new AssertionError("failed to find snapshot response in " + snapshotResponseMap, e);
+            }
+            assertThat(snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
+            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
         });

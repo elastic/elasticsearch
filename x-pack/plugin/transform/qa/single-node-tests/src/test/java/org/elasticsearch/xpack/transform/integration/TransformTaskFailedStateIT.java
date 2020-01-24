@@ -62,7 +62,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51360")
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
@@ -74,10 +73,10 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
         final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "\\[BulkIndexingException\\[Bulk index experienced \\[7\\] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "\\[TransformException\\[Destination index mappings are "
+            + "incompatible with the transform configuration.\\];.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 
@@ -101,7 +100,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51360")
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
@@ -113,10 +111,10 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
         final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "\\[BulkIndexingException\\[Bulk index experienced \\[7\\] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "\\[TransformException\\[Destination index mappings are "
+            + "incompatible with the transform configuration.\\];.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ql.type;
 
 import java.util.Collection;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-
 public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     public static final DataTypeRegistry INSTANCE = new DefaultDataTypeRegistry();
@@ -33,7 +31,7 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public boolean isUnsupported(DataType type) {
-        return type == UNSUPPORTED;
+        return DataTypes.isUnsupported(type);
     }
 
     @Override

@@ -424,21 +424,21 @@ public class IndexResolver {
         DataType esType = typeRegistry.fromEs(typeName);
 
         if (esType == TEXT) {
-                return new TextEsField(fieldName, props, false, isAlias);
+            return new TextEsField(fieldName, props, false, isAlias);
         }
         if (esType == KEYWORD) {
             int length = Short.MAX_VALUE;
-                // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
-                boolean normalized = false;
-                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
+            // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
+            boolean normalized = false;
+            return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
         }
         if (esType == DATETIME) {
-                return new DateEsField(fieldName, props, isAggregateable);
+            return new DateEsField(fieldName, props, isAggregateable);
         }
         if (esType == UNSUPPORTED) {
-                return new UnsupportedEsField(fieldName, typeName, null, props);
+            return new UnsupportedEsField(fieldName, typeName, null, props);
         }
-                return new EsField(fieldName, esType, props, isAggregateable, isAlias);
+            return new EsField(fieldName, esType, props, isAggregateable, isAlias);
         }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {

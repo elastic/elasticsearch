@@ -80,10 +80,6 @@ public class EsField {
         return this;
     }
 
-    //    public int getPrecision() {
-    //        return esDataType.defaultPrecision;
-    //    }
-
     /**
      * Returns and {@link Exact} object with all the necessary info about the field:
      * <ul>

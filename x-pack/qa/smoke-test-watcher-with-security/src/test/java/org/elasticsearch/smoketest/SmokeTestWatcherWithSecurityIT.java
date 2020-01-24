@@ -6,7 +6,6 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -92,7 +90,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     @After
     public void stopWatcher() throws Exception {
-       
+
         assertBusy(() -> {
             try {
                 Response statsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
@@ -200,7 +198,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -231,7 +228,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "some-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -252,7 +248,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -276,7 +271,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "index_not_allowed_to_read")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -308,22 +302,23 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private ObjectPath getWatchHistoryEntry(String watchId, String state) throws Exception {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
-        assertBusy(() -> {
-            client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+        try {
+            assertBusy(() -> {
+                client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
 
-            try (XContentBuilder builder = jsonBuilder()) {
-                builder.startObject();
-                builder.startObject("query").startObject("bool").startArray("must");
-                builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
+                try (XContentBuilder builder = jsonBuilder()) {
+                    builder.startObject();
+                    builder.startObject("query").startObject("bool").startArray("must");
+                    builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
                         .endObject();
-                if (Strings.isNullOrEmpty(state) == false) {
-                    builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
+                    if (Strings.isNullOrEmpty(state) == false) {
+                        builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
                             .endObject();
-                }
-                builder.endArray().endObject().endObject();
-                builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
+                    }
+                    builder.endArray().endObject().endObject();
+                    builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
                         .endObject().endArray();
-                builder.endObject();
+                    builder.endObject();
 
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
                 searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
@@ -336,7 +331,43 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 assertThat(watchid, is(watchId));
                 objectPathReference.set(objectPath);
             }
-        });
+            });
+        } catch (AssertionError ae) {
+            {
+                Request request = new Request("GET", "/_watcher/stats");
+                request.addParameter("metric", "_all");
+                request.addParameter("pretty", "true");
+                try {
+                    Response response = client().performRequest(request);
+                    logger.info("watcher_stats: {}", EntityUtils.toString(response.getEntity()));
+                } catch (IOException e) {
+                    logger.error("error while fetching watcher_stats", e);
+                }
+            }
+            {
+                Request request = new Request("GET", "/_cluster/state");
+                request.addParameter("pretty", "true");
+                try {
+                    Response response = client().performRequest(request);
+                    logger.info("cluster_state: {}", EntityUtils.toString(response.getEntity()));
+                } catch (IOException e) {
+                    logger.error("error while fetching cluster_state", e);
+                }
+            }
+            {
+                Request request = new Request("GET", "/.watcher-history-*/_search");
+                request.addParameter("size", "100");
+                request.addParameter("sort", "trigger_event.triggered_time:desc");
+                request.addParameter("pretty", "true");
+                try {
+                    Response response = client().performRequest(request);
+                    logger.info("watcher_history_snippets: {}", EntityUtils.toString(response.getEntity()));
+                } catch (IOException e) {
+                    logger.error("error while fetching watcher_history_snippets", e);
+                }
+            }
+            throw ae;
+        }
         return objectPathReference.get();
     }
 }

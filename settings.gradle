@@ -1,5 +1,5 @@
 plugins {
-  id "com.gradle.enterprise" version "3.0"
+  id "com.gradle.enterprise" version "3.1.1"
 }
 
 String dirName = rootProject.projectDir.name
@@ -36,8 +36,6 @@ List projects = [
   'distribution:docker:docker-export',
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-docker-export',
-  'distribution:docker:ubi-docker-build-context',
-  'distribution:docker:ubi-docker-export',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-no-jdk-deb',

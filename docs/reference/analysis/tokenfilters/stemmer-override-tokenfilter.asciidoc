@@ -1,5 +1,8 @@
 [[analysis-stemmer-override-tokenfilter]]
-=== Stemmer Override Token Filter
+=== Stemmer override token filter
+++++
+<titleabbrev>Stemmer override</titleabbrev>
+++++
 
 Overrides stemming algorithms, by applying a custom mapping, then
 protecting these terms from being modified by stemmers. Must be placed

@@ -1,11 +1,11 @@
 [[analysis]]
-= Analysis
+= Text analysis
 
 [partintro]
 --
 
-_Analysis_ is the process of converting text, like the body of any email, into
-_tokens_ or _terms_ which are added to the inverted index for searching.
+_Text analysis_ is the process of converting text, like the body of any email,
+into _tokens_ or _terms_ which are added to the inverted index for searching.
 Analysis is performed by an <<analysis-analyzers,_analyzer_>> which can be
 either a built-in analyzer or a <<analysis-custom-analyzer,`custom`>> analyzer
 defined per index.
@@ -35,6 +35,19 @@ to the inverted index:
 [[specify-index-time-analyzer]]
 === Specifying an index time analyzer
 
+{es} determines which index-time analyzer to use by
+checking the following parameters in order:
+
+. The <<analyzer,`analyzer`>> mapping parameter of the field
+. The `default` analyzer parameter in the index settings
+
+If none of these parameters are specified, the
+<<analysis-standard-analyzer,`standard` analyzer>> is used.
+
+[discrete]
+[[specify-index-time-field-analyzer]]
+==== Specify the index-time analyzer for a field
+
 Each <<text,`text`>> field in a mapping can specify its own
 <<analyzer,`analyzer`>>:
 
@@ -53,10 +66,32 @@ PUT my_index
 }
 -------------------------
 
-At index time, if no `analyzer` has been specified, it looks for an analyzer
-in the index settings called `default`.  Failing that, it defaults to using
-the <<analysis-standard-analyzer,`standard` analyzer>>.
+[discrete]
+[[specify-index-time-default-analyzer]]
+==== Specify a default index-time analyzer
 
+When <<indices-create-index,creating an index>>, you can set a default
+index-time analyzer using the `default` analyzer setting:
+
+[source,console]
+----
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "type": "whitespace"
+        }
+      }
+    }
+  }
+}
+----
+
+A default index-time analyzer is useful when mapping multiple `text` fields that
+use the same analyzer. It's also used as a general fallback analyzer for both
+index-time and search-time analysis.
 
 [float]
 == Search time analysis
@@ -107,17 +142,19 @@ looking for:
 
 --
 
-include::analysis/anatomy.asciidoc[]
+include::analysis/overview.asciidoc[]
 
-include::analysis/testing.asciidoc[]
+include::analysis/concepts.asciidoc[]
+
+include::analysis/configure-text-analysis.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
-
-include::analysis/normalizers.asciidoc[]
 
 include::analysis/tokenizers.asciidoc[]
 
 include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
+
+include::analysis/normalizers.asciidoc[]
 

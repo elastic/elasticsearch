@@ -323,4 +323,3 @@ setup:
   - match: {fields.misc.unmapped.searchable:            false}
   - match: {fields.misc.unmapped.aggregatable:          false}
   - match: {fields.misc.unmapped.indices:               ["test2", "test3"]}
-

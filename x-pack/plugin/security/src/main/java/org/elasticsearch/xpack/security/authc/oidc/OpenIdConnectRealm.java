@@ -44,11 +44,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -218,7 +219,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
              */
             Set<Map.Entry> allowedEntries = claimsMap.entrySet().stream().filter(entry -> {
                 Object v = entry.getValue();
-                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collections);
+                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collection);
             }).collect(Collectors.toSet());
             for (Map.Entry entry : allowedEntries) {
                 userMetadata.put("oidc(" + entry.getKey() + ")", entry.getValue());

@@ -92,6 +92,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -99,6 +100,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
@@ -981,7 +983,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndex(index, settings);
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
             SyncedFlushResponse flushResponse =
-                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync);
+                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync,
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE));
             assertThat(flushResponse.totalShards(), equalTo(1));
             assertThat(flushResponse.successfulShards(), equalTo(1));
             assertThat(flushResponse.failedShards(), equalTo(0));
@@ -996,7 +999,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     execute(
                         syncedFlushRequest,
                         highLevelClient().indices()::flushSynced,
-                        highLevelClient().indices()::flushSyncedAsync
+                        highLevelClient().indices()::flushSyncedAsync,
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
                     )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -1576,6 +1580,32 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }
+
+    public void testPutTemplateWithDeprecatedTemplateField() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
+            .source(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("template", "name-*")
+                    .field("order", 10)
+                    .startObject("settings")
+                        .field("number_of_shards", 3)
+                        .field("number_of_replicas", 0)
+                    .endObject()
+                .endObject());
+
+        AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate,
+            highLevelClient().indices()::putTemplateAsync,
+            expectWarnings("Deprecated field [template] used, replaced by [index_patterns]"));
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
     }
 
     public void testPutTemplateWithTypesUsingUntypedAPI() throws Exception {

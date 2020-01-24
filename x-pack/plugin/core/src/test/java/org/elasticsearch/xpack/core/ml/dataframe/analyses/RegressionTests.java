@@ -20,6 +20,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
-    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0);
+    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = BoostedTreeParams.builder().build();
 
     @Override
     protected Regression doParseInstance(XContentParser parser) throws IOException {
@@ -41,7 +42,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         return createRandom();
     }
 
-    public static Regression createRandom() {
+    private static Regression createRandom() {
         String dependentVariableName = randomAlphaOfLength(10);
         BoostedTreeParams boostedTreeParams = BoostedTreeParamsTests.createRandom();
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
@@ -100,8 +101,18 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
             allOf(hasEntry("dependent_variable", "foo"), hasEntry("prediction_field_name", "foo_prediction")));
     }
 
-    public void testFieldCardinalityLimitsIsNonNull() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
+    public void testRequiredFieldsIsNonEmpty() {
+        assertThat(createTestInstance().getRequiredFields(), is(not(empty())));
+    }
+
+    public void testFieldCardinalityLimitsIsEmpty() {
+        assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
+    }
+
+    public void testGetExplicitlyMappedFields() {
+        assertThat(
+            new Regression("foo").getExplicitlyMappedFields(null, "results"),
+            hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
     }
 
     public void testGetStateDocId() {
@@ -109,6 +120,11 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         assertThat(regression.persistsState(), is(true));
         String randomId = randomAlphaOfLength(10);
         assertThat(regression.getStateDocId(randomId), equalTo(randomId + "_regression_state#1"));
+    }
+
+    public void testExtractJobIdFromStateDoc() {
+        assertThat(Regression.extractJobIdFromStateDoc("foo_bar-1_regression_state#1"), equalTo("foo_bar-1"));
+        assertThat(Regression.extractJobIdFromStateDoc("noop"), is(nullValue()));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {

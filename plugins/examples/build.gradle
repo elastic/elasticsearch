@@ -1,9 +1,18 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 // Subprojects aren't published so do not assemble
 gradle.projectsEvaluated {
   subprojects {
     Task assemble = project.tasks.findByName('assemble')
     if (assemble) {
       assemble.enabled = false
+    }
+
+    // Disable example project testing with FIPS JVM
+    tasks.withType(Test) {
+      onlyIf {
+        BuildParams.inFipsJvm == false
+      }
     }
   }
 }

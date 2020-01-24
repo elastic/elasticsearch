@@ -1505,6 +1505,7 @@ to establish trust.
 This diagnostic message contains information that can be used to determine the
 cause of the failure and assist with resolving the problem.
 Set to `false` to disable these messages.
+NOTE: This defaults to `false` when `xpack.security.fips_mode.enabled` is `true`.
 
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS

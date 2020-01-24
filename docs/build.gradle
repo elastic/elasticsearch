@@ -29,12 +29,14 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/get-category.asciidoc',
   'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
   'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
   'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
   'reference/ml/anomaly-detection/apis/get-record.asciidoc',
   'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
   'reference/ml/anomaly-detection/apis/post-data.asciidoc',
   'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
   'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
 testClusters.integTest {
@@ -59,6 +61,7 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'index.lifecycle.history_index_enabled', 'false'
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -1234,7 +1237,23 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
-buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + '''
+buildRestTests.setups['add_timestamp_pipeline'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+'''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
   - do:
       raw:
         method: PUT

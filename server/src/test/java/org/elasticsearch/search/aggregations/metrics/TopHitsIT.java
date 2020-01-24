@@ -107,6 +107,11 @@ public class TopHitsIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap("5", script -> "5");
         }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            return Collections.singletonMap("Math.random()", script -> TopHitsIT.randomDouble());
+        }
     }
 
     public static String randomExecutionHint() {
@@ -1087,10 +1092,10 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
+    public void testScriptCaching() throws Exception {
         try {
             assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(
@@ -1108,10 +1113,10 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-            // Test that a request using a script field does not get cached
+            // Test that a request using a nondeterministic script field does not get cached
             SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").scriptField("bar",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))).get();
             assertSearchResponse(r);
 
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1119,7 +1124,32 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-            // Test that a request using a script sort does not get cached
+            // Test that a request using a nondeterministic script sort does not get cached
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(topHits("foo").sort(
+                    SortBuilders.scriptSort(
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()),
+                                   ScriptSortType.STRING)))
+                .get();
+            assertSearchResponse(r);
+
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+            // Test that a request using a deterministic script field does not get cached
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(topHits("foo").scriptField("bar",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
+            assertSearchResponse(r);
+
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
+
+            // Test that a request using a deterministic script sort does not get cached
             r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").sort(
                     SortBuilders.scriptSort(
@@ -1130,17 +1160,16 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+                .getMissCount(), equalTo(2L));
 
-            // To make sure that the cache is working test that a request not using
-            // a script is cached
+            // Ensure that non-scripted requests are cached as normal
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
             assertSearchResponse(r);
 
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(3L));
         } finally {
             assertAcked(client().admin().indices().prepareDelete("cache_test_idx")); // delete this - if we use tests.iters it would fail
         }

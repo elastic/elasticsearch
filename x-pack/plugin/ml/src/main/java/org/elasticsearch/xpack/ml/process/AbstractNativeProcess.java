@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -44,6 +45,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private final String jobId;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
+    // We need this as in Java 8 closing {@link FilterOutputStream} is not idempotent (i.e. cannot be performed twice).
+    // For more details regarding the underlying issue see https://bugs.openjdk.java.net/browse/JDK-8054565
+    private final AtomicBoolean processInStreamClosed = new AtomicBoolean();
     private final InputStream processOutStream;
     private final OutputStream processRestoreStream;
     private final LengthEncodedWriter recordWriter;
@@ -51,6 +55,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private final int numberOfFields;
     private final List<Path> filesToDelete;
     private final Consumer<String> onProcessCrash;
+    private final Duration processConnectTimeout;
     private volatile Future<?> logTailFuture;
     private volatile Future<?> stateProcessorFuture;
     private volatile boolean processCloseInitiated;
@@ -59,17 +64,18 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     protected AbstractNativeProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                                     OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                    Consumer<String> onProcessCrash) {
+                                    Consumer<String> onProcessCrash, Duration processConnectTimeout) {
         this.jobId = jobId;
-        cppLogHandler = new CppLogMessageHandler(jobId, logStream);
+        this.cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = processInStream != null ? new BufferedOutputStream(processInStream) : null;
         this.processOutStream = processOutStream;
         this.processRestoreStream = processRestoreStream;
         this.recordWriter = new LengthEncodedWriter(this.processInStream);
-        startTime = ZonedDateTime.now();
+        this.startTime = ZonedDateTime.now();
         this.numberOfFields = numberOfFields;
         this.filesToDelete = filesToDelete;
         this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
+        this.processConnectTimeout = Objects.requireNonNull(processConnectTimeout);
     }
 
     public abstract String getName();
@@ -161,7 +167,10 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             processCloseInitiated = true;
             // closing its input causes the process to exit
             if (processInStream != null) {
-                processInStream.close();
+                // Make sure {@code processInStream.close()} is called at most once.
+                if (processInStreamClosed.compareAndSet(false, true)) {
+                    processInStream.close();
+                }
             }
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
@@ -195,10 +204,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         LOGGER.debug("[{}] Killing {} process", jobId, getName());
         processKilled = true;
         try {
-            // The PID comes via the processes log stream.  We don't wait for it to arrive here,
-            // but if the wait times out it implies the process has only just started, in which
-            // case it should die very quickly when we close its input stream.
-            NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(Duration.ZERO));
+            // The PID comes via the processes log stream. We do wait here to give the process the time to start up and report its PID.
+            // Without the PID we cannot kill the process.
+            NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(processConnectTimeout));
 
             // Wait for the process to die before closing processInStream as if the process
             // is still alive when processInStream is closed it may start persisting state
@@ -208,7 +216,10 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         } finally {
             try {
                 if (processInStream != null) {
-                    processInStream.close();
+                    // Make sure {@code processInStream.close()} is called at most once.
+                    if (processInStreamClosed.compareAndSet(false, true)) {
+                        processInStream.close();
+                    }
                 }
             } catch (IOException e) {
                 // Ignore it - we're shutting down and the method itself has logged a warning

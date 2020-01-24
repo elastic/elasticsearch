@@ -166,4 +166,97 @@
   - is_true:    features.monitoring.available
   - is_false:   tagline
 
+---
+"Usage stats for mappings":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/51127"
+
+  - do:
+      xpack.usage: {}
+
+  - match: { index.mappings.field_types: [] }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                properties:
+                  quux:
+                    type: integer
+
+  - do:
+      xpack.usage: {}
+
+  - match: { index.mappings.field_types: [ "integer", "keyword", "object" ] }
+
+---
+"Usage stats for analysis":
+  - do:
+      xpack.usage: {}
+
+  - match: { index.analysis.char_filter_types: [] }
+  - match: { index.analysis.tokenizer_types: [] }
+  - match: { index.analysis.filter_types: [] }
+  - match: { index.analysis.analyzer_types: [] }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            analysis:
+              char_filter:
+                c:
+                  type: mapping
+                  mappings: [ "a => b" ]
+              tokenizer:
+                tok:
+                  type: pattern
+                  pattern: ","
+              filter:
+                st:
+                  type: stop
+                  stopwords: [ "a" ]
+              analyzer:
+                en:
+                  type: standard
+                  stopwords: "_english_"
+                cust:
+                  char_filter: [ "html_strip" ]
+                  tokenizer: "keyword"
+                  filter: [ "trim" ]
+          mappings:
+            properties:
+              message:
+                type: "text"
+                analyzer: french
+                search_analyzer: spanish
+                search_quote_analyzer: german
+
+  - do:
+      xpack.usage: {}
+
+  - match: { index.analysis.char_filter_types: [ "mapping" ] }
+  - match: { index.analysis.tokenizer_types: [ "pattern" ] }
+  - match: { index.analysis.filter_types: [ "stop" ] }
+  - match: { index.analysis.analyzer_types: [ "custom", "standard" ] }
+  - match: { index.analysis.built_in_char_filters: [ "html_strip" ] }
+  - match: { index.analysis.built_in_tokenizers: [ "keyword" ] }
+  - match: { index.analysis.built_in_filters: [ "trim" ] }
+  - match: { index.analysis.built_in_analyzers: [ "french", "german", "spanish" ] }

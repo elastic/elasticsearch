@@ -33,7 +33,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-
 public interface TestClusterConfiguration {
 
     void setVersion(String version);
@@ -57,6 +56,8 @@ public interface TestClusterConfiguration {
     void keystore(String key, File value, PropertyNormalization normalization);
 
     void keystore(String key, FileSupplier valueSupplier);
+
+    void cliSetup(String binTool, CharSequence... args);
 
     void setting(String key, String value);
 
@@ -111,7 +112,8 @@ public interface TestClusterConfiguration {
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
         long startedAtMillis,
-        long nodeUpTimeout, TimeUnit nodeUpTimeoutUnit,
+        long nodeUpTimeout,
+        TimeUnit nodeUpTimeoutUnit,
         TestClusterConfiguration context
     ) {
         Logger logger = Logging.getLogger(TestClusterConfiguration.class);
@@ -119,17 +121,13 @@ public interface TestClusterConfiguration {
             long thisConditionStartedAt = System.currentTimeMillis();
             boolean conditionMet = false;
             Throwable lastException = null;
-            while (
-                System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
-            ) {
+            while (System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)) {
                 if (context.isProcessAlive() == false) {
-                    throw new TestClustersException(
-                        "process was found dead while waiting for " + description + ", " + this
-                    );
+                    throw new TestClustersException("process was found dead while waiting for " + description + ", " + this);
                 }
 
                 try {
-                    if(predicate.test(context)) {
+                    if (predicate.test(context)) {
                         conditionMet = true;
                         break;
                     }
@@ -140,8 +138,13 @@ public interface TestClusterConfiguration {
                 }
             }
             if (conditionMet == false) {
-                String message = "`" + context + "` failed to wait for " + description + " after " +
-                    nodeUpTimeout + " " + nodeUpTimeoutUnit;
+                String message = String.format(
+                    "`%s` failed to wait for %s after %d %s",
+                    context,
+                    description,
+                    nodeUpTimeout,
+                    nodeUpTimeoutUnit
+                );
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {
@@ -158,18 +161,12 @@ public interface TestClusterConfiguration {
                     throw new TestClustersException(message + extraCause, lastException);
                 }
             }
-            logger.info(
-                "{}: {} took {} seconds",
-                this,  description,
-                (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0
-            );
+            logger.info("{}: {} took {} seconds", this, description, (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0);
         });
     }
 
     default String safeName(String name) {
-        return name
-            .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9\\.]+", "-");
+        return name.replaceAll("^[^a-zA-Z0-9]+", "").replaceAll("[^a-zA-Z0-9\\.]+", "-");
     }
 
     boolean isProcessAlive();

@@ -179,7 +179,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final long term;
         private final boolean aborted;
 
-        public static ConstructingObjectParser<Failure, Void> PARSER =
+        public static final ConstructingObjectParser<Failure, Void> PARSER =
             new ConstructingObjectParser<>(
                 "bulk_failures",
                 true,

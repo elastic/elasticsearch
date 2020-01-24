@@ -14,7 +14,7 @@ between `10` and `20`.
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -150,7 +150,7 @@ contains a date between today and yesterday.
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -212,21 +212,22 @@ UTC offset. For example:
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
-    "query": {
-        "range" : {
-            "timestamp" : {
-                "time_zone": "+01:00", <1>
-                "gte": "2015-01-01 00:00:00", <2>
-                "lte": "now" <3>
-            }
-        }
+  "query": {
+    "range": {
+      "timestamp": {
+        "time_zone": "+01:00",        <1>
+        "gte": "2020-01-01T00:00:00", <2>
+        "lte": "now"                  <3>
+      }
     }
+  }
 }
 ----
+// TEST[continued]
 
 <1> Indicates that `date` values use a UTC offset of `+01:00`.
 <2> With a UTC offset of `+01:00`, {es} converts this date to
-`2014-12-31T23:00:00 UTC`.
+`2019-12-31T23:00:00 UTC`.
 <3> The `time_zone` parameter does not affect the `now` value.

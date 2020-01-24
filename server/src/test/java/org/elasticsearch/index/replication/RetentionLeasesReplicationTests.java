@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -144,6 +146,31 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             for (IndexShard replica : group.getReplicas()) {
                 assertThat(replica.getRetentionLeases(), equalTo(leasesOnPrimary));
             }
+        }
+    }
+
+    public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
+        final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        if (randomBoolean()) {
+            settings.put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_5_0, Version.CURRENT));
+        }
+        try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
+            group.startAll();
+            group.indexDocs(randomIntBetween(1, 10));
+            for (IndexShard shard : group) {
+                shard.updateShardState(shard.routingEntry(), shard.getOperationPrimaryTerm(), null, 1L,
+                    group.getPrimary().getReplicationGroup().getInSyncAllocationIds(),
+                    group.getPrimary().getReplicationGroup().getRoutingTable());
+            }
+            group.syncGlobalCheckpoint();
+            group.flush();
+            assertBusy(() -> {
+                // we turn off the translog retention policy using the generic threadPool
+                for (IndexShard shard : group) {
+                    assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(0));
+                }
+            });
         }
     }
 

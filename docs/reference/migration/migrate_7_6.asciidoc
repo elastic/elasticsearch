@@ -36,3 +36,12 @@ The vector functions of the form `function(query, doc['field'])` are
 deprecated, and the form `function(query, 'field')` should be used instead.
 For example, `cosineSimilarity(query, doc['field'])` is replaced by
 `cosineSimilarity(query, 'field')`.
+
+[discrete]
+==== Disallow use of the `nGram` and `edgeNGram` tokenizer names
+
+The `nGram` and `edgeNGram` tokenizer names haven been deprecated with 7.6.
+Mappings for indices created after 7.6 will continue to work but emit a
+deprecation warning. The tokenizer name should be changed to the fully
+equivalent `ngram` or `edge_ngram` names for new indices and in index
+templates.

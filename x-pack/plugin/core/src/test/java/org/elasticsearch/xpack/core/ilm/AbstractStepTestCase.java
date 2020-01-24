@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -12,6 +13,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
     protected static final int NUMBER_OF_TEST_RUNS = 20;
+    protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected abstract T createRandomInstance();
     protected abstract T mutateInstance(T instance);

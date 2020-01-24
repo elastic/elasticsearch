@@ -545,6 +545,117 @@ public class RBACEngineTests extends ESTestCase {
         ));
     }
 
+    public void testCheckRestrictedIndexPatternPermission() throws Exception {
+        User user = new User(randomAlphaOfLengthBetween(4, 12));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        final String patternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0,
+                randomIntBetween(2, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.length() - 2));
+        Role role = Role.builder("role")
+                .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, patternPrefix + "*")
+                .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        String prePatternPrefix = patternPrefix.substring(0, randomIntBetween(1, patternPrefix.length() - 1)) + "*";
+        HasPrivilegesResponse response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(prePatternPrefix)
+                .allowRestrictedIndices(randomBoolean())
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(prePatternPrefix)
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", false).map()).build()));
+
+        String matchesPatternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0, patternPrefix.length() + 1);
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(matchesPatternPrefix + "*")
+                .allowRestrictedIndices(false)
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(true));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(matchesPatternPrefix + "*")
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", true).map()).build()));
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(matchesPatternPrefix + "*")
+                .allowRestrictedIndices(true)
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(matchesPatternPrefix + "*")
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", false).map()).build()));
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(matchesPatternPrefix)
+                .allowRestrictedIndices(randomBoolean())
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(true));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(matchesPatternPrefix)
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", true).map()).build()));
+
+        final String restrictedIndexMatchingWildcard = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(restrictedIndexMatchingWildcard + "*")
+                .allowRestrictedIndices(true)
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*")
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", false).map()).build()));
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(restrictedIndexMatchingWildcard + "*")
+                .allowRestrictedIndices(false)
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*")
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", false).map()).build()));
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(restrictedIndexMatchingWildcard)
+                .allowRestrictedIndices(randomBoolean())
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(restrictedIndexMatchingWildcard)
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", false).map()).build()));
+
+        role = Role.builder("role")
+                .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, patternPrefix + "*")
+                .build();
+        authzInfo = new RBACAuthorizationInfo(role, null);
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(matchesPatternPrefix + "*")
+                .allowRestrictedIndices(randomBoolean())
+                .privileges("index")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(true));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(matchesPatternPrefix + "*")
+                        .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                                .put("index", true).map()).build()));
+    }
+
     public void testCheckExplicitRestrictedIndexPermissions() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);

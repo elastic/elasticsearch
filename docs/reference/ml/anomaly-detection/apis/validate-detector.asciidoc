@@ -23,14 +23,14 @@ Validates detector configuration information.
 [[ml-valid-detector-desc]]
 ==== {api-description-title}
 
-This API enables you validate the detector configuration
+This API enables you to validate the detector configuration
 before you create an {anomaly-job}.
 
 [[ml-valid-detector-request-body]]
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-detectorconfig,detector configuration objects>>.
+see detector configuration objects.
 
 [[ml-valid-detector-example]]
 ==== {api-examples-title}

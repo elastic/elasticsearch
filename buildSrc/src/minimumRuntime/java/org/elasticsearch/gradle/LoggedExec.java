@@ -103,9 +103,9 @@ public class LoggedExec extends Exec {
 
     private static final Pattern NEWLINE = Pattern.compile(System.lineSeparator());
 
-    private static <T extends BaseExecSpec>  ExecResult genericExec(
+    private static <T extends BaseExecSpec> ExecResult genericExec(
         Project project,
-        Function<Action<T>,ExecResult> function,
+        Function<Action<T>, ExecResult> function,
         Action<T> action
     ) {
         if (project.getLogger().isInfoEnabled()) {

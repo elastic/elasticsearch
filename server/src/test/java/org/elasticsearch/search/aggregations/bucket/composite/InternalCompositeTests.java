@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
@@ -36,6 +37,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -47,6 +49,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -170,7 +175,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls,
+        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(),
             Collections.emptyList(), metaData);
     }
 
@@ -207,7 +212,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
         return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, formats, buckets, lastBucket, reverseMuls,
-            instance.pipelineAggregators(), metaData);
+            randomBoolean(), instance.pipelineAggregators(), metaData);
     }
 
     @Override
@@ -238,14 +243,37 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         for (int i = 0; i < numSame; i++) {
             toReduce.add(result);
         }
-        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce,
-            new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, true));
+        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce, reduceContext());
         assertThat(finalReduce.getBuckets().size(), equalTo(result.getBuckets().size()));
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();
         for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
             InternalComposite.InternalBucket expectedBucket = expectedIt.next();
             assertThat(bucket.getRawKey(), equalTo(expectedBucket.getRawKey()));
             assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()*numSame));
+        }
+    }
+
+    /**
+     * Check that reducing with an unmapped index produces useful formats.
+     */
+    public void testReduceUnmapped() throws IOException {
+        InternalComposite mapped = createTestInstance(randomAlphaOfLength(10), emptyList(), emptyMap(), InternalAggregations.EMPTY);
+        List<DocValueFormat> rawFormats = formats.stream().map(f -> DocValueFormat.RAW).collect(toList());
+        InternalComposite unmapped = new InternalComposite(mapped.getName(), mapped.getSize(), sourceNames,
+                rawFormats, emptyList(), null, reverseMuls, true, emptyList(), emptyMap());
+        List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
+        Collections.shuffle(toReduce, random());
+        InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, reduceContext());
+        assertThat(finalReduce.getBuckets().size(), equalTo(mapped.getBuckets().size()));
+        if (false == mapped.getBuckets().isEmpty()) {
+            assertThat(finalReduce.getFormats(), equalTo(mapped.getFormats()));
+        }
+        Iterator<InternalComposite.InternalBucket> expectedIt = mapped.getBuckets().iterator();
+        for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
+            InternalComposite.InternalBucket expectedBucket = expectedIt.next();
+            assertThat(bucket.getRawKey(), equalTo(expectedBucket.getRawKey()));
+            assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()));
+            assertThat(bucket.getFormats(), equalTo(expectedBucket.getFormats()));
         }
     }
 
@@ -380,5 +408,9 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             formats,
             values
         );
+    }
+
+    private InternalAggregation.ReduceContext reduceContext() {
+        return new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, true);
     }
 }

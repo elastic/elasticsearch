@@ -22,6 +22,7 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TimeUnits;
@@ -57,7 +58,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 //The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+// gh#49753, tv#49753 : increasing timeout to 40 minutes until this gets fixes properly
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -125,7 +127,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      * small number of tokens.
      */
     private static class CompareAnalyzers implements ExecutableSection {
-        private static ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
+        private static final ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
             new ConstructingObjectParser<>("test_analyzer", false, (a, location) -> {
                 String index = (String) a[0];
                 String first = (String) a[1];

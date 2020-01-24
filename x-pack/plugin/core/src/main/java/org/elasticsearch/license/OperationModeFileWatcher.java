@@ -106,7 +106,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                     // this UTF-8 conversion is much pickier than java String
                     final String operationMode = new BytesRef(content).utf8ToString();
                     try {
-                        newOperationMode = OperationMode.resolve(operationMode);
+                        newOperationMode = OperationMode.parse(operationMode);
                     } catch (IllegalArgumentException e) {
                         logger.error(
                                 (Supplier<?>) () -> new ParameterizedMessage(

@@ -33,8 +33,9 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
+import org.elasticsearch.gradle.testclusters.TestDistribution
+import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
@@ -159,27 +160,30 @@ class BuildPlugin implements Plugin<Project> {
             GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
             project.pluginManager.withPlugin("elasticsearch.testclusters") {
                 NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
-                testClusters.all { ElasticsearchCluster cluster ->
-                    globalInfo.ready {
-                        for (File dep : project.getConfigurations().getByName("extraJars").getFiles()) {
-                            cluster.extraJarFile(dep)
+                if (testClusters != null) {
+                    testClusters.all { ElasticsearchCluster cluster ->
+                        cluster.setTestDistribution(TestDistribution.DEFAULT)
+                        globalInfo.ready {
+                            for (File dep : project.getConfigurations().getByName("extraJars").getFiles()) {
+                                cluster.extraJarFile(dep)
+                            }
+                            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+                                cluster.extraConfigFile("fips_java.security", securityProperties)
+                                cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                            } else {
+                                cluster.extraConfigFile("fips_java.security", security8Properties)
+                                cluster.extraConfigFile("fips_java.policy", security8Policy)
+                            }
+                            cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                            cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
+                            cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
+                            cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
+                            cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                            cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                            cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
+                            // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
+                            cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                         }
-                        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-                            cluster.extraConfigFile("fips_java.security", securityProperties)
-                            cluster.extraConfigFile("fips_java.policy", securityPolicy)
-                        } else {
-                            cluster.extraConfigFile("fips_java.security", security8Properties)
-                            cluster.extraConfigFile("fips_java.policy", security8Policy)
-                        }
-                        cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
-                        cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
-                        cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
-                        cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
-                        cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
-                        cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
-                        cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
-                        // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
-                        cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                     }
                 }
             }

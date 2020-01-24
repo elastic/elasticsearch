@@ -651,21 +651,42 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Java process running inside the container has the expect PID, UID and username.
+     * Check that the Java process running inside the container has the expected UID, GID and username.
      */
-    public void test130JavaHasCorrectPidAndOwnership() {
-        final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+    public void test130JavaHasCorrectOwnership() {
+        final List<String> processes = sh.run("ps -o uid,gid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
 
         assertThat("Expected a single java process", processes, hasSize(1));
 
         final String[] fields = processes.get(0).trim().split("\\s+");
 
         assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo("1000"));
+        assertThat("Incorrect UID", fields[0], equalTo("1000"));
+        assertThat("Incorrect GID", fields[1], equalTo("0"));
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }
 
+    /**
+     * Check that the init process running inside the container has the expected PID, UID, GID and user.
+     * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
+     */
+    public void test131InitProcessHasCorrectPID() {
+        final List<String> processes = sh.run("ps -o pid,uid,gid,user -p 1").stdout.lines().skip(1).collect(Collectors.toList());
+
+        assertThat("Expected a single process", processes, hasSize(1));
+
+        final String[] fields = processes.get(0).trim().split("\\s+");
+
+        assertThat(fields, arrayWithSize(4));
+        assertThat("Incorrect PID", fields[0], equalTo("1"));
+        assertThat("Incorrect UID", fields[1], equalTo("1000"));
+        assertThat("Incorrect GID", fields[2], equalTo("0"));
+        assertThat("Incorrect username", fields[3], equalTo("elasticsearch"));
+    }
+
+    /**
+     * Check that Elasticsearch reports per-node cgroup information.
+     */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 

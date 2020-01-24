@@ -87,4 +87,6 @@ include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]
 include::restore-snapshot.asciidoc[]
 include::monitor-snapshot-restore.asciidoc[]
+include::../slm/index.asciidoc[]
+
 

@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 
@@ -74,5 +75,11 @@ public class ScriptRoot {
         return prefix + "$synthetic$" + syntheticCounter++;
     }
 
-    public void markNonDeterministic(boolean nondeterministic) { this.deterministic &= !nondeterministic; }
+    public void markNonDeterministic(boolean nondeterministic) {
+        this.deterministic &= !nondeterministic;
+    }
+
+    public boolean isDeterministic() {
+        return deterministic;
+    }
 }

@@ -20,21 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -621,57 +616,21 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    BinaryMathNode write() {
+        BinaryMathNode binaryMathNode = new BinaryMathNode();
 
-        if (promote == String.class && operation == Operation.ADD) {
-            if (!cat) {
-                methodWriter.writeNewStrings();
-            }
+        binaryMathNode.setLeftNode(left.write());
+        binaryMathNode.setRightNode(right.write());
 
-            left.write(classWriter, methodWriter, globals);
+        binaryMathNode.setLocation(location);
+        binaryMathNode.setExpressionType(actual);
+        binaryMathNode.setBinaryType(promote);
+        binaryMathNode.setShiftType(shiftDistance);
+        binaryMathNode.setOperation(operation);
+        binaryMathNode.setCat(cat);
+        binaryMathNode.setOriginallExplicit(originallyExplicit);
 
-            if (!(left instanceof EBinary) || !((EBinary)left).cat) {
-                methodWriter.writeAppendStrings(left.actual);
-            }
-
-            right.write(classWriter, methodWriter, globals);
-
-            if (!(right instanceof EBinary) || !((EBinary)right).cat) {
-                methodWriter.writeAppendStrings(right.actual);
-            }
-
-            if (!cat) {
-                methodWriter.writeToStrings();
-            }
-        } else if (operation == Operation.FIND || operation == Operation.MATCH) {
-            right.write(classWriter, methodWriter, globals);
-            left.write(classWriter, methodWriter, globals);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
-
-            if (operation == Operation.FIND) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);
-            } else if (operation == Operation.MATCH) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
-            } else {
-                throw new IllegalStateException("Illegal tree structure.");
-            }
-        } else {
-            left.write(classWriter, methodWriter, globals);
-            right.write(classWriter, methodWriter, globals);
-
-            if (promote == def.class || (shiftDistance != null && shiftDistance == def.class)) {
-                // def calls adopt the wanted return value. if there was a narrowing cast,
-                // we need to flag that so that its done at runtime.
-                int flags = 0;
-                if (originallyExplicit) {
-                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
-                }
-                methodWriter.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
-            } else {
-                methodWriter.writeBinaryInstruction(location, actual, operation);
-            }
-        }
+        return binaryMathNode;
     }
 
     @Override

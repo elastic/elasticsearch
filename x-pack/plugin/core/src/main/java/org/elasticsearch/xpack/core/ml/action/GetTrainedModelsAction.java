@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,18 +34,26 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
 
         public static final ParseField INCLUDE_MODEL_DEFINITION = new ParseField("include_model_definition");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+        public static final ParseField TAGS = new ParseField("tags");
 
         private final boolean includeModelDefinition;
+        private final List<String> tags;
 
-        public Request(String id, boolean includeModelDefinition) {
+        public Request(String id, boolean includeModelDefinition, List<String> tags) {
             setResourceId(id);
             setAllowNoResources(true);
             this.includeModelDefinition = includeModelDefinition;
+            this.tags = tags == null ? Collections.emptyList() : tags;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.includeModelDefinition = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                this.tags = in.readStringList();
+            } else {
+                this.tags = Collections.emptyList();
+            }
         }
 
         @Override
@@ -56,15 +65,22 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             return includeModelDefinition;
         }
 
+        public List<String> getTags() {
+            return tags;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(includeModelDefinition);
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeStringCollection(tags);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), includeModelDefinition);
+            return Objects.hash(super.hashCode(), includeModelDefinition, tags);
         }
 
         @Override
@@ -76,7 +92,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return super.equals(obj) && this.includeModelDefinition == other.includeModelDefinition;
+            return super.equals(obj) && this.includeModelDefinition == other.includeModelDefinition && Objects.equals(tags, other.tags);
         }
     }
 

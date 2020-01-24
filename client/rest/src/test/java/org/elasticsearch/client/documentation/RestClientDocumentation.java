@@ -51,6 +51,7 @@ import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -474,7 +475,8 @@ public class RestClientDocumentation {
             String apiKeySecret = "HxHWk2m4RN-V_qg9cDpuX";
             String apiKeyAuth =
                 Base64.getEncoder().encodeToString(
-                    (apiKeyId + ":" + apiKeySecret).getBytes());
+                    (apiKeyId + ":" + apiKeySecret)
+                        .getBytes(StandardCharsets.UTF_8));
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"));
             Header[] defaultHeaders =

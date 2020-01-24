@@ -57,6 +57,7 @@ import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
@@ -469,11 +470,16 @@ public class RestClientDocumentation {
         }
         {
             //tag::rest-client-auth-api-key
+            String apiKeyId = "uqlEyn8B_gQ_jlvwDIvM";
+            String apiKeySecret = "HxHWk2m4RN-V_qg9cDpuX";
+            String apiKeyAuth =
+                Base64.getEncoder().encodeToString(
+                    (apiKeyId + ":" + apiKeySecret).getBytes());
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"));
             Header[] defaultHeaders =
                 new Header[]{new BasicHeader("Authorization",
-                    "ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3gdWkybHAdzw==")};
+                    apiKeyAuth)};
             builder.setDefaultHeaders(defaultHeaders);
             //end::rest-client-auth-api-key
         }

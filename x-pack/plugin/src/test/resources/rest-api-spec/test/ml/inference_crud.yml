@@ -206,3 +206,97 @@ setup:
         allow_no_match: false
   - match: { count: 1 }
   - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
+---
+"Test put ensemble with empty models":
+  - do:
+      catch: /\[trained_models\] must not be empty/
+      ml.put_trained_model:
+        model_id: "missing_model_ensembles"
+        body: >
+          {
+            "input": {
+              "field_names": "fieldy_mc_fieldname"
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "trained_models": []
+                }
+              }
+            }
+          }
+---
+"Test put ensemble with tree where tree has empty feature-names":
+  - do:
+      catch: /\[feature_names\] must not be empty/
+      ml.put_trained_model:
+        model_id: "ensemble_tree_missing_feature_names"
+        body: >
+          {
+            "input": {
+              "field_names": "fieldy_mc_fieldname"
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "trained_models": [
+                     {
+                        "tree": {
+                           "feature_names": [],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "split_feature": 0,
+                               "split_gain": 12.0,
+                               "threshold": 10.0,
+                               "decision_type": "lte",
+                               "default_left": true,
+                               "left_child": 1,
+                               "right_child": 2
+                             }]
+                        }
+                     }
+                  ]
+                }
+              }
+            }
+          }
+---
+"Test put model with empty input.field_names":
+  - do:
+      catch: /\[input\.field_names\] must not be empty/
+      ml.put_trained_model:
+        model_id: "missing_model_ensembles"
+        body: >
+          {
+            "input": {
+              "field_names": []
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "trained_models": [
+                     {
+                        "tree": {
+                           "feature_names": [],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "split_feature": 0,
+                               "split_gain": 12.0,
+                               "threshold": 10.0,
+                               "decision_type": "lte",
+                               "default_left": true,
+                               "left_child": 1,
+                               "right_child": 2
+                             }]
+                        }
+                     }
+                  ]
+                }
+              }
+            }
+          }

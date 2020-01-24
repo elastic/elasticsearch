@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -115,6 +116,16 @@ public abstract class MappedFieldType extends FieldType {
      */
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
+    }
+
+    /**
+     * Returns the {@link ValuesSourceType} which supports this field type.  This is tightly coupled to field data and aggregations support,
+     * so any implementation that returns a value from {@link MappedFieldType#fielddataBuilder} should also return a value from  here.
+     *
+     * @return The appropriate {@link ValuesSourceType} for this field type.
+     */
+    public ValuesSourceType getValuesSourceType() {
+        throw new IllegalArgumentException("Aggregations are not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
     @Override

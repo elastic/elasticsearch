@@ -39,6 +39,7 @@ for aggregations using the registry to resolve aggregators.
  */
 public enum ValuesSourceRegistry {
     INSTANCE {
+        // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
         Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry = Map.of();
         // We use a List of Entries here to approximate an ordered map
         Map<String, List<AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType>>> resolverRegistry
@@ -106,17 +107,17 @@ public enum ValuesSourceRegistry {
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,
+        public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName,
+                                                    // TODO: the following arguments are only needed for the legacy case
+                                                    IndexFieldData indexFieldData,
                                                     ValueType valueType, Script script,
                                                     ValuesSourceType defaultValuesSourceType) {
-            if (aggregationName != null && resolverRegistry.containsKey(aggregationName)) {
-                List<AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType>> resolverList
-                    = resolverRegistry.get(aggregationName);
-                for (AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType> entry : resolverList) {
-                    BiFunction<MappedFieldType, IndexFieldData, Boolean> matcher = entry.getKey();
-                    if (matcher.apply(fieldType, indexFieldData)) {
-                        return entry.getValue();
-                    }
+            if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
+                // This will throw if the field doesn't support values sources, although really we probably threw much earlier in that case
+                ValuesSourceType valuesSourceType = fieldType.getValuesSourceType();
+                if (aggregatorRegistry.get(aggregationName) != null
+                    && aggregatorRegistry.get(aggregationName).containsKey(valuesSourceType)) {
+                    return valuesSourceType;
                 }
                 // TODO: Error message should list valid field types
                 String fieldDescription = fieldType.name() + "(" + fieldType.toString() + ")";
@@ -158,7 +159,7 @@ public enum ValuesSourceRegistry {
 
     public abstract AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName);
     // TODO: ValueType argument is only needed for legacy logic
-    public abstract ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,
+    public abstract ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName, IndexFieldData indexFieldData,
                                                          ValueType valueType, Script script,
                                                          ValuesSourceType defaultValuesSourceType);
 

@@ -19,8 +19,8 @@ certificate.
 -----------------------------------------------------------
 xpack.security.transport.ssl.enabled: true
 xpack.security.transport.ssl.verification_mode: certificate <1>
-xpack.security.transport.ssl.keystore.path: certs/elastic-certificates.p12 <2>
-xpack.security.transport.ssl.truststore.path: certs/elastic-certificates.p12 <3>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12 <2>
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12 <3>
 -----------------------------------------------------------
 <1> If you used the `--dns` or `--ip` options with the `elasticsearch-certutil cert` command
 and you want to enable strict hostname checking, set the verification mode to
@@ -29,7 +29,7 @@ See <<ssl-tls-settings, `xpack.security.transport.ssl.verification_mode`>> for a
 
 <2> If you created a separate certificate for each node, then you might need to
 customize this path on each node. If the filename matches the node name, you can
-use the `certs/${node.name}.p12` format, for example.
+use the `${node.name}.p12` format, for example.
 <3> The `elasticsearch-certutil` outputs a PKCS#12 keystore which includes the
 CA certificate as a trusted certificate entry. This allows for the keystore to
 also be used as a truststore. In this case, the path value should match

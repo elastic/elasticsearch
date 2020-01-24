@@ -94,9 +94,8 @@ you can re-use it by supplying its location when prompted.
 . Copy the node certificates to the appropriate locations.
 +
 --
-Copy the applicable `.p12` files into a directory within the {es} configuration
-directory on each node. For example, `/home/es/config/certs`. There is no need
-to copy the CA file to this directory.
+Copy the applicable `.p12` files into the {es} configuration directory on each
+node. There is no need to copy the CA file to this directory.
 
 For each additional Elastic product that you want to configure, copy the
 certificates to the relevant configuration directory. 

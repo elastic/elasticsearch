@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -115,7 +116,12 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new Task(id, type, action, getDescription(), parentTaskId, headers);
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public boolean shouldCancelChildrenOnCancellation() {
+                return true;
+            }
+        };
     }
 
     @Override

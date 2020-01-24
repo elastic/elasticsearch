@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -41,13 +42,18 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.getEngine;
+import static org.elasticsearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
@@ -359,6 +365,70 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                 .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
                 .get();
         assertNotNull(indexService.getFsyncTask());
+    }
+
+    public void testAsyncTranslogTrimActuallyWorks() throws Exception {
+        Settings settings = Settings.builder()
+            .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms") // very often :)
+            .build();
+        IndexService indexService = createIndex("test", settings);
+        ensureGreen("test");
+        assertTrue(indexService.getTrimTranslogTask().mustReschedule());
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().admin().indices().prepareFlush("test").get();
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), -1)
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), -1))
+            .get();
+        IndexShard shard = indexService.getShard(0);
+        assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
+    }
+
+    public void testAsyncTranslogTrimTaskOnClosedIndex() throws Exception {
+        final String indexName = "test";
+        IndexService indexService = createIndex(indexName, Settings.builder()
+            .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .build());
+        Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        final Path translogPath = translog.getConfig().getTranslogPath();
+        final String translogUuid = translog.getTranslogUUID();
+
+        int translogOps = 0;
+        final int numDocs = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            translogOps++;
+            if (randomBoolean()) {
+                client().admin().indices().prepareFlush(indexName).get();
+                if (indexService.getIndexSettings().isSoftDeleteEnabled()) {
+                    translogOps = 0;
+                }
+            }
+        }
+        assertThat(translog.totalOperations(), equalTo(translogOps));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
+        assertAcked(client().admin().indices().prepareClose("test"));
+
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        assertTrue(indexService.getTrimTranslogTask().mustReschedule());
+
+        final long lastCommitedTranslogGeneration;
+        try (Engine.IndexCommitRef indexCommitRef = getEngine(indexService.getShard(0)).acquireLastIndexCommit(false)) {
+            Map<String, String> lastCommittedUserData = indexCommitRef.getIndexCommit().getUserData();
+            lastCommitedTranslogGeneration = Long.parseLong(lastCommittedUserData.get(Translog.TRANSLOG_GENERATION_KEY));
+        }
+        assertBusy(() -> {
+            long minTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUuid);
+            assertThat(minTranslogGen, equalTo(lastCommitedTranslogGeneration));
+        });
+
+        assertAcked(client().admin().indices().prepareOpen("test"));
+
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        assertThat(translog.totalOperations(), equalTo(0));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
     }
 
     public void testIllegalFsyncInterval() {

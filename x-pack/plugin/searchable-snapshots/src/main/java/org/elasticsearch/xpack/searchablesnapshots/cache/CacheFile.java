@@ -11,6 +11,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 class CacheFile {
 
@@ -45,6 +47,9 @@ class CacheFile {
         }
     };
 
+    private final ReleasableLock evictionLock;
+    private final ReleasableLock readLock;
+
     private final SparseFileTracker tracker;
     private final String name;
     private final Path file;
@@ -59,6 +64,11 @@ class CacheFile {
         this.file = Objects.requireNonNull(file);
         this.listeners = new HashSet<>();
         this.closed = false;
+
+        final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
+        this.evictionLock = new ReleasableLock(cacheLock.writeLock());
+        this.readLock = new ReleasableLock(cacheLock.readLock());
+
         assert invariant();
     }
 
@@ -68,6 +78,20 @@ class CacheFile {
 
     public Path getFile() {
         return file;
+    }
+
+    public ReleasableLock fileLock() {
+        try (ReleasableLock ignored = evictionLock.acquire()) {
+            ensureOpen();
+            // check if we have a channel under eviction lock
+            if (channel == null) {
+                throw new AlreadyClosedException("Cache file channel has been released and closed");
+            }
+            // acquire next read lock while holding the eviction lock
+            // makes sure that channel won't be closed until this
+            // read lock is released
+            return readLock.acquire();
+        }
     }
 
     @Nullable
@@ -81,7 +105,7 @@ class CacheFile {
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
-            synchronized (this) {
+            try (ReleasableLock ignored = evictionLock.acquire()) {
                 try {
                     ensureOpen();
                     final Set<EvictionListener> newListeners = new HashSet<>(listeners);
@@ -105,7 +129,7 @@ class CacheFile {
         assert listener != null;
 
         boolean success = false;
-        synchronized (this) {
+        try (ReleasableLock ignored = evictionLock.acquire()) {
             try {
                 final Set<EvictionListener> newListeners = new HashSet<>(listeners);
                 final boolean removed = newListeners.remove(Objects.requireNonNull(listener));
@@ -127,7 +151,7 @@ class CacheFile {
     }
 
     private void finishEviction() {
-        assert Thread.holdsLock(this);
+        assert evictionLock.isHeldByCurrentThread();
         assert listeners.isEmpty();
         assert channel == null;
         try {
@@ -140,7 +164,7 @@ class CacheFile {
     public void startEviction() {
         if (closed == false) {
             final Set<EvictionListener> evictionListeners = new HashSet<>();
-            synchronized (this) {
+            try (ReleasableLock ignored = evictionLock.acquire()) {
                 if (closed == false) {
                     closed = true;
                     evictionListeners.addAll(listeners);
@@ -153,7 +177,7 @@ class CacheFile {
     }
 
     private void maybeOpenFileChannel(Set<EvictionListener> listeners) throws IOException {
-        assert Thread.holdsLock(this);
+        assert evictionLock.isHeldByCurrentThread();
         if (listeners.size() == 1) {
             assert channel == null;
             channel = FileChannel.open(file, OPEN_OPTIONS);
@@ -161,7 +185,7 @@ class CacheFile {
     }
 
     private void maybeCloseFileChannel(Set<EvictionListener> listeners) {
-        assert Thread.holdsLock(this);
+        assert evictionLock.isHeldByCurrentThread();
         if (listeners.size() == 0) {
             assert channel != null;
             try {
@@ -174,16 +198,18 @@ class CacheFile {
         }
     }
 
-    private synchronized boolean invariant() {
-        assert listeners != null;
-        if (listeners.isEmpty()) {
-            assert channel == null;
-            assert closed == false || refCounter.refCount() != 0 || Files.notExists(file);
-        } else {
-            assert channel != null;
-            assert refCounter.refCount() > 0;
-            assert channel.isOpen();
-            assert Files.exists(file);
+    private boolean invariant() {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            assert listeners != null;
+            if (listeners.isEmpty()) {
+                assert channel == null;
+                assert closed == false || refCounter.refCount() != 0 || Files.notExists(file);
+            } else {
+                assert channel != null;
+                assert refCounter.refCount() > 0;
+                assert channel.isOpen();
+                assert Files.exists(file);
+            }
         }
         return true;
     }

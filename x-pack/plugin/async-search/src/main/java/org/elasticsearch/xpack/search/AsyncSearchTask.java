@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -50,7 +51,7 @@ class AsyncSearchTask extends SearchTask {
     private final List<Runnable> initListeners = new ArrayList<>();
     private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
-    private MutableSearchResponse searchResponse;
+    private AtomicReference<MutableSearchResponse> searchResponse;
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -78,6 +79,7 @@ class AsyncSearchTask extends SearchTask {
         this.threadPool = threadPool;
         this.reduceContextSupplier = reduceContextSupplier;
         this.progressListener = new Listener();
+        this.searchResponse = new AtomicReference<>();
         setProgressListener(progressListener);
     }
 
@@ -106,15 +108,22 @@ class AsyncSearchTask extends SearchTask {
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
     public void addCompletionListener(Consumer<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
-        boolean executeImmediatly = false;
+        boolean executeImmediately = false;
+        long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
             if (hasCompleted) {
-                executeImmediatly = true;
+                executeImmediately = true;
             } else {
-                addInitListener(() -> internalAddCompletionListener(listener, waitForCompletion));
+                addInitListener(() -> {
+                    long elapsedTime = threadPool.relativeTimeInMillis() - startTime;
+                    // subtract the initialization time to the provided waitForCompletion.
+                    TimeValue remainingWaitForCompletion =
+                        TimeValue.timeValueMillis(Math.max(0, waitForCompletion.getMillis() - elapsedTime));
+                    internalAddCompletionListener(listener, remainingWaitForCompletion);
+                });
             }
         }
-        if (executeImmediatly) {
+        if (executeImmediately) {
             listener.accept(getResponse());
         }
     }
@@ -124,46 +133,51 @@ class AsyncSearchTask extends SearchTask {
      * consumer when the task is finished.
      */
     public void addCompletionListener(Consumer<AsyncSearchResponse>  listener) {
-        boolean executeImmediatly = false;
+        boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted == false) {
-                completionListeners.put(completionId++, resp -> listener.accept(getResponse()));
+                completionListeners.put(completionId++, resp -> listener.accept(resp));
             } else {
-                executeImmediatly = true;
+                executeImmediately = true;
             }
         }
-        if (executeImmediatly) {
+        if (executeImmediately) {
             listener.accept(getResponse());
         }
     }
 
     private void internalAddCompletionListener(Consumer<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
-        boolean executeImmediatly = false;
+        boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted == false) {
-                // ensure that we consumes the listener only once
-                AtomicBoolean hasRun = new AtomicBoolean(false);
-                long id = completionId++;
-                Cancellable cancellable =
-                    threadPool.schedule(() -> {
+                if (waitForCompletion.getMillis() == 0) {
+                    // can happen if the initialization time was greater than the original waitForCompletion
+                    executeImmediately = true;
+                } else {
+                    // ensure that we consumes the listener only once
+                    AtomicBoolean hasRun = new AtomicBoolean(false);
+                    long id = completionId++;
+                    Cancellable cancellable =
+                        threadPool.schedule(() -> {
+                            if (hasRun.compareAndSet(false, true)) {
+                                // timeout occurred before completion
+                                removeCompletionListener(id);
+                                listener.accept(getResponse());
+                            }
+                        }, waitForCompletion, "generic");
+                    completionListeners.put(id, resp -> {
                         if (hasRun.compareAndSet(false, true)) {
-                            // timeout occurred before completion
-                            removeCompletionListener(id);
-                            listener.accept(getResponse());
+                            // completion occurred before timeout
+                            cancellable.cancel();
+                            listener.accept(resp);
                         }
-                    }, waitForCompletion, "generic");
-                completionListeners.put(id, resp -> {
-                    if (hasRun.compareAndSet(false, true)) {
-                        // completion occurred before timeout
-                        cancellable.cancel();
-                        listener.accept(resp);
-                    }
-                });
+                    });
+                }
             } else {
-                executeImmediatly = true;
+                executeImmediately = true;
             }
         }
-        if (executeImmediatly) {
+        if (executeImmediately) {
             listener.accept(getResponse());
         }
     }
@@ -177,15 +191,15 @@ class AsyncSearchTask extends SearchTask {
     }
 
     private void addInitListener(Runnable listener) {
-        boolean executeImmediatly = false;
+        boolean executeImmediately = false;
         synchronized (this) {
             if (hasInitialized) {
-                executeImmediatly = true;
+                executeImmediately = true;
             } else {
                 initListeners.add(listener);
             }
         }
-        if (executeImmediatly) {
+        if (executeImmediately) {
             listener.run();
         }
     }
@@ -205,6 +219,9 @@ class AsyncSearchTask extends SearchTask {
 
     private void executeCompletionListeners() {
         synchronized (this) {
+            if (hasCompleted) {
+                return;
+            }
             hasCompleted = true;
         }
         AsyncSearchResponse finalResponse = getResponse();
@@ -215,49 +232,51 @@ class AsyncSearchTask extends SearchTask {
     }
 
     private AsyncSearchResponse getResponse() {
-        assert searchResponse != null;
-        return searchResponse.toAsyncSearchResponse(this);
+        assert searchResponse.get() != null;
+        return searchResponse.get().toAsyncSearchResponse(this);
     }
 
     private class Listener extends SearchProgressActionListener {
         @Override
         public void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
-            searchResponse = new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, reduceContextSupplier);
+            searchResponse.compareAndSet(null,
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, reduceContextSupplier));
             executeInitListeners();
         }
 
         @Override
         public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
-            searchResponse.addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
+            searchResponse.get().addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
         }
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-            searchResponse.updatePartialResponse(shards.size(),
+            searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), aggs == null);
         }
 
         @Override
         public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-            searchResponse.updatePartialResponse(shards.size(),
+            searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), true);
         }
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
+            searchResponse.get().updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
             executeCompletionListeners();
         }
 
         @Override
         public void onFailure(Exception exc) {
-            if (searchResponse == null) {
+            if (searchResponse.get() == null) {
                 // if the failure occurred before calling onListShards
-                searchResponse = new MutableSearchResponse(-1, -1, null, reduceContextSupplier);
+                searchResponse.compareAndSet(null,
+                    new MutableSearchResponse(-1, -1, null, reduceContextSupplier));
             }
-            searchResponse.updateWithFailure(exc);
+            searchResponse.get().updateWithFailure(exc);
             executeInitListeners();
             executeCompletionListeners();
         }

@@ -113,7 +113,9 @@ class MutableSearchResponse {
      * Adds a shard failure concurrently (non-blocking).
      */
     void addShardFailure(int shardIndex, ShardSearchFailure failure) {
-        failIfFrozen();
+        synchronized (this) {
+            failIfFrozen();
+        }
         shardFailures.set(shardIndex, failure);
     }
 

@@ -428,14 +428,27 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         createConfiguration();
 
+        final List<String> pluginsToInstall = new ArrayList<>();
         if (plugins.isEmpty() == false) {
-            logToProcessStdout("Installing " + plugins.size() + " plugins");
-            plugins.forEach(plugin -> runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", plugin.toString()));
+            pluginsToInstall.addAll(plugins.stream().map(URI::toString).collect(Collectors.toList()));
         }
 
         if (getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT) {
-            LOGGER.info("emulating the {} flavor for {} by installing x-pack", testDistribution, getVersion());
-            runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", "x-pack");
+            logToProcessStdout("emulating the " + testDistribution + " flavor for " + getVersion() + " by installing x-pack");
+            pluginsToInstall.add("x-pack");
+        }
+
+        if (pluginsToInstall.isEmpty() == false) {
+            if (getVersion().onOrAfter("7.6.0")) {
+                logToProcessStdout("installing " + pluginsToInstall.size() + " plugins in a single transaction");
+                final String[] arguments = Stream.concat(Stream.of("install", "--batch"), pluginsToInstall.stream()).toArray(String[]::new);
+                runElasticsearchBinScript("elasticsearch-plugin", arguments);
+                logToProcessStdout("installed plugins");
+            } else {
+                logToProcessStdout("installing " + pluginsToInstall.size() + " plugins sequentially");
+                pluginsToInstall.forEach(plugin -> runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", plugin));
+                logToProcessStdout("installed plugins");
+            }
         }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {

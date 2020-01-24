@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -50,6 +51,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesContextBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
@@ -104,6 +106,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations");
     public static final ParseField AGGS_FIELD = new ParseField("aggs");
     public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight");
+    public static final ParseField MATCHES_FIELD = new ParseField("matches");
     public static final ParseField SUGGEST_FIELD = new ParseField("suggest");
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField STATS_FIELD = new ParseField("stats");
@@ -174,6 +177,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private AggregatorFactories.Builder aggregations;
 
     private HighlightBuilder highlightBuilder;
+    private MatchesContextBuilder matchesBuilder;
 
     private SuggestBuilder suggestBuilder;
 
@@ -211,6 +215,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            matchesBuilder = in.readOptionalWriteable(MatchesContextBuilder::new);
+        }
         indexBoosts = in.readList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -649,6 +656,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return highlightBuilder;
     }
 
+    public SearchSourceBuilder matches(MatchesContextBuilder matchesBuilder) {
+        this.matchesBuilder = matchesBuilder;
+        return this;
+    }
+
+    public MatchesContextBuilder matches() {
+        return matchesBuilder;
+    }
+
     public SearchSourceBuilder suggest(SuggestBuilder suggestBuilder) {
         this.suggestBuilder = suggestBuilder;
         return this;
@@ -980,6 +996,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.storedFieldsContext = storedFieldsContext;
         rewrittenBuilder.from = from;
         rewrittenBuilder.highlightBuilder = highlightBuilder;
+        rewrittenBuilder.matchesBuilder = matchesBuilder;
         rewrittenBuilder.indexBoosts = indexBoosts;
         rewrittenBuilder.minScore = minScore;
         rewrittenBuilder.postQueryBuilder = postQueryBuilder;
@@ -1094,6 +1111,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     aggregations = AggregatorFactories.parseAggregators(parser);
                 } else if (HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     highlightBuilder = HighlightBuilder.fromXContent(parser);
+                } else if (MATCHES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    matchesBuilder = MatchesContextBuilder.fromXContent(parser);
                 } else if (SUGGEST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     suggestBuilder = SuggestBuilder.fromXContent(parser);
                 } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1288,6 +1307,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (highlightBuilder != null) {
             builder.field(HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
+        }
+
+        if (matchesBuilder != null) {
+            builder.field(MATCHES_FIELD.getPreferredName(), matchesBuilder);
         }
 
         if (suggestBuilder != null) {
@@ -1527,7 +1550,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-                indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
+                indexBoosts, matchesBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
                 seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
     }
@@ -1549,6 +1572,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(from, other.from)
                 && Objects.equals(highlightBuilder, other.highlightBuilder)
                 && Objects.equals(indexBoosts, other.indexBoosts)
+                && Objects.equals(matchesBuilder, other.matchesBuilder)
                 && Objects.equals(minScore, other.minScore)
                 && Objects.equals(postQueryBuilder, other.postQueryBuilder)
                 && Objects.equals(queryBuilder, other.queryBuilder)

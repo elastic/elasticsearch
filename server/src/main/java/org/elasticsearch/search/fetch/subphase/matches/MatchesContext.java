@@ -21,16 +21,22 @@ package org.elasticsearch.search.fetch.subphase.matches;
 
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.Collection;
+import java.util.Map;
 
 public class MatchesContext {
 
-    public List<String> getMatchProcesses() {
-        return Collections.emptyList();
+    private final Map<String, Settings> processes;
+
+    public MatchesContext(Map<String, Settings> processes) {
+        this.processes = processes;
+    }
+
+    public Collection<String> getMatchProcesses() {
+        return processes.keySet();
     }
 
     public Settings getProcessSettings(String process) {
-        return Settings.EMPTY;
+        return processes.get(process);
     }
 }

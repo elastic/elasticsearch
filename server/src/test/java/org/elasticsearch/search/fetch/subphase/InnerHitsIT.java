@@ -569,22 +569,22 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("0"));
         assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getTotalHits().value, equalTo(2L));
-        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries().size(), equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries().get(0), equalTo("test1"));
-        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries().size(), equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries().get(0), equalTo("test3"));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test1"));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries()[0], equalTo("test3"));
 
 
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries().size(), equalTo(1));
-        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries().get(0), equalTo("test2"));
+        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test2"));
 
         for (int i = 2; i < numDocs; i++) {
             assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(String.valueOf(i)));
             assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
-            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().size(), equalTo(1));
-            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().get(0),
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0],
                 equalTo("test3"));
         }
     }

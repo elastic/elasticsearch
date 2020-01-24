@@ -40,8 +40,8 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchedQueriesIT extends ESIntegTestCase {
@@ -61,11 +61,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("3") || hit.getId().equals("2")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("test2"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("test2"));
             } else if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("test1"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("test1"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -78,11 +78,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("test1"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("test1"));
             } else if (hit.getId().equals("3")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("test2"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("test2"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -106,11 +106,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
+                assertThat(hit.getMatchedQueries().length, equalTo(2));
+                assertThat(hit.getMatchedQueries(), arrayContainingInAnyOrder("name", "title"));
             } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("name"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("name"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -125,11 +125,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
+                assertThat(hit.getMatchedQueries().length, equalTo(2));
+                assertThat(hit.getMatchedQueries(), arrayContainingInAnyOrder("name", "title"));
             } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("name"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("name"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -151,8 +151,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
+                assertThat(hit.getMatchedQueries().length, equalTo(2));
+                assertThat(hit.getMatchedQueries(), arrayContainingInAnyOrder("name", "title"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -164,8 +164,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
+                assertThat(hit.getMatchedQueries().length, equalTo(2));
+                assertThat(hit.getMatchedQueries(), arrayContainingInAnyOrder("name", "title"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -185,8 +185,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("regex"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("regex"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -206,8 +206,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("prefix"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("prefix"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -227,8 +227,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("fuzzy"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("fuzzy"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -248,8 +248,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("wildcard"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("wildcard"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -269,8 +269,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
-                assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                assertThat(hit.getMatchedQueries(), contains("span"));
+                assertThat(hit.getMatchedQueries().length, equalTo(1));
+                assertThat(hit.getMatchedQueries(), arrayContaining("span"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -303,11 +303,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 2L);
             for (SearchHit hit : searchResponse.getHits()) {
                 if (hit.getId().equals("1")) {
-                    assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                    assertThat(hit.getMatchedQueries(), contains("dolor"));
+                    assertThat(hit.getMatchedQueries().length, equalTo(1));
+                    assertThat(hit.getMatchedQueries(), arrayContaining("dolor"));
                 } else if (hit.getId().equals("2")) {
-                    assertThat(hit.getMatchedQueries().size(), equalTo(1));
-                    assertThat(hit.getMatchedQueries(), contains("elit"));
+                    assertThat(hit.getMatchedQueries().length, equalTo(1));
+                    assertThat(hit.getMatchedQueries(), arrayContaining("elit"));
                 } else {
                     fail("Unexpected document returned with id " + hit.getId());
                 }
@@ -335,7 +335,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
                     .setQuery(query)
                     .get();
             assertHitCount(searchResponse, 1L);
-            assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().get(0), equalTo("abc"));
+            assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("abc"));
         }
     }
 }

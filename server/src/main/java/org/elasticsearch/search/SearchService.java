@@ -845,6 +845,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchException(shardTarget, "failed to create SearchContextHighlighter", e);
             }
         }
+        if (source.matches() != null) {
+            context.matches(source.matches().build(context.parsedQuery().matchNamedQueries()
+                || context.parsedPostFilter().matchNamedQueries()));
+        }
         if (source.scriptFields() != null && source.size() != 0) {
             int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {

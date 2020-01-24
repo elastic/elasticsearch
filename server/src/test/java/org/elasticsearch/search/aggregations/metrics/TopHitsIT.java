@@ -80,7 +80,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -637,7 +637,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(hit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
             }
 
-            assertThat(hit.getMatchedQueries().get(0), equalTo("test"));
+            assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 
             DocumentField field = hit.field("field1");
             assertThat(field.getValue().toString(), equalTo("5"));
@@ -916,7 +916,7 @@ public class TopHitsIT extends ESIntegTestCase {
         long version = searchHit.getVersion();
         assertThat(version, equalTo(1L));
 
-        assertThat(searchHit.getMatchedQueries(), contains("test"));
+        assertThat(searchHit.getMatchedQueries(), arrayContaining("test"));
 
         DocumentField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));

@@ -145,7 +145,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().get(0), equalTo("myquery"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
 
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")).get();
         assertHitCount(searchResponse, 2L);

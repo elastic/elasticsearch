@@ -469,8 +469,17 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         matches.add(result);
     }
 
-    public List<MatchesResult> getMatchResults() {
+    public List<MatchesResult> getMatchesResults() {
         return matches;
+    }
+
+    public <T extends MatchesResult> T getMatchesResult(Class<T> clazz) {
+        for (MatchesResult m : matches) {
+            if (clazz.isInstance(m)) {
+                return clazz.cast(m);
+            }
+        }
+        return null;
     }
 
     public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
@@ -539,8 +548,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     /**
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
-    public List<String> getMatchedQueries() {
-        return findNamedQueries();
+    public String[] getMatchedQueries() {
+        return findNamedQueries().toArray(new String[0]);
     }
 
     /**

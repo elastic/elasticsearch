@@ -448,13 +448,13 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().get(0), equalTo("_name1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().size(), equalTo(1));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().get(0), equalTo("_name1"));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value2").queryName("_name2"), ScoreMode.None)
             .innerHit(new InnerHitBuilder());
@@ -465,8 +465,8 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().get(0), equalTo("_name2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {

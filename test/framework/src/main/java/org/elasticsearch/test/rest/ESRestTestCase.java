@@ -43,6 +43,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -459,7 +460,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A set of ILM policies that should be preserved between runs.
      */
     protected Set<String> preserveILMPolicyIds() {
-        return Collections.singleton("ilm-history-ilm-policy");
+        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy");
     }
 
     /**

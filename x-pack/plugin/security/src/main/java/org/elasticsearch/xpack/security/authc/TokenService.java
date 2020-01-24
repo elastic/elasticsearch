@@ -2021,7 +2021,7 @@ public final class TokenService {
 
             if (state.nodes().isLocalNodeElectedMaster()) {
                 if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state.metaData());
+                    installTokenMetadata(state);
                 } else {
                     logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
                         () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
@@ -2044,8 +2044,8 @@ public final class TokenService {
     // to prevent too many cluster state update tasks to be queued for doing the same update
     private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
 
-    private void installTokenMetadata(MetaData metaData) {
-        if (metaData.custom(TokenMetaData.TYPE) == null) {
+    private void installTokenMetadata(ClusterState state) {
+        if (state.custom(TokenMetaData.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
                 clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override

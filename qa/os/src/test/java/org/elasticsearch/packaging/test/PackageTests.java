@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -342,9 +343,9 @@ public class PackageTests extends PackagingTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
-            String elasticsearchStartTime = sh.run("sleep 2 && date +\"%Y-%m-%d %H:%M:%S\"").stdout.trim();
+            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             runElasticsearchStartCommand();
-            final Result logs = sh.run("journalctl -u elasticsearch.service --since=\"" + elasticsearchStartTime + "\"");
+            final Result logs = journald.getLogs();
 
             assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
         });

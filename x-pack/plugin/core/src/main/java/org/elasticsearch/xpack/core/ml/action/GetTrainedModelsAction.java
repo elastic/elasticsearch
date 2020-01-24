@@ -49,7 +49,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         public Request(StreamInput in) throws IOException {
             super(in);
             this.includeModelDefinition = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 this.tags = in.readStringList();
             } else {
                 this.tags = Collections.emptyList();
@@ -73,7 +73,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(includeModelDefinition);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeStringCollection(tags);
             }
         }

@@ -481,7 +481,7 @@ public class RestClientDocumentation {
                 new HttpHost("localhost", 9200, "http"));
             Header[] defaultHeaders =
                 new Header[]{new BasicHeader("Authorization",
-                    apiKeyAuth)};
+                    "ApiKey " + apiKeyAuth)};
             builder.setDefaultHeaders(defaultHeaders);
             //end::rest-client-auth-api-key
         }

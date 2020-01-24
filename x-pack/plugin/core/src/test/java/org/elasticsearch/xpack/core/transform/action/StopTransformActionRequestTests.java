@@ -24,12 +24,14 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
     @Override
     protected Request createTestInstance() {
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 10)) : null;
-        Request request = new Request(randomAlphaOfLengthBetween(1, 10),
+        Request request = new Request(
+            randomAlphaOfLengthBetween(1, 10),
             randomBoolean(),
             randomBoolean(),
             timeout,
             randomBoolean(),
-            randomBoolean());
+            randomBoolean()
+        );
         if (randomBoolean()) {
             request.setExpandedIds(new HashSet<>(Arrays.asList(generateRandomStringArray(5, 6, false))));
         }
@@ -51,16 +53,21 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
         Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10), allowNoMatch, waitForCheckpoint);
         Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20), allowNoMatch, waitForCheckpoint);
 
-        assertNotEquals(r1,r2);
-        assertNotEquals(r1.hashCode(),r2.hashCode());
+        assertNotEquals(r1, r2);
+        assertNotEquals(r1.hashCode(), r2.hashCode());
     }
 
     public void testMatch() {
         String transformId = "transform-id";
 
-        Task transformTask = new Task(1L, "persistent", "action",
+        Task transformTask = new Task(
+            1L,
+            "persistent",
+            "action",
             TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId,
-            TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap()
+        );
 
         Request request = new Request("unrelated", false, false, null, false, false);
         request.setExpandedIds(Set.of("foo", "bar"));
@@ -70,9 +77,14 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
         matchingRequest.setExpandedIds(Set.of(transformId));
         assertTrue(matchingRequest.match(transformTask));
 
-        Task notATransformTask = new Task(1L, "persistent", "action",
+        Task notATransformTask = new Task(
+            1L,
+            "persistent",
+            "action",
             "some other task, say monitoring",
-            TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap()
+        );
         assertFalse(matchingRequest.match(notATransformTask));
     }
 }

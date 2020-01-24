@@ -68,13 +68,7 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
         otherCheckpointsByIndex.put(randomAlphaOfLengthBetween(1, 10), new long[] { 1, 2, 3 });
         long timeUpperBound = randomNonNegativeLong();
 
-        TransformCheckpoint transformCheckpoints = new TransformCheckpoint(
-            id,
-            timestamp,
-            checkpoint,
-            checkpointsByIndex,
-            timeUpperBound
-        );
+        TransformCheckpoint transformCheckpoints = new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, timeUpperBound);
 
         // same
         assertTrue(transformCheckpoints.matches(transformCheckpoints));
@@ -86,33 +80,23 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
 
         // other id
         assertFalse(
-            transformCheckpoints.matches(
-                new TransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound))
         );
         // other timestamp
         assertTrue(
-            transformCheckpoints.matches(
-                new TransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound))
         );
         // other checkpoint
         assertTrue(
-            transformCheckpoints.matches(
-                new TransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound))
         );
         // other index checkpoints
         assertFalse(
-            transformCheckpoints.matches(
-                new TransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound))
         );
         // other time upper bound
         assertTrue(
-            transformCheckpoints.matches(
-                new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1))
         );
     }
 

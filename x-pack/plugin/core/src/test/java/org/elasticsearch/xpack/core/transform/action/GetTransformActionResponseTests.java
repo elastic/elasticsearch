@@ -58,13 +58,17 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
         Map<String, Object> responseAsMap = createParser(builder).map();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> transformsResponse = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms",
-                responseAsMap);
+        List<Map<String, Object>> transformsResponse = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            responseAsMap
+        );
 
         assertEquals(transforms.size(), transformsResponse.size());
         for (int i = 0; i < transforms.size(); ++i) {
-            assertArrayEquals(transforms.get(i).getSource().getIndex(),
-                ((ArrayList<String>)XContentMapValues.extractValue("source.index", transformsResponse.get(i))).toArray(new String[0]));
+            assertArrayEquals(
+                transforms.get(i).getSource().getIndex(),
+                ((ArrayList<String>) XContentMapValues.extractValue("source.index", transformsResponse.get(i))).toArray(new String[0])
+            );
             assertEquals(null, XContentMapValues.extractValue("headers", transformsResponse.get(i)));
         }
     }

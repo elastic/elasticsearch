@@ -11,13 +11,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class TransformCheckpointStatsTests extends AbstractSerializingTransformTestCase<TransformCheckpointStats>
-{
+public class TransformCheckpointStatsTests extends AbstractSerializingTransformTestCase<TransformCheckpointStats> {
     public static TransformCheckpointStats randomTransformCheckpointStats() {
-        return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
+        return new TransformCheckpointStats(
+            randomLongBetween(1, 1_000_000),
             TransformIndexerPositionTests.randomTransformIndexerPosition(),
             randomBoolean() ? null : TransformProgressTests.randomTransformProgress(),
-            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
+            randomLongBetween(1, 1_000_000),
+            randomLongBetween(0, 1_000_000)
+        );
     }
 
     @Override

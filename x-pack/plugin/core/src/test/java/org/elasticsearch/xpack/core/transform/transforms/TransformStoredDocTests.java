@@ -17,12 +17,11 @@ import java.util.Collections;
 public class TransformStoredDocTests extends AbstractSerializingTransformTestCase<TransformStoredDoc> {
 
     protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
-        Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true"));
+        Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true")
+    );
 
     public static TransformStoredDoc randomTransformStoredDoc(String id) {
-        return new TransformStoredDoc(id,
-                TransformStateTests.randomTransformState(),
-                TransformIndexerStatsTests.randomStats());
+        return new TransformStoredDoc(id, TransformStateTests.randomTransformState(), TransformIndexerStatsTests.randomStats());
     }
 
     public static TransformStoredDoc randomTransformStoredDoc() {

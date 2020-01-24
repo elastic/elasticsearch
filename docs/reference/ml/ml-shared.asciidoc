@@ -93,7 +93,10 @@ end::analysis-limits[]
 
 tag::analyzed-fields[]
 Specify `includes` and/or `excludes` patterns to select which fields will be 
-included in the analysis.
+included in the analysis. The patterns specified in `excludes` are applied last, 
+therefore `excludes` takes precedence. In other words, if the same field is 
+specified in both `includes` and `excludes`, then the field will not be included 
+in the analysis.
 +
 --
 The supported fields for each type of analysis are as follows:
@@ -640,6 +643,12 @@ Specifies if the model definition should be returned in the response. Defaults
 to `false`. When `true`, only a single model must match the ID patterns 
 provided, otherwise a bad request is returned.
 end::include-model-definition[]
+
+tag::tags[]
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+When supplied, only {infer} models that contain all the supplied tags are
+returned.
+end::tags[]
 
 tag::indices[]
 An array of index names. Wildcards are supported. For example:

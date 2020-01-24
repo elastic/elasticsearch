@@ -222,11 +222,7 @@ public class ReadOnlyEngine extends Engine {
         }
         final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         final TranslogConfig translogConfig = config.getTranslogConfig();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
-            config.getIndexSettings().getTranslogRetentionAge().getMillis(),
-            config.getIndexSettings().getTranslogRetentionTotalFiles()
-        );
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
 
         try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),

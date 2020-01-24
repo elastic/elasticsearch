@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ThrowNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -60,10 +58,14 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-        expression.write(classWriter, methodWriter, globals);
-        methodWriter.throwException();
+    ThrowNode write() {
+        ThrowNode throwNode = new ThrowNode();
+
+        throwNode.setExpressionNode(expression.write());
+
+        throwNode.setLocation(location);
+
+        return throwNode;
     }
 
     @Override

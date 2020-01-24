@@ -19,16 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
@@ -124,9 +122,16 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.write(classWriter, methodWriter, globals);
+    DotNode write() {
+        DotNode dotNode = new DotNode();
+
+        dotNode.setLeftNode(prefix.write());
+        dotNode.setRightNode(sub.write());
+
+        dotNode.setLocation(location);
+        dotNode.setExpressionType(actual);
+
+        return dotNode;
     }
 
     @Override
@@ -138,27 +143,6 @@ public final class PField extends AStoreable {
     void updateActual(Class<?> actual) {
         sub.updateActual(actual);
         this.actual = actual;
-    }
-
-    @Override
-    int accessElementCount() {
-        return sub.accessElementCount();
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.setup(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.load(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.store(classWriter, methodWriter, globals);
     }
 
     @Override

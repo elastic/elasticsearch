@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -59,6 +60,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -526,9 +528,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService.getNodeName());
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client, clusterService, settings);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(client, resultsPersisterService, anomalyDetectionAuditor);
+        JobResultsPersister jobResultsPersister =
+            new JobResultsPersister(originSettingClient, resultsPersisterService, anomalyDetectionAuditor);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client,
             resultsPersisterService,
             anomalyDetectionAuditor);

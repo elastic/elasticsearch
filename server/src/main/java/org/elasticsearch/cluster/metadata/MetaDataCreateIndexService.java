@@ -151,7 +151,7 @@ public class MetaDataCreateIndexService {
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
-    public void validateIndexName(String index, ClusterState state, boolean isHidden) {
+    public void validateIndexName(String index, ClusterState state, @Nullable Boolean isHidden) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
@@ -161,7 +161,7 @@ public class MetaDataCreateIndexService {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
-            if (matchingDescriptors.isEmpty() && isHidden == false) {
+            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
                 deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {

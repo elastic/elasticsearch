@@ -906,7 +906,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+        public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
             executeCount++;
             if (latch != null) {
                 latch.countDown();

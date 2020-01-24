@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransformConfigUpdateTests extends AbstractSerializingTransformTestCase<TransformConfigUpdate> {
 
-    public static TransformConfigUpdate randomDataFrameTransformConfigUpdate() {
+    public static TransformConfigUpdate randomTransformConfigUpdate() {
         return new TransformConfigUpdate(
             randomBoolean() ? null : randomSourceConfig(),
             randomBoolean() ? null : randomDestConfig(),
@@ -48,7 +48,7 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
 
     @Override
     protected TransformConfigUpdate createTestInstance() {
-        return randomDataFrameTransformConfigUpdate();
+        return randomTransformConfigUpdate();
     }
 
     @Override

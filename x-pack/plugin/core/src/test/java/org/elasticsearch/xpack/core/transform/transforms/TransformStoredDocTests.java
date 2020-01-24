@@ -21,11 +21,11 @@ public class TransformStoredDocTests extends AbstractSerializingTransformTestCas
 
     public static TransformStoredDoc randomTransformStoredDoc(String id) {
         return new TransformStoredDoc(id,
-                TransformStateTests.randomDataFrameTransformState(),
+                TransformStateTests.randomTransformState(),
                 TransformIndexerStatsTests.randomStats());
     }
 
-    public static TransformStoredDoc randomDataFrameTransformStoredDoc() {
+    public static TransformStoredDoc randomTransformStoredDoc() {
         return randomTransformStoredDoc(randomAlphaOfLengthBetween(1, 10));
     }
 
@@ -36,14 +36,14 @@ public class TransformStoredDocTests extends AbstractSerializingTransformTestCas
 
     @Override
     // Setting params for internal storage so that we can check XContent equivalence as
-    // DataFrameIndexerTransformStats does not write the ID to the XContentObject unless it is for internal storage
+    // TransformIndexerTransformStats does not write the ID to the XContentObject unless it is for internal storage
     protected ToXContent.Params getToXContentParams() {
         return TO_XCONTENT_PARAMS;
     }
 
     @Override
     protected TransformStoredDoc createTestInstance() {
-        return randomDataFrameTransformStoredDoc();
+        return randomTransformStoredDoc();
     }
 
     @Override

@@ -21,13 +21,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransformStatsTests extends AbstractSerializingTestCase<TransformStats> {
 
-    public static TransformStats randomDataFrameTransformStats() {
+    public static TransformStats randomTransformStats() {
         return new TransformStats(randomAlphaOfLength(10),
             randomFrom(TransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
             TransformIndexerStatsTests.randomStats(),
-            TransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
+            TransformCheckpointingInfoTests.randomTransformCheckpointingInfo());
     }
 
     @Override
@@ -37,7 +37,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected TransformStats createTestInstance() {
-        return randomDataFrameTransformStats();
+        return randomTransformStats();
     }
 
     @Override

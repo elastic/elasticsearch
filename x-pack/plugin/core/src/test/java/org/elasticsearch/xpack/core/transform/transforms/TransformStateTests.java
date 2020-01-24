@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.NodeAttributeTes
 
 public class TransformStateTests extends AbstractSerializingTestCase<TransformState> {
 
-    public static TransformState randomDataFrameTransformState() {
+    public static TransformState randomTransformState() {
         return new TransformState(randomFrom(TransformTaskState.values()),
             randomFrom(IndexerState.values()),
             TransformIndexerPositionTests.randomTransformIndexerPosition(),
@@ -40,7 +40,7 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected TransformState createTestInstance() {
-        return randomDataFrameTransformState();
+        return randomTransformState();
     }
 
     @Override

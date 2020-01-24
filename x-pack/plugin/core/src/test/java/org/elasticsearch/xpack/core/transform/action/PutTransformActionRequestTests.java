@@ -38,7 +38,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTestC
 
     @Override
     protected Request createTestInstance() {
-        TransformConfig config = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
+        TransformConfig config = TransformConfigTests.randomTransformConfigWithoutHeaders(transformId);
         return new Request(config, randomBoolean());
     }
 

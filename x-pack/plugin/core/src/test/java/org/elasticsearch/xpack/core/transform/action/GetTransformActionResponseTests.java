@@ -28,9 +28,9 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
         List<TransformConfig> transforms = new ArrayList<>();
 
         transforms.add(TransformConfigTests.randomTransformConfig());
-        transforms.add(TransformConfigTests.randomInvalidDataFrameTransformConfig());
+        transforms.add(TransformConfigTests.randomInvalidTransformConfig());
         transforms.add(TransformConfigTests.randomTransformConfig());
-        transforms.add(TransformConfigTests.randomInvalidDataFrameTransformConfig());
+        transforms.add(TransformConfigTests.randomInvalidTransformConfig());
 
         Response r = new Response(transforms, transforms.size());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));

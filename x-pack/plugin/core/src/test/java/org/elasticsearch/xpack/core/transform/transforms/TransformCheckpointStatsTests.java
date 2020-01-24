@@ -13,7 +13,7 @@ import java.io.IOException;
 
 public class TransformCheckpointStatsTests extends AbstractSerializingTransformTestCase<TransformCheckpointStats>
 {
-    public static TransformCheckpointStats randomDataFrameTransformCheckpointStats() {
+    public static TransformCheckpointStats randomTransformCheckpointStats() {
         return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
             TransformIndexerPositionTests.randomTransformIndexerPosition(),
             randomBoolean() ? null : TransformProgressTests.randomTransformProgress(),
@@ -27,7 +27,7 @@ public class TransformCheckpointStatsTests extends AbstractSerializingTransformT
 
     @Override
     protected TransformCheckpointStats createTestInstance() {
-        return randomDataFrameTransformCheckpointStats();
+        return randomTransformCheckpointStats();
     }
 
     @Override

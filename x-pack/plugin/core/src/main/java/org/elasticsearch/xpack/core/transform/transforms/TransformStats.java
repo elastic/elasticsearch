@@ -116,8 +116,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             this.checkpointingInfo = new TransformCheckpointingInfo(in);
 
         } else {
-            // Prior to version 7.4 DataFrameTransformStats didn't exist, and we have
-            // to do the best we can of reading from a DataFrameTransformStoredDoc object
+            // Prior to version 7.4 TransformStats didn't exist, and we have
+            // to do the best we can of reading from a TransformStoredDoc object
             // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             this.id = in.readString();
             TransformState transformState = new TransformState(in);
@@ -161,8 +161,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         } else {
-            // Prior to version 7.4 DataFrameTransformStats didn't exist, and we have
-            // to do the best we can of writing to a DataFrameTransformStoredDoc object
+            // Prior to version 7.4 TransformStats didn't exist, and we have
+            // to do the best we can of writing to a TransformStoredDoc object
             // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             out.writeString(id);
             Tuple<TransformTaskState, IndexerState> stateComponents = state.toComponents();

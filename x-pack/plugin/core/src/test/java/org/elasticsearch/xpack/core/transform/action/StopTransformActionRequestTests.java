@@ -56,23 +56,23 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
     }
 
     public void testMatch() {
-        String dataFrameId = "dataframe-id";
+        String transformId = "transform-id";
 
-        Task dataFrameTask = new Task(1L, "persistent", "action",
-            TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + dataFrameId,
+        Task transformTask = new Task(1L, "persistent", "action",
+            TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId,
             TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
         Request request = new Request("unrelated", false, false, null, false, false);
         request.setExpandedIds(Set.of("foo", "bar"));
-        assertFalse(request.match(dataFrameTask));
+        assertFalse(request.match(transformTask));
 
-        Request matchingRequest = new Request(dataFrameId, false, false, null, false, false);
-        matchingRequest.setExpandedIds(Set.of(dataFrameId));
-        assertTrue(matchingRequest.match(dataFrameTask));
+        Request matchingRequest = new Request(transformId, false, false, null, false, false);
+        matchingRequest.setExpandedIds(Set.of(transformId));
+        assertTrue(matchingRequest.match(transformTask));
 
-        Task notADataFrameTask = new Task(1L, "persistent", "action",
+        Task notATransformTask = new Task(1L, "persistent", "action",
             "some other task, say monitoring",
             TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        assertFalse(matchingRequest.match(notADataFrameTask));
+        assertFalse(matchingRequest.match(notATransformTask));
     }
 }

@@ -874,13 +874,13 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String indexName = "continuous_reviews_wait_for_checkpoint";
         createReviewsIndex(indexName);
         String transformId = "simple_continuous_pivot_wait_for_checkpoint";
-        String dataFrameIndex = "pivot_reviews_continuous_wait_for_checkpoint";
-        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, dataFrameIndex);
-        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
+        String transformIndex = "pivot_reviews_continuous_wait_for_checkpoint";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
         String config = "{"
             + " \"source\": {\"index\":\"" + indexName + "\"},"
-            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"dest\": {\"index\":\"" + transformIndex + "\"},"
             + " \"frequency\": \"1s\","
             + " \"sync\": {\"time\": {\"field\": \"timestamp\", \"delay\": \"1s\"}},"
             + " \"pivot\": {"
@@ -895,12 +895,12 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "         \"field\": \"stars\""
             + " } } } }"
             + "}";
-        createDataframeTransformRequest.setJsonEntity(config);
-        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
-        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForContinuousTransform(transformId, dataFrameIndex, null);
-        assertTrue(indexExists(dataFrameIndex));
+        startAndWaitForContinuousTransform(transformId, transformIndex, null);
+        assertTrue(indexExists(transformIndex));
         assertBusy(() -> {
             try {
                 stopTransform(transformId,false, true);
@@ -911,11 +911,11 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         });
 
         // get and check some users
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
         deleteIndex(indexName);
     }
 }

@@ -24,7 +24,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Checkpoint stats data for 1 checkpoint
  *
- * This is the user-facing side of DataFrameTransformCheckpoint, containing only the stats to be exposed.
+ * This is the user-facing side of TransformCheckpoint, containing only the stats to be exposed.
  */
 public class TransformCheckpointStats implements Writeable, ToXContentObject {
 

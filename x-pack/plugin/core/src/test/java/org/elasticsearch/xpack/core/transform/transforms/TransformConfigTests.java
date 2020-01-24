@@ -35,15 +35,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     private String transformId;
     private boolean runWithHeaders;
 
-    public static TransformConfig randomDataFrameTransformConfigWithoutHeaders() {
-        return randomDataFrameTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
+    public static TransformConfig randomTransformConfigWithoutHeaders() {
+        return randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
     }
 
     public static TransformConfig randomTransformConfig() {
         return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static TransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
+    public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
         return new TransformConfig(id,
             randomSourceConfig(),
             randomDestConfig(),
@@ -69,7 +69,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : Version.CURRENT.toString());
     }
 
-    public static TransformConfig randomInvalidDataFrameTransformConfig() {
+    public static TransformConfig randomInvalidTransformConfig() {
         if (randomBoolean()) {
             return new TransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(), randomDestConfig(),
                     null, randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig(),
@@ -101,7 +101,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     @Override
     protected TransformConfig createTestInstance() {
-        return runWithHeaders ? randomTransformConfig(transformId) : randomDataFrameTransformConfigWithoutHeaders(transformId);
+        return runWithHeaders ? randomTransformConfig(transformId) : randomTransformConfigWithoutHeaders(transformId);
     }
 
     @Override
@@ -137,12 +137,12 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 + "       \"field\": \"points\""
                 + "} } } } }";
 
-        TransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "test_match_all");
-        assertNotNull(dataFrameTransformConfig.getSource().getQueryConfig());
-        assertTrue(dataFrameTransformConfig.getSource().getQueryConfig().isValid());
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "test_match_all");
+        assertNotNull(transformConfig.getSource().getQueryConfig());
+        assertTrue(transformConfig.getSource().getQueryConfig().isValid());
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder content = transformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             String pivotTransformWithIdAndDefaults = Strings.toString(content);
 
             assertThat(pivotTransformWithIdAndDefaults, matchesPattern(".*\"match_all\"\\s*:\\s*\\{\\}.*"));
@@ -167,7 +167,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 + "} } } } }";
 
         expectThrows(IllegalArgumentException.class,
-                () -> createDataFrameTransformConfigFromString(pivotTransform, "test_header_injection"));
+                () -> createTransformConfigFromString(pivotTransform, "test_header_injection"));
     }
 
     public void testPreventCreateTimeInjection() {
@@ -188,7 +188,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         expectThrows(IllegalArgumentException.class,
-            () -> createDataFrameTransformConfigFromString(pivotTransform, "test_createTime_injection"));
+            () -> createTransformConfigFromString(pivotTransform, "test_createTime_injection"));
     }
 
     public void testPreventVersionInjection() {
@@ -209,21 +209,21 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         expectThrows(IllegalArgumentException.class,
-            () -> createDataFrameTransformConfigFromString(pivotTransform, "test_createTime_injection"));
+            () -> createTransformConfigFromString(pivotTransform, "test_createTime_injection"));
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        TransformConfig dataFrameTransformConfig = randomTransformConfig();
+        TransformConfig transformConfig = randomTransformConfig();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, getToXContentParams());
+            XContentBuilder content = transformConfig.toXContent(xContentBuilder, getToXContentParams());
             String doc = Strings.toString(content);
 
             assertThat(doc, matchesPattern(".*\"doc_type\"\\s*:\\s*\"data_frame_transform_config\".*"));
         }
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder content = transformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             String doc = Strings.toString(content);
 
             assertFalse(doc.contains("doc_type"));
@@ -257,18 +257,18 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 + "       \"field\": \"points\""
                 + "} } } } }";
 
-        TransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "body_id");
-        assertEquals("body_id", dataFrameTransformConfig.getId());
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id");
+        assertEquals("body_id", transformConfig.getId());
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> createDataFrameTransformConfigFromString(pivotTransform, "other_id"));
+                () -> createTransformConfigFromString(pivotTransform, "other_id"));
 
         assertEquals("Inconsistent id; 'body_id' specified in the body differs from 'other_id' specified as a URL argument",
                 ex.getCause().getMessage());
     }
 
 
-    private TransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {
+    private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         return TransformConfig.fromXContent(parser, id, false);

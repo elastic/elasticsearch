@@ -17,10 +17,10 @@ import java.time.Instant;
 
 public class TransformCheckpointingInfoTests extends AbstractSerializingTransformTestCase<TransformCheckpointingInfo> {
 
-    public static TransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
+    public static TransformCheckpointingInfo randomTransformCheckpointingInfo() {
         return new TransformCheckpointingInfo(
-            TransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
-            TransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
+            TransformCheckpointStatsTests.randomTransformCheckpointStats(),
+            TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomNonNegativeLong(),
             randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, 100000)));
     }
@@ -32,7 +32,7 @@ public class TransformCheckpointingInfoTests extends AbstractSerializingTransfor
 
     @Override
     protected TransformCheckpointingInfo createTestInstance() {
-        return randomDataFrameTransformCheckpointingInfo();
+        return randomTransformCheckpointingInfo();
     }
 
     @Override

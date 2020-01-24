@@ -267,9 +267,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         calculationContextMap.put("latest_timestamp", 123456789);
         expectedSourceAsMap.put("exponential_average_calculation_context", calculationContextMap);
         assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
-
-        verify(client, times(1)).threadPool();
-        verifyNoMoreInteractions(client);
     }
 
     @SuppressWarnings("unchecked")
@@ -302,8 +299,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         calculationContextMap.put("latest_timestamp", 123456789);
         expectedSourceAsMap.put("exponential_average_calculation_context", calculationContextMap);
         assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
-        verify(client, times(1)).threadPool();
-        verifyNoMoreInteractions(client);
     }
 
     @SuppressWarnings("unchecked")

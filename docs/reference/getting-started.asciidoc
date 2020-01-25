@@ -180,7 +180,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 --------------------------------------------------
 // TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
 // TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
-// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(micros|ms|s))/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(\.\\d+)?(micros|ms|s))/]
 // TESTRESPONSE[non_json]
 +
 NOTE: The cluster status will remain yellow if you are only running a single

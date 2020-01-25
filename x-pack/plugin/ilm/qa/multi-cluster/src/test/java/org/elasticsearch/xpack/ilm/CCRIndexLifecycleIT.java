@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
@@ -54,7 +55,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
@@ -113,7 +113,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -192,7 +191,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "_template/my_template");
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
@@ -292,7 +290,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
                     .put("index.number_of_shards", 3)
                     .put("index.number_of_replicas", 0)
                     .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -358,7 +355,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -410,7 +406,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // follower
             putShrinkOnlyPolicy(client(), policyName);
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -483,7 +478,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -745,8 +739,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
         Map<String, Object> response = toMap(client.performRequest(request));
-        Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) response.get(index)).get("settings");
-        return settings.get(setting);
+        return Optional.ofNullable((Map<?, ?>) response.get(index))
+            .map(m -> (Map<?, ?>) m.get("settings"))
+            .map(m -> m.get(setting))
+            .orElse(null);
     }
 
     private void assertDocumentExists(RestClient client, String index, String id) throws IOException {

@@ -491,6 +491,8 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             builder.put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(),
                     timeValueSeconds(RandomNumbers.randomIntBetween(random, 10, 30)).getStringRep());
+            builder.put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(),
+                    RandomNumbers.randomIntBetween(random, 1, 10));
         }
 
         // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
@@ -2140,9 +2142,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public List<String> startDataOnlyNodes(int numNodes) {
+        return startDataOnlyNodes(numNodes, Settings.EMPTY);
+    }
+
+    public List<String> startDataOnlyNodes(int numNodes, Settings settings) {
         return startNodes(
             numNodes,
-            Settings.builder().put(Settings.EMPTY).put(Node.NODE_MASTER_SETTING.getKey(), false)
+            Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), true).build());
     }
 

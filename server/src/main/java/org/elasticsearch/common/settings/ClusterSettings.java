@@ -69,6 +69,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
@@ -215,6 +216,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
             IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
+            MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
             MetaData.SETTING_READ_ONLY_SETTING,
             MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
             MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
@@ -528,6 +530,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
             DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
             DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING)));
 

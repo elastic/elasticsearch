@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
 
@@ -19,7 +18,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
     protected final T createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return newInstance(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return newInstance(stepKey, nextStepKey);
     }
 
     @Override
@@ -33,12 +32,12 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
             nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
         }
 
-        return newInstance(key, nextKey, instance.getClient());
+        return newInstance(key, nextKey);
     }
 
     @Override
     protected final T copyInstance(T instance) {
-        return newInstance(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return newInstance(instance.getKey(), instance.getNextStepKey());
     }
 
     public final void testNotAFollowerIndex() {
@@ -48,8 +47,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
             .numberOfReplicas(0)
             .build();
 
-        Client client = Mockito.mock(Client.class);
-        T step = newInstance(randomStepKey(), randomStepKey(), client);
+        T step = newInstance(randomStepKey(), randomStepKey());
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
@@ -69,5 +67,5 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
         Mockito.verifyZeroInteractions(client);
     }
 
-    protected abstract T newInstance(Step.StepKey key, Step.StepKey nextKey, Client client);
+    protected abstract T newInstance(Step.StepKey key, Step.StepKey nextKey);
 }

@@ -25,8 +25,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetEnrichPolicyAction extends
-    TransportMasterNodeReadAction<GetEnrichPolicyAction.Request, GetEnrichPolicyAction.Response> {
+public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<
+    GetEnrichPolicyAction.Request,
+    GetEnrichPolicyAction.Response> {
 
     @Inject
     public TransportGetEnrichPolicyAction(

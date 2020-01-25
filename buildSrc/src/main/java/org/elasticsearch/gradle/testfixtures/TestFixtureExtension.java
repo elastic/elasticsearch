@@ -53,11 +53,16 @@ public class TestFixtureExtension {
 
         Optional<String> otherProject = this.findOtherProjectUsingService(key);
         if (otherProject.isPresent()) {
-            throw new GradleException(
-                "Projects " + otherProject.get() + " and " + this.project.getPath() + " both claim the "+ serviceName +
-                    " service defined in the docker-compose.yml of " + path + "This is not supported because it breaks " +
-                    "running in parallel. Configure dedicated services for each project and use those instead."
+            String exceptionMessage = String.format(
+                "Projects %s and %s both claim the %s service defined in the docker-compose.yml of %s. This is not supported because it "
+                    + "breaks running in parallel. Configure dedicated services for each project and use those instead.",
+                otherProject.get(),
+                this.project.getPath(),
+                serviceName,
+                path
             );
+
+            throw new GradleException(exceptionMessage);
         }
     }
 
@@ -66,7 +71,9 @@ public class TestFixtureExtension {
     }
 
     private Optional<String> findOtherProjectUsingService(String serviceName) {
-        return this.project.getRootProject().getAllprojects().stream()
+        return this.project.getRootProject()
+            .getAllprojects()
+            .stream()
             .filter(p -> p.equals(this.project) == false)
             .filter(p -> p.getExtensions().findByType(TestFixtureExtension.class) != null)
             .map(project -> project.getExtensions().getByType(TestFixtureExtension.class))
@@ -90,10 +97,15 @@ public class TestFixtureExtension {
         // Check for exclusive access
         Optional<String> otherProject = this.findOtherProjectUsingService(path);
         if (otherProject.isPresent()) {
-            throw new GradleException("Projects " + otherProject.get() + " and " + this.project.getPath() + " both " +
-                "claim all services from " + path + ". This is not supported because it breaks running in parallel. " +
-                "Configure specific services in docker-compose.yml for each and add the service name to `useFixture`"
+            final String exceptionMessage = String.format(
+                "Projects %s and %s both claim all services from %s. This is not supported because it breaks running in parallel. "
+                    + "Configure specific services in docker-compose.yml for each and add the service name to `useFixture`",
+                otherProject.get(),
+                this.project.getPath(),
+                path
             );
+
+            throw new GradleException(exceptionMessage);
         }
     }
 

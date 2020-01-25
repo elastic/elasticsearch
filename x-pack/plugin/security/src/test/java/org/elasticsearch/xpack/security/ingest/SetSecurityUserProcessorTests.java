@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor.Property
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;

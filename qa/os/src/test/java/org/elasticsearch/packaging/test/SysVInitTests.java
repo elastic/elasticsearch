@@ -43,7 +43,6 @@ public class SysVInitTests extends PackagingTestCase {
 
     @Override
     public void startElasticsearch() throws Exception {
-        // since some systems have both sysv and systemd, we need to be explicit here to use sysv
         sh.run("service elasticsearch start");
         ServerUtils.waitForElasticsearch(installation);
         sh.run("service elasticsearch status");

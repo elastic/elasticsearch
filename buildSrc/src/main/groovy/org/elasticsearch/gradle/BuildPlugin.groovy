@@ -163,10 +163,10 @@ class BuildPlugin implements Plugin<Project> {
                 if (testClusters != null) {
                     testClusters.all { ElasticsearchCluster cluster ->
                         cluster.setTestDistribution(TestDistribution.DEFAULT)
+                        for (File dep : project.getConfigurations().getByName("extraJars").getFiles()) {
+                            cluster.extraJarFile(dep)
+                        }
                         globalInfo.ready {
-                            for (File dep : project.getConfigurations().getByName("extraJars").getFiles()) {
-                                cluster.extraJarFile(dep)
-                            }
                             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
                                 cluster.extraConfigFile("fips_java.security", securityProperties)
                                 cluster.extraConfigFile("fips_java.policy", securityPolicy)
@@ -174,25 +174,22 @@ class BuildPlugin implements Plugin<Project> {
                                 cluster.extraConfigFile("fips_java.security", security8Properties)
                                 cluster.extraConfigFile("fips_java.policy", security8Policy)
                             }
-                            cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
-                            cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
-                            cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
-                            cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
-                            cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
-                            cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
-                            cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
-                            // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
-                            cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                         }
+                        cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                        cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
+                        cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
+                        cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
+                        cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                        cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                        cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
+                        // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
+                        cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                     }
                 }
             }
             project.tasks.withType(Test).configureEach { Test task ->
                 task.dependsOn(buildResources)
                 globalInfo.ready {
-                    task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
-                    task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
-                    task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
                     // Using the key==value format to override default JVM security settings and policy
                     // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
                     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
@@ -202,8 +199,11 @@ class BuildPlugin implements Plugin<Project> {
                         task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", security8Properties.toString()))
                         task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", security8Policy.toString()))
                     }
-                    task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
                 }
+                task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
+                task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
             }
         }
     }

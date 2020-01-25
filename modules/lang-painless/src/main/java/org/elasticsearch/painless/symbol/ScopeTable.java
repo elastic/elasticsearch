@@ -88,6 +88,15 @@ public class ScopeTable {
         return variable;
     }
 
+    /**
+     * Prepends the character '#' to the variable name. The '#' is
+     * reserved and ensures that these internal variables aren't
+     * accessed by a normal consumer.
+     */
+    public Variable defineInternalVariable(Class<?> type, String name) {
+        return defineVariable(type, "#" + name);
+    }
+
     public Variable getVariable(String name) {
         Variable variable = variables.get(name);
 
@@ -96,5 +105,14 @@ public class ScopeTable {
         }
 
         return variable;
+    }
+
+    /**
+     * Prepends the character '#' to the variable name. The '#' is
+     * reserved and ensures that these internal variables aren't
+     * accessed by a normal consumer.
+     */
+    public Variable getInternalVariable(String name) {
+        return getVariable("#" + name);
     }
 }

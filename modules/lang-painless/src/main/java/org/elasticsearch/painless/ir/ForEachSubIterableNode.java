@@ -105,7 +105,7 @@ public class ForEachSubIterableNode extends LoopNode {
         methodWriter.writeStatementOffset(location);
 
         Variable variable = scopeTable.defineVariable(variableType, variableName);
-        Variable iterator = scopeTable.defineVariable(iteratorType, iteratorName);
+        Variable iterator = scopeTable.defineInternalVariable(iteratorType, iteratorName);
 
         getConditionNode().write(classWriter, methodWriter, globals, scopeTable);
 
@@ -133,7 +133,7 @@ public class ForEachSubIterableNode extends LoopNode {
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        Variable loop = scopeTable.getVariable("#loop");
+        Variable loop = scopeTable.getInternalVariable("loop");
 
         if (loop != null) {
             methodWriter.writeLoopCounter(loop.getSlot(), getBlockNode().getStatementCount(), location);

@@ -87,7 +87,7 @@ public class ForLoopNode extends LoopNode {
                 ++statementCount;
             }
 
-            Variable loop = scopeTable.getVariable("#loop");
+            Variable loop = scopeTable.getInternalVariable("loop");
 
             if (loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), statementCount, location);
@@ -97,7 +97,7 @@ public class ForLoopNode extends LoopNode {
             getBlockNode().breakLabel = end;
             getBlockNode().write(classWriter, methodWriter, globals, scopeTable);
         } else {
-            Variable loop = scopeTable.getVariable("#loop");
+            Variable loop = scopeTable.getInternalVariable("loop");
 
             if (loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), 1, location);

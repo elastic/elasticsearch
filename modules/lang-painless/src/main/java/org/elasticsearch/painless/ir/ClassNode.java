@@ -331,7 +331,7 @@ public class ClassNode extends IRNode {
         Label endCatch = new Label();
         methodWriter.mark(startTry);
 
-        scopeTable.defineVariable(Object.class, "#this");
+        scopeTable.defineInternalVariable(Object.class, "this");
 
         // Method arguments
         for (ScriptClassInfo.MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
@@ -342,7 +342,7 @@ public class ClassNode extends IRNode {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
-            Variable loop = scopeTable.defineVariable(int.class, "#loop");
+            Variable loop = scopeTable.defineInternalVariable(int.class, "loop");
 
             methodWriter.push(scriptRoot.getCompilerSettings().getMaxLoopCounter());
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());

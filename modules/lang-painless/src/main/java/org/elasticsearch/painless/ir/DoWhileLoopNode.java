@@ -29,10 +29,6 @@ import org.objectweb.asm.Opcodes;
 
 public class DoWhileLoopNode extends LoopNode {
 
-    public DoWhileLoopNode() {
-        // do nothing
-    }
-
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
@@ -56,7 +52,7 @@ public class DoWhileLoopNode extends LoopNode {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        Variable loop = scopeTable.getVariable("#loop");
+        Variable loop = scopeTable.getInternalVariable("loop");
 
         if (loop != null) {
             methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);

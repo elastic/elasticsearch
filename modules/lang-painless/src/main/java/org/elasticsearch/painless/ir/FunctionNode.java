@@ -140,7 +140,7 @@ public class FunctionNode extends IRNode {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
-            Variable loop = scopeTable.defineVariable(int.class, "#loop");
+            Variable loop = scopeTable.defineInternalVariable(int.class, "loop");
 
             methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());

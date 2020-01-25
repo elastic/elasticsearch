@@ -46,7 +46,7 @@ public class WhileNode extends LoopNode {
         }
 
         if (getBlockNode() != null) {
-            Variable loop = scopeTable.getVariable("#loop");
+            Variable loop = scopeTable.getInternalVariable("loop");
 
             if (loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
@@ -56,7 +56,7 @@ public class WhileNode extends LoopNode {
             getBlockNode().breakLabel = end;
             getBlockNode().write(classWriter, methodWriter, globals, scopeTable);
         } else {
-            Variable loop = scopeTable.getVariable("#loop");
+            Variable loop = scopeTable.getInternalVariable("loop");
 
             if (loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), 1, location);

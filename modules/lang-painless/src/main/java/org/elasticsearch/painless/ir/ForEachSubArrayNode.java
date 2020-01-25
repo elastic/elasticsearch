@@ -129,8 +129,8 @@ public class ForEachSubArrayNode extends LoopNode {
         methodWriter.writeStatementOffset(location);
 
         Variable variable = scopeTable.defineVariable(variableType, variableName);
-        Variable array = scopeTable.defineVariable(arrayType, arrayName);
-        Variable index = scopeTable.defineVariable(indexType, indexName);
+        Variable array = scopeTable.defineInternalVariable(arrayType, arrayName);
+        Variable index = scopeTable.defineInternalVariable(indexType, indexName);
 
         getConditionNode().write(classWriter, methodWriter, globals, scopeTable);
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ISTORE), array.getSlot());
@@ -154,7 +154,7 @@ public class ForEachSubArrayNode extends LoopNode {
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        Variable loop = scopeTable.getVariable("#loop");
+        Variable loop = scopeTable.getInternalVariable("loop");
 
         if (loop != null) {
             methodWriter.writeLoopCounter(loop.getSlot(), getBlockNode().getStatementCount(), location);

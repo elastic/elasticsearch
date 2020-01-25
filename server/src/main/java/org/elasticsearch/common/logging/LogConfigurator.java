@@ -247,8 +247,10 @@ public class LogConfigurator {
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8.name()));
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8.name()));
+        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO),
+            false, StandardCharsets.UTF_8.name()));
+        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN),
+            false, StandardCharsets.UTF_8.name()));
     }
 
     private static void configureStatusLogger() {

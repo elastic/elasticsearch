@@ -53,9 +53,9 @@ public class LoggingOutputStreamTests extends ESTestCase {
     PrintStream printStream;
 
     @Before
-    public void createStream() {
+    public void createStream() throws Exception {
         loggingStream = new TestLoggingOutputStream();
-        printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
+        printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8.name());
     }
 
     public void testEmptyLine() {

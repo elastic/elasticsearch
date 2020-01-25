@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -92,6 +93,10 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     @Before
     public void setMocks() {
         transport = mock(NioHttpServerTransport.class);
+        doAnswer(invocation -> {
+            ((HttpRequest) invocation.getArguments()[0]).releaseAndCopy();
+            return null;
+        }).when(transport).incomingRequest(any(HttpRequest.class), any(HttpChannel.class));
         Settings settings = Settings.builder().put(SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(1024)).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         channel = mock(NioHttpChannel.class);

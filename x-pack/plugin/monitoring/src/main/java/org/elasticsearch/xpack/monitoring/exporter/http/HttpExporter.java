@@ -220,7 +220,7 @@ public class HttpExporter extends Exporter {
                                 }
 
                                 // it would be ideal to validate that just one of either AUTH_PASSWORD_SETTING or
-                                // SECURE_AUTH_PASSWORD_SETTING were present here, but that is not currently possible with the settings
+                                // AUTH_SECURE_PASSWORD_SETTING were present here, but that is not currently possible with the settings
                                 // validation framework.
                                 // https://github.com/elastic/elasticsearch/issues/51332
                             }
@@ -290,10 +290,10 @@ public class HttpExporter extends Exporter {
     /**
      * Secure password for basic auth.
      */
-    public static final Setting.AffixSetting<SecureString> SECURE_AUTH_PASSWORD_SETTING =
+    public static final Setting.AffixSetting<SecureString> AUTH_SECURE_PASSWORD_SETTING =
         Setting.affixKeySetting(
             "xpack.monitoring.exporters.",
-            "secure_auth_password",
+            "auth.secure_password",
             key -> SecureSetting.secureString(key, null),
             TYPE_DEPENDENCY);
     /**
@@ -707,8 +707,8 @@ public class HttpExporter extends Exporter {
      */
     public static List<String> loadSettings(Settings settings) {
         final List<String> changedExporters = new ArrayList<>();
-        for (final String namespace : SECURE_AUTH_PASSWORD_SETTING.getNamespaces(settings)) {
-            final Setting<SecureString> s = SECURE_AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace);
+        for (final String namespace : AUTH_SECURE_PASSWORD_SETTING.getNamespaces(settings)) {
+            final Setting<SecureString> s = AUTH_SECURE_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace);
             final SecureString securePassword = s.get(settings);
             final SecureString existingPassword = SECURE_AUTH_PASSWORDS.put(namespace, securePassword);
             if (securePassword.equals(existingPassword) == false) {
@@ -905,7 +905,7 @@ public class HttpExporter extends Exporter {
     }
 
     public static List<Setting.AffixSetting<?>> getSecureSettings() {
-        return List.of(SECURE_AUTH_PASSWORD_SETTING);
+        return List.of(AUTH_SECURE_PASSWORD_SETTING);
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {

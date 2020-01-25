@@ -1,0 +1,4 @@
+---
+"Test get autoscaling decision":
+  - do:
+      autoscaling.get_autoscaling_decision: {}

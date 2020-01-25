@@ -35,6 +35,7 @@ not be included yet.
 --
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
+include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]

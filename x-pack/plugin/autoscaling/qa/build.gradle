@@ -1,0 +1,18 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.build'
+test.enabled = false
+
+dependencies {
+  compile project(':test:framework')
+}
+
+subprojects {
+  project.tasks.withType(RestIntegTestTask) {
+    final File xPackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
+    project.copyRestSpec.from(xPackResources) {
+      include 'rest-api-spec/api/**'
+    }
+  }
+
+}

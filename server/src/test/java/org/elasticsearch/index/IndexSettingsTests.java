@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
@@ -545,65 +544,5 @@ public class IndexSettingsTests extends ESTestCase {
         Version createdVersion = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
         assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
-    }
-
-    public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
-        }
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
-        }
-        IndexMetaData metaData = newIndexMeta("index", settings.build());
-        IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY);
-        assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
-        assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
-
-        Settings.Builder newSettings = Settings.builder().put(settings.build());
-        if (randomBoolean()) {
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
-        }
-        if (randomBoolean()) {
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
-        }
-        indexSettings.updateIndexMetaData(newIndexMeta("index", newSettings.build()));
-        assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
-        assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
-    }
-
-    public void testUpdateTranslogRetentionSettingsWithSoftDeletesDisabled() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-
-        TimeValue ageSetting = TimeValue.timeValueHours(12);
-        if (randomBoolean()) {
-            ageSetting = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueMillis(randomIntBetween(0, 10000));
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), ageSetting);
-        }
-        ByteSizeValue sizeSetting = new ByteSizeValue(512, ByteSizeUnit.MB);
-        if (randomBoolean()) {
-            sizeSetting = randomBoolean() ? new ByteSizeValue(-1) : new ByteSizeValue(randomIntBetween(0, 1024));
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), sizeSetting);
-        }
-        IndexMetaData metaData = newIndexMeta("index", settings.build());
-        IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY);
-        assertThat(indexSettings.getTranslogRetentionAge(), equalTo(ageSetting));
-        assertThat(indexSettings.getTranslogRetentionSize(), equalTo(sizeSetting));
-
-        Settings.Builder newSettings = Settings.builder().put(settings.build());
-        if (randomBoolean()) {
-            ageSetting = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueMillis(randomIntBetween(0, 10000));
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), ageSetting);
-        }
-        if (randomBoolean()) {
-            sizeSetting = randomBoolean() ? new ByteSizeValue(-1) : new ByteSizeValue(randomIntBetween(0, 1024));
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), sizeSetting);
-        }
-        indexSettings.updateIndexMetaData(newIndexMeta("index", newSettings.build()));
-        assertThat(indexSettings.getTranslogRetentionAge(), equalTo(ageSetting));
-        assertThat(indexSettings.getTranslogRetentionSize(), equalTo(sizeSetting));
     }
 }

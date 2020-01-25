@@ -263,6 +263,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             } else {
                 // this is a git worktree, follow the pointer to the repository
                 final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                if (Files.exists(workTree) == false) {
+                    return "unknown";
+                }
                 head = workTree.resolve("HEAD");
                 final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
                 if (commonDir.isAbsolute()) {

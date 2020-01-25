@@ -17,6 +17,8 @@ public class TransformMessages {
             "Interrupted while waiting for transform [{0}] to stop";
     public static final String REST_PUT_TRANSFORM_EXISTS = "Transform with id [{0}] already exists";
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
+    public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
+            "Detected transforms with no config [{0}]. Use force to stop/delete them.";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION =
             "Failed to validate configuration";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
@@ -77,6 +79,8 @@ public class TransformMessages {
             + "please simplify job or increase heap size on data nodes.";
     public static final String LOG_TRANSFORM_PIVOT_SCRIPT_ERROR =
             "Failed to execute script with error: [{0}], stack trace: {1}";
+    public static final String LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR =
+            "Failed to index documents into destination index due to permanent error: [{0}]";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";

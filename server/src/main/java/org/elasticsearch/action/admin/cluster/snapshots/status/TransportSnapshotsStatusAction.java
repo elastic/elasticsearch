@@ -101,9 +101,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
         List<SnapshotsInProgress.Entry> currentSnapshots =
-            snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
+            SnapshotsService.currentSnapshots(state, request.repository(), Arrays.asList(request.snapshots()));
         if (currentSnapshots.isEmpty()) {
-            buildResponse(request, currentSnapshots, null, listener);
+            buildResponse(state, request, null, listener);
             return;
         }
 
@@ -127,23 +127,23 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     .snapshots(snapshots).timeout(request.masterNodeTimeout()),
                 ActionListener.wrap(nodeSnapshotStatuses -> threadPool.generic().execute(
                     ActionRunnable.wrap(listener,
-                        l -> buildResponse(
-                            request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
-                            nodeSnapshotStatuses, l))
+                        l -> buildResponse(state, request, nodeSnapshotStatuses, l))
                 ), listener::onFailure));
         } else {
             // We don't have any in-progress shards, just return current stats
-            buildResponse(request, currentSnapshots, null, listener);
+            buildResponse(state, request, null, listener);
         }
 
     }
 
-    private void buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshotEntries,
+    private void buildResponse(ClusterState state, SnapshotsStatusRequest request,
                                TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
                                ActionListener<SnapshotsStatusResponse> listener) {
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();
+        final List<SnapshotsInProgress.Entry> currentSnapshotEntries =
+            SnapshotsService.currentSnapshots(state, request.repository(), Arrays.asList(request.snapshots()));
         if (!currentSnapshotEntries.isEmpty()) {
             Map<String, TransportNodesSnapshotsStatus.NodeSnapshotStatus> nodeSnapshotStatusMap;
             if (nodeSnapshotStatuses != null) {
@@ -200,14 +200,15 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
-            loadRepositoryData(request, builder, currentSnapshotNames, repositoryName, listener);
+            loadRepositoryData(state, request, builder, currentSnapshotNames, repositoryName, listener);
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
         }
     }
 
-    private void loadRepositoryData(SnapshotsStatusRequest request, List<SnapshotStatus> builder, Set<String> currentSnapshotNames,
-                                    String repositoryName, ActionListener<SnapshotsStatusResponse> listener) {
+    private void loadRepositoryData(ClusterState clusterState, SnapshotsStatusRequest request, List<SnapshotStatus> builder,
+                                    Set<String> currentSnapshotNames, String repositoryName,
+                                    ActionListener<SnapshotsStatusResponse> listener) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         snapshotsService.getRepositoryData(repositoryName, repositoryDataListener);
@@ -232,7 +233,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         throw new SnapshotMissingException(repositoryName, snapshotName);
                     }
                 }
-                SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
+                SnapshotInfo snapshotInfo = snapshotsService.snapshot(clusterState, repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 if (snapshotInfo.state().completed()) {
                     Map<ShardId, IndexShardSnapshotStatus> shardStatuses =

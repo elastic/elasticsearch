@@ -113,6 +113,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -155,7 +156,12 @@ public class IndicesRequestIT extends ESIntegTestCase {
         @Override
         @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            return new HashMap<>(){{
+                put("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+                // In production code, the PainlessScriptEngine will always compile the script, even when it contains invalid content
+                // ctx.op = 'anything'. Hence the setup here is just for passing the compilation stage.
+                put("ctx.op='anything'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "anything"));
+            }};
         }
     }
 
@@ -281,6 +287,18 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
+    }
+
+    public void testUpdateCtxOpInvalid() {
+        String indexOrAlias = randomIndexOrAlias();
+        client().prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id")
+                            .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='anything'", Collections.emptyMap()));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet());
+        assertThat(e.getMessage(),
+            containsString("The update operation must be one of [create, index, delete, none], but received: anything"));
     }
 
     public void testBulk() {

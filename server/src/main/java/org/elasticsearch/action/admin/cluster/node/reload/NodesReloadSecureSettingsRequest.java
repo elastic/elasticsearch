@@ -53,7 +53,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             final BytesReference bytesRef = in.readOptionalBytesReference();
             if (bytesRef != null) {
                 byte[] bytes = BytesReference.toBytes(bytesRef);

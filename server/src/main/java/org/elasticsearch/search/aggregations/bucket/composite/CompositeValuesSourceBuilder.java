@@ -27,11 +27,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 /**
@@ -276,7 +277,15 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(queryShardContext,
-            valueType, field, script, null,null, format);
+            valueType, field, script, null, timeZone(), format);
         return innerBuild(queryShardContext, config);
+    }
+
+    /**
+     * The time zone for this value source. Default implementation returns {@code null}
+     * because most value source types don't support time zone.
+     */
+    protected ZoneId timeZone() {
+        return null;
     }
 }

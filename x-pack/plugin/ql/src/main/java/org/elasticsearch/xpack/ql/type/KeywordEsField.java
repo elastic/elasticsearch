@@ -9,6 +9,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+
 /**
  * SQL-related information about an index field with keyword type
  */
@@ -18,7 +20,7 @@ public class KeywordEsField extends EsField {
     private final boolean normalized;
 
     public KeywordEsField(String name) {
-        this(name, Collections.emptyMap(), true, DataType.KEYWORD.defaultPrecision, false);
+        this(name, Collections.emptyMap(), true, Short.MAX_VALUE, false);
     }
 
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
@@ -27,12 +29,11 @@ public class KeywordEsField extends EsField {
     
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
             boolean normalized, boolean isAlias) {
-        super(name, DataType.KEYWORD, properties, hasDocValues, isAlias);
+        super(name, KEYWORD, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
     }
 
-    @Override
     public int getPrecision() {
         return precision;
     }
@@ -44,9 +45,15 @@ public class KeywordEsField extends EsField {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
         KeywordEsField that = (KeywordEsField) o;
         return precision == that.precision &&
                 normalized == that.normalized;
@@ -54,7 +61,6 @@ public class KeywordEsField extends EsField {
 
     @Override
     public int hashCode() {
-
         return Objects.hash(super.hashCode(), precision, normalized);
     }
 }

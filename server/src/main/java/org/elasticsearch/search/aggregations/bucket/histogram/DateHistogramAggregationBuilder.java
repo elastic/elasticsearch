@@ -493,14 +493,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
-        // TODO use offset here rather than explicitly in the aggregation
-        final Rounding rounding = dateHistogramInterval.createRounding(tz, 0);
+        final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;
         if (tz == rewrittenTimeZone) {
             shardRounding = rounding;
         } else {
-            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, 0);
+            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, offset);
         }
 
         ExtendedBounds roundedBounds = null;
@@ -508,7 +507,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // parse any string bounds to longs and round
             roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, config, offset, order, keyed, minDocCount,
+        return new DateHistogramAggregatorFactory(name, config, order, keyed, minDocCount,
                 rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 

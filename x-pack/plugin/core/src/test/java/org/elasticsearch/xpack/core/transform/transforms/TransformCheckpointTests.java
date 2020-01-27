@@ -49,10 +49,10 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        TransformCheckpoint dataFrameTransformCheckpoints = randomTransformCheckpoints();
+        TransformCheckpoint transformCheckpoints = randomTransformCheckpoints();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder content = dataFrameTransformCheckpoints.toXContent(xContentBuilder, getToXContentParams());
+            XContentBuilder content = transformCheckpoints.toXContent(xContentBuilder, getToXContentParams());
             String doc = Strings.toString(content);
 
             assertThat(doc, matchesPattern(".*\"doc_type\"\\s*:\\s*\"data_frame_transform_checkpoint\".*"));
@@ -68,51 +68,35 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
         otherCheckpointsByIndex.put(randomAlphaOfLengthBetween(1, 10), new long[] { 1, 2, 3 });
         long timeUpperBound = randomNonNegativeLong();
 
-        TransformCheckpoint dataFrameTransformCheckpoints = new TransformCheckpoint(
-            id,
-            timestamp,
-            checkpoint,
-            checkpointsByIndex,
-            timeUpperBound
-        );
+        TransformCheckpoint transformCheckpoints = new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, timeUpperBound);
 
         // same
-        assertTrue(dataFrameTransformCheckpoints.matches(dataFrameTransformCheckpoints));
-        TransformCheckpoint dataFrameTransformCheckpointsCopy = copyInstance(dataFrameTransformCheckpoints);
+        assertTrue(transformCheckpoints.matches(transformCheckpoints));
+        TransformCheckpoint transformCheckpointsCopy = copyInstance(transformCheckpoints);
 
         // with copy
-        assertTrue(dataFrameTransformCheckpoints.matches(dataFrameTransformCheckpointsCopy));
-        assertTrue(dataFrameTransformCheckpointsCopy.matches(dataFrameTransformCheckpoints));
+        assertTrue(transformCheckpoints.matches(transformCheckpointsCopy));
+        assertTrue(transformCheckpointsCopy.matches(transformCheckpoints));
 
         // other id
         assertFalse(
-            dataFrameTransformCheckpoints.matches(
-                new TransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound))
         );
         // other timestamp
         assertTrue(
-            dataFrameTransformCheckpoints.matches(
-                new TransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound))
         );
         // other checkpoint
         assertTrue(
-            dataFrameTransformCheckpoints.matches(
-                new TransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound))
         );
         // other index checkpoints
         assertFalse(
-            dataFrameTransformCheckpoints.matches(
-                new TransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound))
         );
         // other time upper bound
         assertTrue(
-            dataFrameTransformCheckpoints.matches(
-                new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)
-            )
+            transformCheckpoints.matches(new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1))
         );
     }
 

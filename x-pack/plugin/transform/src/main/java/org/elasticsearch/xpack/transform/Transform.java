@@ -267,12 +267,12 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
                     TransformInternalIndex.getIndexTemplateMetaData()
                 );
             } catch (IOException e) {
-                logger.error("Error creating data frame index template", e);
+                logger.error("Error creating transform index template", e);
             }
             try {
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
             } catch (IOException e) {
-                logger.warn("Error creating data frame audit index", e);
+                logger.warn("Error creating transform audit index", e);
             }
             return templates;
         };

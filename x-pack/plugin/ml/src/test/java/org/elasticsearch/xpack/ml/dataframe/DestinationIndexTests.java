@@ -66,7 +66,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-public class DataFrameAnalyticsIndexTests extends ESTestCase {
+public class DestinationIndexTests extends ESTestCase {
 
     private static final String ANALYTICS_ID = "some-analytics-id";
     private static final String[] SOURCE_INDEX = new String[] {"source-index"};
@@ -142,7 +142,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(getMappingsResponse))
             .when(client).execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
 
-        DataFrameAnalyticsIndex.createDestinationIndex(
+        DestinationIndex.createDestinationIndex(
             client,
             clock,
             config,
@@ -229,7 +229,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(getSettingsResponse)).when(client).execute(eq(GetSettingsAction.INSTANCE), any(), any());
         doAnswer(callListenerOnResponse(getMappingsResponse)).when(client).execute(eq(GetMappingsAction.INSTANCE), any(), any());
 
-        DataFrameAnalyticsIndex.createDestinationIndex(
+        DestinationIndex.createDestinationIndex(
             client,
             clock,
             config,
@@ -262,7 +262,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(new AcknowledgedResponse(true)))
             .when(client).execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
 
-        DataFrameAnalyticsIndex.updateMappingsToDestIndex(
+        DestinationIndex.updateMappingsToDestIndex(
             client,
             config,
             getIndexResponse,
@@ -330,7 +330,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> DataFrameAnalyticsIndex.updateMappingsToDestIndex(
+                () -> DestinationIndex.updateMappingsToDestIndex(
                     client, config, getIndexResponse, ActionListener.wrap(Assert::fail)));
         assertThat(
             e.getMessage(),

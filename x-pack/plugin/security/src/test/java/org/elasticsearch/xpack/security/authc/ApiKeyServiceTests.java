@@ -13,6 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +56,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -431,16 +435,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
-        Map<String, Object> sourceMap = new HashMap<>();
-        sourceMap.put("doc_type", "api_key");
-        sourceMap.put("api_key_hash", new String(hash));
-        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
-        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
-        Map<String, Object> creatorMap = new HashMap<>();
-        creatorMap.put("principal", "test_user");
-        creatorMap.put("metadata", Collections.emptyMap());
-        sourceMap.put("creator", creatorMap);
-        sourceMap.put("api_key_invalidated", false);
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
 
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
@@ -488,6 +483,64 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getFromCache(creds.getId()).success, is(true));
     }
 
+    public void testAuthenticateWhileCacheBeingPopulated() throws Exception {
+        final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
+
+        ApiKeyService realService = createApiKeyService(Settings.EMPTY);
+        ApiKeyService service  = Mockito.spy(realService);
+
+        // Used to block the hashing of the first api-key secret so that we can guarantee
+        // that a second api key authentication takes place while hashing is "in progress".
+        final Semaphore hashWait = new Semaphore(0);
+        final AtomicInteger hashCounter = new AtomicInteger(0);
+        doAnswer(invocationOnMock -> {
+            hashCounter.incrementAndGet();
+            hashWait.acquire();
+            return invocationOnMock.callRealMethod();
+        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class));
+
+        final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        final PlainActionFuture<AuthenticationResult> future1 = new PlainActionFuture<>();
+
+        // Call the top level authenticate... method because it has been known to be buggy in async situations
+        writeCredentialsToThreadContext(creds);
+        mockSourceDocument(creds.getId(), sourceMap);
+
+        // This needs to be done in another thread, because we need it to not complete until we say so, but it should not block this test
+        this.threadPool.generic().execute(() -> service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future1));
+
+        // Wait for the first credential validation to get to the blocked state
+        assertBusy(() -> assertThat(hashCounter.get(), equalTo(1)));
+        if (future1.isDone()) {
+            // We do this [ rather than assertFalse(isDone) ] so we can get a reasonable failure message
+            fail("Expected authentication to be blocked, but was " + future1.actionGet());
+        }
+
+        // The second authentication should pass (but not immediately, but will not block)
+        PlainActionFuture<AuthenticationResult> future2 = new PlainActionFuture<>();
+
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future2);
+
+        assertThat(hashCounter.get(), equalTo(1));
+        if (future2.isDone()) {
+            // We do this [ rather than assertFalse(isDone) ] so we can get a reasonable failure message
+            fail("Expected authentication to be blocked, but was " + future2.actionGet());
+        }
+
+        hashWait.release();
+
+        assertThat(future1.actionGet(TimeValue.timeValueSeconds(2)).isAuthenticated(), is(true));
+        assertThat(future2.actionGet(TimeValue.timeValueMillis(100)).isAuthenticated(), is(true));
+
+        CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
+        assertNotNull(cachedApiKeyHashResult);
+        assertThat(cachedApiKeyHashResult.success, is(true));
+    }
+
     public void testApiKeyCacheDisabled() {
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
@@ -496,16 +549,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .put(ApiKeyService.CACHE_TTL_SETTING.getKey(), "0s")
             .build();
 
-        Map<String, Object> sourceMap = new HashMap<>();
-        sourceMap.put("doc_type", "api_key");
-        sourceMap.put("api_key_hash", new String(hash));
-        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
-        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
-        Map<String, Object> creatorMap = new HashMap<>();
-        creatorMap.put("principal", "test_user");
-        creatorMap.put("metadata", Collections.emptyMap());
-        sourceMap.put("creator", creatorMap);
-        sourceMap.put("api_key_invalidated", false);
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
 
         ApiKeyService service = createApiKeyService(settings);
         ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
@@ -517,10 +561,40 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(cachedApiKeyHashResult);
     }
 
-    private ApiKeyService createApiKeyService(Settings settings) {
+    private ApiKeyService createApiKeyService(Settings baseSettings) {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(baseSettings)
+            .build();
         return new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex,
             ClusterServiceUtils.createClusterService(threadPool), threadPool);
     }
 
+    private Map<String, Object> buildApiKeySourceDoc(char[] hash) {
+        Map<String, Object> sourceMap = new HashMap<>();
+        sourceMap.put("doc_type", "api_key");
+        sourceMap.put("api_key_hash", new String(hash));
+        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
+        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
+        Map<String, Object> creatorMap = new HashMap<>();
+        creatorMap.put("principal", "test_user");
+        creatorMap.put("metadata", Collections.emptyMap());
+        sourceMap.put("creator", creatorMap);
+        sourceMap.put("api_key_invalidated", false);
+        return sourceMap;
+    }
+
+    private void writeCredentialsToThreadContext(ApiKeyCredentials creds) {
+        final String credentialString = creds.getId() + ":" + creds.getKey();
+        this.threadPool.getThreadContext().putHeader("Authorization",
+            "ApiKey " + Base64.getEncoder().encodeToString(credentialString.getBytes(StandardCharsets.US_ASCII)));
+    }
+
+    private void mockSourceDocument(String id, Map<String, Object> sourceMap) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.map(sourceMap);
+            SecurityMocks.mockGetRequest(client, id, BytesReference.bytes(builder));
+        }
+    }
 
 }

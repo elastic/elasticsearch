@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -46,7 +47,7 @@ public class Count extends AggregateFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.LONG;
+        return DataTypes.LONG;
     }
 
     @Override

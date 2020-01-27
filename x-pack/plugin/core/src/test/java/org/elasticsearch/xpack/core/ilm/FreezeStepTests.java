@@ -10,27 +10,15 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     public FreezeStep createRandomInstance() {
@@ -77,11 +65,6 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
     public void testFreeze() {
         IndexMetaData indexMetaData = getIndexMetaData();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         Mockito.doAnswer(invocation -> {
             assertSame(invocation.getArguments()[0], FreezeIndexAction.INSTANCE);
             FreezeRequest request = (FreezeRequest) invocation.getArguments()[1];
@@ -120,12 +103,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         IndexMetaData indexMetaData = getIndexMetaData();
         Exception exception = new RuntimeException();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer((Answer<Void>) invocation -> {
+        Mockito.doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onFailure(exception);

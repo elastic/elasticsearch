@@ -258,6 +258,7 @@ import org.elasticsearch.xpack.ml.rest.calendar.RestPostCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestPutCalendarJobAction;
 import org.elasticsearch.xpack.ml.rest.cat.RestCatJobsAction;
+import org.elasticsearch.xpack.ml.rest.cat.RestCatTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -772,7 +773,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestGetTrainedModelsStatsAction(restController),
             new RestPutTrainedModelAction(restController),
             // CAT Handlers
-            new RestCatJobsAction(restController)
+            new RestCatJobsAction(restController),
+            new RestCatTrainedModelsAction(restController)
         );
     }
 

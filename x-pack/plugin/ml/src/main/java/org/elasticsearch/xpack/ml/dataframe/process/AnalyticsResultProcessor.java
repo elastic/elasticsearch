@@ -177,6 +177,7 @@ public class AnalyticsResultProcessor {
             .setCreatedBy(XPackUser.NAME)
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)
+            // NOTE: GET _cat/ml/trained_models relies on the creating analytics ID being in the tags
             .setTags(Collections.singletonList(analytics.getId()))
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",

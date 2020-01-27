@@ -279,13 +279,11 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         fieldType.setName(FIELDNAME);
         fieldType.setIndexOptions(IndexOptions.DOCS);
         fieldType.setHasDocValues(false);
-        // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
-        ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT, () -> randomFrom(ShapeRelation.values()));
 
         // date formatter that truncates seconds, so we get some rounding behavior
         final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm");
-        long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
-        long upper = randomLongBetween(lower + 1000, formatter.parseMillis("2020-01-01T00:00"));
+        long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
+        long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
         fieldType.setDateTimeFormatter(formatter);
         String lowerAsString = formatter.formatMillis(lower);
@@ -299,22 +297,23 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         }
         boolean includeLower = randomBoolean();
         boolean includeUpper = randomBoolean();
-        final Query query = fieldType.rangeQuery(lowerAsString, upperAsString, includeLower, includeUpper, relation, null,
+        final Query query = fieldType.rangeQuery(lowerAsString, upperAsString, includeLower, includeUpper, ShapeRelation.INTERSECTS, null,
                 null, context);
-        // The range is very encapsulated and hard to inspect. We use comparison on the "toString" output with some conversion.
-        // The query-as-string on the date range field looks like "field:<ranges:[1465975790000 : 1466062190999]>" while
-        // the query on the date field is formatted like "field:[1465975790000 TO 1466062190999]"
-        String rangeFieldQueryString = query.toString();
-        String expectedDateFieldString = rangeFieldQueryString.replace("field:<ranges:[", "field:[").replace(">", "").replace(" : ",
-                " TO ");
 
-        // compare lower and upper bounds with what we would get on a `date` field
+        // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
         DateFieldType dateFieldType = new DateFieldType();
-        dateFieldType.setName(FIELDNAME);
-        dateFieldType.setDateTimeFormatter(formatter);
-        final Query queryOnDateField = dateFieldType.rangeQuery(lowerAsString, upperAsString, includeLower, includeUpper,
-                relation, null, null, context);
-        assertEquals(expectedDateFieldString, queryOnDateField.toString());
+        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, !includeLower, null, formatter.toDateMathParser(), () -> 0);
+        if (includeLower == false) {
+            ++lowerBoundLong;
+        }
+        long upperBoundLong = dateFieldType.parseToLong(upperAsString, includeUpper, null, formatter.toDateMathParser(), () -> 0);
+        if (includeUpper == false) {
+            --upperBoundLong;
+        }
+
+        // check that using this bounds we get similar query when constructing equivalent query on date_range field
+        Query range = LongRange.newIntersectsQuery(FIELDNAME, new long[] { lowerBoundLong }, new long[] { upperBoundLong });
+        assertEquals(range, query);
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {

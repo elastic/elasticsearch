@@ -277,6 +277,8 @@ public class XPackSettings {
         settings.add(TRANSFORM_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
+        settings.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
+        settings.add(FIPS_MODE_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

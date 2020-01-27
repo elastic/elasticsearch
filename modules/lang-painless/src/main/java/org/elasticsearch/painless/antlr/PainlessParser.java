@@ -52,7 +52,7 @@ class PainlessParser extends Parser {
     RULE_lamtype = 31, RULE_funcref = 32;
   public static final String[] ruleNames = {
     "source", "function", "parameters", "statement", "rstatement", "dstatement", 
-    "trailer", "block", "empty", "initializer", "afterthought", "declaration", 
+    "trailer", "block", "empty", "initializer", "afterthought", "declaration",
     "decltype", "declvar", "trap", "expression", "unary", "chain", "primary", 
     "postfix", "postdot", "callinvoke", "fieldaccess", "braceaccess", "arrayinitializer", 
     "listinitializer", "mapinitializer", "maptoken", "arguments", "argument", 

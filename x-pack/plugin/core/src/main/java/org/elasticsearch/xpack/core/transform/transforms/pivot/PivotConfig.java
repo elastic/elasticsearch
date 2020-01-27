@@ -42,32 +42,30 @@ public class PivotConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<PivotConfig, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
-                args -> {
-                    GroupConfig groups = (GroupConfig) args[0];
+        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient, args -> {
+            GroupConfig groups = (GroupConfig) args[0];
 
-                    // allow "aggs" and "aggregations" but require one to be specified
-                    // if somebody specifies both: throw
-                    AggregationConfig aggregationConfig = null;
-                    if (args[1] != null) {
-                        aggregationConfig = (AggregationConfig) args[1];
-                    }
+            // allow "aggs" and "aggregations" but require one to be specified
+            // if somebody specifies both: throw
+            AggregationConfig aggregationConfig = null;
+            if (args[1] != null) {
+                aggregationConfig = (AggregationConfig) args[1];
+            }
 
-                    if (args[2] != null) {
-                        if (aggregationConfig != null) {
-                            throw new IllegalArgumentException("Found two aggregation definitions: [aggs] and [aggregations]");
-                        }
-                        aggregationConfig = (AggregationConfig) args[2];
-                    }
-                    if (aggregationConfig == null) {
-                        throw new IllegalArgumentException("Required [aggregations]");
-                    }
+            if (args[2] != null) {
+                if (aggregationConfig != null) {
+                    throw new IllegalArgumentException("Found two aggregation definitions: [aggs] and [aggregations]");
+                }
+                aggregationConfig = (AggregationConfig) args[2];
+            }
+            if (aggregationConfig == null) {
+                throw new IllegalArgumentException("Required [aggregations]");
+            }
 
-                    return new PivotConfig(groups, aggregationConfig, (Integer)args[3]);
-                });
+            return new PivotConfig(groups, aggregationConfig, (Integer) args[3]);
+        });
 
-        parser.declareObject(constructorArg(),
-                (p, c) -> (GroupConfig.fromXContent(p, lenient)), TransformField.GROUP_BY);
+        parser.declareObject(constructorArg(), (p, c) -> (GroupConfig.fromXContent(p, lenient)), TransformField.GROUP_BY);
 
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGREGATIONS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGS);
@@ -206,16 +204,25 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         usedNames.sort(String::compareTo);
         for (int i = 0; i < usedNames.size() - 1; i++) {
-            if (usedNames.get(i+1).startsWith(usedNames.get(i) + ".")) {
+            if (usedNames.get(i + 1).startsWith(usedNames.get(i) + ".")) {
                 validationFailures.add("field [" + usedNames.get(i) + "] cannot be both an object and a field");
             }
-            if (usedNames.get(i+1).equals(usedNames.get(i))) {
+            if (usedNames.get(i + 1).equals(usedNames.get(i))) {
                 validationFailures.add("duplicate field [" + usedNames.get(i) + "] detected");
             }
         }
+
+        for (String name : usedNames) {
+            if (name.startsWith(".")) {
+                validationFailures.add("field [" + name + "] must not start with '.'");
+            }
+            if (name.endsWith(".")) {
+                validationFailures.add("field [" + name + "] must not end with '.'");
+            }
+        }
+
         return validationFailures;
     }
-
 
     private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
         names.add(aggregationBuilder.getName());

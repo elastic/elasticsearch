@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.xpack.ql.expression.function.DefaultFunctionTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 
 public class SqlFunctionTypeRegistry extends DefaultFunctionTypeRegistry {
 
     public static final SqlFunctionTypeRegistry INSTANCE = new SqlFunctionTypeRegistry();
 
     private enum Types {
+        CONDITIONAL(ConditionalFunction.class),
         GROUPING(GroupingFunction.class),
         SCORE(Score.class);
 

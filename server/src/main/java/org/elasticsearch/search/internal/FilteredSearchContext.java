@@ -141,18 +141,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public long getOriginNanoTime() {
-        return in.getOriginNanoTime();
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return in.scrollContext();
-    }
-
-    @Override
-    public SearchContext scrollContext(ScrollContext scroll) {
-        return in.scrollContext(scroll);
     }
 
     @Override
@@ -193,11 +183,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public List<RescoreContext> rescore() {
         return in.rescore();
-    }
-
-    @Override
-    public void addRescore(RescoreContext rescore) {
-        in.addRescore(rescore);
     }
 
     @Override
@@ -449,26 +434,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
         return in.docIdsToLoad(docIdsToLoad, docsIdsToLoadFrom, docsIdsToLoadSize);
-    }
-
-    @Override
-    public void accessed(long accessTime) {
-        in.accessed(accessTime);
-    }
-
-    @Override
-    public long lastAccessTime() {
-        return in.lastAccessTime();
-    }
-
-    @Override
-    public long keepAlive() {
-        return in.keepAlive();
-    }
-
-    @Override
-    public void keepAlive(long keepAlive) {
-        in.keepAlive(keepAlive);
     }
 
     @Override

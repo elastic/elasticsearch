@@ -428,11 +428,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                         topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
                         maxScoreCollector = new MaxScoreCollector();
                     }
-                    try {
-                        intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
-                    } finally {
-                        clearReleasables(Lifetime.COLLECTION);
-                    }
+                    intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
 
                     TopDocs td = topDocsCollector.topDocs(from(), size());
                     float maxScore = Float.NaN;

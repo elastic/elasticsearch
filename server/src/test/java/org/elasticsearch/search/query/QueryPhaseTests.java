@@ -310,13 +310,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         ScrollContext scrollContext = new ScrollContext();
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
-        context.scrollContext(scrollContext);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         int size = randomIntBetween(2, 5);
         context.setSize(size);
@@ -539,13 +538,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         // search sort is a prefix of the index sort
         searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[]{DocValueFormat.RAW}));
         for (SortAndFormats searchSortAndFormat : searchSortAndFormats) {
-            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             ScrollContext scrollContext = new ScrollContext();
+            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             scrollContext.lastEmittedDoc = null;
             scrollContext.maxScore = Float.NaN;
             scrollContext.totalHits = null;
-            context.scrollContext(scrollContext);
             context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
             context.setSize(10);
             context.sort(searchSortAndFormat);

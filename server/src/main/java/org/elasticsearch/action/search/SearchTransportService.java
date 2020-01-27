@@ -285,13 +285,13 @@ public class SearchTransportService {
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ScrollFreeContextRequest::new,
             (request, channel, task) -> {
-                boolean freed = searchService.freeContext(request.id());
+                boolean freed = searchService.freeReaderContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, SearchFreeContextRequest::new,
             (request, channel, task) -> {
-                boolean freed = searchService.freeContext(request.id());
+                boolean freed = searchService.freeReaderContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);

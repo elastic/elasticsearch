@@ -8,8 +8,8 @@
 
 experimental::[]
 
-Event Query Language (EQL) is a query language used for logs and other
-event-based data.
+{eql-ref}/index.html[Event Query Language (EQL)] is a query language used for
+logs and other event-based data.
 
 You can use EQL in {es} to easily express relationships between events and
 quickly match events with shared properties. You can use EQL and query

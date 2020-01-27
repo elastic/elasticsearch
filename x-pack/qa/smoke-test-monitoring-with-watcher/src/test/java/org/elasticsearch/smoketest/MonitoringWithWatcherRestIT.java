@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -18,7 +17,6 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "flaky tests")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     /**
@@ -79,9 +77,11 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     }
 
     private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {
-        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_watcher/watch/" + watchId)));
-        String interval = path.evaluate("watch.trigger.schedule.interval");
-        assertThat(interval, is("1m"));
+        assertBusy(() -> {
+            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_watcher/watch/" + watchId)));
+            String interval = path.evaluate("watch.trigger.schedule.interval");
+            assertThat(interval, is("1m"));
+        });
     }
 
     private void assertTotalWatchCount(int expectedWatches) throws Exception {

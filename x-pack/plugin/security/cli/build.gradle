@@ -19,6 +19,11 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
+forbiddenPatterns {
+  exclude '**/*.p12'
+  exclude '**/*.jks'
+}
+
 if (BuildParams.inFipsJvm) {
   test.enabled = false
   testingConventions.enabled = false

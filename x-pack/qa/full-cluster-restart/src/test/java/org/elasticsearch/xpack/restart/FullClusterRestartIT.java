@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
@@ -123,7 +124,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48381")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
@@ -143,13 +143,25 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createFunnyTimeout);
 
             logger.info("Waiting for watch results index to fill up...");
-            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            try {
+                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
             waitForHits("bwc_watch_index", 2);
             waitForHits(".watcher-history*", 2);
             logger.info("Done creating watcher-related indices");
         } else {
             logger.info("testing against {}", getOldClusterVersion());
-            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            try {
+                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
 
             logger.info("checking that the Watches index is the correct version");
 
@@ -583,5 +595,42 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
         }
         return null;
+    }
+
+    public void testFrozenIndexAfterRestarted() throws Exception {
+        final String index = "test_frozen_index";
+        if (isRunningAgainstOldCluster()) {
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            ensureGreen(index);
+            int numDocs = randomIntBetween(10, 500);
+            for (int i = 0; i < numDocs; i++) {
+                int id = randomIntBetween(0, 100);
+                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
+                indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
+                assertOK(client().performRequest(indexRequest));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+        } else {
+            ensureGreen(index);
+            final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
+                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            assertOK(client().performRequest(new Request("POST", index + "/_freeze")));
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, n -> true);
+            final Request request = new Request("GET", "/" + index + "/_search");
+            request.addParameter("ignore_throttled", "false");
+            assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
+                equalTo(totalHits));
+            assertOK(client().performRequest(new Request("POST", index + "/_unfreeze")));
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, n -> true);
+        }
     }
 }

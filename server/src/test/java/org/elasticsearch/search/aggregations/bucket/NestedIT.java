@@ -82,7 +82,7 @@ public class NestedIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
 
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
+                .setMapping("nested", "type=nested", "incorrect", "type=object"));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -115,7 +115,7 @@ public class NestedIT extends ESIntegTestCase {
             builders.add(client().prepareIndex("idx").setId(""+i+1).setSource(source));
         }
 
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
@@ -132,7 +132,7 @@ public class NestedIT extends ESIntegTestCase {
         }
 
         assertAcked(prepareCreate("idx_nested_nested_aggs")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                             .field("type", "nested")
                             .startObject("properties")
@@ -368,7 +368,7 @@ public class NestedIT extends ESIntegTestCase {
 
     // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
                     .startObject("comments")
                         .field("type", "nested")
                         .startObject("properties")
@@ -400,7 +400,7 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject().endObject().endObject();
         assertAcked(prepareCreate("idx2")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("provider", mapping));
+                .setMapping(mapping));
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
@@ -475,7 +475,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+                        .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 
@@ -559,7 +559,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testFilterAggInsideNestedAgg() throws Exception {
         assertAcked(prepareCreate("classes")
-                .addMapping("class", jsonBuilder().startObject().startObject("class").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("name").field("type", "text").endObject()
                         .startObject("methods")
                             .field("type", "nested")
@@ -684,7 +684,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("idxduplicatehitnames")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxduplicatehitnames");
 
@@ -705,7 +705,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("idxnullhitnames")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxnullhitnames");
 

@@ -20,8 +20,8 @@ There are several thread pools, but the important ones include:
     `1000`.
 
 [[search-throttled]]`search_throttled`::
-    For count/search/suggest/get operations on `search_throttled indices`. 
-    Thread pool type is `fixed_auto_queue_size` with a size of `1`, and initial 
+    For count/search/suggest/get operations on `search_throttled indices`.
+    Thread pool type is `fixed_auto_queue_size` with a size of `1`, and initial
     queue_size of `100`.
 
 `get`::
@@ -30,7 +30,7 @@ There are several thread pools, but the important ones include:
     queue_size of `1000`.
 
 `analyze`::
-    For analyze requests. Thread pool type is `fixed` with a size of `1`, queue 
+    For analyze requests. Thread pool type is `fixed` with a size of `1`, queue
     size of `16`.
 
 `write`::
@@ -51,8 +51,8 @@ There are several thread pools, but the important ones include:
     keep-alive of `5m` and a max of `min(10, (# of available processors)/2)`.
 
 `listener`::
-    Mainly for java client executing of action when listener threaded is set to 
-    `true`. Thread pool type is `scaling` with a default max of 
+    Mainly for java client executing of action when listener threaded is set to
+    `true`. Thread pool type is `scaling` with a default max of
     `min(10, (# of available processors)/2)`.
 
 `fetch_shard_started`::
@@ -66,7 +66,7 @@ There are several thread pools, but the important ones include:
     size of `2 * # of available processors`.
 
 `flush`::
-    For <<indices-flush,flush>>, <<indices-synced-flush-api,synced flush>>, and <<index-modules-translog, translog>> `fsync` operations.
+    For <<indices-flush,flush>> and <<index-modules-translog, translog>> `fsync` operations.
     Thread pool type is `scaling` with a keep-alive of `5m` and a default
     maximum size of `min(5, (# of available processors)/2)`.
 
@@ -202,13 +202,13 @@ processors: 2
 There are a few use-cases for explicitly overriding the `processors`
 setting:
 
-. If you are running multiple instances of {es} on the same host but want {es} 
-to size its thread pools as if it only has a fraction of the CPU, you should 
-override the `processors` setting to the desired fraction, for example, if 
+. If you are running multiple instances of {es} on the same host but want {es}
+to size its thread pools as if it only has a fraction of the CPU, you should
+override the `processors` setting to the desired fraction, for example, if
 you're running two instances of {es} on a 16-core machine, set `processors` to 8.
-Note that this is an expert-level use case and there's a lot more involved 
-than just setting the `processors` setting as there are other considerations 
-like changing the number of garbage collector threads, pinning processes to 
+Note that this is an expert-level use case and there's a lot more involved
+than just setting the `processors` setting as there are other considerations
+like changing the number of garbage collector threads, pinning processes to
 cores, and so on.
 . Sometimes the number of processors is wrongly detected and in such
 cases explicitly setting the `processors` setting will workaround such

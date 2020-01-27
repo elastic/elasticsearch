@@ -19,20 +19,18 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
+ * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)  Casts are inserted during semantic checking.
  */
 final class ECast extends AExpression {
 
@@ -57,10 +55,16 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        child.write(classWriter, methodWriter, globals);
-        methodWriter.writeDebugInfo(location);
-        methodWriter.writeCast(cast);
+    CastNode write() {
+        CastNode castNode = new CastNode();
+
+        castNode.setChildNode(child.write());
+
+        castNode.setLocation(location);
+        castNode.setExpressionType(actual);
+        castNode.setCast(cast);
+
+        return castNode;
     }
 
     @Override

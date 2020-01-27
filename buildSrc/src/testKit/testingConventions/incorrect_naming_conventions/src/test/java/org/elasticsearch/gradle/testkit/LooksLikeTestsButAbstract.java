@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.gradle.testkit;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 public abstract class LooksLikeTestsButAbstract {
 
     public void testMethod() {

@@ -155,6 +155,22 @@ POST _scripts/calculate-score
 -----------------------------------
 // TEST[setup:twitter]
 
+You may also specify a context as part of the url path to compile a
+stored script against that specific context in the form of
+`/_scripts/{id}/{context}`:
+
+[source,console]
+-----------------------------------
+POST _scripts/calculate-score/score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params.my_modifier"
+  }
+}
+-----------------------------------
+// TEST[setup:twitter]
+
 This same script can be retrieved with:
 
 [source,console]
@@ -225,3 +241,14 @@ NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a
 <<modules-scripting-engine,native script engine>> should be considered.
+
+[float]
+[[modules-scripting-errors]]
+=== Script errors
+Elasticsearch returns error details when there is a compliation or runtime
+exception.  The contents of this response are useful for tracking down the
+problem.
+
+experimental[]
+
+The contents of `position` are experimental and subject to change.

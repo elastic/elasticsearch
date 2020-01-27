@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -108,9 +109,6 @@ public class AnalyticsProcessManager {
                 }
             }
 
-            // Refresh the dest index to ensure data is searchable
-            refreshDest(config);
-
             // Fetch existing model state (if any)
             BytesReference state = getModelState(config);
 
@@ -159,6 +157,7 @@ public class AnalyticsProcessManager {
             processContext.setFailureReason(resultProcessor.getFailure());
 
             refreshDest(config);
+            refreshStateIndex(config.getId());
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
             if (task.isStopping()) {
@@ -286,6 +285,17 @@ public class AnalyticsProcessManager {
     private void refreshDest(DataFrameAnalyticsConfig config) {
         ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
             () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
+    }
+
+    private void refreshStateIndex(String jobId) {
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
+        LOGGER.debug("[{}] Refresh index {}", jobId, indexName);
+
+        RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            client.admin().indices().refresh(refreshRequest).actionGet();
+        }
     }
 
     private void closeProcess(DataFrameAnalyticsTask task) {

@@ -12,11 +12,11 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDetection> {
 
@@ -84,8 +84,16 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         assertThat(params.get(OutlierDetection.STANDARDIZATION_ENABLED.getPreferredName()), is(false));
     }
 
-    public void testFieldCardinalityLimitsIsNonNull() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
+    public void testRequiredFieldsIsEmpty() {
+        assertThat(createTestInstance().getRequiredFields(), is(empty()));
+    }
+
+    public void testFieldCardinalityLimitsIsEmpty() {
+        assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
+    }
+
+    public void testGetExplicitlyMappedFields() {
+        assertThat(createTestInstance().getExplicitlyMappedFields(null, null), is(anEmptyMap()));
     }
 
     public void testGetStateDocId() {

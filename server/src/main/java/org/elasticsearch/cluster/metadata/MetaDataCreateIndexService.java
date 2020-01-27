@@ -62,6 +62,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -262,7 +263,7 @@ public class MetaDataCreateIndexService {
      * Handles the cluster state transition to a version that reflects the {@link CreateIndexClusterStateUpdateRequest}.
      * All the requested changes are firstly validated before mutating the {@link ClusterState}.
      */
-    ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request) throws Exception {
+    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request) throws Exception {
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
         Index createdIndex = null;
         String removalExtraInfo = null;
@@ -275,8 +276,10 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
+        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+            IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index())) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHidden)) :
             List.of();
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));
@@ -434,6 +437,11 @@ public class MetaDataCreateIndexService {
          * that will be used to create this index.
          */
         MetaDataCreateIndexService.checkShardLimit(indexSettings, currentState);
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_8_0_0)) {
+            throw new IllegalArgumentException("Creating indices with soft-deletes disabled is no longer supported. " +
+                "Please do not specify a value for setting [index.soft_deletes.enabled].");
+        }
         return indexSettings;
     }
 
@@ -641,7 +649,7 @@ public class MetaDataCreateIndexService {
                 "]: cannot be greater than number of shard copies [" +
                 (tmpImd.getNumberOfReplicas() + 1) + "]");
         }
-        return indicesService.createIndex(tmpImd, Collections.emptyList());
+        return indicesService.createIndex(tmpImd, Collections.emptyList(), false);
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {

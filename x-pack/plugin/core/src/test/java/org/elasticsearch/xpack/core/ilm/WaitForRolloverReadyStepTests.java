@@ -16,19 +16,13 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -41,13 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForRolloverReadyStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     protected WaitForRolloverReadyStep createRandomInstance() {
@@ -124,35 +111,25 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                Set<Condition<?>> expectedConditions = new HashSet<>();
-                if (step.getMaxAge() != null) {
-                    expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-                }
-                if (step.getMaxSize() != null) {
-                    expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-                }
-                if (step.getMaxDocs() != null) {
-                    expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-                }
-                assertRolloverIndexRequest(request, alias, expectedConditions);
-                Map<String, Boolean> conditionResults = expectedConditions.stream()
-                    .collect(Collectors.toMap(Condition::toString, condition -> true));
-                listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
-                return null;
+        Mockito.doAnswer(invocation -> {
+            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            Set<Condition<?>> expectedConditions = new HashSet<>();
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
-
+            if (step.getMaxSize() != null) {
+                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxDocs() != null) {
+                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            assertRolloverIndexRequest(request, alias, expectedConditions);
+            Map<String, Boolean> conditionResults = expectedConditions.stream()
+                .collect(Collectors.toMap(Condition::toString, condition -> true));
+            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
+            return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
@@ -167,7 +144,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, conditionsMet.get());
 
@@ -186,7 +163,6 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         WaitForRolloverReadyStep step = createRandomInstance();
-        IndicesAdminClient indicesClient = indicesAdminClientMock();
 
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
@@ -199,7 +175,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -216,7 +192,6 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         WaitForRolloverReadyStep step = createRandomInstance();
-        IndicesAdminClient indicesClient = indicesAdminClientMock();
 
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
@@ -229,7 +204,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -257,7 +232,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, conditionsMet.get());
     }
@@ -286,7 +261,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 assertTrue(e instanceof IllegalStateException);
                 correctFailureCalled.set(true);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, correctFailureCalled.get());
     }
@@ -299,35 +274,25 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                Set<Condition<?>> expectedConditions = new HashSet<>();
-                if (step.getMaxAge() != null) {
-                    expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-                }
-                if (step.getMaxSize() != null) {
-                    expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-                }
-                if (step.getMaxDocs() != null) {
-                    expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-                }
-                assertRolloverIndexRequest(request, alias, expectedConditions);
-                Map<String, Boolean> conditionResults = expectedConditions.stream()
-                    .collect(Collectors.toMap(Condition::toString, condition -> false));
-                listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
-                return null;
+        Mockito.doAnswer(invocation -> {
+            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            Set<Condition<?>> expectedConditions = new HashSet<>();
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
-
+            if (step.getMaxSize() != null) {
+                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxDocs() != null) {
+                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            assertRolloverIndexRequest(request, alias, expectedConditions);
+            Map<String, Boolean> conditionResults = expectedConditions.stream()
+                .collect(Collectors.toMap(Condition::toString, condition -> false));
+            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
+            return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
@@ -342,7 +307,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 throw new AssertionError("Unexpected method call", e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(false, actionCompleted.get());
 
@@ -360,33 +325,23 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Exception exception = new RuntimeException();
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                Set<Condition<?>> expectedConditions = new HashSet<>();
-                if (step.getMaxAge() != null) {
-                    expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-                }
-                if (step.getMaxSize() != null) {
-                    expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-                }
-                if (step.getMaxDocs() != null) {
-                    expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-                }
-                assertRolloverIndexRequest(request, alias, expectedConditions);
-                listener.onFailure(exception);
-                return null;
+        Mockito.doAnswer(invocation -> {
+            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            Set<Condition<?>> expectedConditions = new HashSet<>();
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
-
+            if (step.getMaxSize() != null) {
+                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxDocs() != null) {
+                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            assertRolloverIndexRequest(request, alias, expectedConditions);
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
@@ -402,7 +357,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 assertSame(exception, e);
                 exceptionThrown.set(true);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertEquals(true, exceptionThrown.get());
 
@@ -429,7 +384,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 exceptionThrown.set(e);
             }
-        });
+        }, MASTER_TIMEOUT);
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
             "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
@@ -454,18 +409,10 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             public void onFailure(Exception e) {
                 exceptionThrown.set(e);
             }
-        });
+        }, MASTER_TIMEOUT);
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
             "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
             indexMetaData.getIndex().getName())));
-    }
-
-    private IndicesAdminClient indicesAdminClientMock() {
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        return indicesClient;
     }
 }

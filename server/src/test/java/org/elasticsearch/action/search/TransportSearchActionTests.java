@@ -351,7 +351,7 @@ public class TransportSearchActionTests extends ESTestCase {
             DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
-            settingsBuilder.put("cluster.remote.remote" + i + ".sniff.seeds", remoteSeedNode.getAddress().toString());
+            settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
             remoteIndices.put("remote" + i, new OriginalIndices(new String[]{"index"}, IndicesOptions.lenientExpandOpen()));
         }
         return mockTransportServices;

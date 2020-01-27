@@ -28,13 +28,13 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
@@ -128,7 +128,7 @@ public class InferenceProcessor extends AbstractProcessor {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
         if (fieldMapping != null) {
             fieldMapping.forEach((src, dest) -> {
-                Object srcValue = fields.remove(src);
+                Object srcValue = MapHelper.dig(src, fields);
                 if (srcValue != null) {
                     fields.put(dest, srcValue);
                 }
@@ -150,12 +150,8 @@ public class InferenceProcessor extends AbstractProcessor {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
-        InferenceResults inferenceResults = response.getInferenceResults().get(0);
-        if (inferenceResults instanceof WarningInferenceResults) {
-            inferenceResults.writeResult(ingestDocument, this.targetField);
-        } else {
-            response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
-        }
+        assert response.getInferenceResults().size() == 1;
+        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
         ingestDocument.setFieldValue(targetField + "." + MODEL_ID, modelId);
     }
 
@@ -279,12 +275,12 @@ public class InferenceProcessor extends AbstractProcessor {
             @SuppressWarnings("unchecked")
             Map<String, Object> valueMap = (Map<String, Object>)value;
 
-            if (inferenceConfig.containsKey(ClassificationConfig.NAME)) {
+            if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 ClassificationConfig config = ClassificationConfig.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
                 return config;
-            } else if (inferenceConfig.containsKey(RegressionConfig.NAME)) {
+            } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 RegressionConfig config = RegressionConfig.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField());
@@ -292,7 +288,7 @@ public class InferenceProcessor extends AbstractProcessor {
             } else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     inferenceConfig.keySet(),
-                    Arrays.asList(ClassificationConfig.NAME, RegressionConfig.NAME));
+                    Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
             }
         }
 

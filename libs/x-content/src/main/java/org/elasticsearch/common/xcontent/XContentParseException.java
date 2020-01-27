@@ -61,5 +61,4 @@ public class XContentParseException extends IllegalArgumentException {
     public String getMessage() {
         return location.map(l -> "[" + l.toString() + "] ").orElse("") + super.getMessage();
     }
-
 }

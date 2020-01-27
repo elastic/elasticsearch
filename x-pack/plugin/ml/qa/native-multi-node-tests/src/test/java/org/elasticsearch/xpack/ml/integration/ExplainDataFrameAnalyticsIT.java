@@ -43,7 +43,11 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         String sourceIndex = "test-source-query-is-applied";
 
         client().admin().indices().prepareCreate(sourceIndex)
-            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical", "type=keyword")
+            .setMapping(
+                "numeric_1", "type=double",
+                "numeric_2", "type=float",
+                "categorical", "type=keyword",
+                "filtered_field", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -51,9 +55,11 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         for (int i = 0; i < 30; i++) {
             IndexRequest indexRequest = new IndexRequest(sourceIndex);
-
-            // We insert one odd value out of 5 for one feature
-            indexRequest.source("numeric_1", 1.0, "numeric_2", 2.0, "categorical", i == 0 ? "only-one" : "normal");
+            indexRequest.source(
+                "numeric_1", 1.0,
+                "numeric_2", 2.0,
+                "categorical", i % 2 == 0 ? "class_1" : "class_2",
+                "filtered_field", i < 2 ? "bingo" : "rest"); // We tag bingo on the first two docs to ensure we have 2 classes
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -66,7 +72,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("categorical", "only-one")),
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("filtered_field", "bingo")),
                 null))
             .setAnalysis(new Classification("categorical"))
             .buildForExplain();

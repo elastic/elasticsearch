@@ -55,43 +55,21 @@ public class CacheDirectory extends FilterDirectory {
         return new CacheBufferedIndexInput(name, fileLength(name), context);
     }
 
-    public class CacheBufferedIndexInput extends BufferedIndexInput implements CacheFile.EvictionListener {
+    private class CacheFileReference implements CacheFile.EvictionListener {
 
         private final String fileName;
         private final long fileLength;
         private final Path file;
-        private final IOContext ioContext;
-        private final long offset;
-        private final long end;
+        private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
 
-        private @Nullable AtomicReference<CacheFile> cacheFile;
-        private @Nullable CacheBufferedIndexInput parent;
-        private AtomicBoolean closed;
-
-        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
-            this(fileName, fileLength, ioContext, "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength);
-        }
-
-        private CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext, String desc, long offset, long length) {
-            super(desc, ioContext);
+        private CacheFileReference(String fileName, long fileLength, Path file) {
             this.fileName = fileName;
             this.fileLength = fileLength;
-            this.file = cacheDir.resolve(fileName);
-            this.ioContext = ioContext;
-            this.offset = offset;
-            this.end = offset + length;
-            this.cacheFile = new AtomicReference<>();
-            this.closed = new AtomicBoolean(false);
-        }
-
-        @Override
-        public long length() {
-            return end - offset;
+            this.file = file;
         }
 
         @Nullable
-        private CacheFile getOrAcquire() throws Exception {
-            assert parent == null : "should only be called on non-cloned index inputs";
+        CacheFile get() throws Exception {
             CacheFile currentCacheFile = cacheFile.get();
             if (currentCacheFile != null) {
                 return currentCacheFile;
@@ -112,6 +90,10 @@ public class CacheDirectory extends FilterDirectory {
             return null;
         }
 
+        String getFileName() {
+            return fileName;
+        }
+
         @Override
         public void onEviction(final CacheFile evictedCacheFile) {
             synchronized (this) {
@@ -121,14 +103,63 @@ public class CacheDirectory extends FilterDirectory {
             }
         }
 
+        void releaseOnClose() {
+            synchronized (this) {
+                final CacheFile currentCacheFile = cacheFile.getAndSet(null);
+                if (currentCacheFile != null) {
+                    currentCacheFile.release(this);
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "CacheFileReference{" +
+                "fileName='" + fileName + '\'' +
+                ", fileLength=" + fileLength +
+                ", file=" + file +
+                ", acquired=" + (cacheFile.get() != null) +
+                '}';
+        }
+    }
+
+    public class CacheBufferedIndexInput extends BufferedIndexInput {
+
+        private final IOContext ioContext;
+        private final long offset;
+        private final long end;
+        private final CacheFileReference cacheFileReference;
+
+        // the following are only mutable so they can be adjusted after cloning
+        private AtomicBoolean closed;
+        private boolean isClone;
+
+        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
+            this(new CacheFileReference(fileName, fileLength, cacheDir.resolve(fileName)), ioContext,
+                "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength, false);
+        }
+
+        private CacheBufferedIndexInput(CacheFileReference cacheFileReference, IOContext ioContext, String desc, long offset, long length,
+                                        boolean isClone) {
+            super(desc, ioContext);
+            this.ioContext = ioContext;
+            this.offset = offset;
+            this.cacheFileReference = cacheFileReference;
+            this.end = offset + length;
+            this.closed = new AtomicBoolean(false);
+            this.isClone = isClone;
+        }
+
+        @Override
+        public long length() {
+            return end - offset;
+        }
+
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
-                synchronized (this) {
-                    final CacheFile currentCacheFile = cacheFile.getAndSet(null);
-                    if (currentCacheFile != null) {
-                        currentCacheFile.release(this);
-                    }
+                if (isClone == false) {
+                    cacheFileReference.releaseOnClose();
                 }
             }
         }
@@ -144,7 +175,7 @@ public class CacheDirectory extends FilterDirectory {
                 final int len = length - bytesRead;
 
                 try {
-                    final CacheFile cacheFile = (parent == null) ? getOrAcquire() : parent.getOrAcquire();
+                    final CacheFile cacheFile = cacheFileReference.get();
                     if (cacheFile == null) {
                         throw new AlreadyClosedException("Failed to acquire a non-evicted cache file");
                     }
@@ -170,7 +201,6 @@ public class CacheDirectory extends FilterDirectory {
                 }
             }
             assert bytesRead == length : "partial read operation, read [" + bytesRead + "] bytes of [" + length + "]";
-            assert parent == null || cacheFile.get() == null;
         }
 
         int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
@@ -182,7 +212,7 @@ public class CacheDirectory extends FilterDirectory {
         void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
-            try (IndexInput input = in.openInput(fileName, ioContext)) {
+            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 if (start > 0) {
                     input.seek(start);
                 }
@@ -210,10 +240,8 @@ public class CacheDirectory extends FilterDirectory {
         @Override
         public CacheBufferedIndexInput clone() {
             final CacheBufferedIndexInput clone = (CacheBufferedIndexInput) super.clone();
-            clone.cacheFile = new AtomicReference<>();
             clone.closed = new AtomicBoolean(false);
-            clone.parent = (this.parent != null ? this.parent : this);
-            assert clone.parent.parent == null : "parent must not be a clone";
+            clone.isClone = true;
             return clone;
         }
 
@@ -223,22 +251,17 @@ public class CacheDirectory extends FilterDirectory {
                 throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
                     + ",length=" + length + ",fileLength=" + this.length() + ": " + this);
             }
-            final CacheBufferedIndexInput slice = new CacheBufferedIndexInput(fileName, fileLength, ioContext,
-                getFullSliceDescription(sliceDescription), this.offset + offset, length);
-            slice.parent = (this.parent != null ? this.parent : this);
-            assert slice.parent.parent == null : "parent must not be a clone";
-            return slice;
+            return new CacheBufferedIndexInput(cacheFileReference, ioContext,
+                getFullSliceDescription(sliceDescription), this.offset + offset, length, true);
         }
 
         @Override
         public String toString() {
             return "CacheBufferedIndexInput{" +
-                "fileName='" + fileName + '\'' +
-                ", fileLength=" + fileLength +
+                "cacheFileReference=" + cacheFileReference +
                 ", offset=" + offset +
                 ", end=" + end +
                 ", length=" + length() +
-                ", clone=" + (parent != null) +
                 ", position=" + getFilePointer() +
                 '}';
         }
@@ -247,7 +270,7 @@ public class CacheDirectory extends FilterDirectory {
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
 
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(fileName, ioContext)) {
+            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 if (start > 0) {
                     input.seek(start);
                 }

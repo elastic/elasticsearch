@@ -302,14 +302,24 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            if (!super.equals(o)) {
+                return false;
+            }
 
             CompletionFieldType that = (CompletionFieldType) o;
 
-            if (preserveSep != that.preserveSep) return false;
-            if (preservePositionIncrements != that.preservePositionIncrements) return false;
+            if (preserveSep != that.preserveSep) {
+                return false;
+            }
+            if (preservePositionIncrements != that.preservePositionIncrements) {
+                return false;
+            }
             return !(contextMappings != null ? !contextMappings.equals(that.contextMappings) : that.contextMappings != null);
 
         }
@@ -676,9 +686,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
         this.maxInputLength = fieldMergeWith.maxInputLength;
+        return conflicts;
     }
 }

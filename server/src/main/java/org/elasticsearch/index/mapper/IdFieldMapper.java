@@ -49,6 +49,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -301,7 +302,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         // do nothing here, no merging, but also no exception
+        return Collections.emptyList();
     }
 }

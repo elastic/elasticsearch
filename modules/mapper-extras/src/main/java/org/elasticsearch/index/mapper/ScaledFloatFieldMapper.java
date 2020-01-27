@@ -437,8 +437,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
@@ -446,6 +446,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (other.coerce.explicit()) {
             this.coerce = other.coerce;
         }
+        return conflicts;
     }
 
     @Override

@@ -103,6 +103,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
             super(ref);
         }
 
+        @Override
         public ParentIdFieldType clone() {
             return new ParentIdFieldType(this);
         }
@@ -194,10 +195,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) mergeWith;
         this.children = parentMergeWith.children;
+        return conflicts;
     }
 
     @Override

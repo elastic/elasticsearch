@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -400,8 +401,8 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("type",
                 new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
-            + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
+        assertEquals("Can't merge because of conflicts: [mapper [field] has different [collator], Cannot update language setting for ["
+                + FIELD_TYPE + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
     }
 
 

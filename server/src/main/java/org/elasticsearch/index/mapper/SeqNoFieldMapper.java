@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -271,8 +272,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         // nothing to do
+        return Collections.emptyList();
     }
 
 }

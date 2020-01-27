@@ -230,6 +230,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             this.key = key;
         }
 
+        @Override
         public KeyedFlatObjectFieldType clone() {
             return new KeyedFlatObjectFieldType(this);
         }
@@ -249,9 +250,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            if (!super.equals(o)) {
+                return false;
+            }
             KeyedFlatObjectFieldType that = (KeyedFlatObjectFieldType) o;
             return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
         }
@@ -468,15 +475,22 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
+        @Override
         public RootFlatObjectFieldType clone() {
             return new RootFlatObjectFieldType(this);
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            if (!super.equals(o)) {
+                return false;
+            }
             RootFlatObjectFieldType that = (RootFlatObjectFieldType) o;
             return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
         }
@@ -550,14 +564,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
 
         FlatObjectFieldMapper other = ((FlatObjectFieldMapper) mergeWith);
         this.depthLimit = other.depthLimit;
         this.ignoreAbove = other.ignoreAbove;
         this.fieldParser = new FlatObjectFieldParser(fieldType.name(), keyedFieldName(),
             fieldType, depthLimit, ignoreAbove);
+        return conflicts;
     }
 
     @Override

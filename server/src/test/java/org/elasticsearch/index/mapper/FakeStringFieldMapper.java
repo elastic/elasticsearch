@@ -96,6 +96,7 @@ public class FakeStringFieldMapper extends FieldMapper {
             super(ref);
         }
 
+        @Override
         public FakeStringFieldType clone() {
             return new FakeStringFieldType(this);
         }
@@ -148,8 +149,8 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        return super.doMerge(mergeWith);
     }
 
     @Override

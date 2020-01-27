@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -216,7 +217,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         // nothing to do
+        return Collections.emptyList();
     }
 }

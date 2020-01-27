@@ -338,7 +338,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
 
         @Override
         public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
+            if (!super.equals(o)) {
+                return false;
+            }
             GeoShapeFieldType that = (GeoShapeFieldType) o;
             return treeLevels == that.treeLevels &&
                 precisionInMeters == that.precisionInMeters &&
@@ -534,14 +536,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         if (mergeWith instanceof GeoShapeFieldMapper) {
             GeoShapeFieldMapper fieldMapper = (GeoShapeFieldMapper) mergeWith;
             throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
                 "using [" + fieldType().strategy() + "] strategy cannot be merged with " + "[" + fieldMapper.typeName() +
                 "] with [BKD] strategy");
         }
-        super.doMerge(mergeWith);
+        return super.doMerge(mergeWith);
     }
 
     @Override

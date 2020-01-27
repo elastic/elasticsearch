@@ -566,12 +566,13 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         final DateFieldMapper other = (DateFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
+        return conflicts;
     }
 
     @Override

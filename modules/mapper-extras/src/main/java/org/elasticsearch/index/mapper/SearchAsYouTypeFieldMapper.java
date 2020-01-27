@@ -699,8 +699,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         SearchAsYouTypeFieldMapper mw = (SearchAsYouTypeFieldMapper) mergeWith;
         if (mw.maxShingleSize != maxShingleSize) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different [max_shingle_size] setting, current ["
@@ -712,6 +712,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         for (int i = 0; i < shingleFieldMappers.length; i++) {
             this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(mw.shingleFields[i]);
         }
+        return conflicts;
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

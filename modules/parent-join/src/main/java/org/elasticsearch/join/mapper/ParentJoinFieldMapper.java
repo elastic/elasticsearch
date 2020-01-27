@@ -212,6 +212,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             super(ref);
         }
 
+        @Override
         public JoinFieldType clone() {
             return new JoinFieldType(this);
         }
@@ -312,10 +313,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
             if (joinMergeWith.getParentIdFieldMapper(mapper.getParentName(), true) == null) {
                 conflicts.add("cannot remove parent [" + mapper.getParentName() + "] in join field [" + name() + "]");
@@ -354,6 +354,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
         this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
         uniqueFieldMapper.setFieldMapper(this);
+        return conflicts;
     }
 
     @Override

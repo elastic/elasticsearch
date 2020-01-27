@@ -301,7 +301,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
         List<String> conflicts = new ArrayList<>();
         if (this.enabled != sourceMergeWith.enabled) {
@@ -313,8 +313,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
             conflicts.add("Cannot update excludes setting for [_source]");
         }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
+        return conflicts;
     }
 }

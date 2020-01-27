@@ -296,7 +296,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         @Override
         public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
+            if (!super.equals(o)) {
+                return false;
+            }
             AbstractGeometryFieldType that = (AbstractGeometryFieldType) o;
             return orientation == that.orientation;
         }
@@ -364,8 +366,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)mergeWith;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;
@@ -376,6 +378,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         if (gsfm.ignoreZValue.explicit()) {
             this.ignoreZValue = gsfm.ignoreZValue;
         }
+        return conflicts;
     }
 
     @Override

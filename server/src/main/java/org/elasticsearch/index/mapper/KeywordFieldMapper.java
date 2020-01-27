@@ -202,6 +202,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
+        @Override
         public KeywordFieldType clone() {
             return new KeywordFieldType(this);
         }
@@ -389,9 +390,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
+        return conflicts;
     }
 
     @Override

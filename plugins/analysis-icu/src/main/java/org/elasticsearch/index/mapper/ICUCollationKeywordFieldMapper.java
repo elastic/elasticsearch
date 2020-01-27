@@ -23,6 +23,7 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -49,7 +50,6 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -605,10 +605,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
 
-        List<String> conflicts = new ArrayList<>();
         ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
 
         if (!Objects.equals(rules, icuMergeWith.rules)) {
@@ -660,10 +659,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         this.ignoreAbove = icuMergeWith.ignoreAbove;
-
-        if (!conflicts.isEmpty()) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
+        return conflicts;
     }
 
     @Override

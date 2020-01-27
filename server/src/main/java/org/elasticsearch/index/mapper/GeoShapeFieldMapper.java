@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
+import java.util.List;
+
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
  * <p>
@@ -105,14 +107,14 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
             LegacyGeoShapeFieldMapper legacy = (LegacyGeoShapeFieldMapper) mergeWith;
             throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
                 "using [BKD] strategy cannot be merged with " + "[" + legacy.fieldType().typeName() + "] with [" +
                 legacy.fieldType().strategy() + "] strategy");
         }
-        super.doMerge(mergeWith);
+        return super.doMerge(mergeWith);
     }
 
     @Override

@@ -343,14 +343,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     @Override
     public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
-        merged.doMerge(mergeWith);
+        List<String> conflicts = merged.doMerge(mergeWith);
+        if (!conflicts.isEmpty()) {
+            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
+        }
         return merged;
     }
 
     /**
      * Merge changes coming from {@code mergeWith} in place.
+     * @return a list of potential conflicts
      */
-    protected void doMerge(Mapper mergeWith) {
+    protected List<String> doMerge(Mapper mergeWith) {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
@@ -365,11 +369,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         // apply changeable values
         List<String> conflicts = new ArrayList<>();
         this.fieldType.checkCompatibility(fieldMergeWith.fieldType, conflicts);
-        if (conflicts.size() > 0) {
-            throw new IllegalArgumentException("Mapper for [" + fieldType.name() + "] conflicts with existing mapping:\n" + conflicts);
-        }
+//        if (conflicts.size() > 0) {
+//            throw new IllegalArgumentException("Mapper for [" + fieldType.name() + "] conflicts with existing mapping:\n" + conflicts);
+//        }
         this.fieldType = fieldMergeWith.fieldType;
         this.copyTo = fieldMergeWith.copyTo;
+        return conflicts;
     }
 
     @Override

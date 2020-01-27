@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
@@ -148,12 +149,13 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) mergeWith;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }
+        return conflicts;
     }
 
     @Override

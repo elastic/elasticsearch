@@ -454,9 +454,15 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            if (!super.equals(o)) {
+                return false;
+            }
             PrefixFieldType that = (PrefixFieldType) o;
             return minChars == that.minChars &&
                 maxChars == that.maxChars;
@@ -867,8 +873,8 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         TextFieldMapper mw = (TextFieldMapper) mergeWith;
 
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
@@ -884,6 +890,7 @@ public class TextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
                 + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }
+        return conflicts;
     }
 
     @Override

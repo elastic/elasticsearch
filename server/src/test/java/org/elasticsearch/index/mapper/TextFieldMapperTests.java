@@ -1297,7 +1297,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse("_doc", new CompressedXContent(mapping)));
-        assertEquals("Mapper for [o1.f1] conflicts with existing mapping:\n" +
+        assertEquals("Can't merge because of conflicts: " +
                 "[mapper [o1.f1] has different [index] values, mapper [o1.f1] has different [store_term_vector] values]", ex.getMessage());
     }
 }

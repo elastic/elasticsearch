@@ -33,8 +33,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
@@ -202,10 +202,11 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts = super.doMerge(mergeWith);
         this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
         this.enablePositionIncrements = ((TokenCountFieldMapper) mergeWith).enablePositionIncrements;
+        return conflicts;
     }
 
     @Override

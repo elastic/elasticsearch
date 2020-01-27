@@ -223,7 +223,9 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
+            if (!super.equals(o)) {
+                return false;
+            }
             RangeFieldType that = (RangeFieldType) o;
             return Objects.equals(rangeType, that.rangeType) &&
             (rangeType == RangeType.DATE) ?
@@ -404,12 +406,13 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected List<String> doMerge(Mapper mergeWith) {
+        List<String> conflicts =  super.doMerge(mergeWith);
         RangeFieldMapper other = (RangeFieldMapper) mergeWith;
         if (other.coerce.explicit()) {
             this.coerce = other.coerce;
         }
+        return conflicts;
     }
 
     @Override

@@ -128,8 +128,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 Map<?, ?> settingsMap = (Map<?, ?>) indexSettingsMap.get("settings");
                 logger.info("settings map {}", settingsMap);
                 if (settingsMap.containsKey("index")) {
-                    @SuppressWarnings("unchecked")
-                    int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
+                    int format = Integer.parseInt(String.valueOf(((Map<?, ?>)settingsMap.get("index")).get("format")));
                     assertEquals("The security index needs to be upgraded", SECURITY_EXPECTED_INDEX_FORMAT_VERSION, format);
                 }
             }
@@ -497,7 +496,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(templates.keySet(), not(hasItems(is("watches"), startsWith("watch-history"), is("triggered_watches"))));
     }
 
-    @SuppressWarnings("unchecked")
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
@@ -521,7 +519,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.error("-----> {}", bwcWatch);
 
         assertThat(bwcWatch.get("found"), equalTo(true));
-        Map<String, Object> source = (Map<String, Object>) bwcWatch.get("watch");
+        Map<?, ?> source = (Map<?, ?>) bwcWatch.get("watch");
         assertEquals(1000, source.get("throttle_period_in_millis"));
         int timeout = (int) timeValueSeconds(100).millis();
         assertThat(ObjectPath.eval("input.search.timeout_in_millis", source), equalTo(timeout));
@@ -547,7 +545,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
         bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));
-        source = (Map<String, Object>) bwcWatch.get("watch");
+        source = (Map<?, ?>) bwcWatch.get("watch");
         assertEquals(timeout, source.get("throttle_period_in_millis"));
         assertThat(ObjectPath.eval("actions.index_payload.throttle_period_in_millis", source), equalTo(timeout));
 
@@ -557,11 +555,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
          */
         bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/bwc_funny_timeout")));
         assertThat(bwcWatch.get("found"), equalTo(true));
-        source = (Map<String, Object>) bwcWatch.get("watch");
+        source = (Map<?, ?>) bwcWatch.get("watch");
 
 
         Map<String, Object> attachments = ObjectPath.eval("actions.work.email.attachments", source);
-        Map<String, Object> attachment = (Map<String, Object>) attachments.get("test_report.pdf");
+        Map<?, ?> attachment = (Map<?, ?>) attachments.get("test_report.pdf");
         Map<String, Object>  request =  ObjectPath.eval("http.request", attachment);
         assertEquals(timeout, request.get("read_timeout_millis"));
         assertEquals("https", request.get("scheme"));
@@ -577,8 +575,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             searchRequest.addParameter(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, "true");
         }
         Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
-        Map<String, Object> hits = (Map<String, Object>) history.get("hits");
-        assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));
+        Map<?, ?> hits = (Map<?, ?>) history.get("hits");
+        assertThat((Integer) (hits.get("total")), greaterThanOrEqualTo(2));
     }
 
     private void assertBasicWatchInteractions() throws Exception {
@@ -601,7 +599,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));
-        @SuppressWarnings("unchecked") Map<?, ?> source = (Map<String, Object>) get.get("watch");
+        Map<?, ?> source = (Map<?, ?>) get.get("watch");
         Map<String, Object>  logging = ObjectPath.eval("actions.awesome.logging", source);
         assertEquals("info", logging.get("level"));
         assertEquals("test", logging.get("text"));
@@ -689,7 +687,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final String user = oldCluster ? "preupgrade_user" : "postupgrade_user";
         Request request = new Request("GET", getSecurityEndpoint() + "/user/" + user);;
         Map<String, Object> response = entityAsMap(client().performRequest(request));
-        @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
+        Map<?, ?> userInfo = (Map<?, ?>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
         assertNotNull(userInfo.get("full_name"));
         assertNotNull(userInfo.get("roles"));

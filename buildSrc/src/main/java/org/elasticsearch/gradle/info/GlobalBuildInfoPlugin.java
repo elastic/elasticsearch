@@ -70,7 +70,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 break;
             default:
                 throw new IllegalArgumentException(
-                    "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
+                    "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]"
+                );
         }
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {

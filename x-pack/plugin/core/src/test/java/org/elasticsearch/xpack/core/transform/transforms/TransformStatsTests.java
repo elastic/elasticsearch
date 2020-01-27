@@ -21,13 +21,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransformStatsTests extends AbstractSerializingTestCase<TransformStats> {
 
-    public static TransformStats randomDataFrameTransformStats() {
-        return new TransformStats(randomAlphaOfLength(10),
+    public static TransformStats randomTransformStats() {
+        return new TransformStats(
+            randomAlphaOfLength(10),
             randomFrom(TransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
             TransformIndexerStatsTests.randomStats(),
-            TransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
+            TransformCheckpointingInfoTests.randomTransformCheckpointingInfo()
+        );
     }
 
     @Override
@@ -37,7 +39,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected TransformStats createTestInstance() {
-        return randomDataFrameTransformStats();
+        return randomTransformStats();
     }
 
     @Override
@@ -61,8 +63,9 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
     }
 
     public void testBwcWith73() throws IOException {
-        for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            TransformStats stats = new TransformStats("bwc-id",
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            TransformStats stats = new TransformStats(
+                "bwc-id",
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
@@ -71,7 +74,10 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),
                     // changesLastDetectedAt aren't serialized back
-                    100, null));
+                    100,
+                    null
+                )
+            );
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 output.setVersion(Version.V_7_3_0);
                 stats.writeTo(output);

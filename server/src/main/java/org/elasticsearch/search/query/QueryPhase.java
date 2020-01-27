@@ -343,8 +343,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
             queryResult.terminatedEarly(false);
@@ -399,8 +397,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             searchContext.queryResult().searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         return false; // no rescoring when sorting by field
     }

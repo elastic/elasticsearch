@@ -86,7 +86,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
@@ -564,9 +563,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             contextScrollKeepAlive(reader, keepAlive);
             context.lowLevelCancellation(lowLevelCancellation);
             // Disable timeout while searching and mark the reader as accessed when releasing the context.
-            context.addReleasable(() -> reader.accessed(threadPool.relativeTimeInMillis()), Lifetime.CONTEXT);
+            context.addReleasable(() -> reader.accessed(threadPool.relativeTimeInMillis()));
             reader.accessed(-1L);
-            context.addReleasable(() -> reader.indexShard().getSearchOperationListener().onFreeSearchContext(context), Lifetime.CONTEXT);
+            context.addReleasable(() -> reader.indexShard().getSearchOperationListener().onFreeSearchContext(context));
         } catch (Exception e) {
             context.close();
             throw e;

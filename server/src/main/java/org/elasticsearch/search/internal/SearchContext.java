@@ -29,7 +29,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -59,10 +58,9 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -77,7 +75,7 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    private Map<Lifetime, List<Releasable>> clearables = null;
+    private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
@@ -93,10 +91,12 @@ public abstract class SearchContext implements Releasable {
 
     @Override
     public final void close() {
-        try {
-            clearReleasables(Lifetime.CONTEXT);
-        } finally {
-            doClose();
+        if (closed.compareAndSet(false, true)) {
+            try {
+                Releasables.close(releasables);
+            } finally {
+                doClose();
+            }
         }
     }
 
@@ -313,36 +313,12 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract Profilers getProfilers();
 
-    /**
-     * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
-     * is function of the provided {@link Lifetime}.
-     */
-    public void addReleasable(Releasable releasable, Lifetime lifetime) {
-        if (clearables == null) {
-            clearables = new EnumMap<>(Lifetime.class);
-        }
-        List<Releasable> releasables = clearables.get(lifetime);
-        if (releasables == null) {
-            releasables = new ArrayList<>();
-            clearables.put(lifetime, releasables);
-        }
-        releasables.add(releasable);
-    }
 
-    public void clearReleasables(Lifetime lifetime) {
-        if (clearables != null) {
-            List<List<Releasable>>releasables = new ArrayList<>();
-            for (Lifetime lc : Lifetime.values()) {
-                if (lc.compareTo(lifetime) > 0) {
-                    break;
-                }
-                List<Releasable> remove = clearables.remove(lc);
-                if (remove != null) {
-                    releasables.add(remove);
-                }
-            }
-            Releasables.close(Iterables.flatten(releasables));
-        }
+    /**
+     * Adds a releasable that will be freed when this context is closed.
+     */
+    public void addReleasable(Releasable releasable) {
+        releasables.add(releasable);
     }
 
     /**
@@ -368,20 +344,6 @@ public abstract class SearchContext implements Releasable {
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
-
-    /**
-     * The life time of an object that is used during search execution.
-     */
-    public enum Lifetime {
-        /**
-         * This life time is for objects that only live during collection time.
-         */
-        COLLECTION,
-        /**
-         * This life time is for objects that need to live until the search context they are attached to is destroyed.
-         */
-        CONTEXT
-    }
 
     public abstract QueryShardContext getQueryShardContext();
 

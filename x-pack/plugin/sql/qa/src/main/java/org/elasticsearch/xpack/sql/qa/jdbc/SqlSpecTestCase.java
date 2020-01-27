@@ -25,7 +25,7 @@ import java.util.TimeZone;
  * with those executed against H2's jdbc client.
  */
 public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
-    private final int TZSYNC_MINUTE_THREASHOLD = 55;
+    private final int TZSYNC_MINUTE_THRESHOLD = 55;
     private String query;
 
     @ClassRule
@@ -91,8 +91,8 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         // whole hours apart from the UTC, check also that timezone against being within the "rolling" interval. (This won't catch the case
         // when the random TZ and the local machine's are both having hour-fractional deltas from UTC, but this case should be negligible).
         if (testName.toUpperCase(Locale.ROOT).endsWith("TZSYNC")) {
-            Assume.assumeTrue(LocalDateTime.now(TimeZone.getDefault().toZoneId()).getMinute() <= TZSYNC_MINUTE_THREASHOLD);
-            Assume.assumeTrue(LocalDateTime.now(ZoneId.of("UTC")).getMinute() <= TZSYNC_MINUTE_THREASHOLD);
+            Assume.assumeTrue(LocalDateTime.now(TimeZone.getDefault().toZoneId()).getMinute() <= TZSYNC_MINUTE_THRESHOLD);
+            Assume.assumeTrue(LocalDateTime.now(ZoneId.of("UTC")).getMinute() <= TZSYNC_MINUTE_THRESHOLD);
         }
 
         try (Connection h2 = H2.get();

@@ -127,7 +127,7 @@ public class RestCancellableNodeClient extends FilterClient {
         CloseListener() {
         }
 
-        int getNumTasks() {
+        synchronized int getNumTasks() {
             return tasks.size();
         }
 
@@ -135,7 +135,7 @@ public class RestCancellableNodeClient extends FilterClient {
             if (channel.compareAndSet(null, httpChannel)) {
                 //In case the channel is already closed when we register the listener, the listener will be immediately executed which will
                 //remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
-                //with the channel. This guarantees that the close listener is already in the map when the it gets registered to its
+                //with the channel. This guarantees that the close listener is already in the map when it gets registered to its
                 //corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
                 httpChannel.addCloseListener(this);
             }
@@ -157,14 +157,19 @@ public class RestCancellableNodeClient extends FilterClient {
 
         @Override
         public void onResponse(Void aVoid) {
+            final HttpChannel httpChannel = channel.get();
+            assert httpChannel != null : "channel not registered";
+            // when the channel gets closed it won't be reused: we can remove it from the map and forget about it.
+            CloseListener closeListener = httpChannels.remove(httpChannel);
+            assert closeListener != null : "channel not found in the map of tracked channels";
             final List<TaskId> toCancel;
             synchronized (this) {
-                // when the channel gets closed it won't be reused: we can remove it from the map and forget about it.
-                CloseListener closeListener = httpChannels.remove(channel.get());
-                assert closeListener != null : "channel not found in the map of tracked channels";
                 toCancel = new ArrayList<>(tasks);
+                tasks.clear();
             }
-            toCancel.stream().forEach(taskId -> cancelTask(taskId));
+            for (TaskId taskId : toCancel) {
+                cancelTask(taskId);
+            }
         }
 
         @Override

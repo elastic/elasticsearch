@@ -45,7 +45,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         }
 
-        return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {
+        return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<EqlSearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(EqlSearchResponse response) throws Exception {
                 XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);

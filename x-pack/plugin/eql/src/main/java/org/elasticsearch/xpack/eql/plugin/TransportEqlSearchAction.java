@@ -54,8 +54,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         // Stubbed search response
         // TODO: implement actual search response processing once the parser/executor is in place
         List<SearchHit> events = Arrays.asList(
-            new SearchHit(1, "111", null),
-            new SearchHit(2, "222", null)
+            new SearchHit(1, "111", null, null),
+            new SearchHit(2, "222", null, null)
         );
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, Arrays.asList(
             new EqlSearchResponse.Sequence(Collections.singletonList("4021"), events),

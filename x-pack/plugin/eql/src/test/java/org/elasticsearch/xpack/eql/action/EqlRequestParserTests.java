@@ -16,7 +16,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 public class EqlRequestParserTests extends ESTestCase {
 
     private static NamedXContentRegistry registry =
-        new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+        new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
     public void testUnknownFieldParsingErrors() throws IOException {
         assertParsingErrorMessage("{\"key\" : \"value\"}", "unknown field [key]", EqlSearchRequest::fromXContent);
     }

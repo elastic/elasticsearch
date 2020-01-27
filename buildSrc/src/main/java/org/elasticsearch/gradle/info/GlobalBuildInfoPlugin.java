@@ -59,6 +59,20 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             testSeed = testSeedProperty;
         }
 
+        final String buildSnapshotSystemProperty = System.getProperty("build.snapshot", "true");
+        final boolean isSnapshotBuild;
+        switch (buildSnapshotSystemProperty) {
+            case "true":
+                isSnapshotBuild = true;
+                break;
+            case "false":
+                isSnapshotBuild = false;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                    "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]"
+                );
+        }
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
             if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
@@ -102,6 +116,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(isInFipsJvm());
+            params.setIsSnapshotBuild(isSnapshotBuild);
         });
 
         project.allprojects(

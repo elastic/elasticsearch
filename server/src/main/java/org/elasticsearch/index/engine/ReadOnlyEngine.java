@@ -222,11 +222,7 @@ public class ReadOnlyEngine extends Engine {
         }
         final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         final TranslogConfig translogConfig = config.getTranslogConfig();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
-            config.getIndexSettings().getTranslogRetentionAge().getMillis(),
-            config.getIndexSettings().getTranslogRetentionTotalFiles()
-        );
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
 
         try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
@@ -381,14 +377,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
-        // we can't do synced flushes this would require an indexWriter which we don't have
-        throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
-    }
-
-    @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        // noop
     }
 
     @Override
@@ -516,7 +506,12 @@ public class ReadOnlyEngine extends Engine {
             maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 
-    protected static DirectoryReader openDirectory(Directory dir) throws IOException {
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir, OFF_HEAP_READER_ATTRIBUTES), Lucene.SOFT_DELETES_FIELD);
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
+        final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
+        if (wrapSoftDeletes) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
     }
 }

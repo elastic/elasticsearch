@@ -32,7 +32,7 @@ Certain queries like <<query-dsl-fuzzy-query,`fuzzy`>>, <<query-dsl-prefix-query
 <<query-dsl-regexp-query,`regexp`>> and <<query-dsl-bool-query,`wildcard`>> ,
 that are usually slow performance can affect the cluster performance.
 The execution of such queries can be prevented by setting the value of the `search.disallow_slow_queries`
-setting to `true` (defaults tp `false`).
+setting to `true` (defaults to `false`).
 --
 
 include::query-dsl/query_filter_context.asciidoc[]

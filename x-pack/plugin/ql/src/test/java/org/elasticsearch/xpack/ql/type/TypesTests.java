@@ -79,7 +79,6 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        //assertThat(field.getPrecision(), is(3));
     }
 
     public void testDateNoFormat() {

@@ -1031,12 +1031,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     NotEquals otherNotEq = (NotEquals) ex;
                     if (otherNotEq.right().foldable()) {
                         notEquals.add(otherNotEq);
+                    } else {
+                        exps.add(ex);
+                    }
                 } else {
                     exps.add(ex);
                 }
-                } else {
-                    exps.add(ex);
-            }
             }
 
             // check
@@ -1088,7 +1088,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             } else {
                                 iter.remove(); // clashing and redundant: a = 1 AND a != 2
                                 changed = true;
-            }
+                            }
                         }
                     }
                 }
@@ -1103,12 +1103,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                     0 < compare) { // a = 2 AND a </<= 1
                                     return FALSE;
-        }
+                                }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                     compare < 0) { // a = 2 AND a >/>= 3
                                     return FALSE;
-    }
+                                }
                             }
 
                             iter.remove();

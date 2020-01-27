@@ -84,19 +84,19 @@ public abstract class Types {
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
             final EsField field;
             if (esDataType == TEXT) {
-                    field = new TextEsField(name, properties, docValues);
+                field = new TextEsField(name, properties, docValues);
             } else if (esDataType == KEYWORD) {
-                    int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
-                    boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
-                    field = new KeywordEsField(name, properties, docValues, length, normalized);
+                int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
+                boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
+                field = new KeywordEsField(name, properties, docValues, length, normalized);
             } else if (esDataType == DATETIME) {
-                    field = new DateEsField(name, properties, docValues);
+                field = new DateEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {
-                    String type = content.get("type").toString();
-                    field = new UnsupportedEsField(name, type, null, properties);
-                    propagateUnsupportedType(name, type, properties);
+                String type = content.get("type").toString();
+                field = new UnsupportedEsField(name, type, null, properties);
+                propagateUnsupportedType(name, type, properties);
             } else {
-                    field = new EsField(name, esDataType, properties, docValues);
+                field = new EsField(name, esDataType, properties, docValues);
             }
             mapping.put(name, field);
         } else {

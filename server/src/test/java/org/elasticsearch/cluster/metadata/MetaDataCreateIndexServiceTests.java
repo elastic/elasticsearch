@@ -46,6 +46,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -908,6 +909,21 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
+    }
+
+    public void testValidateTranslogRetentionSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
+        } else {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
+        }
+        request.settings(settings.build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        assertWarnings("Translog retention settings [index.translog.retention.age] "
+            + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
     }
 
     private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {

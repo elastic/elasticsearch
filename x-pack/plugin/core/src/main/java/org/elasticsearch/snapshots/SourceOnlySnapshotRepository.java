@@ -119,7 +119,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(
@@ -159,7 +159,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
-                ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+                userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);

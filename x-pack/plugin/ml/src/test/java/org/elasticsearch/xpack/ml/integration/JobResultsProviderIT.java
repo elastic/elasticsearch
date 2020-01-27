@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -106,7 +108,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
-        resultsPersisterService = new ResultsPersisterService(client(), clusterService, builder.build());
+        OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
+        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, builder.build());
         auditor = new AnomalyDetectionAuditor(client(), "test_node");
         waitForMlTemplates();
     }
@@ -620,17 +623,20 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        JobResultsPersister persister =
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
         persister.persistModelSizeStats(modelSizeStats, () -> true);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        JobResultsPersister persister =
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
         persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
     }
 
     private void indexQuantiles(Quantiles quantiles) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        JobResultsPersister persister =
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
         persister.persistQuantiles(quantiles, () -> true);
     }
 

@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isGeo;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isGeo;
 
 /**
  * Calculates the distance between two points
@@ -37,7 +38,7 @@ public class StDistance extends BinaryOperator<Object, Object, Double, StDistanc
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataTypes.DOUBLE;
     }
 
     @Override

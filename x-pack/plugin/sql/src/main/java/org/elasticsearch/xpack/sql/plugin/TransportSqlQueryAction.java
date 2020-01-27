@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,7 +96,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName(), entry.type().displaySize));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName(), SqlDataTypes.displaySize(entry.type())));
             } else {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().typeName()));
             }

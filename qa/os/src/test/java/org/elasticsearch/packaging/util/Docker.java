@@ -26,6 +26,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -152,9 +153,19 @@ public class Docker {
 
         // Bind-mount any volumes
         if (volumes != null) {
-            volumes.forEach((localPath, containerPath) -> args.add("--volume \"" + localPath + ":" + containerPath + "\""));
+            volumes.forEach((localPath, containerPath) -> {
+                assertTrue(localPath + " doesn't exist", Files.exists(localPath));
+
+                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
+                    // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
+                    // so we need to ensure that the container process is able to read the bind-mounted files.
+                    sh.run("chown -R 1000:0 " + localPath);
+                }
+                args.add("--volume \"" + localPath + ":" + containerPath + "\"");
+            });
         }
 
+        // Image name
         args.add(distribution.flavor.name + ":test");
 
         final String command = String.join(" ", args);

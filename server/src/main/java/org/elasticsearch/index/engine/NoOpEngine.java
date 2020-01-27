@@ -152,7 +152,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
 
                 if (minTranslogGeneration < lastCommitGeneration) {
                     // a translog deletion policy that retains nothing but the last translog generation from safe commit
-                    final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
+                    final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
                     translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastCommitGeneration);
                     translogDeletionPolicy.setMinTranslogGenerationForRecovery(lastCommitGeneration);
 

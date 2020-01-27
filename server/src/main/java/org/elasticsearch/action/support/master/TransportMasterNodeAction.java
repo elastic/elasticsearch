@@ -46,6 +46,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
@@ -178,7 +179,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
-                                    if (cause instanceof ConnectTransportException) {
+                                    if (cause instanceof ConnectTransportException ||
+                                        (exp instanceof RemoteTransportException && cause instanceof NodeClosedException)) {
                                         // we want to retry here a bit to see if a new master is elected
                                         logger.debug("connection exception while trying to forward request with action name [{}] to " +
                                                 "master node [{}], scheduling a retry. Error: [{}]",

@@ -29,11 +29,6 @@ public abstract class AsyncActionStep extends Step {
         return client;
     }
 
-    //visible for testing
-    void setClient(Client client){
-        this.client = client;
-    }
-
     public static TimeValue getMasterTimeout(ClusterState clusterState){
         Objects.requireNonNull(clusterState, "cannot determine master timeout when cluster state is null");
         return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());

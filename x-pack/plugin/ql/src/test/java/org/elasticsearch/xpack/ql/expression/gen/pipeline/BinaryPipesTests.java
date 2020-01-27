@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 public class BinaryPipesTests extends ESTestCase {
     public void testSupportedByAggsOnlyQuery() {
@@ -86,7 +87,7 @@ public class BinaryPipesTests extends ESTestCase {
     }
 
     public static Pipe randomUnaryPipe() {
-        return new ConstantInput(Source.EMPTY, Literal.of(Source.EMPTY, randomAlphaOfLength(16)), randomAlphaOfLength(16));
+        return new ConstantInput(Source.EMPTY, new Literal(Source.EMPTY, randomAlphaOfLength(16), KEYWORD), randomAlphaOfLength(16));
     }
 
     public static final class DummyBinaryPipe extends BinaryPipe {

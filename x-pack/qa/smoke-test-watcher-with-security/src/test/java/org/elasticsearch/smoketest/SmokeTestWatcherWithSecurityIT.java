@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -320,17 +321,21 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                         .endObject().endArray();
                     builder.endObject();
 
-                Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
-                searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                searchRequest.setJsonEntity(Strings.toString(builder));
-                Response response = client().performRequest(searchRequest);
-                ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                int totalHits = objectPath.evaluate("hits.total");
-                assertThat(totalHits, is(greaterThanOrEqualTo(1)));
-                String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
-                assertThat(watchid, is(watchId));
-                objectPathReference.set(objectPath);
-            }
+                    Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+                    searchRequest.setJsonEntity(Strings.toString(builder));
+                    Response response = client().performRequest(searchRequest);
+                    ObjectPath objectPath = ObjectPath.createFromResponse(response);
+                    int totalHits = objectPath.evaluate("hits.total");
+                    assertThat(totalHits, is(greaterThanOrEqualTo(1)));
+                    String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
+                    assertThat(watchid, is(watchId));
+                    objectPathReference.set(objectPath);
+                } catch (ResponseException e) {
+                    final String err = "Failed to perform search of watcher history";
+                    logger.info(err, e);
+                    throw new AssertionError(err, e);
+                }
             });
         } catch (AssertionError ae) {
             {

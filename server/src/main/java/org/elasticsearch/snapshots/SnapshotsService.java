@@ -180,7 +180,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return snapshot
      * @throws SnapshotMissingException if snapshot is not found
      */
-    public SnapshotInfo snapshot(SnapshotsInProgress snapshotsInProgress, final String repositoryName, final SnapshotId snapshotId) {
+    public SnapshotInfo snapshot(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
         List<SnapshotsInProgress.Entry> entries =
             currentSnapshots(snapshotsInProgress, repositoryName, Collections.singletonList(snapshotId.getName()));
         if (!entries.isEmpty()) {
@@ -199,8 +199,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *                            if false, they will throw an error
      * @return list of snapshots
      */
-    public List<SnapshotInfo> snapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName, List<SnapshotId> snapshotIds,
-                                        boolean ignoreUnavailable) {
+    public List<SnapshotInfo> snapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName,
+                                        List<SnapshotId> snapshotIds, boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
@@ -238,7 +238,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    public static List<SnapshotInfo> currentSnapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName) {
+    public static List<SnapshotInfo> currentSnapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotsInProgress, repositoryName, Collections.emptyList());
         for (SnapshotsInProgress.Entry entry : entries) {
@@ -683,7 +683,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshots           list of snapshots that will be used as a filter, empty list means no snapshots are filtered
      * @return list of metadata for currently running snapshots
      */
-    public static List<SnapshotsInProgress.Entry> currentSnapshots(SnapshotsInProgress snapshotsInProgress, String repository,
+    public static List<SnapshotsInProgress.Entry> currentSnapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repository,
                                                                    List<String> snapshots) {
         if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
             return Collections.emptyList();

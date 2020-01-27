@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -137,7 +138,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     }
 
-    private void buildResponse(SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
+    private void buildResponse(@Nullable SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
                                List<SnapshotsInProgress.Entry> currentSnapshotEntries,
                                TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
                                ActionListener<SnapshotsStatusResponse> listener) {
@@ -206,8 +207,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         }
     }
 
-    private void loadRepositoryData(SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request, List<SnapshotStatus> builder,
-                                    Set<String> currentSnapshotNames, String repositoryName,
+    private void loadRepositoryData(@Nullable SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
+                                    List<SnapshotStatus> builder, Set<String> currentSnapshotNames, String repositoryName,
                                     ActionListener<SnapshotsStatusResponse> listener) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();

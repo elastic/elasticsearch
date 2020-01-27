@@ -111,8 +111,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         GetRepositoriesResponse::new));
     }
 
-    private void getMultipleReposSnapshotInfo(SnapshotsInProgress snapshotsInProgress, List<RepositoryMetaData> repos, String[] snapshots,
-                                              boolean ignoreUnavailable, boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
+    private void getMultipleReposSnapshotInfo(@Nullable SnapshotsInProgress snapshotsInProgress, List<RepositoryMetaData> repos,
+                                              String[] snapshots, boolean ignoreUnavailable, boolean verbose,
+                                              ActionListener<GetSnapshotsResponse> listener) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
         if (repos.isEmpty()) {
             listener.onResponse(new GetSnapshotsResponse(Collections.emptyList()));
@@ -140,7 +141,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
     }
 
-    private void getSingleRepoSnapshotInfo(SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
+    private void getSingleRepoSnapshotInfo(@Nullable SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
                                            boolean ignoreUnavailable, boolean verbose, ActionListener<List<SnapshotInfo>> listener) {
         final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
         final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
@@ -162,7 +163,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             listener::onFailure);
     }
 
-    private List<SnapshotInfo> loadSnapshotInfos(SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
+    private List<SnapshotInfo> loadSnapshotInfos(@Nullable SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
                                                  boolean ignoreUnavailable, boolean verbose, Map<String, SnapshotId> allSnapshotIds,
                                                  List<SnapshotInfo> currentSnapshots, @Nullable RepositoryData repositoryData) {
         if (repositoryData != null) {

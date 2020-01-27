@@ -69,3 +69,7 @@ GET /_search
     }
 }
 ----
+
+===== Disallow slow queries
+Script queries will not be executed if <<query-dsl-disallow-slow, `search.disallow_slow_queries`>>
+is set to true.

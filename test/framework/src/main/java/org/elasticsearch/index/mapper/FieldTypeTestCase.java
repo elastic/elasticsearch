@@ -252,6 +252,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     protected QueryShardContext randomMockShardContext() {
         return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_SLOW);
     }
+
     static QueryShardContext createMockQueryShardContext(boolean disallowSlowQueries) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.isDisallowSlowQueries()).thenReturn(disallowSlowQueries);

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.scriptfilter;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,6 +34,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,10 +50,18 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class ScriptQuerySearchIT extends ESIntegTestCase {
+
+    @After
+    public void resetSettings() {
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.disallow_slow_queries", (String) null));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -220,6 +231,46 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
+    }
+
+    public void testDisallowSlowQueries() {
+        assertAcked(
+                prepareCreate("test-index").setMapping("num1", "type=double")
+        );
+        int docCount = 10;
+        for (int i = 1; i <= docCount; i++) {
+            client().prepareIndex("test-index").setId("" + i)
+                    .setSource("num1", i )
+                    .get();
+        }
+        refresh();
+
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1",
+                Collections.emptyMap());
+        SearchResponse resp = client().prepareSearch("test-index")
+                .setQuery(scriptQuery(script))
+                .get();
+        assertNoFailures(resp);
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.disallow_slow_queries", true));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> client()
+                        .prepareSearch("test-index")
+                        .setQuery(scriptQuery(script))
+                        .get());
+        assertEquals("script queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                e.getCause().getMessage());
+
+        updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.disallow_slow_queries", false));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        resp = client().prepareSearch("test-index")
+                .setQuery(scriptQuery(script))
+                .get();
+        assertNoFailures(resp);
     }
 
     private static AtomicInteger scriptCounter = new AtomicInteger(0);

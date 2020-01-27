@@ -73,10 +73,9 @@ public class CellIdSource extends ValuesSource.Numeric {
         } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
             // docValues are geo shapes
             if (geoBoundingBox.isUnbounded()) {
-                return new GeoShapeCellValues(geoValues, precision, encoder);
+                return new UnboundedGeoShapeCellValues(geoValues, precision, encoder);
             } else {
-                // TODO(talevy): support unbounded
-                throw new IllegalArgumentException("bounded geogrid is not supported on geo_shape fields");
+                return new BoundedGeoShapeCellValues(geoValues, precision, encoder, geoBoundingBox);
             }
         } else {
             throw new IllegalArgumentException("unsupported geo type");

@@ -138,7 +138,15 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             ValuesSource.Geo geoValue = (ValuesSource.Geo) orig;
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, geoBoundingBox, GeoGridTiler.GeoTileGridTiler.INSTANCE);
+
+            final GeoGridTiler tiler;
+            if (geoBoundingBox.isUnbounded()) {
+                tiler = GeoGridTiler.GeoTileGridTiler.INSTANCE;
+            } else {
+                tiler = GeoGridTiler.GeoTileGridTiler.BOUNDED_INSTANCE;
+            }
+
+            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, geoBoundingBox, tiler);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
                 missingBucket(), script() != null);
         } else {

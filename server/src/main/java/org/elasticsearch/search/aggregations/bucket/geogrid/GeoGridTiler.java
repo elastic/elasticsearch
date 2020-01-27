@@ -24,10 +24,13 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
+import static org.elasticsearch.index.fielddata.MultiGeoValues.BoundingBox.EMPTY_BOUNDS;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
+
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
  */
-public interface GeoGridTiler {
+public interface GeoGridTiler <G extends MultiGeoValues.GeoValue> {
     /**
      * encodes a single point to its long-encoded bucket key value.
      *
@@ -45,9 +48,9 @@ public interface GeoGridTiler {
      *
      * @return the number of tiles the geoValue intersects
      */
-    int setValues(GeoShapeCellValues docValues, MultiGeoValues.GeoValue geoValue, int precision);
+    int setValues(CellValues docValues, G geoValue, int precision);
 
-    class GeoHashGridTiler implements GeoGridTiler {
+    class GeoHashGridTiler<G extends MultiGeoValues.GeoValue> implements GeoGridTiler<G> {
         public static final GeoHashGridTiler INSTANCE = new GeoHashGridTiler();
 
         private GeoHashGridTiler() {}
@@ -58,7 +61,7 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int setValues(GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
+        public int setValues(CellValues values, G geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
             long numLonCells = (long) ((bounds.maxX() - bounds.minX()) / Geohash.lonWidthInDegrees(precision));
@@ -76,8 +79,7 @@ public interface GeoGridTiler {
             }
         }
 
-        protected int setValuesByBruteForceScan(GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue,
-                                                int precision, MultiGeoValues.BoundingBox bounds) {
+        protected int setValuesByBruteForceScan(CellValues values, G geoValue, int precision, MultiGeoValues.BoundingBox bounds) {
             // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I  can
             // see that eventually we will be visiting twice the same cell which should not happen.
             int idx = 0;
@@ -90,7 +92,8 @@ public interface GeoGridTiler {
             for (double i = minX; i <= maxX; i += Geohash.lonWidthInDegrees(precision)) {
                 for (double j = minY; j <= maxY; j += Geohash.latHeightInDegrees(precision)) {
                     Rectangle rectangle = Geohash.toBoundingBox(Geohash.stringEncode(i, j, precision));
-                    GeoRelation relation = geoValue.relate(rectangle);
+                    GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
+                        rectangle.getMaxX(), rectangle.getMaxY());
                     if (relation != GeoRelation.QUERY_DISJOINT) {
                         values.resizeCell(idx + 1);
                         values.add(idx++,  encode(i, j, precision));
@@ -100,9 +103,8 @@ public interface GeoGridTiler {
             return idx;
         }
 
-        protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex,
-                                               int targetPrecision, MultiGeoValues.GeoValue geoValue,
-                                               MultiGeoValues.BoundingBox shapeBounds) {
+        protected int setValuesByRasterization(String hash, CellValues values, int valuesIndex,
+                                               int targetPrecision, G geoValue, MultiGeoValues.BoundingBox shapeBounds) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
                 Rectangle rectangle = Geohash.toBoundingBox(hashes[i]);
@@ -110,7 +112,8 @@ public interface GeoGridTiler {
                     shapeBounds.maxY() == rectangle.getMinY()) {
                     continue;
                 }
-                GeoRelation relation = geoValue.relate(rectangle);
+                GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
+                    rectangle.getMaxX(), rectangle.getMaxY());
                 if (relation == GeoRelation.QUERY_CROSSES) {
                     if (hashes[i].length() == targetPrecision) {
                         values.resizeCell(valuesIndex + 1);
@@ -132,7 +135,7 @@ public interface GeoGridTiler {
             return valuesIndex;
         }
 
-        private int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values,
+        private int setValuesForFullyContainedTile(String hash, CellValues values,
                                                    int valuesIndex, int targetPrecision) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
@@ -146,8 +149,9 @@ public interface GeoGridTiler {
         }
     }
 
-    class GeoTileGridTiler implements GeoGridTiler {
-        public static final GeoTileGridTiler INSTANCE = new GeoTileGridTiler();
+    class GeoTileGridTiler<G extends MultiGeoValues.GeoValue> implements GeoGridTiler<G> {
+        public static final GeoTileGridTiler INSTANCE = new GeoTileGridTiler<>();
+        public static final GeoTileGridTiler BOUNDED_INSTANCE = new GeoTileGridTiler<BoundedGeoShapeCellValues.BoundedGeoValue>();
 
         private GeoTileGridTiler() {}
 
@@ -157,9 +161,32 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int setValues(GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
+        public int setValues(CellValues values, G geoValue, int precision) {
+            if (precision == 0) {
+                values.resizeCell(1);
+                values.add(0, GeoTileUtils.longEncodeTiles(0, 0, 0));
+                return 1;
+            }
+
+            // these bounds may cross the dateline, in which case
+            // minX and maxX will span the whole globe.
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
+            if (bounds == null) {
+                return 0;
+            }
             assert bounds.minX() <= bounds.maxX();
+
+            if (EMPTY_BOUNDS.equals(bounds)) {
+                return 0;
+            }
+
+            // geo tiles are not defined at the extreme latitudes due to them
+            // tiling the world as a square.
+            if ((bounds.top > LATITUDE_MASK && bounds.bottom > LATITUDE_MASK)
+                    || (bounds.top < -LATITUDE_MASK && bounds.bottom < -LATITUDE_MASK)) {
+                return 0;
+            }
+
             final double tiles = 1 << precision;
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
             int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
@@ -184,13 +211,15 @@ public interface GeoGridTiler {
          * @param precision the target precision to split the shape up into
          * @return the number of buckets the geoValue is found in
          */
-        protected int setValuesByBruteForceScan(GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue,
+        protected int setValuesByBruteForceScan(CellValues values, G geoValue,
                                                 int precision, int minXTile, int minYTile, int maxXTile, int maxYTile) {
             int idx = 0;
             for (int i = minXTile; i <= maxXTile; i++) {
                 for (int j = minYTile; j <= maxYTile; j++) {
                     Rectangle rectangle = GeoTileUtils.toBoundingBox(i, j, precision);
-                    if (geoValue.relate(rectangle) != GeoRelation.QUERY_DISJOINT) {
+                    GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
+                        rectangle.getMaxX(), rectangle.getMaxY());
+                    if (relation != GeoRelation.QUERY_DISJOINT) {
                         values.resizeCell(idx + 1);
                         values.add(idx++, GeoTileUtils.longEncodeTiles(precision, i, j));
                     }
@@ -199,21 +228,23 @@ public interface GeoGridTiler {
             return idx;
         }
 
-        protected int setValuesByRasterization(int xTile, int yTile, int zTile, GeoShapeCellValues values,
-                                               int valuesIndex, int targetPrecision, MultiGeoValues.GeoValue geoValue,
-                                               MultiGeoValues.BoundingBox shapeBounds) {
+        protected int setValuesByRasterization(int xTile, int yTile, int zTile, CellValues values,
+                                               int valuesIndex, int targetPrecision, G geoValue, MultiGeoValues.BoundingBox shapeBounds) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {
                     int nextX = 2 * xTile + i;
                     int nextY = 2 * yTile + j;
                     Rectangle rectangle = GeoTileUtils.toBoundingBox(nextX, nextY, zTile);
-                    // TODO: this looks hacky, maybe the relate method should handle it?
-                    if (shapeBounds.minX() == rectangle.getMaxX() ||
-                        shapeBounds.maxY() == rectangle.getMinY()) {
+
+                    // TODO(talevy): modify TriangleTreeReader#relate to exclude these intersections
+                    // used to filter out tiles that intersect on an outer edge and should not be included in the tiling
+                    if (shapeBounds.minX() == rectangle.getMaxX() || shapeBounds.maxY() == rectangle.getMinY()) {
                         continue;
                     }
-                    GeoRelation relation = geoValue.relate(rectangle);
+
+                    GeoRelation relation = geoValue.relate(rectangle.getMinX(), rectangle.getMinY(),
+                        rectangle.getMaxX(), rectangle.getMaxY());
                     if (GeoRelation.QUERY_INSIDE == relation) {
                         if (zTile == targetPrecision) {
                             values.resizeCell(valuesIndex + 1);
@@ -237,7 +268,7 @@ public interface GeoGridTiler {
         }
 
         private int setValuesForFullyContainedTile(int xTile, int yTile, int zTile,
-                                                   GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
+                                                   CellValues values, int valuesIndex, int targetPrecision) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {

@@ -33,7 +33,6 @@ import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -43,6 +42,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A stateful lightweight per document set of geo values.
@@ -59,7 +59,7 @@ import java.util.List;
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public abstract class MultiGeoValues {
+public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
 
     /**
      * Creates a new {@link MultiGeoValues} instance
@@ -88,7 +88,7 @@ public abstract class MultiGeoValues {
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoValue nextValue() throws IOException;
+    public abstract G nextValue() throws IOException;
 
     public static class GeoPointValue implements GeoValue {
         private final GeoPoint geoPoint;
@@ -110,9 +110,8 @@ public abstract class MultiGeoValues {
         }
 
         @Override
-        public GeoRelation relate(Rectangle rectangle) {
-            if (GeoRelationUtils.pointInRectPrecise(geoPoint.lat(), geoPoint.lon(),
-                rectangle.getMinLat(), rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMaxLon())) {
+        public GeoRelation relate(double minX, double minY, double maxX, double maxY) {
+            if (GeoRelationUtils.pointInRectPrecise(geoPoint.lat(), geoPoint.lon(), minY, maxY, minX, maxX)) {
                 return GeoRelation.QUERY_CROSSES;
             }
             return GeoRelation.QUERY_DISJOINT;
@@ -165,12 +164,12 @@ public abstract class MultiGeoValues {
          * @return the latitude of the centroid of the shape
          */
         @Override
-        public GeoRelation relate(Rectangle rectangle) {
-            int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
-            int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
-            int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
-            int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
-            return reader.relate(minX, minY, maxX, maxY);
+        public GeoRelation relate(double minX, double minY, double maxX, double maxY) {
+            int eMinX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(minX);
+            int eMinY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(minY);
+            int eMaxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(maxX);
+            int eMaxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(maxY);
+            return reader.relate(eMinX, eMinY, eMaxX, eMaxY);
         }
 
         @Override
@@ -237,7 +236,7 @@ public abstract class MultiGeoValues {
         double lat();
         double lon();
         BoundingBox boundingBox();
-        GeoRelation relate(Rectangle rectangle);
+        GeoRelation relate(double minX, double minY, double maxX, double maxY);
         DimensionalShapeType dimensionalShapeType();
         double weight();
     }
@@ -250,7 +249,18 @@ public abstract class MultiGeoValues {
         public double posLeft;
         public double posRight;
 
+        public static final BoundingBox EMPTY_BOUNDS = new BoundingBox();
+
         private BoundingBox() {
+        }
+
+        public BoundingBox(double top, double bottom, double negLeft, double negRight, double posLeft, double posRight) {
+            this.top = top;
+            this.bottom = bottom;
+            this.negLeft = negLeft;
+            this.negRight = negRight;
+            this.posLeft = posLeft;
+            this.posRight = posRight;
         }
 
         private void reset(Extent extent, CoordinateEncoder coordinateEncoder) {
@@ -322,5 +332,22 @@ public abstract class MultiGeoValues {
             return Math.max(negRight, posRight);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            BoundingBox that = (BoundingBox) o;
+            return Double.compare(that.top, top) == 0 &&
+                Double.compare(that.bottom, bottom) == 0 &&
+                Double.compare(that.negLeft, negLeft) == 0 &&
+                Double.compare(that.negRight, negRight) == 0 &&
+                Double.compare(that.posLeft, posLeft) == 0 &&
+                Double.compare(that.posRight, posRight) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(top, bottom, negLeft, negRight, posLeft, posRight);
+        }
     }
 }

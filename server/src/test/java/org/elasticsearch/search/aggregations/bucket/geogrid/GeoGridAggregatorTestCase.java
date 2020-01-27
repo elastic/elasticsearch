@@ -34,10 +34,10 @@ import org.elasticsearch.common.geo.GeoTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -175,7 +175,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             }, new GeoPointFieldMapper.GeoPointFieldType());
     }
 
-    public void testBounds() throws IOException {
+    public void testGeoPointBounds() throws IOException {
         final int numDocs = randomIntBetween(64, 256);
         final GeoGridAggregationBuilder builder = createBuilder("_name");
 
@@ -240,6 +240,74 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 }
                 assertThat(docCount, equalTo(numDocsInBucket));
             }, new GeoPointFieldMapper.GeoPointFieldType());
+    }
+
+    public void testGeoShapeBounds() throws IOException {
+        final int numDocs = randomIntBetween(64, 256);
+        final GeoGridAggregationBuilder builder = createBuilder("_name");
+
+        expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
+        expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
+
+        GeoBoundingBox bbox = GeoBoundingBoxTests.randomBBox();
+
+        int in = 0, out = 0;
+        List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
+        while (in + out < numDocs) {
+            if (bbox.right() < bbox.left()) {
+                if (randomBoolean()) {
+                    double lonWithin = randomBoolean() ?
+                        randomDoubleBetween(bbox.left(), 180.0, true)
+                        : randomDoubleBetween(-180.0, bbox.right(), true);
+                    double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
+                    in++;
+                    Geometry geometry = new Point(lonWithin, latWithin);
+                    docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                        GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+                } else {
+                    double lonOutside = randomDoubleBetween(bbox.left(), bbox.right(), true);
+                    double latOutside = randomDoubleBetween(bbox.top(), -90, false);
+                    out++;
+                    Geometry geometry = new Point(lonOutside, latOutside);
+                    docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                        GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+                }
+            } else {
+                if (randomBoolean()) {
+                    double lonWithin = randomDoubleBetween(bbox.left(), bbox.right(), true);
+                    double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
+                    in++;
+                    Geometry geometry = new Point(lonWithin, latWithin);
+                    docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                        GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+                } else {
+                    double lonOutside = GeoUtils.normalizeLon(randomDoubleBetween(bbox.right(), 180.001, false));
+                    double latOutside = GeoUtils.normalizeLat(randomDoubleBetween(bbox.top(), 90.001, false));
+                    out++;
+                    Geometry geometry = new Point(lonOutside, latOutside);
+                    docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                        GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+                }
+            }
+
+        }
+
+        final long numDocsInBucket = in;
+        final int precision = randomPrecision();
+
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
+                for (BinaryGeoShapeDocValuesField docField : docs) {
+                    iw.addDocument(Collections.singletonList(docField));
+                }
+            },
+            geoGrid -> {
+                assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+                long docCount = 0;
+                for (int i = 0; i < geoGrid.getBuckets().size(); i++) {
+                    docCount += geoGrid.getBuckets().get(i).getDocCount();
+                }
+                assertThat(docCount, equalTo(numDocsInBucket));
+            }, new GeoShapeFieldMapper.GeoShapeFieldType());
     }
 
     public void testGeoShapeWithSeveralDocs() throws IOException {

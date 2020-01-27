@@ -175,7 +175,8 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         return builder;
     }
 
-    private GeoBoundingBox resolveGeoBoundingBox() {
+    // used for testing
+    GeoBoundingBox resolveGeoBoundingBox() {
         if (Double.isInfinite(top)) {
             return null;
         } else if (Double.isInfinite(posLeft)) {

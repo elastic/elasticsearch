@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.hashToGeoPoint;
@@ -115,8 +116,8 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertGeoPointEquals(keyToGeoPoint("1/1/0"), 90.0, 66.51326044311186);
         assertGeoPointEquals(keyToGeoPoint("1/0/1"), -90.0, -66.51326044311186);
         assertGeoPointEquals(keyToGeoPoint("1/1/1"), 90.0, -66.51326044311186);
-        assertGeoPointEquals(keyToGeoPoint("29/536870000/10"), 179.99938879162073, 85.05112817241982);
-        assertGeoPointEquals(keyToGeoPoint("29/10/536870000"), -179.99999295920134, -85.0510760525731);
+        assertGeoPointEquals(keyToGeoPoint("29/536870000/10"), 179.99938879162073, LATITUDE_MASK);
+        assertGeoPointEquals(keyToGeoPoint("29/10/536870000"), -179.99999295920134, -LATITUDE_MASK);
 
         //noinspection ConstantConditions
         expectThrows(NullPointerException.class, () -> keyToGeoPoint(null));
@@ -222,8 +223,8 @@ public class GeoTileUtilsTests extends ESTestCase {
      * so ensure they are clipped correctly.
      */
     public void testSingularityAtPoles() {
-        double minLat = -85.05112878;
-        double maxLat = 85.05112878;
+        double minLat = -LATITUDE_MASK;
+        double maxLat = LATITUDE_MASK;
         double lon = randomIntBetween(-180, 180);
         double lat = randomBoolean()
             ? randomDoubleBetween(-90, minLat, true)

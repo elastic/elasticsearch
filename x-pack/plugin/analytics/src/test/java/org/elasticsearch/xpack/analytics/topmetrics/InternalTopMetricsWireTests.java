@@ -31,7 +31,6 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
         for (DocValueFormat format : RANDOM_FORMATS) {
             writeables.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, format.getWriteableName(), in -> format));
         }
-        writeables.addAll(InternalTopMetrics.writeables());
         return new NamedWriteableRegistry(writeables); 
     }
 

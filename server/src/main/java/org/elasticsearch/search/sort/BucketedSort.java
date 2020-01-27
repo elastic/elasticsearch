@@ -42,7 +42,7 @@ public abstract class BucketedSort implements Releasable {
     private final DocValueFormat format;
     private long maxBucket = -1;
 
-    public BucketedSort(BigArrays bigArrays, SortOrder order, DocValueFormat format) {
+    private BucketedSort(BigArrays bigArrays, SortOrder order, DocValueFormat format) {
         this.bigArrays = bigArrays;
         this.order = order;
         this.format = format;

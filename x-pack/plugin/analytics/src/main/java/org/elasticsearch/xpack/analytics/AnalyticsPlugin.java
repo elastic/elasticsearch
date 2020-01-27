@@ -49,11 +49,6 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
-    public List<Entry> getNamedWriteables() {
-        return InternalTopMetrics.writeables();
-    }
-
-    @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         return singletonList(
             new PipelineAggregationSpec(

@@ -237,4 +237,12 @@ public interface Repository extends LifecycleComponent {
      * @param state new cluster state
      */
     void updateState(ClusterState state);
+
+    /**
+     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * during snapshot initialization.
+     */
+    default Map<String, Object> filterUserMetadata(Map<String, Object> userMetadata) {
+        return userMetadata;
+    }
 }

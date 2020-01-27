@@ -202,7 +202,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
-                return new SourceOnlySnapshotRepository(factory.create(metaData, typeLookup));
+                return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetaData(metaData.name(),
+                    delegateType, metaData.settings()), typeLookup));
             }
         };
     }

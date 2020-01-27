@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor.GeoOperation;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 
 import java.io.IOException;
 

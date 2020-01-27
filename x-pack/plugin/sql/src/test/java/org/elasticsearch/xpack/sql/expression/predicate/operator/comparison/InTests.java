@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.ql.TestUtils;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class InTests extends ESTestCase {
 
@@ -45,6 +47,6 @@ public class InTests extends ESTestCase {
     }
 
     private static Literal L(Object value) {
-        return Literal.of(EMPTY, value);
+        return TestUtils.of(EMPTY, value);
     }
 }

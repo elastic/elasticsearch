@@ -7,11 +7,17 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 
 /**
  * A key for a SQL GroupBy which maps to value source for composite aggregation.
@@ -37,17 +43,17 @@ public abstract class GroupByKey extends Agg {
                 builder.valueType(ValueType.LONG);
             } else if (script.outputType().isRational()) {
                 builder.valueType(ValueType.DOUBLE);
-            } else if (script.outputType().isString()) {
+            } else if (DataTypes.isString(script.outputType())) {
                 builder.valueType(ValueType.STRING);
-            } else if (script.outputType() == DataType.DATE) {
+            } else if (script.outputType() == DATE) {
                 builder.valueType(ValueType.LONG);
-            } else if (script.outputType() == DataType.TIME) {
+            } else if (script.outputType() == TIME) {
                 builder.valueType(ValueType.LONG);
-            } else if (script.outputType() == DataType.DATETIME) {
+            } else if (script.outputType() == DATETIME) {
                 builder.valueType(ValueType.LONG);
-            } else if (script.outputType() == DataType.BOOLEAN) {
+            } else if (script.outputType() == BOOLEAN) {
                 builder.valueType(ValueType.BOOLEAN);
-            } else if (script.outputType() == DataType.IP) {
+            } else if (script.outputType() == IP) {
                 builder.valueType(ValueType.IP);
             }
         }

@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Cast extends UnaryScalarFunction {
 
@@ -58,27 +60,24 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        return DataTypeConversion.convert(field().fold(), dataType);
+        return SqlDataTypeConverter.convert(field().fold(), dataType);
     }
 
     @Override
     public Nullability nullable() {
-        if (from().isNull()) {
-            return Nullability.TRUE;
-        }
-        return Nullability.UNKNOWN;
+        return Expressions.isNull(field()) ? Nullability.TRUE : Nullability.UNKNOWN;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return DataTypeConversion.canConvert(from(), to()) ?
+        return SqlDataTypeConverter.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
                     new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }
 
     @Override
     protected Processor makeProcessor() {
-        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
+        return new CastProcessor(SqlDataTypeConverter.converterFor(from(), to()));
     }
 
     @Override

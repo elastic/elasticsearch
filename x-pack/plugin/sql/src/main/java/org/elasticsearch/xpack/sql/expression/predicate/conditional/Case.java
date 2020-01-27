@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Implements the CASE WHEN ... THEN ... ELSE ... END expression
@@ -53,12 +53,12 @@ public class Case extends ConditionalFunction {
             if (conditions.isEmpty()) {
                 dataType = elseResult().dataType();
             } else {
-                dataType = DataType.NULL;
+                dataType = DataTypes.NULL;
 
                 for (IfConditional conditional : conditions) {
-                    dataType = DataTypeConversion.commonType(dataType, conditional.dataType());
+                    dataType = SqlDataTypeConverter.commonType(dataType, conditional.dataType());
                 }
-                dataType = DataTypeConversion.commonType(dataType, elseResult.dataType());
+                dataType = SqlDataTypeConverter.commonType(dataType, elseResult.dataType());
             }
         }
         return dataType;
@@ -78,7 +78,7 @@ public class Case extends ConditionalFunction {
     protected TypeResolution resolveType() {
         DataType expectedResultDataType = null;
         for (IfConditional ifConditional : conditions) {
-            if (ifConditional.result().dataType().isNull() == false) {
+            if (DataTypes.isNull(ifConditional.result().dataType()) == false) {
                 expectedResultDataType = ifConditional.result().dataType();
                 break;
             }
@@ -88,27 +88,27 @@ public class Case extends ConditionalFunction {
         }
 
         for (IfConditional conditional : conditions) {
-            if (conditional.condition().dataType() != DataType.BOOLEAN) {
+            if (conditional.condition().dataType() != DataTypes.BOOLEAN) {
                 return new TypeResolution(format(null, "condition of [{}] must be [boolean], found value [{}] type [{}]",
                     conditional.sourceText(),
                     Expressions.name(conditional.condition()),
-                    conditional.condition().dataType().typeName));
+                    conditional.condition().dataType().typeName()));
             }
-            if (DataTypes.areTypesCompatible(expectedResultDataType, conditional.dataType()) == false) {
+            if (SqlDataTypes.areCompatible(expectedResultDataType, conditional.dataType()) == false) {
                 return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
                     conditional.sourceText(),
-                    expectedResultDataType.typeName,
+                    expectedResultDataType.typeName(),
                     Expressions.name(conditional.result()),
-                    conditional.dataType().typeName));
+                    conditional.dataType().typeName()));
             }
         }
 
-        if (DataTypes.areTypesCompatible(expectedResultDataType, elseResult.dataType()) == false) {
+        if (SqlDataTypes.areCompatible(expectedResultDataType, elseResult.dataType()) == false) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
                 elseResult.sourceText(),
-                expectedResultDataType.typeName,
+                expectedResultDataType.typeName(),
                 Expressions.name(elseResult),
-                elseResult.dataType().typeName));
+                elseResult.dataType().typeName()));
         }
 
         return TypeResolution.TYPE_RESOLVED;
@@ -116,7 +116,7 @@ public class Case extends ConditionalFunction {
 
     /**
      * All foldable conditions that fold to FALSE should have
-     * been removed by the {@link Optimizer}#SimplifyCase.
+     * been removed by the Optimizer.
      */
     @Override
     public boolean foldable() {

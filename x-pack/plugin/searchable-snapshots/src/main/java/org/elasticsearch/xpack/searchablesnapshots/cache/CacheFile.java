@@ -56,14 +56,14 @@ class CacheFile {
 
     private volatile Set<EvictionListener> listeners;
     private volatile FileChannel channel;
-    private volatile boolean closed;
+    private volatile boolean evicted;
 
     CacheFile(String name, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.name = Objects.requireNonNull(name);
         this.file = Objects.requireNonNull(file);
         this.listeners = new HashSet<>();
-        this.closed = false;
+        this.evicted = false;
 
         final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
         this.evictionLock = new ReleasableLock(cacheLock.writeLock());
@@ -162,11 +162,11 @@ class CacheFile {
     }
 
     public void startEviction() {
-        if (closed == false) {
+        if (evicted == false) {
             final Set<EvictionListener> evictionListeners = new HashSet<>();
             try (ReleasableLock ignored = evictionLock.acquire()) {
-                if (closed == false) {
-                    closed = true;
+                if (evicted == false) {
+                    evicted = true;
                     evictionListeners.addAll(listeners);
                     refCounter.decRef();
                 }
@@ -203,7 +203,7 @@ class CacheFile {
             assert listeners != null;
             if (listeners.isEmpty()) {
                 assert channel == null;
-                assert closed == false || refCounter.refCount() != 0 || Files.notExists(file);
+                assert evicted == false || refCounter.refCount() != 0 || Files.notExists(file);
             } else {
                 assert channel != null;
                 assert refCounter.refCount() > 0;
@@ -222,14 +222,14 @@ class CacheFile {
             ", length=" + tracker.getLength() +
             ", channel=" + (channel != null ? "yes" : "no") +
             ", listeners=" + listeners.size() +
-            ", closed=" + closed +
+            ", evicted=" + evicted +
             ", tracker=" + tracker +
             '}';
     }
 
     private void ensureOpen() {
-        if (closed) {
-            throw new AlreadyClosedException("Cache file is closed");
+        if (evicted) {
+            throw new AlreadyClosedException("Cache file is evicted");
         }
     }
 

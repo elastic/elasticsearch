@@ -91,6 +91,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         Path keyPath = createTempDir().resolve("testnode_updated.pem");
         Path certPath = createTempDir().resolve("testnode_updated.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);

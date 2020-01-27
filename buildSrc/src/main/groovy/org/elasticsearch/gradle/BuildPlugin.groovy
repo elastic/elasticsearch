@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
@@ -34,9 +33,9 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.gradle.api.Action
 import org.elasticsearch.gradle.testclusters.TestDistribution
 import org.elasticsearch.gradle.tool.Boilerplate
-import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
@@ -141,34 +140,71 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
-
         configureFips140(project)
     }
 
-    public static void configureFips140(Project project) {
-        // Need to do it here to support external plugins
-        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
-        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-        globalInfo.ready {
-                // Common config when running with a FIPS-140 runtime JVM
-                if (BuildParams.inFipsJvm) {
-                    project.tasks.withType(Test).configureEach { Test task ->
-                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                    }
-                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
-                        if (testClusters != null) {
-                            testClusters.all { ElasticsearchCluster cluster ->
-                                cluster.setTestDistribution(TestDistribution.DEFAULT)
-                                cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                                cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                                // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
-                                cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
+    static void configureFips140(Project project) {
+        // Common config when running with a FIPS-140 runtime JVM
+        if (inFipsJvm()) {
+            // This configuration can be removed once system modules are available
+            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+                project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
+                project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
+            }
+            ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources') as ExportElasticsearchBuildResourcesTask
+            File securityProperties = buildResources.copy("fips_java.security")
+            File security8Properties = buildResources.copy("fips_java8.security")
+            File securityPolicy = buildResources.copy("fips_java.policy")
+            File security8Policy = buildResources.copy("fips_java8.policy")
+            File bcfksKeystore = buildResources.copy("cacerts.bcfks")
+            GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
+            project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                if (testClusters != null) {
+                    testClusters.all { ElasticsearchCluster cluster ->
+                        cluster.setTestDistribution(TestDistribution.DEFAULT)
+                        for (File dep : project.getConfigurations().getByName("extraJars").getFiles()) {
+                            cluster.extraJarFile(dep)
+                        }
+                        globalInfo.ready {
+                            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+                                cluster.extraConfigFile("fips_java.security", securityProperties)
+                                cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                            } else {
+                                cluster.extraConfigFile("fips_java.security", security8Properties)
+                                cluster.extraConfigFile("fips_java.policy", security8Policy)
                             }
                         }
+                        cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                        cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
+                        cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
+                        cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
+                        cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                        cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                        cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
+                        // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
+                        cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                     }
                 }
+            }
+            project.tasks.withType(Test).configureEach { Test task ->
+                task.dependsOn(buildResources)
+                globalInfo.ready {
+                    // Using the key==value format to override default JVM security settings and policy
+                    // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+                    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+                        task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", securityProperties.toString()))
+                        task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", securityPolicy.toString()))
+                    } else {
+                        task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", security8Properties.toString()))
+                        task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", security8Policy.toString()))
+                    }
+                }
+                task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
+                task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
+            }
         }
     }
 
@@ -659,12 +695,6 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
 
-                    if (BuildParams.inFipsJvm) {
-                        nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}FIPS")
-                    } else {
-                        nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}")
-                    }
-
                     if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
                         test.jvmArgs '--illegal-access=warn'
                     }
@@ -675,7 +705,10 @@ class BuildPlugin implements Plugin<Project> {
                         test.systemProperty ('java.locale.providers','SPI,COMPAT')
                     }
                 }
-
+                if (inFipsJvm()) {
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bctls-fips:1.0.9")
+                }
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
@@ -820,5 +853,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             })
         }
+    }
+
+    private static inFipsJvm(){
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

@@ -172,6 +172,9 @@ if (project != rootProject) {
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){
+    test.enabled = false
+  }
 
   configurations {
     distribution
@@ -204,6 +207,7 @@ if (project != rootProject) {
     exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
+    exclude '**/*.bcfks'
   }
 
   testingConventions {

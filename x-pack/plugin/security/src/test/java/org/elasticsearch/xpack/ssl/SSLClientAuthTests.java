@@ -184,7 +184,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
                 (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
 
             final SSLContext context;
-            if (XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3")) {
+            if (XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3") && inFipsJvm() == false) {
                 context = SSLContext.getInstance(randomBoolean() ? "TLSv1.3" : "TLSv1.2");
             } else {
                 context = SSLContext.getInstance("TLSv1.2");

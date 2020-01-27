@@ -1,0 +1,133 @@
+# List of providers and their preference orders (see above):
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
+security.provider.2=com.sun.net.ssl.internal.ssl.Provider BCFIPS
+security.provider.3=sun.security.provider.Sun
+security.provider.4=sun.security.jgss.SunProvider
+securerandom.source=file:/dev/urandom
+securerandom.strongAlgorithms=NativePRNGBlocking:SUN
+login.configuration.provider=sun.security.provider.ConfigFile
+policy.provider=sun.security.provider.PolicyFile
+policy.url.1=file:${java.home}/lib/security/java.policy
+policy.url.2=file:${user.home}/.java.policy
+policy.expandProperties=true
+policy.allowSystemProperty=true
+policy.ignoreIdentityScope=false
+keystore.type=bcfks
+keystore.type.compat=true
+package.access=sun.,\
+               org.GNOME.Accessibility.,\
+               com.sun.xml.internal.,\
+               com.sun.imageio.,\
+               com.sun.istack.internal.,\
+               com.sun.jmx.,\
+               com.sun.media.sound.,\
+               com.sun.naming.internal.,\
+               com.sun.proxy.,\
+               com.sun.corba.se.,\
+               com.sun.org.apache.bcel.internal.,\
+               com.sun.org.apache.regexp.internal.,\
+               com.sun.org.apache.xerces.internal.,\
+               com.sun.org.apache.xpath.internal.,\
+               com.sun.org.apache.xalan.internal.extensions.,\
+               com.sun.org.apache.xalan.internal.lib.,\
+               com.sun.org.apache.xalan.internal.res.,\
+               com.sun.org.apache.xalan.internal.templates.,\
+               com.sun.org.apache.xalan.internal.utils.,\
+               com.sun.org.apache.xalan.internal.xslt.,\
+               com.sun.org.apache.xalan.internal.xsltc.cmdline.,\
+               com.sun.org.apache.xalan.internal.xsltc.compiler.,\
+               com.sun.org.apache.xalan.internal.xsltc.trax.,\
+               com.sun.org.apache.xalan.internal.xsltc.util.,\
+               com.sun.org.apache.xml.internal.res.,\
+               com.sun.org.apache.xml.internal.resolver.helpers.,\
+               com.sun.org.apache.xml.internal.resolver.readers.,\
+               com.sun.org.apache.xml.internal.security.,\
+               com.sun.org.apache.xml.internal.serializer.utils.,\
+               com.sun.org.apache.xml.internal.utils.,\
+               com.sun.org.glassfish.,\
+               com.oracle.xmlns.internal.,\
+               com.oracle.webservices.internal.,\
+               oracle.jrockit.jfr.,\
+               org.jcp.xml.dsig.internal.,\
+               jdk.internal.,\
+               jdk.nashorn.internal.,\
+               jdk.nashorn.tools.,\
+               jdk.xml.internal.,\
+               com.sun.activation.registries.
+
+package.definition=sun.,\
+                   com.sun.xml.internal.,\
+                   com.sun.imageio.,\
+                   com.sun.istack.internal.,\
+                   com.sun.jmx.,\
+                   com.sun.media.sound.,\
+                   com.sun.naming.internal.,\
+                   com.sun.proxy.,\
+                   com.sun.corba.se.,\
+                   com.sun.org.apache.bcel.internal.,\
+                   com.sun.org.apache.regexp.internal.,\
+                   com.sun.org.apache.xerces.internal.,\
+                   com.sun.org.apache.xpath.internal.,\
+                   com.sun.org.apache.xalan.internal.extensions.,\
+                   com.sun.org.apache.xalan.internal.lib.,\
+                   com.sun.org.apache.xalan.internal.res.,\
+                   com.sun.org.apache.xalan.internal.templates.,\
+                   com.sun.org.apache.xalan.internal.utils.,\
+                   com.sun.org.apache.xalan.internal.xslt.,\
+                   com.sun.org.apache.xalan.internal.xsltc.cmdline.,\
+                   com.sun.org.apache.xalan.internal.xsltc.compiler.,\
+                   com.sun.org.apache.xalan.internal.xsltc.trax.,\
+                   com.sun.org.apache.xalan.internal.xsltc.util.,\
+                   com.sun.org.apache.xml.internal.res.,\
+                   com.sun.org.apache.xml.internal.resolver.helpers.,\
+                   com.sun.org.apache.xml.internal.resolver.readers.,\
+                   com.sun.org.apache.xml.internal.security.,\
+                   com.sun.org.apache.xml.internal.serializer.utils.,\
+                   com.sun.org.apache.xml.internal.utils.,\
+                   com.sun.org.glassfish.,\
+                   com.oracle.xmlns.internal.,\
+                   com.oracle.webservices.internal.,\
+                   oracle.jrockit.jfr.,\
+                   org.jcp.xml.dsig.internal.,\
+                   jdk.internal.,\
+                   jdk.nashorn.internal.,\
+                   jdk.nashorn.tools.,\
+                   jdk.xml.internal.,\
+                   com.sun.activation.registries.
+
+ssl.KeyManagerFactory.algorithm=SunX509
+ssl.TrustManagerFactory.algorithm=PKIX
+networkaddress.cache.negative.ttl=10
+krb5.kdc.bad.policy = tryLast
+jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1 jdkCA & usage TLSServer, \
+    RSA keySize < 1024, DSA keySize < 1024, EC keySize < 224
+
+jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, DSA keySize < 1024
+
+
+jdk.tls.disabledAlgorithms=SSLv3, RC4, MD5withRSA, DH keySize < 1024, \
+    EC keySize < 224, DES40_CBC, RC4_40, 3DES_EDE_CBC
+
+jdk.tls.legacyAlgorithms= \
+        K_NULL, C_NULL, M_NULL, \
+        DH_anon, ECDH_anon, \
+        RC4_128, RC4_40, DES_CBC, DES40_CBC, \
+        3DES_EDE_CBC
+crypto.policy=unlimited
+
+jdk.xml.dsig.secureValidationPolicy=\
+    disallowAlg http://www.w3.org/TR/1999/REC-xslt-19991116,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#rsa-md5,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#hmac-md5,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#md5,\
+    maxTransforms 5,\
+    maxReferences 30,\
+    disallowReferenceUriSchemes file http https,\
+    minKeySize RSA 1024,\
+    minKeySize DSA 1024,\
+    minKeySize EC 224,\
+    noDuplicateIds,\
+    noRetrievalMethodLoops
+
+jceks.key.serialFilter = java.lang.Enum;java.security.KeyRep;\
+  java.security.KeyRep$Type;javax.crypto.spec.SecretKeySpec;!*

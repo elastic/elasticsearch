@@ -129,6 +129,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
+    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
@@ -420,6 +421,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
+
+        copyExtraJars();
+
+        copyExtraConfigFiles();
+
         createConfiguration();
 
         final List<String> pluginsToInstall = new ArrayList<>();
@@ -464,8 +470,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         installModules();
-
-        copyExtraConfigFiles();
 
         if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
@@ -551,6 +555,25 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         });
     }
 
+    /**
+     * Copies extra jars to the `/lib` directory.
+     * //TODO: Remove this when system modules are available
+     */
+    private void copyExtraJars() {
+        if (extraJarFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
+        }
+        extraJarFiles.forEach(from -> {
+            Path destination = getDistroDir().resolve("lib").resolve(from.getName());
+            try {
+                Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Added extra jar {} to {}", from.getName(), destination);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
+            }
+        });
+    }
+
     private void installModules() {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             logToProcessStdout("Installing " + modules.size() + "modules");
@@ -591,6 +614,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new IllegalArgumentException("extra config file destination can't be relative, was " + destination + " for " + this);
         }
         extraConfigFiles.put(destination, from, normalization);
+    }
+
+    @Override
+    public void extraJarFile(File from) {
+        if (from.toString().endsWith(".jar") == false) {
+            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+        }
+        extraJarFiles.add(from);
     }
 
     @Override
@@ -654,6 +685,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 + systemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                    // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
+                    // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                    // we replace the reference with the actual value in other environment variables
+                    .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";

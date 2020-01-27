@@ -228,6 +228,7 @@ public class DateHistogramValuesSourceBuilder
     /**
      * Gets the time zone to use for this aggregation
      */
+    @Override
     public ZoneId timeZone() {
         return timeZone;
     }

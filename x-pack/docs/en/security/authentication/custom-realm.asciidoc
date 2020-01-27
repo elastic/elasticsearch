@@ -92,7 +92,7 @@ The options you can set depend on the settings exposed by the custom realm.
 At a minimum, you must explicitly set the `order` attribute to control the
 order in which the realms are consulted during authentication. You must also
 make sure each configured realm has a distinct `order` setting. In the event
-that two or more realms have the same `order`, the cluster will fail to start.
+that two or more realms have the same `order`, the node will fail to start.
 +
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the

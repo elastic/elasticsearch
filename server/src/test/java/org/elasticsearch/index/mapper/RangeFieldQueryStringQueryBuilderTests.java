@@ -111,6 +111,19 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             parser.parse("2010-01-01", () -> 0).toEpochMilli(),
             parser.parse("2018-01-02", () -> 0).toEpochMilli(), true, false);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
+
+        // also make sure the produced bounds are the same as on a regular `date` field
+        DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.fieldMapper(DATE_FIELD_NAME);
+        parser = dateType.dateMathParser;
+        Query queryOnDate = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
+
+        // The range is very encapsulated and hard to inspect. We use comparison on the "toString" output with some conversion.
+        // The query-as-string on the date range field looks like "mapped_date_range:<ranges:[1465975790000 : 1466062190999]>" while
+        // the query on the date field is formatted like "mapped_date:[1465975790000 TO 1466062190999]"
+        String rangeFieldQueryString = query.toString();
+        String expectedDateFieldString = rangeFieldQueryString.replace("mapped_date_range:<ranges:[", "mapped_date:[").replace(">", "")
+                .replace(" : ", " TO ");
+        assertEquals(expectedDateFieldString, queryOnDate.toString());
     }
 
     public void testIPRangeQuery() throws Exception {

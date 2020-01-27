@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressPoint;
@@ -273,6 +275,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      * We would like to ensure lower and upper bounds are consistent between queries on a `date` and a`date_range`
      * field, so we randomize a few cases and compare the generated queries here
      */
+    @Repeat(iterations = 100)
     public void testDateVsDateRangeBounds() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
@@ -293,6 +296,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         // also add date math rounding to days occasionally
         if (randomBoolean()) {
             lowerAsString = lowerAsString + "||/d";
+        }
+        if (randomBoolean()) {
             upperAsString = upperAsString + "||/d";
         }
         boolean includeLower = randomBoolean();

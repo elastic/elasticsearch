@@ -91,7 +91,7 @@ public class SysVInitTests extends PackagingTestCase {
         sh.run("sysctl -q -w vm.max_map_count=262140");
         startElasticsearch();
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
-        String maxMapCount = result.stdout.strip();
+        String maxMapCount = result.stdout.trim();
         sh.run("service elasticsearch stop");
         assertThat(maxMapCount, equalTo("262144"));
     }
@@ -102,7 +102,7 @@ public class SysVInitTests extends PackagingTestCase {
         sh.run("sysctl -q -w vm.max_map_count=262145");
         startElasticsearch();
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
-        String maxMapCount = result.stdout.strip();
+        String maxMapCount = result.stdout.trim();
         sh.run("service elasticsearch stop");
         assertThat(maxMapCount, equalTo("262145"));
     }

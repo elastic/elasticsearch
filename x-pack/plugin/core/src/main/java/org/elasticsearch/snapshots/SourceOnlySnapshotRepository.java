@@ -225,6 +225,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 public Repository decorateRepository(Repository repository) {
                     return new SourceOnlySnapshotRepository(repository);
                 }
+
+                @Override
+                public String toString() {
+                    return "source-only repository decorator";
+                }
             };
         } else {
             return null;

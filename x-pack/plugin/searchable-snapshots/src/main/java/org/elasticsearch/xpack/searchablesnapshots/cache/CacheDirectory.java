@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * {@link CacheDirectory} uses a {@link CacheService} to cache Lucene files provided by another {@link Directory}.
@@ -65,7 +64,6 @@ public class CacheDirectory extends FilterDirectory {
 
         private @Nullable AtomicReference<CacheFile> cacheFile;
         private @Nullable CacheBufferedIndexInput parent;
-        private ReleasableLock cacheEvictionLock;
         private AtomicBoolean closed;
 
         CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
@@ -82,7 +80,6 @@ public class CacheDirectory extends FilterDirectory {
             this.end = offset + length;
             this.cacheFile = new AtomicReference<>();
             this.closed = new AtomicBoolean(false);
-            this.cacheEvictionLock = new ReleasableLock(new ReentrantLock());
         }
 
         @Override
@@ -99,7 +96,7 @@ public class CacheDirectory extends FilterDirectory {
             }
 
             final CacheFile newCacheFile = cacheService.get(fileName, fileLength, file);
-            try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+            synchronized (this) {
                 currentCacheFile = cacheFile.get();
                 if (currentCacheFile != null) {
                     return currentCacheFile;
@@ -115,7 +112,7 @@ public class CacheDirectory extends FilterDirectory {
 
         @Override
         public void onEviction(final CacheFile evictedCacheFile) {
-            try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+            synchronized (this) {
                 if (cacheFile.compareAndSet(evictedCacheFile, null)) {
                     evictedCacheFile.release(this);
                 }
@@ -125,7 +122,7 @@ public class CacheDirectory extends FilterDirectory {
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
-                try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+                synchronized (this) {
                     final CacheFile currentCacheFile = cacheFile.getAndSet(null);
                     if (currentCacheFile != null) {
                         currentCacheFile.release(this);

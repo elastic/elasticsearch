@@ -367,7 +367,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     // AggValueInput just needs a valid java type in a supplier
                     Object o = randomBoolean() ? null : randomAlphaOfLength(5);
                     // But the supplier has to implement equals for randomValueOtherThan
-                    return new Supplier<>() {
+                    return new Supplier<Object>() {
                         @Override
                         public Object get() {
                             return o;

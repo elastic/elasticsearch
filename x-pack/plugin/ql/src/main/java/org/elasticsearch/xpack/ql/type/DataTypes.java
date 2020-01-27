@@ -12,8 +12,10 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Collectors.toUnmodifiableMap;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 public final class DataTypes {
 
@@ -47,7 +49,7 @@ public final class DataTypes {
     public static final DataType NESTED       = new DataType("nested",            0,                 false, false, false);
     //@formatter:on
     
-    private static final Collection<DataType> TYPES = Arrays.asList(
+    private static final Collection<DataType> TYPES = unmodifiableList(Arrays.asList(
             UNSUPPORTED,
             NULL,
             BOOLEAN,
@@ -68,14 +70,14 @@ public final class DataTypes {
             NESTED)
             .stream()
             .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toUnmodifiableList());
+            .collect(toList()));
     
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
-            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE = unmodifiableMap(TYPES.stream()
+            .collect(toMap(DataType::typeName, t -> t)));
     
-    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
+    private static final Map<String, DataType> ES_TO_TYPE = unmodifiableMap(TYPES.stream()
             .filter(e -> e.esType() != null)
-            .collect(toUnmodifiableMap(DataType::esType, t -> t));
+            .collect(toMap(DataType::esType, t -> t)));
     
     private DataTypes() {}
 

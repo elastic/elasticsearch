@@ -24,9 +24,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Collectors.toUnmodifiableMap;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -136,7 +137,7 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
     }
 
-    private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Arrays.asList(
+    private static final Collection<DataType> TYPES = unmodifiableList(Stream.concat(DataTypes.types().stream(), Arrays.asList(
             DATE,
             TIME,
             INTERVAL_YEAR,
@@ -157,14 +158,14 @@ public class SqlDataTypes {
             SHAPE)
             .stream())
             .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toUnmodifiableList());
+            .collect(toList()));
 
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
-            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE = unmodifiableMap(TYPES.stream()
+            .collect(toMap(DataType::typeName, t -> t)));
 
-    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
+    private static final Map<String, DataType> ES_TO_TYPE = unmodifiableMap(TYPES.stream()
             .filter(e -> e.esType() != null)
-            .collect(toUnmodifiableMap(DataType::esType, t -> t));
+            .collect(toMap(DataType::esType, t -> t)));
 
     private static final Map<String, DataType> SQL_TO_ES;
 

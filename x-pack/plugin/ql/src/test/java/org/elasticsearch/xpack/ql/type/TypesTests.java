@@ -177,9 +177,9 @@ public class TypesTests extends ESTestCase {
         EsField dt = mapping.get("range");
         assertThat(dt.getDataType().typeName(), is("unsupported"));
         dt = mapping.get("time_frame");
-        assertThat(dt.getDataType().typeName, is("unsupported"));
+        assertThat(dt.getDataType().typeName(), is("unsupported"));
         dt = mapping.get("flat");
-        assertThat(dt.getDataType().typeName, is("unsupported"));
+        assertThat(dt.getDataType().typeName(), is("unsupported"));
     }
 
     public static Map<String, EsField> loadMapping(String name) {

@@ -123,7 +123,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(asDateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
 
             // double check back and forth conversion
-            ZonedDateTime dt = TestUtils.now();
+            ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));

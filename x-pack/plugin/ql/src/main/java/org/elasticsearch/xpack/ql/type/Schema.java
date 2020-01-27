@@ -81,7 +81,7 @@ public class Schema implements Iterable<Schema.Entry> {
 
     @Override
     public Iterator<Entry> iterator() {
-        return new Iterator<>() {
+        return new Iterator<Entry>() {
             private final int size = size();
             private int pos = -1;
             

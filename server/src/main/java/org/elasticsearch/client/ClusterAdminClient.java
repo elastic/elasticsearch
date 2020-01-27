@@ -103,10 +103,12 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBu
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -734,6 +736,16 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * List dangling indices on all nodes.
      */
     ActionFuture<ListDanglingIndicesResponse> listDanglingIndices(ListDanglingIndicesRequest request);
+
+    /**
+     * Find dangling indices on all nodes.
+     */
+    void findDanglingIndices(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener);
+
+    /**
+     * Find dangling indices on all nodes.
+     */
+    ActionFuture<FindDanglingIndexResponse> findDanglingIndices(FindDanglingIndexRequest request);
 
     /**
      * Restore specified dangling indices.

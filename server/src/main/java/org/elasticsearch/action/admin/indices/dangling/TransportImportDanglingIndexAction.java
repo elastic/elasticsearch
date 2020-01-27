@@ -21,7 +21,9 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,9 +37,9 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.CollectionUtils.map;
 
@@ -69,7 +71,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
         ImportDanglingIndexRequest importRequest,
         ActionListener<ImportDanglingIndexResponse> importListener
     ) {
-        fetchDanglingIndices(importRequest, new ActionListener<>() {
+        findDanglingIndex(importRequest, new ActionListener<>() {
             @Override
             public void onResponse(IndexMetaData indexMetaDataToImport) {
                 // This flag is checked at this point so that we always check that the supplied index UUID
@@ -94,29 +96,39 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("Failed to list dangling indices", e);
+                logger.debug("Failed to find dangling index [" + importRequest.getIndexUUID() + "]", e);
                 importListener.onFailure(e);
             }
         });
     }
 
-    private void fetchDanglingIndices(ImportDanglingIndexRequest request, ActionListener<IndexMetaData> listener) {
+    private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetaData> listener) {
+        final String indexUUID = request.getIndexUUID();
+
         this.transportService.sendRequest(
             this.transportService.getLocalNode(),
-            ListDanglingIndicesAction.NAME,
-            new ListDanglingIndicesRequest(),
-            new TransportResponseHandler<ListDanglingIndicesResponse>() {
+            FindDanglingIndexAction.NAME,
+            new FindDanglingIndexRequest(indexUUID),
+            new TransportResponseHandler<FindDanglingIndexResponse>() {
 
                 @Override
-                public void handleResponse(ListDanglingIndicesResponse response) {
-                    String indexUUID = request.getIndexUUID();
+                public void handleResponse(FindDanglingIndexResponse response) {
+                    if (response.hasFailures()) {
+                        for (FailedNodeException failure : response.failures()) {
+                            logger.error("Failed to query " + failure.nodeId(), failure);
+                        }
 
-                    final List<IndexMetaData> metaDataSortedByVersion = response.getNodes()
-                        .stream()
-                        .flatMap(each -> each.getDanglingIndices().stream())
-                        .filter(each -> each.getIndexUUID().equals(indexUUID))
-                        .sorted(Comparator.comparingLong(IndexMetaData::getVersion))
-                        .collect(Collectors.toList());
+                        listener.onFailure(
+                            new ElasticsearchException("Failed to query nodes: " + map(response.failures(), FailedNodeException::nodeId))
+                        );
+                        return;
+                    }
+
+                    final List<IndexMetaData> metaDataSortedByVersion = new ArrayList<>();
+                    for (NodeFindDanglingIndexResponse each : response.getNodes()) {
+                        metaDataSortedByVersion.addAll(each.getDanglingIndexMetaData());
+                    }
+                    metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetaData::getVersion));
 
                     if (metaDataSortedByVersion.isEmpty()) {
                         listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
@@ -147,8 +159,8 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 }
 
                 @Override
-                public ListDanglingIndicesResponse read(StreamInput in) throws IOException {
-                    return new ListDanglingIndicesResponse(in);
+                public FindDanglingIndexResponse read(StreamInput in) throws IOException {
+                    return new FindDanglingIndexResponse(in);
                 }
             }
         );

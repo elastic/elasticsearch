@@ -19,8 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,28 +29,30 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ * Models a response to a {@link FindDanglingIndexRequest}. A find request queries every node in the
+ * cluster looking for a dangling index with a specific UUID.
  */
-public class NodeDanglingIndicesResponse extends BaseNodeResponse {
-    private final List<DanglingIndexInfo> indexMetaData;
+public class FindDanglingIndexResponse extends BaseNodesResponse<NodeFindDanglingIndexResponse> {
 
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.indexMetaData;
-    }
-
-    public NodeDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexMetaData) {
-        super(node);
-        this.indexMetaData = indexMetaData;
-    }
-
-    protected NodeDanglingIndicesResponse(StreamInput in) throws IOException {
+    public FindDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexMetaData = in.readList(DanglingIndexInfo::new);
+    }
+
+    public FindDanglingIndexResponse(
+        ClusterName clusterName,
+        List<NodeFindDanglingIndexResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeList(this.indexMetaData);
+    protected List<NodeFindDanglingIndexResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeFindDanglingIndexResponse::new);
+    }
+
+    @Override
+    protected void writeNodesTo(StreamOutput out, List<NodeFindDanglingIndexResponse> nodes) throws IOException {
+        out.writeList(nodes);
     }
 }

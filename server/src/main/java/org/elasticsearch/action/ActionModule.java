@@ -105,9 +105,11 @@ import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCl
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.TransportDeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.TransportFindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.TransportImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -558,6 +560,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
         actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
         actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
+        actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
 
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);

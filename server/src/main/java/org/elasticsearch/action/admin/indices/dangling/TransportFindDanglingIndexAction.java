@@ -37,19 +37,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Implements the listing of all dangling indices. All nodes in the cluster are queried, and
- * their answers aggregated. Finding dangling indices is performed in {@link DanglingIndicesState}.
+ * Finds a specified dangling index by its UUID, searching across all nodes.
  */
-public class TransportListDanglingIndicesAction extends TransportNodesAction<
-    ListDanglingIndicesRequest,
-    ListDanglingIndicesResponse,
-    NodeDanglingIndicesRequest,
-    NodeDanglingIndicesResponse> {
+public class TransportFindDanglingIndexAction extends TransportNodesAction<
+    FindDanglingIndexRequest,
+    FindDanglingIndexResponse,
+    NodeFindDanglingIndexRequest,
+    NodeFindDanglingIndexResponse> {
+
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
-    public TransportListDanglingIndicesAction(
+    public TransportFindDanglingIndexAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -57,55 +57,51 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
         DanglingIndicesState danglingIndicesState
     ) {
         super(
-            ListDanglingIndicesAction.NAME,
+            FindDanglingIndexAction.NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ListDanglingIndicesRequest::new,
-            NodeDanglingIndicesRequest::new,
+            FindDanglingIndexRequest::new,
+            NodeFindDanglingIndexRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodeDanglingIndicesResponse.class
+            NodeFindDanglingIndexResponse.class
         );
         this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
     }
 
     @Override
-    protected ListDanglingIndicesResponse newResponse(
-        ListDanglingIndicesRequest request,
-        List<NodeDanglingIndicesResponse> nodeDanglingIndicesResponses,
+    protected FindDanglingIndexResponse newResponse(
+        FindDanglingIndexRequest request,
+        List<NodeFindDanglingIndexResponse> nodeResponses,
         List<FailedNodeException> failures
     ) {
-        return new ListDanglingIndicesResponse(clusterService.getClusterName(), nodeDanglingIndicesResponses, failures);
+        return new FindDanglingIndexResponse(clusterService.getClusterName(), nodeResponses, failures);
     }
 
     @Override
-    protected NodeDanglingIndicesRequest newNodeRequest(ListDanglingIndicesRequest request) {
-        return new NodeDanglingIndicesRequest();
+    protected NodeFindDanglingIndexRequest newNodeRequest(FindDanglingIndexRequest request) {
+        return new NodeFindDanglingIndexRequest(request.getIndexUUID());
     }
 
     @Override
-    protected NodeDanglingIndicesResponse newNodeResponse(StreamInput in) throws IOException {
-        return new NodeDanglingIndicesResponse(in);
+    protected NodeFindDanglingIndexResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodeFindDanglingIndexResponse(in);
     }
 
     @Override
-    protected NodeDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
+    protected NodeFindDanglingIndexResponse nodeOperation(NodeFindDanglingIndexRequest request, Task task) {
         final DiscoveryNode localNode = transportService.getLocalNode();
+        final String indexUUID = request.getIndexUUID();
 
-        final List<DanglingIndexInfo> indexMetaData = new ArrayList<>();
-
+        final List<IndexMetaData> indexMetaData = new ArrayList<>();
         for (IndexMetaData each : danglingIndicesState.getDanglingIndices().values()) {
-            DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
-                localNode,
-                each.getIndex().getName(),
-                each.getIndexUUID(),
-                each.getCreationDate()
-            );
-            indexMetaData.add(danglingIndexInfo);
+            if (each.getIndexUUID().equals(indexUUID)) {
+                indexMetaData.add(each);
+            }
         }
 
-        return new NodeDanglingIndicesResponse(localNode, indexMetaData);
+        return new NodeFindDanglingIndexResponse(localNode, indexMetaData);
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.dangling;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -67,14 +66,17 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
         Map<String, AggregatedDanglingIndexInfo> byIndexUUID = new HashMap<>();
 
         for (NodeDanglingIndicesResponse nodeResponse : this.getNodes()) {
-            for (IndexMetaData indexMetaData : nodeResponse.getDanglingIndices()) {
-                final String indexUUID = indexMetaData.getIndexUUID();
+            for (DanglingIndexInfo info : nodeResponse.getDanglingIndices()) {
+                final String indexUUID = info.getIndexUUID();
 
                 if (byIndexUUID.containsKey(indexUUID) == false) {
-                    AggregatedDanglingIndexInfo info = new AggregatedDanglingIndexInfo(indexMetaData.getIndex()
-                        .getName(), indexUUID, indexMetaData.getCreationDate());
+                    AggregatedDanglingIndexInfo aggregatedInfo = new AggregatedDanglingIndexInfo(
+                        info.getIndexName(),
+                        indexUUID,
+                        info.getCreationDate()
+                    );
 
-                    byIndexUUID.put(indexUUID, info);
+                    byIndexUUID.put(indexUUID, aggregatedInfo);
                 }
 
                 byIndexUUID.get(indexUUID).getNodeIds().add(nodeResponse.getNode().getId());

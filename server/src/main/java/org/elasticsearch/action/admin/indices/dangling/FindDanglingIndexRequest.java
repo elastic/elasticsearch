@@ -19,37 +19,38 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 
-/**
- * Used when querying every node in the cluster for dangling indices, in response to a list request.
- */
-public class NodeDanglingIndicesResponse extends BaseNodeResponse {
-    private final List<DanglingIndexInfo> indexMetaData;
+public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndexRequest> {
+    private final String indexUUID;
 
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.indexMetaData;
-    }
-
-    public NodeDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexMetaData) {
-        super(node);
-        this.indexMetaData = indexMetaData;
-    }
-
-    protected NodeDanglingIndicesResponse(StreamInput in) throws IOException {
+    public FindDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
-        this.indexMetaData = in.readList(DanglingIndexInfo::new);
+        this.indexUUID = in.readString();
+    }
+
+    public FindDanglingIndexRequest(String indexUUID) {
+        super(Strings.EMPTY_ARRAY);
+        this.indexUUID = indexUUID;
+    }
+
+    public String getIndexUUID() {
+        return indexUUID;
+    }
+
+    @Override
+    public String toString() {
+        return "FindDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.indexMetaData);
+        out.writeString(this.indexUUID);
     }
 }

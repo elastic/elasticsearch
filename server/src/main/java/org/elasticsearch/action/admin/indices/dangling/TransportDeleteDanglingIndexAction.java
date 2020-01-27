@@ -21,7 +21,9 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -44,6 +46,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.common.util.CollectionUtils.map;
 
 /**
  * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
@@ -164,15 +168,26 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
         this.transportService.sendRequest(
             this.transportService.getLocalNode(),
-            ListDanglingIndicesAction.NAME,
-            new ListDanglingIndicesRequest(),
-            new TransportResponseHandler<ListDanglingIndicesResponse>() {
+            FindDanglingIndexAction.NAME,
+            new FindDanglingIndexRequest(indexUUID),
+            new TransportResponseHandler<FindDanglingIndexResponse>() {
                 @Override
-                public void handleResponse(ListDanglingIndicesResponse response) {
-                    final List<NodeDanglingIndicesResponse> nodes = response.getNodes();
+                public void handleResponse(FindDanglingIndexResponse response) {
+                    if (response.hasFailures()) {
+                        for (FailedNodeException failure : response.failures()) {
+                            logger.error("Failed to query " + failure.nodeId(), failure);
+                        }
 
-                    for (NodeDanglingIndicesResponse nodeResponse : nodes) {
-                        for (IndexMetaData danglingIndexMetaData : nodeResponse.getDanglingIndices()) {
+                        listener.onFailure(
+                            new ElasticsearchException("Failed to query nodes: " + map(response.failures(), FailedNodeException::nodeId))
+                        );
+                        return;
+                    }
+
+                    final List<NodeFindDanglingIndexResponse> nodes = response.getNodes();
+
+                    for (NodeFindDanglingIndexResponse nodeResponse : nodes) {
+                        for (IndexMetaData danglingIndexMetaData : nodeResponse.getDanglingIndexMetaData()) {
                             if (danglingIndexMetaData.getIndexUUID().equals(indexUUID)) {
                                 listener.onResponse(danglingIndexMetaData.getIndex());
                                 return;
@@ -194,8 +209,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                 }
 
                 @Override
-                public ListDanglingIndicesResponse read(StreamInput in) throws IOException {
-                    return new ListDanglingIndicesResponse(in);
+                public FindDanglingIndexResponse read(StreamInput in) throws IOException {
+                    return new FindDanglingIndexResponse(in);
                 }
             }
         );

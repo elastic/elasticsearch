@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,28 +29,28 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ * Used when querying every node in the cluster for a specific dangling index.
  */
-public class NodeDanglingIndicesResponse extends BaseNodeResponse {
-    private final List<DanglingIndexInfo> indexMetaData;
+public class NodeFindDanglingIndexResponse extends BaseNodeResponse {
+    private final List<IndexMetaData> danglingIndexMetaData;
 
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.indexMetaData;
+    public List<IndexMetaData> getDanglingIndexMetaData() {
+        return this.danglingIndexMetaData;
     }
 
-    public NodeDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexMetaData) {
+    public NodeFindDanglingIndexResponse(DiscoveryNode node, List<IndexMetaData> danglingIndexMetaData) {
         super(node);
-        this.indexMetaData = indexMetaData;
+        this.danglingIndexMetaData = danglingIndexMetaData;
     }
 
-    protected NodeDanglingIndicesResponse(StreamInput in) throws IOException {
+    protected NodeFindDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexMetaData = in.readList(DanglingIndexInfo::new);
+        this.danglingIndexMetaData = in.readList(IndexMetaData::readFrom);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.indexMetaData);
+        out.writeList(this.danglingIndexMetaData);
     }
 }

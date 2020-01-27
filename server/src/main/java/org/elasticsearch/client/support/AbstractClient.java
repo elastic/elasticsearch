@@ -159,12 +159,15 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -1157,6 +1160,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void listDanglingIndices(ListDanglingIndicesRequest request, ActionListener<ListDanglingIndicesResponse> listener) {
             execute(ListDanglingIndicesAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<FindDanglingIndexResponse> findDanglingIndices(FindDanglingIndexRequest request) {
+            return execute(FindDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void findDanglingIndices(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener) {
+            execute(FindDanglingIndexAction.INSTANCE, request, listener);
         }
 
         @Override

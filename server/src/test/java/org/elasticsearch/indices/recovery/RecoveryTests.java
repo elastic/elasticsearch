@@ -103,8 +103,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             recoveryBlocked.await();
             IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
             builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                 // force a roll and flush
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
             );

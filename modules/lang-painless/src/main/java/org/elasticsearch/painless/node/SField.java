@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.ir.FieldNode;
+import org.elasticsearch.painless.ir.StatementNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
 
@@ -75,13 +73,20 @@ public class SField extends ANode {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
+    public StatementNode write() {
+        throw new UnsupportedOperationException();
     }
 
-    void write(ClassWriter classWriter) {
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(type).getDescriptor(), null, null).visitEnd();
+    FieldNode writeField() {
+        FieldNode fieldNode = new FieldNode();
+
+        fieldNode.setLocation(location);
+        fieldNode.setModifiers(modifiers);
+        fieldNode.setName(name);
+        fieldNode.setFieldType(type);
+        fieldNode.setInstance(instance);
+
+        return fieldNode;
     }
 
     @Override

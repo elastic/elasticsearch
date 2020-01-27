@@ -10,6 +10,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +53,7 @@ public class TopHitsAgg extends LeafAgg {
                     .missing(LAST.position())
                     .unmappedType(fieldDataType.esType()));
 
-        return topHits(id()).docValueField(fieldName(), fieldDataType.format()).sorts(sortBuilderList).size(1);
+        return topHits(id()).docValueField(fieldName(), SqlDataTypes.format(fieldDataType)).sorts(sortBuilderList).size(1);
     }
 
     @Override

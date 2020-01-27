@@ -99,10 +99,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private final boolean watcherAlreadyExists = randomBoolean();
     private final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
     private final String userName = "elasticuser";
-    private final String pass = "elasticpass";
-    private final String pass2 = "anotherpassword";
-    private final String authHeaderValue = Base64.encode(userName + ":" + pass);
-    private final String authHeaderValue2 = Base64.encode(userName + ":" + pass2);
 
     private MockWebServer webServer;
 
@@ -137,7 +133,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private Settings.Builder secureSettings(String password) {
-        mockSecureSettings.setString("xpack.monitoring.exporters._http.secure_auth_password", password);
+        mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", password);
         return baseSettings().setSecureSettings(mockSecureSettings);
     }
 
@@ -172,7 +168,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     public void testSecureSetting() throws Exception {
-        Settings settings = secureSettings(pass).build();
+        final String securePassword1 = "elasticpass";
+        final String securePassword2 = "anotherpassword";
+        final String authHeaderValue = Base64.encode(userName + ":" + securePassword1);
+        final String authHeaderValue2 = Base64.encode(userName + ":" + securePassword2);
+
+        Settings settings = secureSettings(securePassword1)
+            .put("xpack.monitoring.exporters._http.auth.password", "insecurePassword") // verify this password is not used
+            .build();
         PluginsService pluginsService = internalCluster().getInstances(PluginsService.class).iterator().next();
         LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).iterator().next();
         localStateMonitoring.getMonitoring().reload(settings);
@@ -188,7 +191,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertEquals(webServer.takeRequest().getHeader("Authorization").replace("Basic", "").replace(" ", ""), authHeaderValue);
         webServer.clearRequests();
 
-        settings = secureSettings(pass2).build();
+        settings = secureSettings(securePassword2).build();
         localStateMonitoring.getMonitoring().reload(settings);
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,

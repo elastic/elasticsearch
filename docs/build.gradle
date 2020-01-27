@@ -42,6 +42,9 @@ buildRestTests.expectedUnconvertedCandidates = [
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    if ("false".equals(System.getProperty("build.snapshot")) == false) {
+      setting 'xpack.autoscaling.enabled', 'true'
+    }
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them

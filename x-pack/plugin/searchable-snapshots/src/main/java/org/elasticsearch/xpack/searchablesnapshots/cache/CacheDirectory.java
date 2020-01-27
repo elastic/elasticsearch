@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class CacheDirectory extends FilterDirectory {
 
+    private static final int COPY_BUFFER_SIZE = 8192;
+
     private final CacheService cacheService;
     private final Path cacheDir;
 
@@ -179,7 +181,7 @@ public class CacheDirectory extends FilterDirectory {
         @SuppressForbidden(reason = "Use positional writes on purpose")
         void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
-            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(8192L, end - start))];
+            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
             try (IndexInput input = in.openInput(fileName, ioContext)) {
                 if (start > 0) {
                     input.seek(start);
@@ -242,7 +244,7 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
-            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(8192L, end - start))];
+            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
 
             int bytesCopied = 0;
             try (IndexInput input = in.openInput(fileName, ioContext)) {

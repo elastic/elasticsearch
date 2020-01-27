@@ -46,12 +46,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
+    protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     /**
      * Generate a random precision according to the rules of the given aggregation.
@@ -126,7 +128,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51103")
     public void testBounds() throws IOException {
         final int numDocs = randomIntBetween(64, 256);
         final GeoGridAggregationBuilder builder = createBuilder("_name");
@@ -134,7 +135,14 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
 
-        GeoBoundingBox bbox = GeoBoundingBoxTests.randomBBox();
+        // only consider bounding boxes that are at least GEOHASH_TOLERANCE wide and have quantized coordinates
+        GeoBoundingBox bbox = randomValueOtherThanMany(
+            (b) -> Math.abs(GeoUtils.normalizeLon(b.right()) - GeoUtils.normalizeLon(b.left())) < GEOHASH_TOLERANCE,
+            GeoBoundingBoxTests::randomBBox);
+        Function<Double, Double> encodeDecodeLat = (lat) -> GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+        Function<Double, Double> encodeDecodeLon = (lon) -> GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+        bbox.topLeft().reset(encodeDecodeLat.apply(bbox.top()), encodeDecodeLon.apply(bbox.left()));
+        bbox.bottomRight().reset(encodeDecodeLat.apply(bbox.bottom()), encodeDecodeLon.apply(bbox.right()));
 
         int in = 0, out = 0;
         List<LatLonDocValuesField> docs = new ArrayList<>();

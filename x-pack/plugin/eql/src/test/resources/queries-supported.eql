@@ -1,0 +1,332 @@
+process where process_name == "svchost.exe" and command_line != "* -k *";
+process where process_name in ('ipconfig.exe', 'netstat.exe', 'systeminfo.exe', 'route.exe');
+process where subtype.create and wildcard(command_line, "*.ost *", "*.pst *")
+;
+
+process where subtype.create and
+  process_name == "attrib.exe" and command_line == "* +h*"
+;
+
+file where file_name == "*Library/Preferences/*.plist";
+
+/* UNIT TESTS FROM
+ * https://github.com/endgameinc/eql/blob/master/tests/test_parser.py
+ */
+
+file where true;
+
+file where true and true;
+
+file where false or true;
+
+registry where not pid;
+
+process where process_name == "net.exe" and command_line == "* user*.exe";
+
+process where command_line == "~!@#$%^&*();'[]{}\\|<>?,./:\"-= ' ";
+
+process where
+
+ pid ==  4;
+
+process where process_name in ("net.exe", "cmd.exe", "at.exe");
+
+process where command_line == "*.exe *admin*" or command_line == "* a b*";
+
+process where pid in (1,2,3,4,5,6,7,8) and abc == 100 and def == 200 and ghi == 300 and jkl == x;
+
+process where ppid != pid;
+
+image_load where not x != y;
+
+image_load where not x == y;
+
+image_load where not not not not x < y;
+
+image_load where not x <= y;
+
+image_load where not x >= y;
+
+image_load where not x > y;
+
+process where _leadingUnderscore == 100;
+
+network where 1 * 2 + 3 * 4 + 10 / 2 == 2 + 12 + 5;
+
+file where 1 - -2;
+
+file where 1 + (-2);
+
+file where 1 * (-2);
+
+file where 3 * -length(file_path);
+
+network where a * b + c * d + e / f == g + h + i;
+
+network where a * (b + c * d) + e / f == g + h + i;
+
+process where pid == 4 or pid == 5 or pid == 6 or pid == 7 or pid == 8;
+
+network where pid == 0 or pid == 4 or (ppid == 0 or ppid = 4) or (abc == defgh) and process_name == "*" ;
+
+network where pid = 4;
+
+
+registry where a.b;
+
+registry where a.b.c.d.e;
+
+
+
+
+process where a > 100000000000000000000000000000000;
+
+
+
+/* TESTS FROM
+ * https://raw.githubusercontent.com/endgameinc/eql/master/eql/etc/test_queries.toml
+ */
+process where serial_event_id = 1;
+
+process where serial_event_id < 4;
+
+
+process where false;
+
+process where missing_field != null;
+
+process where process_name == "impossible name" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+;
+
+
+process where serial_event_id<=8 and serial_event_id > 7
+;
+
+process where exit_code >= 0;
+
+process where 0 <= exit_code;
+
+process where exit_code <= 0;
+
+process where exit_code < 1;
+
+process where exit_code > -1;
+
+process where -1 < exit_code;
+
+process where exit_code > 0;
+
+process where exit_code < 0;
+
+process where 0 < exit_code;
+
+process where 0 > exit_code;
+
+process where (serial_event_id<=8 and serial_event_id > 7) and (opcode=3 and opcode>2);
+
+process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid);
+
+
+
+registry where key_path == "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F";
+
+process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3,4);
+
+
+file where file_path="*\\red_ttp\\winin*.*"
+  and opcode in (0,1,2) and user_name="vagrant"
+;
+
+file where file_path="*\\red_ttp\\winin*.*"
+  and opcode not in (0,1,2) and user_name="vagrant"
+;
+
+file where file_path="*\\red_ttp\\winin*.*"
+  and opcode not in (3, 4, 5, 6 ,7) and user_name="vagrant"
+;
+
+file where file_name in ("wininit.exe", "lsass.exe") and opcode == 2
+;
+
+
+process where opcode in (1,3) and process_name in (parent_process_name, "SYSTEM")
+;
+
+
+process where fake_field == "*";
+
+
+registry where invalid_field_name != null;
+
+registry where length(bad_field) > 0
+;
+
+process where opcode == 1
+  and process_name in ("net.exe", "net1.exe")
+  and not (parent_process_name == "net.exe"
+  and process_name == "net1.exe")
+  and command_line == "*group *admin*" and command_line != "* /add*";
+
+
+
+process where process_name = "python.exe";
+
+process where command_line == "*%*" ;
+
+process where command_line == "*%*%*" ;
+
+process where command_line == "%*%*" ;
+
+
+process where match(?'.*?net1\s+localgroup\s+.*?', command_line)
+;
+
+process where match(?'.*?net1\s+\w+\s+.*?', command_line)
+;
+
+process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+;
+
+process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+;
+
+process where match(?'.*?net1\s+[localgrup]{4,15}\s+.*?', command_line)
+;
+
+file where opcode=0 and startsWith(file_name, 'exploRER.')
+;
+
+file where opcode=0 and startsWith(file_name, 'expLORER.exe')
+;
+
+file where opcode=0 and endsWith(file_name, 'loREr.exe');
+
+file where opcode=0 and startsWith(file_name, 'explORER.EXE');
+
+file where opcode=0 and startsWith('explorer.exeaaaaaaaa', file_name);
+
+file where opcode=0 and serial_event_id = 88 and startsWith('explorer.exeaAAAA', 'EXPLORER.exe');
+
+file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)
+;
+
+file where opcode=0 and indexOf(file_name, 'plore') == 2 and not indexOf(file_name, '.pf')
+;
+
+file where opcode=0 and indexOf(file_name, 'explorer.') and indexOf(file_name, 'plore', 100)
+;
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2;
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 2);
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 4);
+
+file where opcode=0 and indexOf(file_name, 'thing that never happened');
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2;
+
+file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0;
+
+file where serial_event_id=88 and substring(file_name, 0, 4) == 'expl'
+;
+
+file where serial_event_id=88 and substring(file_name, 1, 3) == 'xp'
+;
+
+file where serial_event_id=88 and substring(file_name, -4) == '.exe'
+;
+
+file where serial_event_id=88 and substring(file_name, -4, -1) == '.ex'
+;
+
+process where add(serial_event_id, 0) == 1 and add(0, 1) == serial_event_id;
+
+process where subtract(serial_event_id, -5) == 6;
+
+process where multiply(6, serial_event_id) == 30 and divide(30, 4.0) == 7.5;
+
+process where modulo(11, add(serial_event_id, 1)) == serial_event_id;
+
+process where serial_event_id == number('5');
+
+process where serial_event_id == number('0x32', 16);
+
+process where serial_event_id == number('32', 16);
+
+process where number(serial_event_id) == number(5);
+
+process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'
+;
+
+
+// undocumented function -- removing support
+// network where safe(divide(process_name, process_name))
+//;
+
+file where serial_event_id == 82 and (true == (process_name in ('svchost.EXE', 'bad.exe', 'bad2.exe')))
+;
+
+
+file where serial_event_id - 1 == 81;
+
+file where serial_event_id + 1 == 83;
+
+file where serial_event_id * 2 == 164;
+
+file where serial_event_id / 2 == 41;
+
+file where serial_event_id % 40 == 2;
+
+process where between(process_name, "s", "e") == "yst"
+;
+
+process where between(process_name, "s", "e", false) == "yst"
+;
+
+process where between(process_name, "s", "e", false, true) == "yst"
+;
+
+process where between(process_name, "s", "e", false, true) == "t"
+;
+
+process where between(process_name, "S", "e", false, true) == "yst"
+;
+
+process where between(process_name, "s", "e", true) == "ystem Idle Proc"
+;
+
+file where between(file_path, "dev", ".json", false) == "\\testlogs\\something"
+;
+
+file where between(file_path, "dev", ".json", true) == "\\testlogs\\something"
+;
+
+network where cidrMatch(source_address, "10.6.48.157/8")
+;
+
+network where cidrMatch(source_address, "192.168.0.0/16")
+;
+
+network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8")
+
+;
+
+network where cidrMatch(source_address, "0.0.0.0/0")
+;
+
+process where length(between(process_name, 'g', 'e')) > 0
+;
+
+process where length(between(process_name, 'g', 'z')) > 0
+;
+
+
+// additional queries added for the elasticsearch specific implementation
+// dots will still be interpreted by ES per usual
+something where `my-hyphenated-field` == "value";
+something where `my-hyphenated-field.with.nested.dots` == "value";
+something where `@timestamp` == "2020-01-01 00:00:00";
+something where `some escaped identifier` == "blah";
+something where `some escaped identifier` == "blah";
+something where `some.escaped.identifier` == "blah";

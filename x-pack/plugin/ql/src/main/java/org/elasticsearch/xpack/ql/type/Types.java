@@ -14,88 +14,89 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public abstract class Types {
 
     @SuppressWarnings("unchecked")
-    public static Map<String, EsField> fromEs(Map<String, Object> asMap) {
+    public static Map<String, EsField> fromEs(DataTypeRegistry typeRegistry, Map<String, Object> asMap) {
         Map<String, Object> props = null;
         if (asMap != null && !asMap.isEmpty()) {
             props = (Map<String, Object>) asMap.get("properties");
         }
-        return props == null || props.isEmpty() ? emptyMap() : startWalking(props);
+        return props == null || props.isEmpty() ? emptyMap() : startWalking(typeRegistry, props);
     }
 
-    private static Map<String, EsField> startWalking(Map<String, Object> mapping) {
+    private static Map<String, EsField> startWalking(DataTypeRegistry typeRegistry, Map<String, Object> mapping) {
         Map<String, EsField> types = new LinkedHashMap<>();
 
         if (mapping == null) {
             return emptyMap();
         }
         for (Entry<String, Object> entry : mapping.entrySet()) {
-            walkMapping(entry.getKey(), entry.getValue(), types);
+            walkMapping(typeRegistry, entry.getKey(), entry.getValue(), types);
         }
 
         return types;
     }
 
-    private static DataType getType(Map<String, Object> content) {
+    private static DataType getType(DataTypeRegistry typeRegistry, Map<String, Object> content) {
         if (content.containsKey("type")) {
             try {
-                return DataType.fromTypeName(content.get("type").toString());
+                return typeRegistry.fromEs(content.get("type").toString());
             } catch (IllegalArgumentException ex) {
-                return DataType.UNSUPPORTED;
+                return UNSUPPORTED;
             }
         } else if (content.containsKey("properties")) {
-            return DataType.OBJECT;
+            return OBJECT;
         } else {
-            return DataType.UNSUPPORTED;
+            return UNSUPPORTED;
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void walkMapping(String name, Object value, Map<String, EsField> mapping) {
+    private static void walkMapping(DataTypeRegistry typeRegistry, String name, Object value, Map<String, EsField> mapping) {
         // object type - only root or nested docs supported
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
 
             // extract field type
-            DataType esDataType = getType(content);
+            DataType esDataType = getType(typeRegistry, content);
             final Map<String, EsField> properties;
-            if (esDataType == DataType.OBJECT || esDataType == DataType.NESTED) {
-                properties = fromEs(content);
+            if (esDataType == OBJECT || esDataType == NESTED) {
+                properties = fromEs(typeRegistry, content);
             } else if (content.containsKey("fields")) {
                 // Check for multifields
                 Object fields = content.get("fields");
                 if (fields instanceof Map) {
-                    properties = startWalking((Map<String, Object>) fields);
+                    properties = startWalking(typeRegistry, (Map<String, Object>) fields);
                 } else {
                     properties = Collections.emptyMap();
                 }
             } else {
-                properties = fromEs(content);
+                properties = fromEs(typeRegistry, content);
             }
-            boolean docValues = boolSetting(content.get("doc_values"), esDataType.defaultDocValues);
+            boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
             final EsField field;
-            switch (esDataType) {
-                case TEXT:
-                    field = new TextEsField(name, properties, docValues);
-                    break;
-                case KEYWORD:
-                    int length = intSetting(content.get("ignore_above"), esDataType.defaultPrecision);
-                    boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
-                    field = new KeywordEsField(name, properties, docValues, length, normalized);
-                    break;
-                case DATETIME:
-                    field = new DateEsField(name, properties, docValues);
-                    break;
-                case UNSUPPORTED:
-                    String type = content.get("type").toString();
-                    field = new UnsupportedEsField(name, type, null, properties);
-                    propagateUnsupportedType(name, type, properties);
-                    break;
-                default:
-                    field = new EsField(name, esDataType, properties, docValues);
+            if (esDataType == TEXT) {
+                field = new TextEsField(name, properties, docValues);
+            } else if (esDataType == KEYWORD) {
+                int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
+                boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
+                field = new KeywordEsField(name, properties, docValues, length, normalized);
+            } else if (esDataType == DATETIME) {
+                field = new DateEsField(name, properties, docValues);
+            } else if (esDataType == UNSUPPORTED) {
+                String type = content.get("type").toString();
+                field = new UnsupportedEsField(name, type, null, properties);
+                propagateUnsupportedType(name, type, properties);
+            } else {
+                field = new EsField(name, esDataType, properties, docValues);
             }
             mapping.put(name, field);
         } else {

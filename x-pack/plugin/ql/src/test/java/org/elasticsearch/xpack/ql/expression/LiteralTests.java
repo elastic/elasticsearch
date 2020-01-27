@@ -9,8 +9,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +20,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     static class ValueAndCompatibleTypes {
@@ -37,22 +46,19 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
      * after a generators is its "native" type.
      */
     private static final List<ValueAndCompatibleTypes> GENERATORS = Arrays.asList(
-        new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomByte, DataType.BYTE, DataType.SHORT, DataType.INTEGER, DataType.LONG,
-                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomShort, DataType.SHORT, DataType.INTEGER, DataType.LONG,
-                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomInt, DataType.INTEGER, DataType.LONG,
-                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomLong, DataType.LONG, DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomFloat, DataType.FLOAT, DataType.LONG, DataType.DOUBLE, DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DataType.DOUBLE, DataType.LONG, DataType.FLOAT, DataType.BOOLEAN),
-        new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), DataType.KEYWORD));
+            new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), BOOLEAN),
+            new ValueAndCompatibleTypes(ESTestCase::randomByte, BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
+            new ValueAndCompatibleTypes(ESTestCase::randomShort, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
+            new ValueAndCompatibleTypes(ESTestCase::randomInt, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
+            new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
+            new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
+            new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
+            new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD));
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
         DataType dataType = randomFrom(gen.validDataTypes);
-        return new Literal(SourceTests.randomSource(), DataTypeConversion.convert(gen.valueSupplier.get(), dataType), dataType);
+        return new Literal(SourceTests.randomSource(), DataTypeConverter.convert(gen.valueSupplier.get(), dataType), dataType);
     }
 
     @Override
@@ -93,7 +99,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         if (validDataTypes.size() > 1) {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
             assertEquals(new Literal(literal.source(), literal.value(), newDataType),
-                literal.transformPropertiesOnly(p -> newDataType, DataType.class));
+                    literal.transformPropertiesOnly(p -> newDataType, DataType.class));
         }
     }
 
@@ -106,7 +112,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     private Object randomValueOfTypeOtherThan(Object original, DataType type) {
         for (ValueAndCompatibleTypes gen : GENERATORS) {
             if (gen.validDataTypes.get(0) == type) {
-                return randomValueOtherThan(original, () -> DataTypeConversion.convert(gen.valueSupplier.get(), type));
+                return randomValueOtherThan(original, () -> DataTypeConverter.convert(gen.valueSupplier.get(), type));
             }
         }
         throw new IllegalArgumentException("No native generator for [" + type + "]");
@@ -114,11 +120,11 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     private List<DataType> validReplacementDataTypes(Object value, DataType type) {
         List<DataType> validDataTypes = new ArrayList<>();
-        List<DataType> options = Arrays.asList(DataType.BYTE, DataType.SHORT, DataType.INTEGER, DataType.LONG,
-                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN);
+        List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG,
+                FLOAT, DOUBLE, BOOLEAN);
         for (DataType candidate : options) {
             try {
-                DataTypeConversion.Conversion c = DataTypeConversion.conversionFor(type, candidate);
+                Converter c = DataTypeConverter.converterFor(type, candidate);
                 c.convert(value);
                 validDataTypes.add(candidate);
             } catch (QlIllegalArgumentException e) {

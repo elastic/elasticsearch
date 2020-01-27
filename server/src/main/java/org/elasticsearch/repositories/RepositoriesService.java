@@ -119,9 +119,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             registrationListener = listener;
         }
 
+        final RepositoryMetaData filteredMetaData;
         // Trying to create the new repository on master to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetaData, typesRegistry));
+            final Repository repository = createRepository(newRepositoryMetaData, typesRegistry);
+            filteredMetaData = repository.getMetadata();
+            closeRepository(repository);
         } catch (Exception e) {
             registrationListener.onFailure(e);
             return;
@@ -142,20 +145,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
                     if (repositories == null) {
                         logger.info("put repository [{}]", request.name());
-                        repositories = new RepositoriesMetaData(
-                            Collections.singletonList(new RepositoryMetaData(request.name(), request.type(), request.settings())));
+                        repositories = new RepositoriesMetaData(Collections.singletonList(filteredMetaData));
                     } else {
                         boolean found = false;
                         List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size() + 1);
 
                         for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
-                            if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
-                                if (newRepositoryMetaData.equalsIgnoreGenerations(repositoryMetaData)) {
+                            if (repositoryMetaData.name().equals(filteredMetaData.name())) {
+                                if (filteredMetaData.equalsIgnoreGenerations(repositoryMetaData)) {
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
                                 }
                                 found = true;
-                                repositoriesMetaData.add(newRepositoryMetaData);
+                                repositoriesMetaData.add(filteredMetaData);
                             } else {
                                 repositoriesMetaData.add(repositoryMetaData);
                             }

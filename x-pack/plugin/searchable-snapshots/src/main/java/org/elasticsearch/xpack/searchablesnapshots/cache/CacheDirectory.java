@@ -157,7 +157,7 @@ public class CacheDirectory extends FilterDirectory {
                     if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
                         try {
                             // cache file was evicted during the range fetching, read bytes directly from source
-                            bytesRead += copySource(pos, pos + len, buffer, off);
+                            bytesRead += readDirectly(pos, pos + len, buffer, off);
                             continue;
                         } catch (Exception inner) {
                             e.addSuppressed(inner);
@@ -241,7 +241,7 @@ public class CacheDirectory extends FilterDirectory {
                 '}';
         }
 
-        private int copySource(long start, long end, byte[] buffer, int offset) throws IOException {
+        private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(8192L, end - start))];
 
             int bytesCopied = 0;

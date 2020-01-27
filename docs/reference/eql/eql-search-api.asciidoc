@@ -1,6 +1,5 @@
 [role="xpack"]
 [testenv="basic"]
-:eql-ref: https://eql.readthedocs.io/en/latest/query-guide
 
 [[eql-search-api]]
 === EQL search API
@@ -15,14 +14,14 @@ query.
 
 [source,console]
 ----
-GET sec_logs/_eql/search
+GET my_index/_eql/search
 {
   "rule": """
     process where process.name = "regsvr32.exe"
   """
 }
 ----
-// TEST[s/^/PUT sec_logs\n/]
+// TEST[s/^/PUT my_index\n/]
 
 [[eql-search-api-request]]
 ==== {api-request-title}

@@ -32,6 +32,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -85,10 +86,12 @@ final class JvmOptionsParser {
                     Arrays.stream(environmentJvmOptions.split("\\s+")).filter(s -> s.trim().isEmpty() == false).collect(Collectors.toList())
                 );
             }
-            final List<String> substitutedJvmOptions = substitutePlaceholders(
-                jvmOptions,
-                Collections.singletonMap("ES_TMPDIR", System.getenv("ES_TMPDIR"))
-            );
+            final Map<String, String> substitutions = new HashMap<>();
+            substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
+            if (null != System.getenv("ES_PATH_CONF")) {
+                substitutions.put("ES_PATH_CONF", System.getenv("ES_PATH_CONF"));
+            }
+            final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
             final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
             final List<String> finalJvmOptions = new ArrayList<>(

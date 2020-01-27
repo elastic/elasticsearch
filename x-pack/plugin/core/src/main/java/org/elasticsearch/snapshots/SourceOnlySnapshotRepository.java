@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -65,6 +67,8 @@ import java.util.function.Supplier;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
+    private static final Setting<Boolean> SOURCE_ONLY_REPO_SETTING = Setting.boolSetting("source_only", false, Setting.Property.NodeScope);
+
     private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
         .NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
@@ -207,4 +211,24 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             }
         };
     }
+
+    @Nullable
+    public static RepositoryPlugin.RepositoryDecorator getRepositoryDecorator(RepositoryMetaData repositoryMetaData) {
+        if (SOURCE_ONLY_REPO_SETTING.get(repositoryMetaData.settings())) {
+            return new RepositoryPlugin.RepositoryDecorator() {
+                @Override
+                public List<Setting> getConsumedSettings() {
+                    return Collections.singletonList(SOURCE_ONLY_REPO_SETTING);
+                }
+
+                @Override
+                public Repository decorateRepository(Repository repository) {
+                    return new SourceOnlySnapshotRepository(repository);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
 }

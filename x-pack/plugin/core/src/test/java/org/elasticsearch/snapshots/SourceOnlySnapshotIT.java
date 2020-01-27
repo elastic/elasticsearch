@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -86,6 +89,13 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             List<Setting<?>> settings = new ArrayList<>(super.getSettings());
             settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
             return settings;
+        }
+
+        @Override
+        public List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators(Environment env,
+                                                                                               NamedXContentRegistry namedXContentRegistry,
+                                                                                               ClusterService clusterService) {
+            return Collections.singletonList(SourceOnlySnapshotRepository::getRepositoryDecorator);
         }
     }
 
@@ -219,11 +229,16 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         final String snapshot = "test-snap";
 
         logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository(repo).setType("source")
-            .setSettings(Settings.builder().put("location", randomRepoPath())
-                .put("delegate_type", "fs")
-                .put("restore_minimal", minimal)
-                .put("compress", randomBoolean())));
+        final boolean useLegacyDelegateType = randomBoolean();
+        Settings.Builder settingsBuilder = Settings.builder().put("location", randomRepoPath())
+            .put("restore_minimal", minimal).put("compress", randomBoolean());
+        if (useLegacyDelegateType) {
+            settingsBuilder.put("delegate_type", "fs");
+        } else {
+            settingsBuilder.put("source_only", true);
+        }
+        assertAcked(client.admin().cluster().preparePutRepository(repo)
+            .setType(useLegacyDelegateType ? "source" : "fs").setSettings(settingsBuilder));
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", numShards).put("number_of_replicas", 0));

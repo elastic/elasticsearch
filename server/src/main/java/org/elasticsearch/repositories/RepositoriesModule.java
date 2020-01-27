@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,6 +33,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Sets up classes for Snapshot/Restore.
@@ -68,11 +71,15 @@ public final class RepositoriesModule {
             }
         }
 
+        final List<Function<RepositoryMetaData, RepositoryPlugin.RepositoryDecorator>> repositoryDecorators =
+            repoPlugins.stream().flatMap(rp -> rp.getRepositoryDecorators(env, namedXContentRegistry, clusterService).stream())
+                .collect(Collectors.toList());
+
         Settings settings = env.settings();
         Map<String, Repository.Factory> repositoryTypes = Collections.unmodifiableMap(factories);
         Map<String, Repository.Factory> internalRepositoryTypes = Collections.unmodifiableMap(internalFactories);
         repositoriesService = new RepositoriesService(settings, clusterService, transportService, repositoryTypes,
-            internalRepositoryTypes, threadPool);
+            internalRepositoryTypes, repositoryDecorators, threadPool);
     }
 
     public RepositoriesService getRepositoryService() {

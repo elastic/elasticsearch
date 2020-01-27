@@ -19,13 +19,17 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.Collections;
-import java.util.Map;
-
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.Repository;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
@@ -57,5 +61,30 @@ public interface RepositoryPlugin {
     default Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                                     ClusterService clusterService) {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Wraps a base repository implementation to customize it with extra features.
+     */
+    interface RepositoryDecorator {
+        /**
+         * @return the settings from the {@link org.elasticsearch.cluster.metadata.RepositoryMetaData that this decorator consumes}.
+         */
+        List<Setting> getConsumedSettings();
+
+        /**
+         * Decorate the given repository.
+         */
+        Repository decorateRepository(Repository repository);
+    }
+
+    /**
+     * Returns a collection of functions for creating repository decorators. For any given repository metadata, at most one such function
+     * (amongst all plugins) may return a non-null {@link RepositoryDecorator}.
+     */
+    default List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators(Environment env,
+                                                                                            NamedXContentRegistry namedXContentRegistry,
+                                                                                            ClusterService clusterService) {
+        return Collections.emptyList();
     }
 }

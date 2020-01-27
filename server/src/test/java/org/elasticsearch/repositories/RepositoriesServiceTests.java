@@ -66,7 +66,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
-            transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+            transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new),
+            Collections.emptyList() /* TODO verify validation here */, threadPool);
         repositoriesService.start();
     }
 

@@ -202,6 +202,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
@@ -1153,7 +1154,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
                 repositoriesService = new RepositoriesService(
                     settings, clusterService, transportService,
-                    Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool
+                    Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), emptyList(), threadPool
                 );
                 snapshotsService =
                     new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);

@@ -18,6 +18,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -82,6 +83,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -326,6 +328,13 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                            ClusterService clusterService) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
+    }
+
+    @Override
+    public List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators(Environment env,
+                                                                                           NamedXContentRegistry namedXContentRegistry,
+                                                                                           ClusterService clusterService) {
+        return Collections.singletonList(SourceOnlySnapshotRepository::getRepositoryDecorator);
     }
 
     @Override

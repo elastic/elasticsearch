@@ -153,9 +153,24 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(totalFileCount+4, copy.getTotalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
-        deleteDoc(shard, Integer.toString(10));
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
+
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
+                snapshotRef.getIndexCommit(), indexShardSnapshotStatus, true, future));
+            shardGeneration = future.actionGet();
+            IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
+            // we processed the segments_N file plus _1.si, _1.fdx, _1.fnm, _1.fdt
+            assertEquals(0, copy.getIncrementalFileCount());
+            // in total we have 4 more files than the previous snap since we don't count the segments_N twice
+            assertEquals(totalFileCount, copy.getTotalFileCount());
+            assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
+        }
+        deleteDoc(shard, Integer.toString(10));
+        try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
+            SnapshotId snapshotId = new SnapshotId("test_3", "test_3");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             final PlainActionFuture<String> future = PlainActionFuture.newFuture();

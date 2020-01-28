@@ -138,6 +138,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         try {
             FSDirectory directory = new SimpleFSDirectory(snapPath);
             toClose.add(directory);
+            toClose.add(() -> IOUtils.rm(snapPath));
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {

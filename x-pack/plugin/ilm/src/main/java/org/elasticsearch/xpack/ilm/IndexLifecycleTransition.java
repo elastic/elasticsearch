@@ -166,6 +166,9 @@ public final class IndexLifecycleTransition {
         if (indexMetaData == null) {
             throw new IllegalArgumentException("index [" + index + "] does not exist");
         }
+        if (LifecycleExecutionState.hasLifecycleExecutionState(indexMetaData) == false) {
+            return currentState;
+        }
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         String failedStep = lifecycleState.getFailedStep();

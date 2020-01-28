@@ -202,6 +202,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
+    public void testRetrySkipsNonManagedIndices() throws Exception{
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        Request retryRequest = new Request("POST", index + "/_ilm/retry");
+        assertOK(client().performRequest(retryRequest));
+    }
+
     public void testRetryFailedShrinkAction() throws Exception {
         int numShards = 6;
         int divisor = randomFrom(2, 3, 6);
@@ -352,7 +359,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         request = new Request("DELETE", "/_snapshot/" + repo);
         assertOK(client().performRequest(request));
     }
-    
+
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));

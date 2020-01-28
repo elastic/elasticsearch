@@ -180,7 +180,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
 
     public void testMultiFields() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "boolean")
@@ -192,7 +192,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject()
                 .endObject().endObject());
         DocumentMapper mapper = indexService.mapperService()
-            .merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()

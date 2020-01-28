@@ -1,0 +1,20 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  name 'x-pack-autoscaling'
+  description 'Elasticsearch Expanded Pack Plugin - Autoscaling'
+  classname 'org.elasticsearch.xpack.autoscaling.Autoscaling'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController false
+  requiresKeystore true
+}
+archivesBaseName = 'x-pack-autoscaling'
+
+integTest.enabled = false
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}

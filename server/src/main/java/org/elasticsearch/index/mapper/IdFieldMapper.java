@@ -46,6 +46,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -92,15 +94,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new IdFieldMapper(indexSettings, fieldType);
+            return new IdFieldMapper(indexSettings, Defaults.FIELD_TYPE);
         }
     }
 
@@ -151,6 +153,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 bytesRefs[i] = Uid.encodeId(idObject.toString());
             }
             return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: should this even exist? Is aggregating on the ID field valid?
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override

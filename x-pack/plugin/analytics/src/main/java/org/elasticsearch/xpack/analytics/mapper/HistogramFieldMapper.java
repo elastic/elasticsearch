@@ -48,6 +48,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -263,6 +265,12 @@ public class HistogramFieldMapper extends FieldMapper {
                     };
                 }
             };
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: Histogram ValuesSourceType should move into this plugin.
+            return CoreValuesSourceType.HISTOGRAM;
         }
 
         @Override

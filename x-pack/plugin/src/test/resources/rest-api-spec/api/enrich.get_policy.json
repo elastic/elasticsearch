@@ -1,6 +1,8 @@
 {
   "enrich.get_policy": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-get-policy.html",
+    "documentation": {
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-enrich-policy-api.html"
+    },
     "stability" : "stable",
     "url": {
       "paths": [

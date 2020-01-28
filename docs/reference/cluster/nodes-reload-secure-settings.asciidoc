@@ -67,10 +67,18 @@ POST _nodes/_local/reload_secure_settings
 
 <1> The password that the {es} keystore is encrypted with on the local node.
 
+[[cluster-nodes-reload-secure-settings-api-example]]
+==== {api-examples-title}
 
-[float]
-[[cluster-nodes-reload-secure-settings-api-response-body]]
-==== {api-response-body-title}
+Rest example:
+
+[source,console]
+--------------------------------------------------
+POST _nodes/reload_secure_settings
+POST _nodes/nodeId1,nodeId2/reload_secure_settings
+--------------------------------------------------
+// TEST[setup:node]
+// TEST[s/nodeId1,nodeId2/*/]
 
 The response contains the `nodes` object, which is a map, keyed by the
 node id. Each value has the node `name` and an optional `reload_exception`
@@ -95,14 +103,3 @@ that was thrown during the reload process, if any.
 --------------------------------------------------
 // TESTRESPONSE[s/"my_cluster"/$body.cluster_name/]
 // TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]
-
-[[cluster-nodes-reload-secure-settings-api-example]]
-==== {api-examples-title}
-
-[source,console]
---------------------------------------------------
-POST _nodes/reload_secure_settings
-POST _nodes/nodeId1,nodeId2/reload_secure_settings
---------------------------------------------------
-// TEST[setup:node]
-// TEST[s/nodeId1,nodeId2/*/]

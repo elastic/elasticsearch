@@ -34,7 +34,7 @@ teardown:
       warnings:
         - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
-        accept_enterprise: "true"
+        accept_enterprise: true
 
   ## a v5 license object has 12 attributes
   - length: { license: 12 }
@@ -48,5 +48,5 @@ teardown:
       warnings:
         - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
-        accept_enterprise: "false"
+        accept_enterprise: false
 

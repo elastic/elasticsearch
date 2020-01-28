@@ -34,8 +34,6 @@ class CacheFile {
         void onEviction(CacheFile evictedCacheFile);
     }
 
-    static final int RANGE_SIZE = 1 << 15;
-
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[]{
         StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE
     };
@@ -51,6 +49,7 @@ class CacheFile {
     private final ReleasableLock readLock;
 
     private final SparseFileTracker tracker;
+    private final int rangeSize;
     private final String name;
     private final Path file;
 
@@ -58,11 +57,12 @@ class CacheFile {
     private volatile FileChannel channel;
     private volatile boolean evicted;
 
-    CacheFile(String name, long length, Path file) {
+    CacheFile(String name, long length, Path file, int rangeSize) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.name = Objects.requireNonNull(name);
         this.file = Objects.requireNonNull(file);
         this.listeners = new HashSet<>();
+        this.rangeSize = rangeSize;
         this.evicted = false;
 
         final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
@@ -243,8 +243,8 @@ class CacheFile {
             }
 
             ensureOpen();
-            final long rangeStart = (position / RANGE_SIZE) * RANGE_SIZE;
-            final long rangeEnd = Math.min(rangeStart + RANGE_SIZE, tracker.getLength());
+            final long rangeStart = (position / rangeSize) * rangeSize;
+            final long rangeEnd = Math.min(rangeStart + rangeSize, tracker.getLength());
 
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeStart, rangeEnd,
                 ActionListener.wrap(

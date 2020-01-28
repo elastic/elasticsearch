@@ -18,6 +18,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -25,17 +26,34 @@ import java.util.function.Predicate;
  */
 public class CacheService extends AbstractLifecycleComponent {
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting("xpack.searchable.snapshot.cache.size",
+    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(SETTINGS_PREFIX + "size",
         new ByteSizeValue(1, ByteSizeUnit.GB),                  // TODO: size the default value according to disk space
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),               // min // NORELEASE
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),               // min
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
+        Setting.Property.NodeScope);
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(SETTINGS_PREFIX + "range_size",
+        new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
+        new ByteSizeValue(4, ByteSizeUnit.KB),                  // min
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
         Setting.Property.NodeScope);
 
     private final Cache<String, CacheFile> cache;
+    private final ByteSizeValue cacheSize;
+    private final ByteSizeValue rangeSize;
 
     public CacheService(final Settings settings) {
+        this(SNAPSHOT_CACHE_SIZE_SETTING.get(settings), SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings));
+    }
+
+    // overridable by tests
+    CacheService(final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
+        this.cacheSize = Objects.requireNonNull(cacheSize);
+        this.rangeSize = Objects.requireNonNull(rangeSize);
         this.cache = CacheBuilder.<String, CacheFile>builder()
-            .setMaximumWeight(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes())
+            .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
             // are done with reading/writing the cache file
@@ -64,6 +82,20 @@ public class CacheService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * @return the cache size (in bytes)
+     */
+    long getCacheSize() {
+        return cacheSize.getBytes();
+    }
+
+    /**
+     * @return the cache range size (in bytes)
+     */
+    int getRangeSize() {
+        return Math.toIntExact(rangeSize.getBytes());
+    }
+
     public CacheFile get(final String name, final long length, final Path file) throws Exception {
         ensureLifecycleStarted();
         return cache.computeIfAbsent(toCacheKey(file), key -> {
@@ -74,7 +106,7 @@ public class CacheService extends AbstractLifecycleComponent {
             final Path path = file.getParent().resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(name, length, path);
+            return new CacheFile(name, length, path, getRangeSize());
         });
     }
 
@@ -83,7 +115,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param predicate the predicate to evaluate
      */
-    public void removeFromCache(final Predicate<String> predicate) {
+    void removeFromCache(final Predicate<String> predicate) {
         for (String cacheKey : cache.keys()) {
             if (predicate.test(cacheKey)) {
                 cache.invalidate(cacheKey);

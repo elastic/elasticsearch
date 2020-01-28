@@ -58,8 +58,14 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         if (randomBoolean()) {
             builder.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                randomBoolean() ?
+                rarely() ?
                     new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB) :
+                    new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB));
+        }
+        if (randomBoolean()) {
+            builder.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
+                rarely() ?
+                    new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB) :
                     new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB));
         }
         return builder.build();

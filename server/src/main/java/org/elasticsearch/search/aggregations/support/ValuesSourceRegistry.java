@@ -54,7 +54,8 @@ public enum ValuesSourceRegistry {
          * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
          */
         @Override
-        public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo, AggregatorSupplier aggregatorSupplier) {
+        public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
+                                          AggregatorSupplier aggregatorSupplier) {
             AbstractMap.SimpleEntry[] mappings;
             if (aggregatorRegistry.containsKey(aggregationName)) {
                 List currentMappings = aggregatorRegistry.get(aggregationName);

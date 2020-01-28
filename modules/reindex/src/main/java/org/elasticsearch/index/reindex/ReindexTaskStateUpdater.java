@@ -45,6 +45,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final ThreadPool threadPool;
     private final String taskId;
     private final long allocationId;
+    private final boolean persistent;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
     private final Runnable onCheckpointAssignmentConflict;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
@@ -52,12 +53,14 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private ReindexTaskState lastState;
     private AtomicBoolean isDone = new AtomicBoolean();
 
-    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
-                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCheckpointAssignmentConflict) {
+    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String taskId, long allocationId,
+                                   boolean persistent, ActionListener<ReindexTaskStateDoc> finishedListener,
+                                   Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
-        this.taskId = persistentTaskId;
+        this.taskId = taskId;
         this.allocationId = allocationId;
+        this.persistent = persistent;
         this.finishedListener = finishedListener;
         this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
     }
@@ -75,7 +78,11 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 ReindexTaskStateDoc oldDoc = taskState.getStateDoc();
 
                 assert oldDoc.getAllocationId() == null || allocationId != oldDoc.getAllocationId();
-                if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
+
+                ElasticsearchException assignmentFailureReason = assignmentFailureReason(oldDoc, persistent);
+
+
+                if (assignmentFailureReason == null) {
                     ReindexTaskStateDoc newDoc = oldDoc.withNewAllocation(allocationId);
                     reindexIndexClient.updateReindexTaskDoc(taskId, newDoc, term, seqNo, new ActionListener<>() {
                         @Override
@@ -107,8 +114,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                         }
                     });
                 } else {
-                    logger.info(new ParameterizedMessage("Failed to write ASSIGNMENT due to newer allocation, will not retry"));
-                    listener.onFailure(new ElasticsearchException("A newer task has already been allocated"));
+                    logger.info(new ParameterizedMessage("Failed to write ASSIGNMENT, will not retry"), assignmentFailureReason);
+                    listener.onFailure(assignmentFailureReason);
                 }
             }
 
@@ -120,6 +127,23 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 threadPool.schedule(() -> assign(listener, nextDelay), nextDelay, ThreadPool.Names.SAME);
             }
         });
+    }
+
+    private ElasticsearchException assignmentFailureReason(ReindexTaskStateDoc oldDoc, boolean persistent) {
+        if (persistent) {
+            if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
+                return null;
+            } else {
+                return new ElasticsearchException("A newer task has already been allocated");
+            }
+        } else {
+            if (oldDoc.getAllocationId() == null) {
+                return null;
+            } else {
+                return new ElasticsearchException("A prior task has already been allocated and task is configured to not be persistent");
+            }
+
+        }
     }
 
     @Override

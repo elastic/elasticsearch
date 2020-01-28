@@ -48,16 +48,23 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
 
         private final ReindexRequest reindexRequest;
         private final boolean waitForCompletion;
+        private final boolean resilient;
 
         public Request(ReindexRequest reindexRequest, boolean waitForCompletion) {
+            this(reindexRequest, waitForCompletion, true);
+        }
+
+        public Request(ReindexRequest reindexRequest, boolean waitForCompletion, boolean resilient) {
             this.reindexRequest = reindexRequest;
             this.waitForCompletion = waitForCompletion;
+            this.resilient = resilient;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             reindexRequest = new ReindexRequest(in);
             waitForCompletion = in.readBoolean();
+            resilient = in.readBoolean();
         }
 
         @Override
@@ -65,6 +72,7 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
             super.writeTo(out);
             reindexRequest.writeTo(out);
             out.writeBoolean(waitForCompletion);
+            out.writeBoolean(resilient);
         }
 
         @Override
@@ -83,6 +91,10 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
 
         public boolean getWaitForCompletion() {
             return waitForCompletion;
+        }
+
+        public boolean isResilient() {
+            return resilient;
         }
     }
 

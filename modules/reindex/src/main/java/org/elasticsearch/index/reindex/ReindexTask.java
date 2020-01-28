@@ -142,7 +142,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         long allocationId = getAllocationId();
 
         ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, client.threadPool(), getPersistentTaskId(),
-            allocationId, new ActionListener<>() {
+            allocationId, reindexTaskParams.isResilient(), new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 reindexDone(stateDoc, reindexTaskParams.shouldStoreResult());
@@ -261,7 +261,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             }), initialCheckpoint, (checkpoint, status) -> {
                 transientStatus = status;
                 taskUpdater.onCheckpoint(checkpoint, status);
-            }, true);
+            }, reindexTaskParams.isResilient());
         }
         // send this after we started reindex to ensure sub-tasks are created.
         sendStartedNotification(reindexTaskParams.shouldStoreResult());

@@ -46,7 +46,7 @@ public abstract class ReindexRunAsPersistentAndEphemeralTaskTestCase extends Rei
                 @Override
                 public ActionFuture<BulkByScrollResponse> execute() {
                     PlainActionFuture<BulkByScrollResponse> futureResult = new PlainActionFuture<>();
-                    client.execute(StartReindexTaskAction.INSTANCE, new StartReindexTaskAction.Request(request(), true),
+                    client.execute(StartReindexTaskAction.INSTANCE, new StartReindexTaskAction.Request(request(), true, randomBoolean()),
                         ActionListener.delegateFailure(futureResult, (future, result) -> future.onResponse(result.getReindexResponse())));
 
                     return futureResult;

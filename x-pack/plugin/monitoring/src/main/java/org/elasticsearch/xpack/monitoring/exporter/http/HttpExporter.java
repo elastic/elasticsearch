@@ -730,10 +730,18 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
+        final String deprecatedPassword = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final SecureString securePassword = SECURE_AUTH_PASSWORDS.get(config.name());
-        final String password = securePassword == null
-            ? AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())
-            : securePassword.toString();
+        final String password;
+        if (securePassword != null) {
+            password = securePassword.toString();
+            if (Strings.isNullOrEmpty(deprecatedPassword) == false) {
+                logger.warn("exporter [{}] specified both auth.secure_password and auth.password.  using auth.secure_password and " +
+                    "ignoring auth.password", config.name());
+            }
+        } else {
+            password = deprecatedPassword;
+        }
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));

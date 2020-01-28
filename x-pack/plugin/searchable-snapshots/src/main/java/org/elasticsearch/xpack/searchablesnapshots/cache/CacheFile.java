@@ -55,8 +55,10 @@ class CacheFile {
     private final Path file;
 
     private volatile Set<EvictionListener> listeners;
-    private volatile FileChannel channel;
     private volatile boolean evicted;
+
+    @Nullable // if evicted, or there are no listeners
+    private volatile FileChannel channel;
 
     CacheFile(String name, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);

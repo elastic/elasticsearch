@@ -116,12 +116,14 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         Map<String, TaskProvider<BatsTestTask>> batsTests = new HashMap<>();
-        TaskProvider<BatsTestTask> batsPluginsTest = configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask);
+        TaskProvider<BatsTestTask> batsPluginsTest =
+            configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask);
         batsPluginsTest.configure(
             t -> t.setPluginsDir(pluginsDir)
         );
         batsTests.put("bats plugins", batsPluginsTest);
-        TaskProvider<BatsTestTask> batsUpgradeTest = configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask);
+        TaskProvider<BatsTestTask> batsUpgradeTest =
+            configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask);
         batsUpgradeTest.configure(
             t -> t.setUpgradeDir(upgradeDir)
         );

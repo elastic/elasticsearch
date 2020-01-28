@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -111,7 +112,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32299")
     public void testMonitorClusterHealth() throws Exception {
-        String watchId = "cluster_health_watch";
+        final String watchId = "cluster_health_watch";
 
         // get master publish address
         Response clusterStateResponse = adminClient().performRequest(new Request("GET", "/_cluster/state"));
@@ -157,8 +158,9 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
 
         // check watch history
         ObjectPath objectPath = getWatchHistoryEntry(watchId);
-        boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
-        assertThat(conditionMet, is(true));
+        Boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
+        String historyEntriesAsString = Strings.toString(objectPath.toXContentBuilder(XContentType.JSON.xContent()));
+        assertThat("condition not met in response [" + historyEntriesAsString + "]", conditionMet, is(true));
 
         deleteWatch(watchId);
         // Wrap inside an assertBusy(...), because watch may execute just after being deleted,
@@ -193,19 +195,51 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
             try {
                 client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
             } catch (ResponseException e) {
-                final String err = "Failed to perform refresh of watcher history - " + e;
-                logger.info(err);
-                fail(err);
+                final String err = "Failed to perform refresh of watcher history";
+                logger.error(err, e);
+                throw new AssertionError(err, e);
             }
 
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
-                builder.startObject("query").startObject("bool").startArray("must");
-                builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
-                    .endObject();
-                builder.endArray().endObject().endObject();
-                builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
-                    .endObject().endArray();
+                {
+                    builder.startObject("query");
+                    {
+                        builder.startObject("bool");
+                        builder.startArray("must");
+                        builder.startObject();
+                        {
+                            builder.startObject("term");
+                            builder.startObject("watch_id");
+                            builder.field("value", watchId);
+                            builder.endObject();
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.startObject();
+                        {
+                            builder.startObject("term");
+                            builder.startObject("state");
+                            builder.field("value", "executed");
+                            builder.endObject();
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.endArray();
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.startArray("sort");
+                    builder.startObject();
+                    {
+
+                        builder.startObject("result.execution_time");
+                        builder.field("order", "desc");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.endArray();
+                }
                 builder.endObject();
 
                 logger.info("Searching watcher history");
@@ -223,8 +257,8 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 objectPathReference.set(objectPath);
             } catch (ResponseException e) {
                 final String err = "Failed to perform search of watcher history";
-                logger.info(err, e);
-                fail(err);
+                logger.error(err, e);
+                throw new AssertionError(err, e);
             }
         });
         return objectPathReference.get();

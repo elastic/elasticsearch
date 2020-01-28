@@ -15,7 +15,7 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDateOrTime;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
 public abstract class TimeFunction extends DateTimeFunction {

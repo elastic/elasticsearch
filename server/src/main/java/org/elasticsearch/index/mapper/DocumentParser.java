@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -417,21 +418,23 @@ final class DocumentParser {
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
+        Settings settings = context.indexSettings().getSettings();
         if (nested.isIncludeInParent()) {
-            addFields(nestedDoc, parentDoc);
+            addFields(settings, nestedDoc, parentDoc);
         }
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
-                addFields(nestedDoc, rootDoc);
+                addFields(settings, nestedDoc, rootDoc);
             }
         }
     }
 
-    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+    private static void addFields(Settings settings, ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+        String nestedPathFieldName = NestedPathFieldMapper.name(settings);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (!field.name().equals(TypeFieldMapper.NAME)) {
+            if (field.name().equals(nestedPathFieldName) == false) {
                 rootDoc.add(field);
             }
         }
@@ -457,10 +460,7 @@ final class DocumentParser {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
-        // the type of the nested doc starts with __, so we can identify that its a nested one in filters
-        // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
-        // across types (for example, with similar nested objects)
-        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));
+        nestedDoc.add(NestedPathFieldMapper.field(context.indexSettings().getSettings(), mapper.nestedTypePath()));
         return context;
     }
 

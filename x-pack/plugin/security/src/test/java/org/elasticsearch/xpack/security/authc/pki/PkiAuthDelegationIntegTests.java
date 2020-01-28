@@ -54,19 +54,19 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 // pki1 does not allow delegation
-                .put("xpack.security.authc.realms.pki.pki1.order", "1")
+                .put("xpack.security.authc.realms.pki.pki1.order", "2")
                 .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 // pki2 allows delegation but has a non-matching username pattern
-                .put("xpack.security.authc.realms.pki.pki2.order", "2")
+                .put("xpack.security.authc.realms.pki.pki2.order", "3")
                 .putList("xpack.security.authc.realms.pki.pki2.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki2.username_pattern", "CN=MISMATCH(.*?)(?:,|$)")
                 .put("xpack.security.authc.realms.pki.pki2.delegation.enabled", true)
                 .put("xpack.security.authc.realms.pki.pki2.files.role_mapping", getDataPath("role_mapping.yml"))
                 // pki3 allows delegation and the username pattern (default) matches
-                .put("xpack.security.authc.realms.pki.pki3.order", "3")
+                .put("xpack.security.authc.realms.pki.pki3.order", "4")
                 .putList("xpack.security.authc.realms.pki.pki3.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki3.delegation.enabled", true)

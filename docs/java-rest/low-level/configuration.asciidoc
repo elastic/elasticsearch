@@ -115,7 +115,7 @@ that CA certificate is available as a PEM encoded file.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-trust-ca-pem]
 --------------------------------------------------
 
-When Elasticsearch is configured to require client TLS authentication, i.e. when a PKI realm is configured, the client needs to provide
+When Elasticsearch is configured to require client TLS authentication, for example when a PKI realm is configured, the client needs to provide
 a client certificate during the TLS handshake in order to authenticate. The following is an example of setting up the client for TLS
 authentication with a certificate and a private key that are stored in a PKCS#12 keystore.
 

@@ -74,7 +74,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         );
 
         valuesSourceRegistry.register(HistogramAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,

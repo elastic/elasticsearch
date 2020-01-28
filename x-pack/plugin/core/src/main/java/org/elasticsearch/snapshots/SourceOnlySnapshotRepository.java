@@ -134,11 +134,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        final List<Closeable> toClose = new ArrayList<>(3);
+        final List<Closeable> toClose = new ArrayList<>(4);
+        toClose.add(() -> IOUtils.rm(snapPath));
         try {
             FSDirectory directory = new SimpleFSDirectory(snapPath);
-            toClose.add(directory);
-            toClose.add(() -> IOUtils.rm(snapPath));
+            toClose.add(0, directory);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
@@ -154,10 +154,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
-            toClose.add(store::decRef);
+            toClose.add(1, store::decRef);
             DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
-            toClose.add(reader);
+            toClose.add(2, reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
                 ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));

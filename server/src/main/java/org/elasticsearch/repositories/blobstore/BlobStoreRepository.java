@@ -1494,7 +1494,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             int indexIncrementalFileCount = 0;
             int indexTotalNumberOfFiles = 0;
             long indexIncrementalSize = 0;
-            long indexTotalFileCount = 0;
+            long indexTotalFileSize = 0;
             for (String fileName : fileNames) {
                 if (snapshotStatus.isAborted()) {
                     logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
@@ -1516,7 +1516,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                indexTotalFileCount += md.length();
+                indexTotalFileSize += md.length();
                 indexTotalNumberOfFiles++;
 
                 if (existingFileInfo == null) {
@@ -1533,7 +1533,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
-                indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
+                indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileSize);
 
             assert indexIncrementalFileCount == filesToSnapshot.size();
 

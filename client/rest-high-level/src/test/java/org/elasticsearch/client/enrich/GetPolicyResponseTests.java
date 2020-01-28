@@ -19,7 +19,6 @@
 package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -80,7 +79,7 @@ public class GetPolicyResponseTests extends AbstractResponseTestCase<GetEnrichPo
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.startObject();
             builder.endObject();
-            BytesReference querySource = BytesArray.bytes(builder);
+            BytesReference querySource = BytesReference.bytes(builder);
             return new EnrichPolicy(
                 randomAlphaOfLength(4),
                 randomBoolean() ? new EnrichPolicy.QuerySource(querySource, xContentType) : null,

@@ -48,7 +48,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
@@ -81,7 +81,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
         assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
-        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
@@ -108,10 +108,10 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
     public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
-            .addMapping("test", jsonBuilder()
-                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+            .setMapping(jsonBuilder()
+                .startObject().startObject("_doc").startObject("_routing").field("required", true).endObject().endObject().endObject()));
 
-        client().prepareIndex("alias1", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+        client().prepareIndex("alias1").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
@@ -132,7 +132,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .field("excluded", "should not be seen")
                 .endObject());
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();
@@ -173,7 +173,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);
 
-        client().prepareIndex("test", "test", id).setRefreshPolicy(IMMEDIATE).setRouting(routingOtherShard)
+        client().prepareIndex("test").setId(id).setRefreshPolicy(IMMEDIATE).setRouting(routingOtherShard)
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .get();
 

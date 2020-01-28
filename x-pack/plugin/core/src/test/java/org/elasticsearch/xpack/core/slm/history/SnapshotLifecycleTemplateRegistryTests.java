@@ -107,7 +107,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43950")
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();

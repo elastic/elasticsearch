@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DocumentActionsIT extends ESIntegTestCase {
     protected void createIndex() {
-        ElasticsearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
+        ElasticsearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).setMapping("name", "type=keyword,store=true"));
     }
 
     protected String getConcreteIndexName() {
@@ -120,7 +120,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
@@ -160,7 +160,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1"))
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "_doc"))
                 .execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));

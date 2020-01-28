@@ -1,0 +1,11 @@
+[[analysis-concepts]]
+== Text analysis concepts
+++++
+<titleabbrev>Concepts</titleabbrev>
+++++
+
+This section explains the fundamental concepts of text analysis in {es}.
+
+* <<analyzer-anatomy>>
+
+include::anatomy.asciidoc[]

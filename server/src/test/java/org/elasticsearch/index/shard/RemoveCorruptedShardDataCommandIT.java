@@ -56,6 +56,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -128,7 +129,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+                builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
             }
 
             numDocs += numExtraDocs;
@@ -155,8 +156,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(e.getMessage(),
-                allOf(containsString("Failed to lock node's directory"),
-                    containsString("is Elasticsearch still running ?")));
+                allOf(containsString("failed to lock node's directory"),
+                    containsString("is Elasticsearch still running?")));
         }
 
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
@@ -280,7 +281,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
@@ -291,7 +292,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] more doc to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
 
@@ -456,7 +457,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
@@ -466,7 +467,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] more docs to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         final int totalDocs = numDocsToKeep + numDocsToTruncate;
@@ -477,6 +478,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         final Settings node1PathSettings = internalCluster().dataPathSettings(node1);
         final Settings node2PathSettings = internalCluster().dataPathSettings(node2);
+
+        assertBusy(() -> internalCluster().getInstances(GatewayMetaState.class)
+            .forEach(gw -> assertTrue(gw.allPendingAsyncStatesWritten())));
 
         // stop data nodes
         internalCluster().stopRandomDataNode();
@@ -573,8 +577,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName),
-                shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName), environmentByNodeName.get(nodeName).dataFiles(),
+                state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
         }
     }
 

@@ -19,15 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
@@ -52,15 +50,6 @@ public final class PCallInvoke extends AExpression {
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
-
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
-        }
     }
 
     @Override
@@ -89,6 +78,8 @@ public final class PCallInvoke extends AExpression {
                         "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
+            scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
+
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }
 
@@ -105,9 +96,16 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.write(classWriter, methodWriter, globals);
+    CallNode write() {
+        CallNode callNode = new CallNode();
+
+        callNode.setLeftNode(prefix.write());
+        callNode.setRightNode(sub.write());
+
+        callNode.setLocation(location);
+        callNode.setExpressionType(actual);
+
+        return callNode;
     }
 
     @Override

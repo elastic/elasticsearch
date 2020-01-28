@@ -79,7 +79,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44566")
     public void testFailOverBasics_withDataFeeder() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
@@ -149,7 +148,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
 
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
 
         IndexRequest indexRequest = new IndexRequest("data");

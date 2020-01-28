@@ -42,7 +42,6 @@ public final class CcrRequests {
     public static PutMappingRequest putMappingRequest(String followerIndex, MappingMetaData mappingMetaData) {
         PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex);
         putMappingRequest.origin("ccr");
-        putMappingRequest.type(mappingMetaData.type());
         putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
         return putMappingRequest;
     }

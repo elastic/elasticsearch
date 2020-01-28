@@ -58,6 +58,10 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
+            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
         // tag::enrich-put-policy-request
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
             "users-policy", "match", List.of("users"),
@@ -104,6 +108,10 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
+                .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
             // Add a policy, so that it can be deleted:
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
                 "users-policy", "match", List.of("users"),
@@ -154,6 +162,10 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
+            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
             "users-policy", "match", List.of("users"),

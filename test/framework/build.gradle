@@ -46,7 +46,7 @@ forbiddenApisMain {
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
@@ -70,5 +70,5 @@ task integTest(type: Test) {
 }
 
 tasks.register("verifyVersions") {
-  dependsOn  test
+  dependsOn test
 }

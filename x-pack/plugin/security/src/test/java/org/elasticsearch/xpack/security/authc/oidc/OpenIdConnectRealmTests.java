@@ -16,22 +16,22 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
-
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -44,6 +44,7 @@ import static java.time.Instant.now;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm.CONTEXT_TOKEN_DATA;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -87,9 +88,15 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
-        if (notPopulateMetadata == false) {
+        if (notPopulateMetadata) {
+            assertThat(result.getUser().metadata().size(), equalTo(0));
+        } else {
             assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
             assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
+            final Object groups = result.getUser().metadata().get("oidc(groups)");
+            assertThat(groups, notNullValue());
+            assertThat(groups, instanceOf(Collection.class));
+            assertThat((Collection<?>) groups, contains("group1", "group2", "groups3"));
         }
     }
 
@@ -302,13 +309,17 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
                                                       boolean useAuthorizingRealm
         ,String authenticatingRealm)
         throws Exception {
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "mock_lookup");
         final MockLookupRealm lookupRealm = new MockLookupRealm(
-            new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext));
+            new RealmConfig(realmIdentifier,
+                Settings.builder().put(globalSettings)
+                    .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+                env, threadContext));
         final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
 
         final Settings.Builder builder = getBasicRealmSettings();
         if (notPopulateMetadata) {
-            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
+            builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.POPULATE_USER_METADATA),
                 false);
         }
         if (useAuthorizingRealm) {

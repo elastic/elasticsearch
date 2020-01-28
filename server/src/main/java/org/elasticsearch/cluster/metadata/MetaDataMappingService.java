@@ -143,7 +143,7 @@ public class MetaDataMappingService {
             IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), false);
                 removeIndex = true;
                 indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
             }
@@ -172,23 +172,18 @@ public class MetaDataMappingService {
         boolean dirty = false;
         String index = indexService.index().getName();
         try {
-            List<String> updatedTypes = new ArrayList<>();
             MapperService mapperService = indexService.mapperService();
             DocumentMapper mapper = mapperService.documentMapper();
             if (mapper != null) {
-                final String type = mapper.type();
-                if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
-                    updatedTypes.add(type);
+                if (mapper.mappingSource().equals(builder.mapping().source()) == false) {
+                    dirty = true;
                 }
             }
 
-            // if a single type is not up-to-date, re-send everything
-            if (updatedTypes.isEmpty() == false) {
-                logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
-                dirty = true;
-                if (mapper != null) {
-                    builder.putMapping(new MappingMetaData(mapper));
-                }
+            // if the mapping is not up-to-date, re-send everything
+            if (dirty) {
+                logger.warn("[{}] re-syncing mappings with cluster state]", index);
+                builder.putMapping(new MappingMetaData(mapper));
 
             }
         } catch (Exception e) {
@@ -257,7 +252,7 @@ public class MetaDataMappingService {
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper existingMapper = mapperService.documentMapper();
-                DocumentMapper newMapper = mapperService.parse(request.type(), mappingUpdateSource);
+                DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
                     existingMapper.merge(newMapper.mapping());
@@ -277,7 +272,8 @@ public class MetaDataMappingService {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(request.type(), mappingUpdateSource, MergeReason.MAPPING_UPDATE);
+                DocumentMapper mergedMapper
+                    = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource, MergeReason.MAPPING_UPDATE);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
@@ -327,10 +323,6 @@ public class MetaDataMappingService {
             }
         }
 
-        @Override
-        public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
-            return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
-        }
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

@@ -30,6 +30,7 @@ coming[8.0.0]
 * <<breaking_80_search_changes>>
 * <<breaking_80_settings_changes>>
 * <<breaking_80_indices_changes>>
+* <<breaking_80_api_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -50,6 +51,16 @@ Indices created in Elasticsearch 6.x or before will need to be reindexed with
 Elasticsearch 7.x in order to be readable by Elasticsearch 8.x.
 
 =========================================
+
+[float]
+==== REST endpoints containing `_xpack`
+
+In 7.0, we deprecated REST endpoints that contain `_xpack` in their path. These
+endpoints are now removed in 8.0. Each endpoint that was deprecated and removed
+is replaced with a new endpoint that does not contain `_xpack`. As an example,
+`/{index}/_xpack/graph/_explore` is replaced by `/{index}/_graph/explore`.
+
+
 // end::notable-breaking-changes[]
 
 include::migrate_8_0/analysis.asciidoc[]
@@ -71,3 +82,4 @@ include::migrate_8_0/reindex.asciidoc[]
 include::migrate_8_0/search.asciidoc[]
 include::migrate_8_0/settings.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]
+include::migrate_8_0/api.asciidoc[]

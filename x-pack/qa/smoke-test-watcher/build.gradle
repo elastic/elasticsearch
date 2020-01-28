@@ -8,6 +8,7 @@ dependencies {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
+  setting 'xpack.slm.enabled', 'false'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

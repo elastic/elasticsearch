@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -28,7 +28,6 @@ import static java.time.format.DateTimeFormatter.ISO_TIME;
 public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
-    public static final String DATE_PARSE_FORMAT = "epoch_millis";
     // In Java 8 LocalDate.EPOCH is not available, introduced with later Java versions
     public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;

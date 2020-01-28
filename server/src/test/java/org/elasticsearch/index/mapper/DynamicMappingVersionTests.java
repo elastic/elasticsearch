@@ -42,7 +42,7 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
     public void testDynamicMappingDefault() throws IOException {
         MapperService mapperService = createIndex("my-index").mapperService();
         DocumentMapper documentMapper = mapperService
-            .documentMapperWithAutoCreate("my-type").getDocumentMapper();
+            .documentMapperWithAutoCreate().getDocumentMapper();
 
         ParsedDocument parsedDoc = documentMapper.parse(
             new SourceToParse("my-index", "1", BytesReference
@@ -52,7 +52,7 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
                     .endObject()), XContentType.JSON));
 
         String expectedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("my-type")
+            .startObject("_doc")
             .startObject("properties")
             .startObject("foo").field("type", "long")
             .endObject().endObject().endObject().endObject());

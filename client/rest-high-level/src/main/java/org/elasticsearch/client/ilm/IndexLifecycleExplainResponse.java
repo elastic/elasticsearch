@@ -21,7 +21,6 @@ package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -86,7 +85,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.copyCurrentStructure(p);
-            return BytesArray.bytes(builder);
+            return BytesReference.bytes(builder);
         }, STEP_INFO_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""),
             PHASE_EXECUTION_INFO);

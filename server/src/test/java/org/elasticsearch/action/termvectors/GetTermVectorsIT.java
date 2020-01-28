@@ -68,7 +68,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testNoSuchDoc() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -76,9 +76,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
-        client().prepareIndex("test", "type1", "666").setSource("field", "foo bar").execute().actionGet();
+        client().prepareIndex("test").setId("666").setSource("field", "foo bar").execute().actionGet();
         refresh();
         for (int i = 0; i < 20; i++) {
             ActionFuture<TermVectorsResponse> termVector = client().termVectors(new TermVectorsRequest(indexOrAlias(), "" + i));
@@ -92,7 +92,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testExistingFieldWithNoTermVectorsNoNPE() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("existingfield")
                             .field("type", "text")
@@ -100,10 +100,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         // when indexing a field that simply has a question mark, the term vectors will be null
-        client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
+        client().prepareIndex("test").setId("0").setSource("existingfield", "?").execute().actionGet();
         refresh();
         ActionFuture<TermVectorsResponse> termVector = client().termVectors(new TermVectorsRequest(indexOrAlias(), "0")
                 .selectedFields(new String[]{"existingfield"}));
@@ -117,7 +117,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testExistingFieldButNotInDocNPE() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("existingfield")
                             .field("type", "text")
@@ -125,10 +125,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         // when indexing a field that simply has a question mark, the term vectors will be null
-        client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
+        client().prepareIndex("test").setId("0").setSource("anotherexistingfield", 1).execute().actionGet();
         refresh();
         ActionFuture<TermVectorsResponse> termVectors = client().termVectors(new TermVectorsRequest(indexOrAlias(), "0")
                 .selectedFields(randomBoolean() ? new String[]{"existingfield"} : null)
@@ -147,7 +147,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // must be of type string and indexed.
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .addMapping("type1",
+                .setMapping(
                         "field0", "type=integer,", // no tvs
                         "field1", "type=text,index=false", // no tvs
                         "field2", "type=text,index=false,store=true",  // no tvs
@@ -183,7 +183,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testSimpleTermVectors() throws IOException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -192,14 +192,14 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping)
+        assertAcked(prepareCreate("test").setMapping(mapping)
                 .addAlias(new Alias("alias"))
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
                             // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
                             // 31the34 35lazy39 40dog43
@@ -257,7 +257,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         ft.setStoreTermVectorPositions(storePositions);
 
         String optionString = FieldMapper.termVectorOptionsToString(ft);
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -266,12 +266,12 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping)
+        assertAcked(prepareCreate("test").setMapping(mapping)
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
                             // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
                             // 31the34 35lazy39 40dog43
@@ -385,7 +385,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             fieldNames[i] = "field" + String.valueOf(i);
         }
 
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         XContentBuilder source = jsonBuilder().startObject();
         for (String field : fieldNames) {
             mapping.startObject(field)
@@ -399,7 +399,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         source.endObject();
 
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping)
+                .setMapping(mapping)
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
@@ -408,7 +408,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(source)
                     .execute().actionGet();
             refresh();
@@ -474,9 +474,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // setup indices
         String[] indexNames = new String[] {"with_tv", "without_tv"};
         assertAcked(prepareCreate(indexNames[0])
-                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
+                .setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1])
-                .addMapping("type1", "field1", "type=text,term_vector=no,analyzer=keyword"));
+                .setMapping("field1", "type=text,term_vector=no,analyzer=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors
@@ -560,7 +560,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testSimpleWildCards() throws IOException {
         int numFields = 25;
 
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         XContentBuilder source = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
             mapping.startObject("field" + i)
@@ -572,10 +572,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         source.endObject();
         mapping.endObject().endObject().endObject();
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource(source).get();
+        client().prepareIndex("test").setId("0").setSource(source).get();
         refresh();
 
         TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), "0").setSelectedFields("field*").get();
@@ -591,7 +591,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets"));
+                .setMapping("field1", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
         // index documents existing document
@@ -647,7 +647,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "field1", "type=text"));
+                .setMapping("field1", "type=text"));
         ensureGreen();
 
         // request tvs from artificial document
@@ -682,7 +682,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         // setup mapping and document source
         Set<String> withTermVectors = new HashSet<>();
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         XContentBuilder source = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
             String fieldName = "field" + i;
@@ -705,11 +705,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
                 .setSettings(settings)
-                .addMapping("type1", mapping));
+                .setMapping(mapping));
         ensureGreen();
 
         // index a single document with prepared source
-        client().prepareIndex("test", "type1", "0").setSource(source).get();
+        client().prepareIndex("test").setId("0").setSource(source).get();
         refresh();
 
         // create random per_field_analyzer and selected fields
@@ -783,7 +783,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
@@ -829,7 +829,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
 
         logger.info("--> index doc 1 again, so increasing the version");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
@@ -884,7 +884,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "tags", "type=text"));
+                .setMapping("tags", "type=text"));
 
         int numTerms = scaledRandomIntBetween(10, 50);
         logger.info("Indexing one document with tags of increasing length ...");
@@ -896,7 +896,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             }
             tags.add(tag);
         }
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("tags", tags));
 
         logger.info("Checking best tags by longest to shortest size ...");
         TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
@@ -921,7 +921,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "tags", "type=text"));
+                .setMapping("tags", "type=text"));
 
         logger.info("Indexing one document with tags of increasing frequencies ...");
         int numTerms = scaledRandomIntBetween(10, 50);
@@ -936,7 +936,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             }
             uniqueTags.add(tag);
         }
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("tags", tags));
 
         logger.info("Checking best tags by highest to lowest term freq ...");
         TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
@@ -961,7 +961,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.number_of_shards", 1); // no dfs
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "tags", "type=text"));
+                .setMapping("tags", "type=text"));
 
         int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
         logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);
@@ -969,7 +969,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         List<String> tags = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             tags.add("tag_" + i);
-            builders.add(client().prepareIndex("test", "type1", i + "").setSource("tags", tags));
+            builders.add(client().prepareIndex("test").setId(i + "").setSource("tags", tags));
         }
         indexRandom(true, builders);
 
@@ -995,11 +995,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets"));
+                .setMapping("field1", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
         // index document
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "random permutation"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("field1", "random permutation"));
 
         // Get search shards
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards("test").get();
@@ -1038,10 +1038,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
             .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
         assertAcked(prepareCreate(indexNames[0]).setSettings(builder.build())
-            .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
+            .setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
                 "field2", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1]).setSettings(builder.build())
-            .addMapping("type1", "field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword"));
+            .setMapping("field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors

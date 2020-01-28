@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -58,7 +59,8 @@ public class TransportFollowInfoActionTests extends ESTestCase {
             if (isFollowIndex) {
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
                 if (active) {
-                    persistentTasks.addTask(Integer.toString(i), ShardFollowTask.NAME, createShardFollowTask(index), null);
+                    persistentTasks.addTask(Integer.toString(i), ShardFollowTask.NAME,
+                        createShardFollowTask(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE)), null);
                 }
             }
             mdBuilder.put(imdBuilder);

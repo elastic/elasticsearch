@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.ilm.DeleteAction;
@@ -78,8 +76,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -633,7 +629,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertBusy(() -> assertNotNull(client.indexLifecycle()
                 .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()));
+                .getIndexResponses().get("my_index").getFailedStep()), 15, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -1056,6 +1052,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             } catch (Exception e) {
                 if (e.getMessage().contains("snapshot_missing_exception")) {
                     fail("snapshot does not exist: " + snapshotName);
+                } else if (e.getMessage().contains("repository_exception")) {
+                    fail("got a respository_exception, retrying. original message: " + e.getMessage());
                 }
                 throw e;
             }
@@ -1206,10 +1204,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-start-slm-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
-    }
-
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 
 }

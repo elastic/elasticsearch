@@ -31,7 +31,7 @@ File clientCert = file("$keystoreDir/testclient.crt")
 // Add keystores to test classpath: it expects it there
 task copyKeyCerts(type: Copy) {
   from('./') {
-      include '*.crt', '*.pem', '*.jks'
+    include '*.crt', '*.pem', '*.jks'
   }
   into keystoreDir
 }

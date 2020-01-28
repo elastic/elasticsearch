@@ -19,15 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.ir.IfNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -45,15 +40,6 @@ public final class SIf extends AStatement {
 
         this.condition = Objects.requireNonNull(condition);
         this.ifblock = ifblock;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-
-        if (ifblock != null) {
-            ifblock.storeSettings(settings);
-        }
     }
 
     @Override
@@ -91,19 +77,15 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    IfNode write() {
+        IfNode ifNode = new IfNode();
 
-        Label fals = new Label();
+        ifNode.setConditionNode(condition.write());
+        ifNode.setBlockNode(ifblock.write());
 
-        condition.write(classWriter, methodWriter, globals);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
+        ifNode.setLocation(location);
 
-        ifblock.continu = continu;
-        ifblock.brake = brake;
-        ifblock.write(classWriter, methodWriter, globals);
-
-        methodWriter.mark(fals);
+        return ifNode;
     }
 
     @Override

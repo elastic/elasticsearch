@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
@@ -30,22 +33,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.BucketExtractorProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.SqlConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,31 +54,25 @@ public final class Processors {
      */
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        // base
-        entries.add(new Entry(Processor.class, ConstantProcessor.NAME, ConstantProcessor::new));
-        entries.add(new Entry(Processor.class, HitExtractorProcessor.NAME, HitExtractorProcessor::new));
-        entries.add(new Entry(Processor.class, BucketExtractorProcessor.NAME, BucketExtractorProcessor::new));
-        entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
-        entries.add(new Entry(Processor.class, ChainingProcessor.NAME, ChainingProcessor::new));
+        
+        entries.addAll(org.elasticsearch.xpack.ql.expression.processor.Processors.getNamedWriteables());
 
-        // logical
-        entries.add(new Entry(Processor.class, BinaryLogicProcessor.NAME, BinaryLogicProcessor::new));
-        entries.add(new Entry(Processor.class, NotProcessor.NAME, NotProcessor::new));
+        // base
+        entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
+        entries.add(new Entry(Converter.class, SqlConverter.NAME, SqlConverter::read));
+
+        // arithmetic
+        // binary arithmetics are pluggable
+        entries.add(new Entry(BinaryArithmeticOperation.class, SqlBinaryArithmeticOperation.NAME, SqlBinaryArithmeticOperation::read));
+
+        // comparators
+        entries.add(new Entry(Processor.class, InProcessor.NAME, InProcessor::new));
+
         // conditionals
         entries.add(new Entry(Processor.class, CaseProcessor.NAME, CaseProcessor::new));
         entries.add(new Entry(Processor.class, CheckNullProcessor.NAME, CheckNullProcessor::new));
         entries.add(new Entry(Processor.class, ConditionalProcessor.NAME, ConditionalProcessor::new));
         entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
-
-        // arithmetic
-        entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
-        entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
-        // comparators
-        entries.add(new Entry(Processor.class, BinaryComparisonProcessor.NAME, BinaryComparisonProcessor::new));
-        entries.add(new Entry(Processor.class, InProcessor.NAME, InProcessor::new));
-        // regex
-        entries.add(new Entry(Processor.class, RegexProcessor.NAME, RegexProcessor::new));
-
 
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
@@ -114,13 +102,5 @@ public final class Processors {
         entries.add(new Entry(Processor.class, StWkttosqlProcessor.NAME, StWkttosqlProcessor::new));
         entries.add(new Entry(Processor.class, StDistanceProcessor.NAME, StDistanceProcessor::new));
         return entries;
-    }
-
-    public static List<Object> process(List<Processor> processors, Object input) {
-        List<Object> values = new ArrayList<>(processors.size());
-        for (Processor p : processors) {
-            values.add(p.process(input));
-        }
-        return values;
     }
 }

@@ -19,35 +19,55 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.DocValueFormat;
 
-import java.io.IOException;
-import java.util.Locale;
+import java.util.function.LongSupplier;
 
-public enum ValuesSourceType implements Writeable {
-    ANY,
-    NUMERIC,
-    BYTES,
-    GEOPOINT,
-    RANGE;
+/**
+ * ValuesSourceType wraps the creation of specific per-source instances each {@link ValuesSource} needs to provide.  Every top-level
+ * subclass of {@link ValuesSource} should have a corresponding implementation of this interface.  In general, new data types seeking
+ * aggregation support should create a top level {@link ValuesSource}, then implement this to return wrappers for the specific sources of
+ * values.
+ */
+public interface ValuesSourceType {
+    /**
+     * Called when an aggregation is operating over a known empty set (usually because the field isn't specified), this method allows for
+     * returning a no-op implementation.  All {@link ValuesSource}s should implement this method.
+     * @return - Empty specialization of the base {@link ValuesSource}
+     */
+    ValuesSource getEmpty();
 
-    public static ValuesSourceType fromString(String name) {
-        return valueOf(name.trim().toUpperCase(Locale.ROOT));
-    }
+    /**
+     * Returns the type-specific sub class for a script data source.  {@link ValuesSource}s that do not support scripts should throw
+     * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}.  Note that this method is called when a script is
+     * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
+     *
+     * @param script - The script being wrapped
+     * @param scriptValueType - The expected output type of the script
+     * @return - Script specialization of the base {@link ValuesSource}
+     */
+    ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
 
-    public static ValuesSourceType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(ValuesSourceType.class);
-    }
+    /**
+     * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
+     *
+     * @param fieldContext - The field being wrapped
+     * @param script - Optional script that might be applied over the field
+     * @return - Field specialization of the base {@link ValuesSource}
+     */
+    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        ValuesSourceType state = this;
-        out.writeEnum(state);
-    }
-
-    public String value() {
-        return name().toLowerCase(Locale.ROOT);
-    }
+    /**
+     * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
+     * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
+     *
+     * @param valuesSource - The original {@link ValuesSource}
+     * @param rawMissing - The missing value we got from the parser, typically a string or number
+     * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
+     * @param now - Used in conjunction with the formatter, should return the current time in milliseconds
+     * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
+     */
+    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                LongSupplier now);
 }

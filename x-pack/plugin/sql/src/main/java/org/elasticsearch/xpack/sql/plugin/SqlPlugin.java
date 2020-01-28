@@ -33,13 +33,14 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.sql.SqlInfoTransportAction;
 import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -100,7 +101,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
-        IndexResolver indexResolver = new IndexResolver(client, clusterName);
+        IndexResolver indexResolver = new IndexResolver(client, clusterName, SqlDataTypeRegistry.INSTANCE);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 

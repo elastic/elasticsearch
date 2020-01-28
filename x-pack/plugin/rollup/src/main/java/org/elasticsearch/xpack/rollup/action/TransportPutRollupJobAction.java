@@ -213,7 +213,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         final String indexName = job.getConfig().getRollupIndex();
 
         CheckedConsumer<GetMappingsResponse, Exception> getMappingResponseHandler = getMappingResponse -> {
-            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
+            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
                 String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
@@ -255,7 +255,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             Map<String, Object> newMapping = mappings.getSourceAsMap();
             newMapping.put("_meta", metadata);
             PutMappingRequest request = new PutMappingRequest(indexName);
-            request.type(RollupField.TYPE_NAME);
             request.source(newMapping);
             client.execute(PutMappingAction.INSTANCE, request,
                     ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService),

@@ -81,7 +81,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().transform().stopTransform(
-                    new StopTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
+                    new StopTransformRequest(transformId, true, TimeValue.timeValueSeconds(20), false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -134,6 +134,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setIndex("pivot-destination")
             .setPipeline("my-pipeline").build();
         // end::put-transform-dest-config
+        destConfig = DestConfig.builder().setIndex("pivot-destination").build();
         // tag::put-transform-group-config
         GroupConfig groupConfig = GroupConfig.builder()
             .groupBy("reviewer", // <1>

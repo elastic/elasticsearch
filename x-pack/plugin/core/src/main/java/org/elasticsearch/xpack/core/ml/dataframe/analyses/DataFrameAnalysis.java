@@ -16,8 +16,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
     /**
      * @return The analysis parameters as a map
+     * @param extractedFields map of (name, types) for all the extracted fields
      */
-    Map<String, Object> getParams();
+    Map<String, Object> getParams(Map<String, Set<String>> extractedFields);
 
     /**
      * @return {@code true} if this analysis supports fields with categorical values (i.e. text, keyword, ip)
@@ -36,9 +37,18 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     List<RequiredField> getRequiredFields();
 
     /**
-     * @return {@link Map} containing cardinality limits for the selected (analysis-specific) fields
+     * @return {@link List} containing cardinality constraints for the selected (analysis-specific) fields
      */
-    Map<String, Long> getFieldCardinalityLimits();
+    List<FieldCardinalityConstraint> getFieldCardinalityConstraints();
+
+    /**
+     * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
+     *
+     * @param mappingsProperties mappings.properties portion of the index mappings
+     * @param resultsFieldName name of the results field under which all the results are stored
+     * @return {@link Map} containing fields for which the mappings should be handled explicitly
+     */
+    Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values

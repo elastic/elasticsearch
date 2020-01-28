@@ -50,7 +50,7 @@ public class CloneIndexIT extends ESIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source", "type")
+            client().prepareIndex("source")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -105,7 +105,7 @@ public class CloneIndexIT extends ESIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target", "type")
+                client().prepareIndex("target")
                     .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
             }
             flushAndRefresh();

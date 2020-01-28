@@ -4,7 +4,7 @@ targetCompatibility = JavaVersion.VERSION_1_7
 
 // java_version_checker do not depend on core so only JDK signatures should be checked
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 test.enabled = false

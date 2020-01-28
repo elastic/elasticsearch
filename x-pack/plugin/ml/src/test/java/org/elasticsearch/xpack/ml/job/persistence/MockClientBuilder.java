@@ -169,7 +169,7 @@ public class MockClientBuilder {
         CreateIndexRequestBuilder createIndexRequestBuilder = mock(CreateIndexRequestBuilder.class);
         CreateIndexResponse response = mock(CreateIndexResponse.class);
         when(createIndexRequestBuilder.setSettings(any(Settings.Builder.class))).thenReturn(createIndexRequestBuilder);
-        when(createIndexRequestBuilder.addMapping(any(String.class), any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
+        when(createIndexRequestBuilder.setMapping(any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
         when(createIndexRequestBuilder.get()).thenReturn(response);
         when(indicesAdminClient.prepareCreate(eq(index))).thenReturn(createIndexRequestBuilder);
         return this;
@@ -384,9 +384,8 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings("unchecked")
-    public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
+    public MockClientBuilder preparePutMapping(AcknowledgedResponse response) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
-        when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
         when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
         doAnswer(new Answer<Void>() {
             @Override

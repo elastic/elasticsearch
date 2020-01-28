@@ -73,7 +73,7 @@ public class MaxBucketIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "tag", "type=keyword").get());
+                .setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -89,16 +89,16 @@ public class MaxBucketIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
-            builders.add(client().prepareIndex("idx", "type").setSource(
+            builders.add(client().prepareIndex("idx").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval))
                             .endObject()));
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
         }
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
         }
         indexRandom(true, builders);
@@ -511,14 +511,14 @@ public class MaxBucketIT extends ESIntegTestCase {
             .endObject().endObject().endObject()
             .endObject().endObject().endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate("foo_2")
-            .addMapping("doc", builder).get());
+            .setMapping(builder).get());
 
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license").field("partnumber", "foobar").field("count", 2).endObject()
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
             .endObject();
 
-        client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();
 

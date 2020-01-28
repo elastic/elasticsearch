@@ -19,10 +19,10 @@
 package org.elasticsearch.gradle.test
 
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.tool.Boilerplate
-import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.file.FileCopyDetails
@@ -45,12 +45,8 @@ class RestIntegTestTask extends DefaultTask {
         runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
         super.dependsOn(runner)
 
-        project.testClusters {
-                "$name" {
-                    javaHome = project.file(project.ext.runtimeJavaHome)
-                }
-        }
-        runner.useCluster project.testClusters."$name"
+        ElasticsearchCluster cluster = project.testClusters.create(name)
+        runner.useCluster cluster
 
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
@@ -60,7 +56,6 @@ class RestIntegTestTask extends DefaultTask {
                 throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
 
-            ElasticsearchCluster cluster = project.testClusters."${name}"
             runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
             runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI}")
             runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName()}")
@@ -123,7 +118,7 @@ class RestIntegTestTask extends DefaultTask {
         Boilerplate.maybeCreate(project.configurations, 'restSpec') {
             project.dependencies.add(
                     'restSpec',
-                    ClasspathUtils.isElasticsearchProject(project) ? project.project(':rest-api-spec') :
+                    BuildParams.internal ? project.project(':rest-api-spec') :
                             "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
             )
         }

@@ -8,15 +8,17 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexInfo;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -26,9 +28,7 @@ import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.util.Comparator;
@@ -51,7 +51,7 @@ public class SysTablesTests extends ESTestCase {
     private static final String CLUSTER_NAME = "cluster";
 
     private final SqlParser parser = new SqlParser();
-    private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
+    private final Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
     private final IndexInfo index = new IndexInfo("test", IndexType.STANDARD_INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
     private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
@@ -345,12 +345,12 @@ public class SysTablesTests extends ESTestCase {
 
 
     private SqlTypedParamValue param(Object value) {
-        return new SqlTypedParamValue(DataTypes.fromJava(value).typeName, value);
+        return new SqlTypedParamValue(DataTypes.fromJava(value).typeName(), value);
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Configuration cfg) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
                                          new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
@@ -371,7 +371,7 @@ public class SysTablesTests extends ESTestCase {
 
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, IndexInfo... infos)
             throws Exception {
-        executeCommand(sql, params, consumer, TestUtils.TEST_CFG, infos);
+        executeCommand(sql, params, consumer, SqlTestUtils.TEST_CFG, infos);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

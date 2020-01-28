@@ -19,14 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
@@ -50,11 +47,6 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
@@ -75,18 +67,19 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        if (box.isPrimitive()) {
-            methodWriter.box(MethodWriter.getType(box));
-        }
+    CallSubNode write() {
+        CallSubNode callSubNode = new CallSubNode();
 
         for (AExpression argument : arguments) {
-            argument.write(classWriter, methodWriter, globals);
+            callSubNode.addArgumentNode(argument.write());
         }
 
-        methodWriter.invokeMethodCall(method);
+        callSubNode.setLocation(location);
+        callSubNode.setExpressionType(actual);
+        callSubNode.setMethod(method);
+        callSubNode .setBox(box);
+
+        return callSubNode;
     }
 
     @Override

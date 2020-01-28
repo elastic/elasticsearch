@@ -246,7 +246,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         .build());
 
         // create one field
-        index("test", "doc", "1", "{ \"f\": 1 }");
+        index("test", "1", "{ \"f\": 1 }");
 
         ensureGreen();
 
@@ -259,9 +259,9 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         disruption.startDisrupting();
 
         BulkRequestBuilder bulk = client().prepareBulk();
-        bulk.add(client().prepareIndex("test", "doc", "2").setSource("{ \"f\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test", "doc", "3").setSource("{ \"g\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test", "doc", "4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON));
         BulkResponse bulkResponse = bulk.get();
         assertTrue(bulkResponse.hasFailures());
 

@@ -62,7 +62,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -295,8 +294,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testConflictingOpsOnReplica() throws Exception {
-        Map<String, String> mappings =
-                Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
             List<IndexShard> replicas = shards.getReplicas();
@@ -323,8 +321,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testReplicaTermIncrementWithConcurrentPrimaryPromotion() throws Exception {
-        Map<String, String> mappings =
-            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
@@ -371,8 +368,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testReplicaOperationWithConcurrentPrimaryPromotion() throws Exception {
-        Map<String, String> mappings =
-            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
@@ -474,7 +470,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         assertThat(snapshot.totalOperations(), equalTo(0));
                     }
                 }
-                try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
+                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
@@ -492,7 +488,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(Collections.singletonList(noop2)));
                     }
                 }
-                try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
+                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
@@ -589,7 +585,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = replica3.getHistoryOperations("test", 0)) {
+            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
                 expectedOps.add(op2);

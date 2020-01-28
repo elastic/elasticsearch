@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -36,13 +37,13 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -109,7 +110,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     private boolean showTermDocCountError = false;
 
     public TermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, ValuesSourceType.ANY, valueType);
+        super(name, CoreValuesSourceType.ANY, valueType);
     }
 
     protected TermsAggregationBuilder(TermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -131,7 +132,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
      * Read from a stream.
      */
     public TermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY);
+        super(in, CoreValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
         collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         executionHint = in.readOptionalString();
@@ -385,4 +386,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         return NAME;
     }
 
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        return super.doRewrite(queryShardContext);
+    }
 }

@@ -525,7 +525,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
-    private final FlatObjectFieldParser fieldParser;
+    private FlatObjectFieldParser fieldParser;
     private int depthLimit;
     private int ignoreAbove;
 
@@ -552,7 +552,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
-        this.ignoreAbove = ((FlatObjectFieldMapper) mergeWith).ignoreAbove;
+
+        FlatObjectFieldMapper other = ((FlatObjectFieldMapper) mergeWith);
+        this.depthLimit = other.depthLimit;
+        this.ignoreAbove = other.ignoreAbove;
+        this.fieldParser = new FlatObjectFieldParser(fieldType.name(), keyedFieldName(),
+            fieldType, depthLimit, ignoreAbove);
     }
 
     @Override

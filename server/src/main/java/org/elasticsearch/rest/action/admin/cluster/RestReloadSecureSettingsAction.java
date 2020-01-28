@@ -19,10 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -39,6 +43,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler {
 
+    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER =
+        new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
+
+    static {
+        PARSER.declareString((request, value) -> request.setSecureStorePassword(new SecureString(value.toCharArray())),
+            new ParseField("secure_settings_password"));
+    }
+
     public RestReloadSecureSettingsAction(RestController controller) {
         controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
         controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
@@ -53,22 +65,28 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         final NodesReloadSecureSettingsRequestBuilder nodesRequestBuilder = client.admin()
-                .cluster()
-                .prepareReloadSecureSettings()
-                .setTimeout(request.param("timeout"))
-                .setNodesIds(nodesIds);
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setTimeout(request.param("timeout"))
+            .setNodesIds(nodesIds);
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser != null) {
+                final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
+                nodesRequestBuilder.setSecureStorePassword(nodesRequest.getSecureSettingsPassword());
+            }
+        });
+
         return channel -> nodesRequestBuilder
                 .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
-                            throws Exception {
+                        throws Exception {
                         builder.startObject();
-                        {
-                            RestActions.buildNodesHeader(builder, channel.request(), response);
-                            builder.field("cluster_name", response.getClusterName().value());
-                            response.toXContent(builder, channel.request());
-                        }
+                        RestActions.buildNodesHeader(builder, channel.request(), response);
+                        builder.field("cluster_name", response.getClusterName().value());
+                        response.toXContent(builder, channel.request());
                         builder.endObject();
+                        nodesRequestBuilder.request().closePassword();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });

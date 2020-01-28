@@ -1,119 +1,119 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(':x-pack:qa')
+  testCompile project(':x-pack:qa')
 }
 
 tasks.register("bwcTest") {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
 configurations {
-    restSpec
+  restSpec
 }
 
 dependencies {
-    restSpec project(':rest-api-spec')
+  restSpec project(':rest-api-spec')
 }
 
 processTestResources {
-    dependsOn configurations.restSpec
-    from ({ zipTree(configurations.restSpec.singleFile) }) {
-        include 'rest-api-spec/api/**'
-    }
-    from (project(xpackProject('plugin').path).sourceSets.test.resources) {
-        include 'rest-api-spec/api/**'
-    }
+  dependsOn configurations.restSpec
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
+  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
+    include 'rest-api-spec/api/**'
+  }
 }
 
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
-    String baseName = "v${bwcVersion}"
+  String baseName = "v${bwcVersion}"
 
-    testClusters {
-        "${baseName}" {
-            testDistribution = "DEFAULT"
-            versions = [bwcVersion.toString(), project.version]
-            numberOfNodes = 3
+  testClusters {
+    "${baseName}" {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 3
 
-            setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-            setting 'xpack.security.enabled', 'false'
-            setting 'xpack.monitoring.enabled', 'false'
-            setting 'xpack.ml.enabled', 'false'
-            setting 'xpack.watcher.enabled', 'false'
-            setting 'xpack.license.self_generated.type', 'basic'
-            javaHome = project.file(project.ext.runtimeJavaHome)
-        }
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.monitoring.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'basic'
     }
+  }
 
-    tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
-        useCluster testClusters."${baseName}"
-        mustRunAfter(precommit)
-        systemProperty 'tests.rest.suite', 'old_cluster'
-        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
-        nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-        nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
+
+
+  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'true'
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  }
 
-
-    tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
-        dependsOn "${baseName}#oldClusterTest"
-        useCluster testClusters."${baseName}"
-        doFirst {
-            testClusters."${baseName}".nextNodeToNextVersion()
-        }
-        nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-        nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
-        systemProperty 'tests.rest.suite', 'mixed_cluster'
-        systemProperty 'tests.first_round', 'true'
-        systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#oneThirdUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'false'
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  }
 
-    tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
-        dependsOn "${baseName}#oneThirdUpgradedTest"
-        useCluster testClusters."${baseName}"
-        doFirst {
-            testClusters."${baseName}".nextNodeToNextVersion()
-        }
-        nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-        nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
-        systemProperty 'tests.rest.suite', 'mixed_cluster'
-        systemProperty 'tests.first_round', 'false'
-        systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#twoThirdsUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  }
 
-    tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
-        dependsOn "${baseName}#twoThirdsUpgradedTest"
-        useCluster testClusters."${baseName}"
-        doFirst {
-            testClusters."${baseName}".nextNodeToNextVersion()
-        }
-        nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-        nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
-        systemProperty 'tests.rest.suite', 'upgraded_cluster'
-        systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-    }
+  tasks.register("${baseName}#bwcTest") {
+    dependsOn "${baseName}#upgradedClusterTest"
+  }
 
-    tasks.register("${baseName}#bwcTest") {
-        dependsOn "${baseName}#upgradedClusterTest"
-    }
-
-    if (project.bwc_tests_enabled) {
-        bwcTest.dependsOn("${baseName}#bwcTest")
-    }
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn("${baseName}#bwcTest")
+  }
 }
 
 task bwcTestSnapshots {
-    if (project.bwc_tests_enabled) {
-        for (final def version : bwcVersions.unreleasedWireCompatible) {
-            dependsOn "v${version}#bwcTest"
-        }
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
+      dependsOn "v${version}#bwcTest"
     }
+  }
 }
 check.dependsOn(bwcTestSnapshots)
 

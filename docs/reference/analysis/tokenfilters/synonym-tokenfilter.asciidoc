@@ -1,5 +1,8 @@
 [[analysis-synonym-tokenfilter]]
-=== Synonym Token Filter
+=== Synonym token filter
+++++
+<titleabbrev>Synonym</titleabbrev>
+++++
 
 The `synonym` token filter allows to easily handle synonyms during the
 analysis process. Synonyms are configured using a configuration file.
@@ -34,7 +37,7 @@ The above configures a `synonym` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `synonym` analyzer is then configured with the filter.
 
-This filter tokenize synonyms with whatever tokenizer and token filters
+This filter tokenizes synonyms with whatever tokenizer and token filters
 appear before it in the chain.
 
 Additional settings are:

@@ -41,15 +41,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class MockSearchPhaseContext implements SearchPhaseContext {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
-    public AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
+    final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
     final int numShards;
     final AtomicInteger numSuccess;
-    List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
+    final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
-    Set<Long> releasedSearchContexts = new HashSet<>();
-    SearchRequest searchRequest = new SearchRequest();
-    AtomicInteger phasesExecuted = new AtomicInteger();
-    AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+    final Set<Long> releasedSearchContexts = new HashSet<>();
+    final SearchRequest searchRequest = new SearchRequest();
+    final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
         this.numShards = numShards;
@@ -118,7 +117,6 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
-        phasesExecuted.incrementAndGet();
         try {
             nextPhase.run();
         } catch (Exception e) {

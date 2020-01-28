@@ -106,7 +106,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "s", "type=keyword").get());
+                .setMapping("s", "type=keyword").get());
 
         cardinality = randomIntBetween(8, 30);
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -127,7 +127,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
-                indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                indexRequests.add(client().prepareIndex("idx").setSource(jsonBuilder()
                         .startObject()
                         .field("s", stringTerm)
                         .field("l", longTerm)

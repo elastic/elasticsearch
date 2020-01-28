@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.StatementExpressionNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -41,11 +38,6 @@ public final class SExpression extends AStatement {
         super(location);
 
         this.expression = Objects.requireNonNull(expression);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
     }
 
     @Override
@@ -78,15 +70,15 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-        expression.write(classWriter, methodWriter, globals);
+    StatementExpressionNode write() {
+        StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
 
-        if (methodEscape) {
-            methodWriter.returnValue();
-        } else {
-            methodWriter.writePop(MethodWriter.getType(expression.expected).getSize());
-        }
+        statementExpressionNode.setExpressionNode(expression.write());
+
+        statementExpressionNode.setLocation(location);
+        statementExpressionNode.setMethodEscape(methodEscape);
+
+        return statementExpressionNode;
     }
 
     @Override

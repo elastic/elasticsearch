@@ -7,10 +7,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Comparisons;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -41,7 +42,15 @@ public class InProcessor implements Processor {
     @Override
     public Object process(Object input) {
         Object leftValue = processsors.get(processsors.size() - 1).process(input);
-        return apply(leftValue, Processors.process(processsors.subList(0, processsors.size() - 1), leftValue));
+        return apply(leftValue, process(processsors.subList(0, processsors.size() - 1), leftValue));
+    }
+
+    private static List<Object> process(List<Processor> processors, Object input) {
+        List<Object> values = new ArrayList<>(processors.size());
+        for (Processor p : processors) {
+            values.add(p.process(input));
+        }
+        return values;
     }
 
     public static Boolean apply(Object input, List<Object> values) {
@@ -59,8 +68,12 @@ public class InProcessor implements Processor {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         InProcessor that = (InProcessor) o;
         return Objects.equals(processsors, that.processsors);
     }

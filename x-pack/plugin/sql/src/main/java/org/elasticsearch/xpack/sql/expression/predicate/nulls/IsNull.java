@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.nulls;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
 
@@ -55,7 +55,7 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 
     @Override

@@ -105,7 +105,8 @@ public class RestControllerTests extends ESTestCase {
 
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
+        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
+            new RestHeaderDefinition("header.2", true)));
         final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
@@ -136,6 +137,40 @@ public class RestControllerTests extends ESTestCase {
         assertEquals("true", threadContext.getHeader("header.1"));
         assertEquals("true", threadContext.getHeader("header.2"));
         assertNull(threadContext.getHeader("header.3"));
+    }
+
+    public void testRequestWithDisallowedMultiValuedHeader() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
+            new RestHeaderDefinition("header.2", false)));
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        Map<String, List<String>> restHeaders = new HashMap<>();
+        restHeaders.put("header.1", Collections.singletonList("boo"));
+        restHeaders.put("header.2", List.of("foo", "bar"));
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
+            new RestHeaderDefinition("header.2", false)));
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        Map<String, List<String>> restHeaders = new HashMap<>();
+        restHeaders.put("header.1", Collections.singletonList("boo"));
+        restHeaders.put("header.2", List.of("foo", "foo"));
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).withPath("/bar").build();
+        restController.registerHandler(RestRequest.Method.GET, "/bar", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertTrue(channel.getSendResponseCalled());
     }
 
     public void testRegisterAsDeprecatedHandler() {
@@ -572,6 +607,15 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public HttpResponse createResponse(RestStatus status, BytesReference content) {
                 return null;
+            }
+
+            @Override
+            public void release() {
+            }
+
+            @Override
+            public HttpRequest releaseAndCopy() {
+                return this;
             }
         }, null);
 

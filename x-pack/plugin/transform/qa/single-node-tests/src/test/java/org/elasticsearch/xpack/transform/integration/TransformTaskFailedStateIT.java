@@ -28,10 +28,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     private final List<String> failureTransforms = new ArrayList<>();
+
     @Before
     public void setClusterSettings() throws IOException {
         // Make sure we never retry on failure to speed up the test
@@ -39,10 +41,14 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \"" + 0 + "\"," +
-                "\"logger.org.elasticsearch.action.bulk\": \"info\"," + // reduces bulk failure spam
-                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
-                "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}");
+            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+                + 0
+                + "\","
+                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
+                + // reduces bulk failure spam
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
+        );
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -63,54 +69,67 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
         failureTransforms.add(transformId);
-        startDataframeTransform(transformId);
+        startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
-        Map<?, ?> fullState = getDataFrameState(transformId);
-        final String failureReason = "task encountered more than 0 failures; latest failure: " +
-            "Bulk index experienced failures. See the logs of the node running the transform for details.";
+        Map<?, ?> fullState = getTransformStateAndStats(transformId);
+        final String failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "failures and at least 1 irrecoverable "
+            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;.*";
         // Verify we have failed for the expected reason
-        assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
+        assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 
         // verify that we cannot stop a failed transform
         ResponseException ex = expectThrows(ResponseException.class, () -> stopTransform(transformId, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
-        assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            equalTo("Unable to stop transform [test-force-stop-failed-transform] as it is in a failed state with reason [" +
-                failureReason +
-                "]. Use force stop to stop the transform."));
+        assertThat(
+            (String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
+            matchesRegex(
+                "Unable to stop transform \\[test-force-stop-failed-transform\\] as it is in a failed state with reason \\["
+                    + failureReason
+                    + "\\]. Use force stop to stop the transform."
+            )
+        );
 
         // Verify that we can force stop a failed transform
         stopTransform(transformId, true);
 
         awaitState(transformId, TransformStats.State.STOPPED);
-        fullState = getDataFrameState(transformId);
+        fullState = getTransformStateAndStats(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
-        String dataFrameIndex = "failure_pivot_reviews";
-        createDestinationIndexWithBadMapping(dataFrameIndex);
-        createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
+        String transformIndex = "failure_pivot_reviews";
+        createDestinationIndexWithBadMapping(transformIndex);
+        createContinuousPivotReviewsTransform(transformId, transformIndex, null);
         failureTransforms.add(transformId);
-        startDataframeTransform(transformId);
+        startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
-        Map<?, ?> fullState = getDataFrameState(transformId);
-        final String failureReason = "task encountered more than 0 failures; latest failure: " +
-            "Bulk index experienced failures. See the logs of the node running the transform for details.";
+        Map<?, ?> fullState = getTransformStateAndStats(transformId);
+        final String failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "failures and at least 1 irrecoverable "
+            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;.*";
         // Verify we have failed for the expected reason
-        assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
+        assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
 
-        final String expectedFailure = "Unable to start transform [test-force-start-failed-transform] " +
-            "as it is in a failed state with failure: [" + failureReason +
-            "]. Use force stop and then restart the transform once error is resolved.";
+        final String expectedFailure = "Unable to start transform \\[test-force-start-failed-transform\\] "
+            + "as it is in a failed state with failure: \\["
+            + failureReason
+            + "\\]. Use force stop and then restart the transform once error is resolved.";
         // Verify that we cannot start the transform when the task is in a failed state
         assertBusy(() -> {
-            ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId));
+            ResponseException ex = expectThrows(ResponseException.class, () -> startTransform(transformId));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
-            assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-                equalTo(expectedFailure));
+            assertThat(
+                (String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
+                matchesRegex(expectedFailure)
+            );
         }, 60, TimeUnit.SECONDS);
 
         stopTransform(transformId, true);
@@ -118,7 +137,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     private void awaitState(String transformId, TransformStats.State state) throws Exception {
         assertBusy(() -> {
-            String currentState = getDataFrameTransformState(transformId);
+            String currentState = getTransformState(transformId);
             assertThat(currentState, equalTo(state.value()));
         }, 180, TimeUnit.SECONDS); // It should not take this long, but if the scheduler gets deferred, it could
     }

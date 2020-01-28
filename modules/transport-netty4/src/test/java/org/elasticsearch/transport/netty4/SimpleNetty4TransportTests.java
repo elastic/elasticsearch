@@ -65,7 +65,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
+            connectToNode(serviceA, new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
                     emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
@@ -73,5 +73,4 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }
-
 }

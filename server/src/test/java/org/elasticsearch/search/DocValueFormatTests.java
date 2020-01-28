@@ -168,6 +168,7 @@ public class DocValueFormatTests extends ESTestCase {
     public void testRawParse() {
         assertEquals(-1L, DocValueFormat.RAW.parseLong("-1", randomBoolean(), null));
         assertEquals(1L, DocValueFormat.RAW.parseLong("1", randomBoolean(), null));
+        assertEquals(Long.MAX_VALUE - 2, DocValueFormat.RAW.parseLong(Long.toString(Long.MAX_VALUE - 2), randomBoolean(), null));
         // not checking exception messages as they could depend on the JVM
         expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("", randomBoolean(), null));
         expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("abc", randomBoolean(), null));
@@ -176,8 +177,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(1d, DocValueFormat.RAW.parseDouble("1", randomBoolean(), null), 0d);
         assertEquals(.5, DocValueFormat.RAW.parseDouble("0.5", randomBoolean(), null), 0d);
         // not checking exception messages as they could depend on the JVM
-        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("", randomBoolean(), null));
-        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("abc", randomBoolean(), null));
+        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseDouble("", randomBoolean(), null));
+        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseDouble("abc", randomBoolean(), null));
 
         assertEquals(new BytesRef("abc"), DocValueFormat.RAW.parseBytesRef("abc"));
     }

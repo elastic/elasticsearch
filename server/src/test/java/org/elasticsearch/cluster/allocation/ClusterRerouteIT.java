@@ -268,7 +268,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             equalTo(ShardRoutingState.STARTED));
 
         if (closed == false) {
-            client().prepareIndex("test", "type", "1").setSource("field", "value")
+            client().prepareIndex("test").setId("1").setSource("field", "value")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         final Index index = resolveIndex("test");

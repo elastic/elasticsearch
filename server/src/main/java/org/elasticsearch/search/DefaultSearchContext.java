@@ -23,8 +23,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -120,7 +121,7 @@ final class DefaultSearchContext extends SearchContext {
     private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchTask task;
+    private SearchShardTask task;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -274,7 +275,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext));
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            if (slicedQuery instanceof MatchNoDocsQuery) {
+                return slicedQuery;
+            } else {
+                filters.add(slicedQuery);
+            }
         }
 
         if (filters.isEmpty()) {
@@ -805,12 +811,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchTask task) {
+    public void setTask(SearchShardTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchTask getTask() {
+    public SearchShardTask getTask() {
         return task;
     }
 

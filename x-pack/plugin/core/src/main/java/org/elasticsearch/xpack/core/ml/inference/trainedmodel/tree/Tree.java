@@ -5,23 +5,37 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -31,8 +45,11 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
+public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Tree.class);
     // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("tree");
 
@@ -72,7 +89,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
-        this.nodes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE));
+        if(ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE).size() == 0) {
+            throw new IllegalArgumentException("[tree_structure] must not be empty");
+        }
+        this.nodes = Collections.unmodifiableList(nodes);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
         this.highestOrderCategory = new CachedSupplier<>(() -> this.maxLeafValue());
@@ -95,30 +115,53 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return NAME.getPreferredName();
     }
 
-    @Override
-    public List<String> getFeatureNames() {
-        return featureNames;
-    }
-
     public List<TreeNode> getNodes() {
         return nodes;
     }
 
     @Override
-    public double infer(Map<String, Object> fields) {
-        List<Double> features = featureNames.stream().map(f ->
-            fields.get(f) instanceof Number ? ((Number)fields.get(f)).doubleValue() : null
-        ).collect(Collectors.toList());
-        return infer(features);
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+        if (config.isTargetTypeSupported(targetType) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
+        }
+
+        List<Double> features = featureNames.stream()
+            .map(f -> InferenceHelpers.toDouble(MapHelper.dig(f, fields)))
+            .collect(Collectors.toList());
+        return infer(features, config);
     }
 
-    @Override
-    public double infer(List<Double> features) {
+    private InferenceResults infer(List<Double> features, InferenceConfig config) {
         TreeNode node = nodes.get(0);
         while(node.isLeaf() == false) {
             node = nodes.get(node.compare(features));
         }
-        return node.getLeafValue();
+        return buildResult(node.getLeafValue(), config);
+    }
+
+    private InferenceResults buildResult(Double value, InferenceConfig config) {
+        // Indicates that the config is useless and the caller just wants the raw value
+        if (config instanceof NullInferenceConfig) {
+            return new RawInferenceResults(value);
+        }
+        switch (targetType) {
+            case CLASSIFICATION:
+                ClassificationConfig classificationConfig = (ClassificationConfig) config;
+                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+                    classificationProbability(value),
+                    classificationLabels,
+                    null,
+                    classificationConfig.getNumTopClasses());
+                return new ClassificationInferenceResults(value,
+                    classificationLabel(topClasses.v1(), classificationLabels),
+                    topClasses.v2(),
+                    config);
+            case REGRESSION:
+                return new RegressionInferenceResults(value, config);
+            default:
+                throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
+        }
     }
 
     /**
@@ -142,40 +185,16 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return targetType;
     }
 
-    @Override
-    public List<Double> classificationProbability(Map<String, Object> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
-        }
-        List<Double> features = featureNames.stream().map(f ->
-            fields.get(f) instanceof Number ? ((Number)fields.get(f)).doubleValue() : null)
-            .collect(Collectors.toList());
-
-        return classificationProbability(features);
-    }
-
-    @Override
-    public List<Double> classificationProbability(List<Double> fields) {
-        if ((targetType == TargetType.CLASSIFICATION) == false) {
-            throw new UnsupportedOperationException(
-                "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
-        }
-        double label = infer(fields);
+    private List<Double> classificationProbability(double inferenceValue) {
         // If we are classification, we should assume that the inference return value is whole.
-        assert label == Math.rint(label);
+        assert inferenceValue == Math.rint(inferenceValue);
         double maxCategory = this.highestOrderCategory.get();
         // If we are classification, we should assume that the largest leaf value is whole.
         assert maxCategory == Math.rint(maxCategory);
         List<Double> list = new ArrayList<>(Collections.nCopies(Double.valueOf(maxCategory + 1).intValue(), 0.0));
         // TODO, eventually have TreeNodes contain confidence levels
-        list.set(Double.valueOf(label).intValue(), 1.0);
+        list.set(Double.valueOf(inferenceValue).intValue(), 1.0);
         return list;
-    }
-
-    @Override
-    public List<String> classificationLabels() {
-        return classificationLabels;
     }
 
     @Override
@@ -234,22 +253,28 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public void validate() {
+        if (featureNames.isEmpty()) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty for tree model", FEATURE_NAMES.getPreferredName());
+        }
         checkTargetType();
         detectMissingNodes();
         detectCycle();
     }
 
+    @Override
+    public long estimatedNumOperations() {
+        // Grabbing the features from the doc + the depth of the tree
+        return (long)Math.ceil(Math.log(nodes.size())) + featureNames.size();
+    }
+
     private void checkTargetType() {
-        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+        if (this.classificationLabels != null && this.targetType != TargetType.CLASSIFICATION) {
             throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
+                "[target_type] should be [classification] if [classification_labels] are provided");
         }
     }
 
     private void detectCycle() {
-        if (nodes.isEmpty()) {
-            return;
-        }
         Set<Integer> visited = new HashSet<>(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
@@ -270,10 +295,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void detectMissingNodes() {
-        if (nodes.isEmpty()) {
-            return;
-        }
-
         List<Integer> missingNodes = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             TreeNode currentNode = nodes.get(i);
@@ -300,6 +321,24 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return targetType == TargetType.CLASSIFICATION ?
             this.nodes.stream().filter(TreeNode::isLeaf).mapToDouble(TreeNode::getLeafValue).max().getAsDouble() :
             null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOfCollection(classificationLabels);
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(nodes);
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(nodes.size());
+        for (TreeNode node : nodes) {
+            accountables.add(Accountables.namedAccountable("tree_node_" + node.getNodeIndex(), node));
+        }
+        return Collections.unmodifiableCollection(accountables);
     }
 
     public static class Builder {

@@ -163,10 +163,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
@@ -400,13 +396,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public IndexRequestBuilder prepareIndex(String index, String type) {
-        return prepareIndex(index, type, null);
-    }
-
-    @Override
-    public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
-        return prepareIndex().setIndex(index).setId(id);
+    public IndexRequestBuilder prepareIndex(String index) {
+        return new IndexRequestBuilder(this, IndexAction.INSTANCE, index);
     }
 
     @Override
@@ -421,12 +412,12 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public UpdateRequestBuilder prepareUpdate() {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null, null);
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null);
     }
 
     @Override
-    public UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, type, id);
+    public UpdateRequestBuilder prepareUpdate(String index, String id) {
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, id);
     }
 
     @Override
@@ -445,8 +436,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
-        return prepareDelete().setIndex(index).setType(type).setId(id);
+    public DeleteRequestBuilder prepareDelete(String index, String id) {
+        return prepareDelete().setIndex(index).setId(id);
     }
 
     @Override
@@ -1354,21 +1345,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public FlushRequestBuilder prepareFlush(String... indices) {
             return new FlushRequestBuilder(this, FlushAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
-        public ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request) {
-            return execute(SyncedFlushAction.INSTANCE, request);
-        }
-
-        @Override
-        public void syncedFlush(SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
-            execute(SyncedFlushAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SyncedFlushRequestBuilder prepareSyncedFlush(String... indices) {
-            return new SyncedFlushRequestBuilder(this, SyncedFlushAction.INSTANCE).setIndices(indices);
         }
 
         @Override

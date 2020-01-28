@@ -119,17 +119,26 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
             return scripts;
         }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Math.random()", vars -> StringTermsIT.randomDouble());
+
+            return scripts;
+        }
     }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(
+            builders.add(client().prepareIndex("idx").setSource(
                     jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, "val" + i)
                             .field("i", i)
@@ -145,19 +154,19 @@ public class StringTermsIT extends AbstractTermsTestCase {
         getMultiSortDocs(builders);
 
         assertAcked(client().admin().indices().prepareCreate("high_card_idx")
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         for (int i = 0; i < 100; i++) {
-            builders.add(client().prepareIndex("high_card_idx", "type").setSource(
+            builders.add(client().prepareIndex("high_card_idx").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val" + Strings.padStart(i + "", 3, '0'))
                             .startArray(MULTI_VALUED_FIELD_NAME).value("val" + Strings.padStart(i + "", 3, '0'))
                             .value("val" + Strings.padStart((i + 1) + "", 3, '0')).endArray().endObject()));
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
 
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
         }
         indexRandom(true, builders);
@@ -211,30 +220,30 @@ public class StringTermsIT extends AbstractTermsTestCase {
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
 
         assertAcked(client().admin().indices().prepareCreate("sort_idx")
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            builders.add(client().prepareIndex("sort_idx").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val1").field("l", 1).field("d", i).endObject()));
-            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            builders.add(client().prepareIndex("sort_idx").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val2").field("l", 2).field("d", i).endObject()));
         }
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 3).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val6").field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val7").field("l", 5).field("d", 1).endObject()));
     }
 
@@ -1115,15 +1124,15 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=keyword")
+    public void testScriptCaching() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=keyword")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", "foo"),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", "bar"));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", "bar"));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1131,8 +1140,21 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
+        // Test that a request using a nondeterministic script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(
+                        terms("terms").field("d").script(
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap())))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a deterministic script gets cached
+        r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(
                         terms("terms").field("d").script(
                             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap())))
@@ -1142,16 +1164,15 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+                .getMissCount(), equalTo(1L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(terms("terms").field("d")).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(2L));
     }
 }

@@ -16,6 +16,9 @@ settings update, rerouting, or managing users and roles.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
+`monitor_snapshot`::
+Privileges to list and view details on existing repositories and snapshots.
+
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
 This includes snapshotting, updating settings, and rerouting. It also includes 
@@ -171,10 +174,18 @@ Privilege to index documents. Also grants access to the update mapping action.
 However, it does not enable a user to update existing documents.
 +
 --
-NOTE: When indexing documents with an external `_id` either via the index API or
-the bulk API, the request must use `op_type` as `create`. If `_id`s are
-generated automatically, the authorization happens as if the `op_type` is set to
-`create`.
+[NOTE]
+====
+
+This privilege relies on the `op_type` of indexing requests (<<docs-index_>> and
+<<docs-bulk>>). When ingesting documents as a user who has the `create_doc`
+privilege (and no higher privilege such as `index` or `write`), you must ensure that
+'op_type' is set to 'create' through one of the following:
+
+* Explicitly setting the `op_type` in the index or bulk APIs
+* Using the `_create` endpoint for the index API
+* Creating a document with an auto-generated `_id`
+====
 
 --
 

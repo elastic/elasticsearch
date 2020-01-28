@@ -21,17 +21,13 @@ package org.elasticsearch.painless.node;
 
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,15 +59,6 @@ public final class EAssignment extends AExpression {
         this.pre = pre;
         this.post = post;
         this.operation = operation;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
-
-        if (rhs != null) {
-            rhs.storeSettings(settings);
-        }
     }
 
     @Override
@@ -251,99 +238,24 @@ public final class EAssignment extends AExpression {
      * also read from.
      */
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    AssignmentNode write() {
+        AssignmentNode assignmentNode = new AssignmentNode();
 
-        // For the case where the assignment represents a String concatenation
-        // we must, depending on the Java version, write a StringBuilder or
-        // track types going onto the stack.  This must be done before the
-        // lhs is read because we need the StringBuilder to be placed on the
-        // stack ahead of any potential concatenation arguments.
-        int catElementStackSize = 0;
+        assignmentNode.setLeftNode(lhs.write());
+        assignmentNode.setRightNode(rhs.write());
 
-        if (cat) {
-            catElementStackSize = methodWriter.writeNewStrings();
-        }
+        assignmentNode.setLocation(location);
+        assignmentNode.setExpressionType(actual);
+        assignmentNode.setCompoundType(promote);
+        assignmentNode.setPre(pre);
+        assignmentNode.setPost(post);
+        assignmentNode.setOperation(operation);
+        assignmentNode.setRead(read);
+        assignmentNode.setCat(cat);
+        assignmentNode.setThere(there);
+        assignmentNode.setBack(back);
 
-        // Cast the lhs to a storeable to perform the necessary operations to store the rhs.
-        AStoreable lhs = (AStoreable)this.lhs;
-        lhs.setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
-
-        if (cat) {
-            // Handle the case where we are doing a compound assignment
-            // representing a String concatenation.
-
-            methodWriter.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
-                                                                            // before concat helper on stack
-            lhs.load(classWriter, methodWriter, globals);                                      // read the current lhs's value
-            methodWriter.writeAppendStrings(lhs.actual);  // append the lhs's value using the StringBuilder
-
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
-
-            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
-                methodWriter.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
-            }
-
-            methodWriter.writeToStrings(); // put the value for string concat onto the stack
-            methodWriter.writeCast(back);  // if necessary, cast the String to the lhs actual type
-
-            if (lhs.read) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // if this lhs is also read
-                                                                                                       // from dup the value onto the stack
-            }
-
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
-        } else if (operation != null) {
-            // Handle the case where we are doing a compound assignment that
-            // does not represent a String concatenation.
-
-            methodWriter.writeDup(lhs.accessElementCount(), 0); // if necessary, dup the previous lhs's value
-                                                                // to be both loaded from and stored to
-            lhs.load(classWriter, methodWriter, globals); // load the current lhs's value
-
-            if (lhs.read && post) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the
-                                                                                                             // lhs is also
-                                                                                                             // read from and is a post
-                                                                                                             // increment
-            }
-
-            methodWriter.writeCast(there); // if necessary cast the current lhs's value
-                                           // to the promotion type between the lhs and rhs types
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
-
-            // XXX: fix these types, but first we need def compound assignment tests.
-            // its tricky here as there are possibly explicit casts, too.
-            // write the operation instruction for compound assignment
-            if (promote == def.class) {
-                methodWriter.writeDynamicBinaryInstruction(
-                    location, promote, def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
-            } else {
-                methodWriter.writeBinaryInstruction(location, promote, operation);
-            }
-
-            methodWriter.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
-
-            if (lhs.read && !post) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
-                                                                                                             // is also
-                                                                                                             // read from and is not a post
-                                                                                                             // increment
-            }
-
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
-        } else {
-            // Handle the case for a simple write.
-
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
-
-            if (lhs.read) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
-                                                                                                       // is also read from
-            }
-
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
-        }
+        return assignmentNode;
     }
 
     @Override

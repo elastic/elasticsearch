@@ -5,25 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Search the source string for occurrences of the pattern, and replace with the replacement string.
@@ -114,7 +115,7 @@ public class Replace extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 
     @Override

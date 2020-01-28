@@ -51,6 +51,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.isIndexVerifiedBeforeClosed;
+
 public class LocalAllocateDangledIndices {
 
     private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);
@@ -80,7 +82,7 @@ public class LocalAllocateDangledIndices {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+            listener.onFailure(new MasterNotDiscoveredException());
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(),
@@ -117,6 +119,13 @@ public class LocalAllocateDangledIndices {
                                 minIndexCompatibilityVersion);
                             continue;
                         }
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetaData.getCreationVersion())) {
+                            logger.warn("ignoring dangled index [{}] on node [{}]" +
+                                " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
+                                currentState.getNodes().getMasterNode().getVersion());
+                            continue;
+                        }
                         if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
                             continue;
                         }
@@ -142,7 +151,7 @@ public class LocalAllocateDangledIndices {
                         }
                         metaData.put(upgradedIndexMetaData, false);
                         blocks.addBlocks(upgradedIndexMetaData);
-                        if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
+                        if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN || isIndexVerifiedBeforeClosed(indexMetaData)) {
                             routingTableBuilder.addAsFromDangling(upgradedIndexMetaData);
                         }
                         sb.append("[").append(upgradedIndexMetaData.getIndex()).append("/").append(upgradedIndexMetaData.getState())

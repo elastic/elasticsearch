@@ -225,15 +225,16 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
      * Splits the specified line by datelines and adds them to the supplied lines array
      */
     private List<Line> decomposeGeometry(Line line, List<Line> lines) {
-        for (Line part : decompose(line)) {
-            double[] lats = new double[part.length()];
-            double[] lons = new double[part.length()];
-            for (int i = 0; i < part.length(); i++) {
-                lats[i] = normalizeLat(part.getY(i));
-                lons[i] = normalizeLonMinus180Inclusive(part.getX(i));
-            }
-            lines.add(new Line(lons, lats));
+        double[] lons = new double[line.length()];
+        double[] lats = new double[lons.length];
+
+        for (int i = 0; i < lons.length; i++) {
+            double[] lonLat = new double[] {line.getX(i), line.getY(i)};
+            normalizePoint(lonLat,false, true);
+            lons[i] = lonLat[0];
+            lats[i] = lonLat[1];
         }
+        lines.addAll(decompose(lons, lats));
         return lines;
     }
 
@@ -253,12 +254,11 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     /**
      * Decompose a linestring given as array of coordinates by anti-meridian.
      *
-     * @param line     linestring that should be decomposed
+     * @param lons     longitudes of the linestring that should be decomposed
+     * @param lats     latitudes of the linestring that should be decomposed
      * @return array of linestrings given as coordinate arrays
      */
-    private List<Line> decompose(Line line) {
-        double[] lons = line.getX();
-        double[] lats = line.getY();
+    private List<Line> decompose(double[] lons, double[] lats) {
         int offset = 0;
         ArrayList<Line> parts = new ArrayList<>();
 

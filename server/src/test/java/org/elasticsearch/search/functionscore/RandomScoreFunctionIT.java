@@ -97,7 +97,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().field("foo", i).endObject());
+            index("test", "" + i, jsonBuilder().startObject().field("foo", i).endObject());
         }
         flush();
         refresh();
@@ -142,7 +142,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 int numDocsToChange = randomIntBetween(20, 50);
                 while (numDocsToChange > 0) {
                     int doc = randomInt(docCount-1);// watch out this is inclusive the max values!
-                    index("test", "type", "" + doc, jsonBuilder().startObject().field("foo", doc).endObject());
+                    index("test", "" + doc, jsonBuilder().startObject().field("foo", doc).endObject());
                     --numDocsToChange;
                 }
                 flush();
@@ -152,12 +152,12 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
     }
 
     public void testScoreAccessWithinScript() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "body", "type=text", "index",
+        assertAcked(prepareCreate("test").setMapping("body", "type=text", "index",
                 "type=" + randomFrom("short", "float", "long", "integer", "double")));
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test", "type", "" + i)
+            client().prepareIndex("test").setId("" + i)
                     // we add 1 to the index field to make sure that the scripts below never compute log(0)
                     .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
                     .get();
@@ -251,7 +251,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
     public void testSeedReportedInExplain() throws Exception {
         createIndex("test");
         ensureGreen();
-        index("test", "type", "1", jsonBuilder().startObject().endObject());
+        index("test", "1", jsonBuilder().startObject().endObject());
         flush();
         refresh();
 
@@ -291,7 +291,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
             String id = randomRealisticUnicodeOfCodepointLengthBetween(1, 50);
-            index("test", "type", id, jsonBuilder().startObject().endObject());
+            index("test", id, jsonBuilder().startObject().endObject());
         }
         flush();
         refresh();
@@ -314,7 +314,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen();
         final int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
+            index("test", "" + i, jsonBuilder().startObject().endObject());
         }
         flushAndRefresh();
 
@@ -342,7 +342,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < count; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
+            index("test", "" + i, jsonBuilder().startObject().endObject());
         }
 
         flush();

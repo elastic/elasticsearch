@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -44,11 +41,6 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // do nothing
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // Do nothing.
     }
@@ -63,8 +55,13 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
+    StaticNode write() {
+        StaticNode staticNode = new StaticNode();
+
+        staticNode.setLocation(location);
+        staticNode.setExpressionType(actual);
+
+        return staticNode;
     }
 
     @Override

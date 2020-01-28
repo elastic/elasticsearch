@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
@@ -63,6 +64,7 @@ public class TruncateTranslogAction {
     }
 
     public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
+                                                                                     ClusterState clusterState,
                                                                                      Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
@@ -83,7 +85,7 @@ public class TruncateTranslogAction {
             throw new ElasticsearchException("shard must have a valid translog UUID but got: [null]");
         }
 
-        final boolean clean = isTranslogClean(shardPath, translogUUID);
+        final boolean clean = isTranslogClean(shardPath, clusterState, translogUUID);
 
         if (clean) {
             return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null);
@@ -166,35 +168,26 @@ public class TruncateTranslogAction {
         IOUtils.fsync(translogPath, true);
     }
 
-    private boolean isTranslogClean(ShardPath shardPath, String translogUUID) throws IOException {
+    private boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
         // perform clean check of translog instead of corrupted marker file
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardPath.getDataPath().getParent());
+            final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(shardPath.getShardId().getIndex());
             final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
             long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
-            // We open translog to check for corruption, do not clean anything.
-            final TranslogDeletionPolicy retainAllTranslogPolicy = new TranslogDeletionPolicy(
-                Long.MAX_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE) {
-                @Override
-                long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
-                    long minGen = writer.generation;
-                    for (TranslogReader reader : readers) {
-                        minGen = Math.min(reader.generation, minGen);
-                    }
-                    return minGen;
-                }
-            };
+            final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
             try (Translog translog = new Translog(translogConfig, translogUUID,
-                retainAllTranslogPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
                  Translog.Snapshot snapshot = translog.newSnapshot()) {
                 //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
                 }
+                // We open translog to check for corruption, do not clean anything.
+                translogDeletionPolicy.setTranslogGenerationOfLastCommit(translog.getMinFileGeneration());
+                translogDeletionPolicy.setMinTranslogGenerationForRecovery(translog.getMinFileGeneration());
             }
             return true;
         } catch (TranslogCorruptedException e) {

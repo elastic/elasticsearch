@@ -22,6 +22,7 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TimeUnits;
@@ -106,6 +107,31 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         }
     }
 
+    @Override
+    protected boolean preserveSLMPoliciesUponCompletion() {
+        return isSLMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return isILMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    protected boolean isSLMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\"));
+    }
+
+    protected boolean isILMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\"));
+    }
+
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("/ml/") || testName.contains("\\ml\\"));
@@ -125,7 +151,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      * small number of tokens.
      */
     private static class CompareAnalyzers implements ExecutableSection {
-        private static ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
+        private static final ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
             new ConstructingObjectParser<>("test_analyzer", false, (a, location) -> {
                 String index = (String) a[0];
                 String first = (String) a[1];

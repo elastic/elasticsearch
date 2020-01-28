@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -66,7 +67,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     private static final AccessControlContext COMPILATION_CONTEXT;
 
-    /**
+    /*
      * Setup the allowed permissions.
      */
     static {
@@ -122,7 +123,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+    public <T> T compile(
+        String scriptName,
+        String scriptSource,
+        ScriptContext<T> context,
+        Map<String, String> params
+    ) {
         Compiler compiler = contextsToCompilers.get(context);
 
         // Check we ourselves are not being called by unprivileged code.
@@ -137,13 +143,19 @@ public final class PainlessScriptEngine implements ScriptEngine {
         });
 
         Set<String> extractedVariables = new HashSet<>();
-        compile(contextsToCompilers.get(context), loader, extractedVariables, scriptName, scriptSource, params);
+        ScriptRoot scriptRoot = compile(contextsToCompilers.get(context), loader, extractedVariables, scriptName, scriptSource, params);
 
         if (context.statefulFactoryClazz != null) {
-            return generateFactory(loader, context, extractedVariables, generateStatefulFactory(loader, context, extractedVariables));
+            return generateFactory(loader, context, extractedVariables, generateStatefulFactory(loader, context, extractedVariables),
+                scriptRoot);
         } else {
-            return generateFactory(loader, context, extractedVariables, WriterConstants.CLASS_TYPE);
+            return generateFactory(loader, context, extractedVariables, WriterConstants.CLASS_TYPE, scriptRoot);
         }
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return contextsToCompilers.keySet();
     }
 
     /**
@@ -157,12 +169,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, Set<String> extractedVariables) {
+    private <T> Type generateStatefulFactory(
+        Loader loader,
+        ScriptContext<T> context,
+        Set<String> extractedVariables
+    ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
         String className = interfaceBase + "$StatefulFactory";
-        String classInterfaces[] = new String[] { interfaceBase };
+        String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
@@ -196,7 +212,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
             constructor.loadThis();
             constructor.loadArg(count);
-            constructor.putField(Type.getType(className), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
         }
 
         constructor.returnValue();
@@ -230,7 +246,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
             adapter.loadThis();
-            adapter.getField(Type.getType(className), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
         }
 
         adapter.loadArgs();
@@ -243,7 +259,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
-        return Type.getType(className);
+        return Type.getType("L" + className + ";");
     }
 
     /**
@@ -255,15 +271,22 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
      * @param classType The type to be instaniated in the newFactory or newInstance method.  Depends
      *                  on whether a {@link ScriptContext#statefulFactoryClazz} is specified.
+     * @param scriptRoot the {@link ScriptRoot} used to do the compilation
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> T generateFactory(Loader loader, ScriptContext<T> context, Set<String> extractedVariables, Type classType) {
+    private <T> T generateFactory(
+        Loader loader,
+        ScriptContext<T> context,
+        Set<String> extractedVariables,
+        Type classType,
+        ScriptRoot scriptRoot
+    ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
         String className = interfaceBase + "$Factory";
-        String classInterfaces[] = new String[] { interfaceBase };
+        String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
@@ -310,8 +333,19 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.endMethod();
 
         writeNeedsMethods(context.factoryClazz, writer, extractedVariables);
-        writer.visitEnd();
 
+        String methodName = "isResultDeterministic";
+        org.objectweb.asm.commons.Method isResultDeterministic = new org.objectweb.asm.commons.Method(methodName,
+            MethodType.methodType(boolean.class).toMethodDescriptorString());
+
+        GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, isResultDeterministic,
+            writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null));
+        deterAdapter.visitCode();
+        deterAdapter.push(scriptRoot.isDeterministic());
+        deterAdapter.returnValue();
+        deterAdapter.endMethod();
+
+        writer.visitEnd();
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
         try {
@@ -344,19 +378,17 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    void compile(Compiler compiler, Loader loader, Set<String> extractedVariables,
+    ScriptRoot compile(Compiler compiler, Loader loader, Set<String> extractedVariables,
                  String scriptName, String source, Map<String, String> params) {
         final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         try {
             // Drop all permissions to actually compile the code itself.
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            return AccessController.doPrivileged(new PrivilegedAction<ScriptRoot>() {
                 @Override
-                public Void run() {
+                public ScriptRoot run() {
                     String name = scriptName == null ? source : scriptName;
-                    compiler.compile(loader, extractedVariables, name, source, compilerSettings);
-
-                    return null;
+                    return compiler.compile(loader, extractedVariables, name, source, compilerSettings);
                 }
             }, COMPILATION_CONTEXT);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
@@ -409,14 +441,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private ScriptException convertToScriptException(String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
+        ScriptException.Position pos = null;
         for (StackTraceElement element : t.getStackTrace()) {
             if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
                 // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
+                int originalOffset = element.getLineNumber();
+                if (originalOffset == -1) {
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
-                    offset--; // offset is 1 based, line numbers must be!
+                    int offset = --originalOffset; // offset is 1 based, line numbers must be!
                     int startOffset = getPreviousStatement(offset);
                     int endOffset = getNextStatement(scriptSource, offset);
                     StringBuilder snippet = new StringBuilder();
@@ -437,11 +470,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
                     }
                     pointer.append("^---- HERE");
                     scriptStack.add(pointer.toString());
+                    pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
                 }
                 break;
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME);
+        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.

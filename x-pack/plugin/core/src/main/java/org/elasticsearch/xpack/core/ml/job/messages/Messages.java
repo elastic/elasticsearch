@@ -82,9 +82,23 @@ public final class Messages {
 
     public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] already exists";
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
-    public static final String INFERENCE_FAILED_TO_SERIALIZE_MODEL =
-        "Failed to serialize the trained model [{0}] with version [{1}] for storage";
     public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}]";
+    public static final String INFERENCE_NOT_FOUND_MULTIPLE = "Could not find trained models {0}";
+    public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
+        "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
+    public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
+    public static final String INFERENCE_CANNOT_DELETE_MODEL =
+        "Unable to delete model [{0}]";
+    public static final String MODEL_DEFINITION_TRUNCATED =
+        "Model definition truncated. Unable to deserialize trained model definition [{0}]";
+    public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
+    public static final String INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED =
+        "Getting model definition is not supported when getting more than one model";
+    public static final String INFERENCE_WARNING_ALL_FIELDS_MISSING = "Model [{0}] could not be inferred as all fields were missing";
+    public static final String INFERENCE_INVALID_TAGS = "Invalid tags {0}; must only can contain lowercase alphanumeric (a-z and 0-9), " +
+        "hyphens or underscores, must start and end with alphanumeric, and must be less than {1} characters.";
+    public static final String INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE = "The provided tags {0} must not match existing model_ids.";
+    public static final String INFERENCE_MODEL_ID_AND_TAGS_UNIQUE = "The provided model_id {0} must not match existing tags.";
 
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";
@@ -109,7 +123,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";
     public static final String JOB_AUDIT_KILLING = "Killing job";
-    public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {1}";
+    public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {0}";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
     public static final String JOB_AUDIT_FILTER_UPDATED_ON_PROCESS = "Updated filter [{0}] in running process";
@@ -121,6 +135,8 @@ public final class Messages {
             "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
     public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
         "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES = "{0} categories observed in the first [{1}] buckets." +
+        " This suggests an inappropriate categorization_field_name has been chosen.";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =
@@ -144,7 +160,7 @@ public final class Messages {
             "Invalid detector rule: scope field ''{0}'' is invalid; select from {1}";
     public static final String JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION = "field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_FIELD_VALUE_TOO_LOW = "{0} cannot be less than {1,number}. Value = {2,number}";
-    public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least 1 MiB. Value = {0}";
+    public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least {1}. Value = {0}";
     public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX =
             "model_memory_limit [{0}] must be less than the value of the " +
                     MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey() +

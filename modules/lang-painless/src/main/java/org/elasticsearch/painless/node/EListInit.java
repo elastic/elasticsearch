@@ -19,18 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,13 +46,6 @@ public final class EListInit extends AExpression {
         super(location);
 
         this.values = values;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AExpression value : values) {
-            value.storeSettings(settings);
-        }
     }
 
     @Override
@@ -99,20 +87,19 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.newInstance(MethodWriter.getType(actual));
-        methodWriter.dup();
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    ListInitializationNode write() {
+        ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (AExpression value : values) {
-            methodWriter.dup();
-            value.write(classWriter, methodWriter, globals);
-            methodWriter.invokeMethodCall(method);
-            methodWriter.pop();
+            listInitializationNode.addArgumentNode(value.write());
         }
+
+        listInitializationNode.setLocation(location);
+        listInitializationNode.setExpressionType(actual);
+        listInitializationNode.setConstructor(constructor);
+        listInitializationNode.setMethod(method);
+
+        return listInitializationNode;
     }
 
     @Override

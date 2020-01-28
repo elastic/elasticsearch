@@ -26,7 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -535,7 +535,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
-            final ReleasablePagedBytesReference bytes = out.bytes();
+            final ReleasableBytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
                 if (operation.primaryTerm() > current.getPrimaryTerm()) {
@@ -696,11 +696,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() :
             "callers of readersAboveMinSeqNo must hold a lock: readLock ["
                 + readLock.isHeldByCurrentThread() + "], writeLock [" + readLock.isHeldByCurrentThread() + "]";
-        return Stream.concat(readers.stream(), Stream.of(current))
-            .filter(reader -> {
-                final long maxSeqNo = reader.getCheckpoint().maxSeqNo;
-                return maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
-            });
+        return Stream.concat(readers.stream(), Stream.of(current)).filter(reader -> minSeqNo <= reader.getCheckpoint().maxEffectiveSeqNo());
     }
 
     /**
@@ -1593,7 +1589,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 out.seek(start);
                 out.writeInt(operationSize);
                 out.seek(end);
-                ReleasablePagedBytesReference bytes = out.bytes();
+                ReleasableBytesReference bytes = out.bytes();
                 bytes.writeTo(outStream);
             }
         } finally {
@@ -1629,7 +1625,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
              */
             long minTranslogFileGeneration = this.currentFileGeneration();
             for (final TranslogReader reader : readers) {
-                if (seqNo <= reader.getCheckpoint().maxSeqNo) {
+                if (seqNo <= reader.getCheckpoint().maxEffectiveSeqNo()) {
                     minTranslogFileGeneration = Math.min(minTranslogFileGeneration, reader.getGeneration());
                 }
             }
@@ -1676,7 +1672,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // we're shutdown potentially on some tragic event, don't delete anything
                 return;
             }
-            long minReferencedGen = deletionPolicy.minTranslogGenRequired(readers, current);
+            long minReferencedGen = deletionPolicy.minTranslogGenRequired();
             assert minReferencedGen >= getMinFileGeneration() :
                 "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] but the lowest gen available is ["
                     + getMinFileGeneration() + "]";

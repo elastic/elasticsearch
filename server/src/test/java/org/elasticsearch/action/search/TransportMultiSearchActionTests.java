@@ -39,12 +39,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,22 +59,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportMultiSearchActionTests extends ESTestCase {
-
-    protected ThreadPool threadPool;
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool(getTestName());
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        threadPool.shutdown();
-        super.tearDown();
-    }
 
     public void testParentTaskId() throws Exception {
         // Initialize dependencies of TransportMultiSearchAction

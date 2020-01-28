@@ -19,18 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -40,8 +37,6 @@ import java.util.Set;
 public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     private final String type;
 
-    private CompilerSettings settings;
-
     private SFunction function;
     private FunctionRef ref;
     private String defPointer;
@@ -50,11 +45,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        this.settings = settings;
     }
 
     @Override
@@ -69,11 +59,10 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
                 location, type, scriptRoot.getNextSyntheticName("newarray"),
                 Collections.singletonList("int"), Collections.singletonList("size"),
                 new SBlock(location, Collections.singletonList(code)), true);
-        function.storeSettings(settings);
         function.generateSignature(scriptRoot.getPainlessLookup());
         function.extractVariables(null);
         function.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
-                function.parameters, 0, settings.getMaxLoopCounter()));
+                function.parameters, 0, scriptRoot.getCompilerSettings().getMaxLoopCounter()));
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
         scriptRoot.getClassNode().addFunction(function);
 
@@ -90,14 +79,14 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (ref != null) {
-            methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(ref);
-        } else {
-            // push a null instruction as a placeholder for future lambda instructions
-            methodWriter.push((String)null);
-        }
+    NewArrayFuncRefNode write() {
+        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
+
+        newArrayFuncRefNode.setLocation(location);
+        newArrayFuncRefNode.setExpressionType(actual);
+        newArrayFuncRefNode.setFuncRef(ref);
+
+        return newArrayFuncRefNode;
     }
 
     @Override
@@ -106,8 +95,8 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[0]; // no captures
+    public List<Class<?>> getCaptures() {
+        return Collections.emptyList();
     }
 
     @Override

@@ -129,14 +129,14 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             return;
         }
         assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
-                .addMapping("type", "test", "type=text,fielddata=true"));
+                .setMapping("test", "type=text,fielddata=true"));
         final Client client = client();
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", "value" + id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
 
@@ -185,7 +185,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("ramtest", "type", Long.toString(id)).setSource("test", "value" + id));
+            reqs.add(client.prepareIndex("ramtest").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
 
@@ -238,7 +238,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -272,7 +272,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(100, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 

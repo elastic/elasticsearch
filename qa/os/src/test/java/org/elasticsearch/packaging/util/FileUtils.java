@@ -33,6 +33,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -42,7 +43,9 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -79,6 +82,30 @@ public class FileUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void rmWithRetries(Path... paths) {
+        int tries = 10;
+        Exception exception = null;
+        while (tries-- > 0) {
+            try {
+                IOUtils.rm(paths);
+                return;
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new RuntimeException(exception);
     }
 
     public static Path mktempDir(Path path) {
@@ -126,7 +153,7 @@ public class FileUtils {
 
     public static String slurp(Path file) {
         try {
-            return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
+            return String.join(System.lineSeparator(), Files.readAllLines(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -240,9 +267,26 @@ public class FileUtils {
         }
     }
 
+    /**
+     * Gets numeric ownership attributes that are supported by Unix filesystems
+     * @return a Map of the uid/gid integer values
+     */
+    public static Map<String, Integer> getNumericUnixPathOwnership(Path path) {
+        Map<String, Integer> numericPathOwnership = new HashMap<>();
+
+        try {
+            numericPathOwnership.put("uid", (int) Files.getAttribute(path, "unix:uid", LinkOption.NOFOLLOW_LINKS));
+            numericPathOwnership.put("gid", (int) Files.getAttribute(path, "unix:gid", LinkOption.NOFOLLOW_LINKS));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return numericPathOwnership;
+    }
+
+
     // vagrant creates /tmp for us in windows so we use that to avoid long paths
     public static Path getTempDir() {
-        return Paths.get("/tmp");
+        return Paths.get("/tmp").toAbsolutePath();
     }
 
     public static Path getDefaultArchiveInstallPath() {
@@ -294,5 +338,16 @@ public class FileUtils {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * Return the given path a string suitable for using on the host system.
+     */
+    public static String escapePath(Path path) {
+        if (Platforms.WINDOWS) {
+            // replace single backslash with forward slash, to avoid unintended escapes in scripts
+            return path.toString().replace('\\', '/');
+        }
+        return path.toString();
     }
 }

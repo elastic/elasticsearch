@@ -229,21 +229,3 @@
       indices.put_template:
         name: test
         body: {}
-
----
-"Put template with explicit _doc type":
-
-  - do:
-      catch: bad_request
-      indices.put_template:
-        name: test
-        body:
-          index_patterns: test-*
-          mappings:
-            _doc:
-              properties:
-                field:
-                  type: keyword
-
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }

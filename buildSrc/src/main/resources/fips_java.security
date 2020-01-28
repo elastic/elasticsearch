@@ -1,0 +1,50 @@
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
+security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
+security.provider.3=SUN
+securerandom.source=file:/dev/urandom
+securerandom.strongAlgorithms=NativePRNGBlocking:SUN,DRBG:SUN
+securerandom.drbg.config=
+login.configuration.provider=sun.security.provider.ConfigFile
+policy.provider=sun.security.provider.PolicyFile
+policy.expandProperties=true
+policy.allowSystemProperty=true
+policy.ignoreIdentityScope=false
+keystore.type=BCFKS
+keystore.type.compat=true
+package.access=sun.misc.,\
+               sun.reflect.
+package.definition=sun.misc.,\
+                   sun.reflect.
+security.overridePropertiesFile=true
+ssl.KeyManagerFactory.algorithm=PKIX
+ssl.TrustManagerFactory.algorithm=PKIX
+networkaddress.cache.negative.ttl=10
+krb5.kdc.bad.policy = tryLast
+jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1 jdkCA & usage TLSServer, \
+    RSA keySize < 1024, DSA keySize < 1024, EC keySize < 224
+jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, \
+      DSA keySize < 1024
+jdk.tls.disabledAlgorithms=SSLv3, RC4, MD5withRSA, DH keySize < 1024, \
+    EC keySize < 224, DES40_CBC, RC4_40, 3DES_EDE_CBC
+jdk.tls.legacyAlgorithms= \
+        K_NULL, C_NULL, M_NULL, \
+        DH_anon, ECDH_anon, \
+        RC4_128, RC4_40, DES_CBC, DES40_CBC, \
+        3DES_EDE_CBC
+jdk.tls.keyLimits=AES/GCM/NoPadding KeyUpdate 2^37
+crypto.policy=unlimited
+jdk.xml.dsig.secureValidationPolicy=\
+    disallowAlg http://www.w3.org/TR/1999/REC-xslt-19991116,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#rsa-md5,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#hmac-md5,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#md5,\
+    maxTransforms 5,\
+    maxReferences 30,\
+    disallowReferenceUriSchemes file http https,\
+    minKeySize RSA 1024,\
+    minKeySize DSA 1024,\
+    minKeySize EC 224,\
+    noDuplicateIds,\
+    noRetrievalMethodLoops
+jceks.key.serialFilter = java.base/java.lang.Enum;java.base/java.security.KeyRep;\
+  java.base/java.security.KeyRep$Type;java.base/javax.crypto.spec.SecretKeySpec;!*

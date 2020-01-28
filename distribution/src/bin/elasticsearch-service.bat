@@ -131,32 +131,40 @@ echo %ES_JAVA_OPTS%
 @setlocal EnableDelayedExpansion
 for %%a in ("%ES_JAVA_OPTS:;=","%") do (
   set var=%%a
+  set other_opt=true
   if "!var:~1,4!" == "-Xms" (
     set XMS=!var:~5,-1!
+    set other_opt=false
     call:convertxm !XMS! JVM_MS
   )
   if "!var:~1,16!" == "-XX:MinHeapSize=" (
     set XMS=!var:~17,-1!
+    set other_opt=false
     call:convertxm !XMS! JVM_MS
   )
   if "!var:~1,4!" == "-Xmx" (
     set XMX=!var:~5,-1!
+    set other_opt=false
     call:convertxm !XMX! JVM_MX
   )
   if "!var:~1,16!" == "-XX:MaxHeapSize=" (
     set XMX=!var:~17,-1!
+    set other_opt=false
     call:convertxm !XMX! JVM_MX
   )
   if "!var:~1,4!" == "-Xss" (
     set XSS=!var:~5,-1!
+    set other_opt=false
     call:convertxk !XSS! JVM_SS
   )
   if "!var:~1,20!" == "-XX:ThreadStackSize=" (
     set XSS=!var:~21,-1!
+    set other_opt=false
     call:convertxk !XSS! JVM_SS
   )
+  if "!other_opt!" == "true" set OTHER_JAVA_OPTS=!OTHER_JAVA_OPTS!;!var!
 )
-@endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS%
+@endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS% & set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS%
 
 if "%JVM_MS%" == "" (
   echo minimum heap size not set; configure using -Xms via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
@@ -170,6 +178,8 @@ if "%JVM_SS%" == "" (
   echo thread stack size not set; configure using -Xss via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
   goto:eof
 )
+set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:"=%
+set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:~1%
 
 set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%";-Des.bundled_jdk="%ES_BUNDLED_JDK%"
 
@@ -184,7 +194,7 @@ if not "%SERVICE_USERNAME%" == "" (
 		set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser "%SERVICE_USERNAME%" --ServicePassword "%SERVICE_PASSWORD%"
 	)
 )
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service

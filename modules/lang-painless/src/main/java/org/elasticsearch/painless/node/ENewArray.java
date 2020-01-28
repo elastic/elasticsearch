@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.NewArrayNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
@@ -46,13 +43,6 @@ public final class ENewArray extends AExpression {
         this.type = Objects.requireNonNull(type);
         this.arguments = Objects.requireNonNull(arguments);
         this.initialize = initialize;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
-        }
     }
 
     @Override
@@ -87,32 +77,18 @@ public final class ENewArray extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    NewArrayNode write() {
+        NewArrayNode newArrayNode = new NewArrayNode();
 
-        if (initialize) {
-            methodWriter.push(arguments.size());
-            methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
-
-            for (int index = 0; index < arguments.size(); ++index) {
-                AExpression argument = arguments.get(index);
-
-                methodWriter.dup();
-                methodWriter.push(index);
-                argument.write(classWriter, methodWriter, globals);
-                methodWriter.arrayStore(MethodWriter.getType(actual.getComponentType()));
-            }
-        } else {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            if (arguments.size() > 1) {
-                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
-            } else {
-                methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
-            }
+        for (AExpression argument : arguments) {
+            newArrayNode.addArgumentNode(argument.write());
         }
+
+        newArrayNode.setLocation(location);
+        newArrayNode.setExpressionType(actual);
+        newArrayNode.setInitialize(initialize);
+
+        return newArrayNode;
     }
 
     @Override

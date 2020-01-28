@@ -19,7 +19,7 @@ PUT /twitter
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
-You can use the create index API to add a new index to an {es} cluster. When 
+You can use the create index API to add a new index to an {es} cluster. When
 creating an index, you can specify the following:
 
 * Settings for the index
@@ -44,14 +44,13 @@ Index names must meet the following criteria:
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+- Names starting with `.` are deprecated, except for <<index-hidden,hidden indices>> and internal indices managed by plugins
 // end::index-name-reqs[]
 --
 
 
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
@@ -134,10 +133,6 @@ PUT /test
     }
 }
 --------------------------------------------------
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [[create-index-aliases]]
 ===== Aliases

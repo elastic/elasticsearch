@@ -189,9 +189,11 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         final Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "saml.saml_a.order", 1)
                 .put(RealmSettings.PREFIX + "saml.saml_a.type", "saml")
                 .put(RealmSettings.PREFIX + "saml.saml_a.sp.entity_id", "https://saml.a/")
                 .put(RealmSettings.PREFIX + "saml.saml_a.sp.acs", "https://saml.a/acs")
+                .put(RealmSettings.PREFIX + "saml.saml_b.order", 2)
                 .put(RealmSettings.PREFIX + "saml.saml_b.type", "saml")
                 .put(RealmSettings.PREFIX + "saml.saml_b.sp.entity_id", "https://saml.b/")
                 .put(RealmSettings.PREFIX + "saml.saml_b.sp.acs", "https://saml.b/acs")
@@ -221,6 +223,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         final Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "saml.saml1.order", 1)
                 .put(RealmSettings.PREFIX + "saml.saml1.type", "saml")
                 .put(RealmSettings.PREFIX + "saml.saml1.sp.entity_id", "https://saml.example.com/")
                 .put(RealmSettings.PREFIX + "saml.saml1.sp.acs", "https://saml.example.com/")
@@ -275,6 +278,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         final Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "saml.saml1.order", 1)
                 .put(RealmSettings.PREFIX + "saml.saml1.type", "saml")
                 .put(RealmSettings.PREFIX + "saml.saml1.sp.entity_id", "https://saml.example.com/")
                 .put(RealmSettings.PREFIX + "saml.saml1.sp.acs", "https://saml.example.com/")

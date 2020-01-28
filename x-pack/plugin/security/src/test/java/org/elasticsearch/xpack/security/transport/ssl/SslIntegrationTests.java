@@ -118,6 +118,9 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings.Builder builder = Settings.builder().put("xpack.security.http.ssl.enabled", true);
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         addSSLSettingsForPEMFiles(
             builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient",

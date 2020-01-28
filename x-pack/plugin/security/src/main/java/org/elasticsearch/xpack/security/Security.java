@@ -642,10 +642,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return settingsList;
         }
 
-        // The following just apply in node mode
-        settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
-
-        settingsList.add(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
         // IP Filter settings
         IPFilter.addSettings(settingsList);
 

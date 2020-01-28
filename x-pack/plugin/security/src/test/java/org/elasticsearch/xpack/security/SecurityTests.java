@@ -98,10 +98,14 @@ public class SecurityTests extends ESTestCase {
         if (security != null) {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .put("xpack.security.enabled", true)
             .put(testSettings)
-            .put("path.home", createTempDir()).build();
+            .put("path.home", createTempDir());
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(settings, env);

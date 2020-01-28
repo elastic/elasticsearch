@@ -92,7 +92,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
             .build();
-        final Settings sslSettings = Settings.builder()
+        Settings.Builder sslSettingsBuilder = Settings.builder();
+        if (inFipsJvm()) {
+            sslSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        final Settings sslSettings = sslSettingsBuilder
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate")
             .put("path.home", createTempDir())
             .build();

@@ -25,6 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
@@ -62,8 +63,11 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-
-        globalSettings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        globalSettings = builder
             .put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.enabled", false)
             .put("xpack.security.transport.ssl.certificate_authorities", certPath)

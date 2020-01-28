@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
 /**
@@ -37,7 +37,7 @@ public class Ceil extends MathFunction {
         if (result == null) {
             return null;
         }
-        return DataTypeConversion.toInteger((double) result, dataType());
+        return DataTypeConverter.toInteger((double) result, dataType());
     }
 
     @Override
@@ -47,6 +47,6 @@ public class Ceil extends MathFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypeConversion.asInteger(field().dataType());
+        return DataTypeConverter.asInteger(field().dataType());
     }
 }

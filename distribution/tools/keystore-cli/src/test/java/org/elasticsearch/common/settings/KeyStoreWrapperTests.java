@@ -114,7 +114,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             SecurityException.class,
             () -> loadedkeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
         );
-        assertThat(exception.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+        assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {

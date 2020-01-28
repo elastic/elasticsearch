@@ -41,12 +41,22 @@ if [[ -f bin/elasticsearch-users ]]; then
   # honor the variable if it's present.
   if [[ -n "$ELASTIC_PASSWORD" ]]; then
     [[ -f /usr/share/elasticsearch/config/elasticsearch.keystore ]] || (elasticsearch-keystore create)
-    if ! (elasticsearch-keystore list | grep -q '^bootstrap.password$'); then
-      (echo "$ELASTIC_PASSWORD" | elasticsearch-keystore add -x 'bootstrap.password')
+    if ! (elasticsearch-keystore has-passwd --silent) ; then
+      # keystore is unencrypted
+      if ! (elasticsearch-keystore list | grep -q '^bootstrap.password$'); then
+        (echo "$ELASTIC_PASSWORD" | elasticsearch-keystore add -x 'bootstrap.password')
+      fi
+    else
+      # keystore requires password
+      if ! (echo "$KEYSTORE_PASSWORD" \
+          | elasticsearch-keystore list | grep -q '^bootstrap.password$') ; then
+        COMMANDS="$(printf "%s\n%s" "$KEYSTORE_PASSWORD" "$ELASTIC_PASSWORD")"
+        (echo "$COMMANDS" | elasticsearch-keystore add -x 'bootstrap.password')
+      fi
     fi
   fi
 fi
 
 # Signal forwarding and child reaping is handled by `tini`, which is the
 # actual entrypoint of the container
-exec /usr/share/elasticsearch/bin/elasticsearch
+exec /usr/share/elasticsearch/bin/elasticsearch <<<"$KEYSTORE_PASSWORD"

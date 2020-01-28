@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -63,10 +64,13 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
     }
 
     private RealmConfig buildRealmConfig(String name, Settings settings) {
-        return new RealmConfig(new RealmConfig.RealmIdentifier("test", name),
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("test", name);
+        return new RealmConfig(
+            realmIdentifier,
             Settings.builder().put(settings)
                 .normalizePrefix("xpack.security.authc.realms.test." + name + ".")
                 .put(globalSettings)
+                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build(),
             env, threadContext);
     }

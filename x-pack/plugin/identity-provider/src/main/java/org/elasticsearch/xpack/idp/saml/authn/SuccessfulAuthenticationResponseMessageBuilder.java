@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.opensaml.core.xml.schema.XSString;
+import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AttributeStatement;
@@ -35,6 +36,7 @@ import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
+import org.w3c.dom.Element;
 
 import java.time.Clock;
 import java.util.Collection;
@@ -82,11 +84,6 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         }
         response.getAssertions().add(assertion);
 
-        return sign(response);
-    }
-
-    private Response sign(Response response) {
-        // TODO
         return response;
     }
 

@@ -11,7 +11,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -21,16 +20,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheFile.RANGE_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
-        final Settings cacheSettings = randomCacheSettings();
-        final long cacheSize = CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(cacheSettings).getBytes();
-
-        try (CacheService cacheService = new CacheService(cacheSettings)) {
+        try (CacheService cacheService = createCacheService()) {
             cacheService.start();
 
             for (int i = 0; i < 5; i++) {
@@ -38,8 +33,8 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
                 Directory directory = new SingleFileDirectory(fileName, input);
-                if (input.length <= cacheSize) {
-                    directory = new CountingDirectory(directory);
+                if (input.length <= cacheService.getCacheSize()) {
+                    directory = new CountingDirectory(directory, cacheService.getRangeSize());
                 }
 
                 try (CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir())) {
@@ -52,7 +47,7 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 }
 
                 if (directory instanceof CountingDirectory) {
-                    long numberOfRanges = numberOfRanges(input.length);
+                    long numberOfRanges = numberOfRanges(input.length, cacheService.getRangeSize());
                     assertThat("Expected " + numberOfRanges + " ranges fetched from the source",
                         ((CountingDirectory) directory).totalOpens.sum(), equalTo(numberOfRanges));
                     assertThat("All bytes should have been read from source",
@@ -64,18 +59,17 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
-    private static Settings randomCacheSettings() {
-        final Settings.Builder cacheSettings = Settings.builder();
-        if (randomBoolean()) {
-            cacheSettings.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
-        }
-        return cacheSettings.build();
+    private CacheService createCacheService() {
+        final ByteSizeValue cacheSize = new ByteSizeValue(randomIntBetween(1, 100),
+            randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB));
+        final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(1, 100),
+            randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB));
+        return new CacheService(cacheSize, rangeSize);
     }
 
-    private static long numberOfRanges(int fileSize) {
-        long numberOfRanges = fileSize / RANGE_SIZE;
-        if (fileSize % RANGE_SIZE > 0) {
+    private static long numberOfRanges(int fileSize, int rangeSize) {
+        long numberOfRanges = fileSize / rangeSize;
+        if (fileSize % rangeSize > 0) {
             numberOfRanges++;
         }
         if (numberOfRanges == 0) {
@@ -133,13 +127,16 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
 
-        CountingDirectory(Directory in) {
+        private final int rangeSize;
+
+        CountingDirectory(Directory in, int rangeSize) {
             super(in);
+            this.rangeSize = rangeSize;
         }
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            return new CountingIndexInput(this, super.openInput(name, context));
+            return new CountingIndexInput(this, super.openInput(name, context), rangeSize);
         }
     }
 
@@ -151,15 +148,17 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
 
         private final CountingDirectory dir;
         private final IndexInput in;
+        private final int rangeSize;
 
         private long bytesRead = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
 
-        CountingIndexInput(CountingDirectory directory, IndexInput input) {
+        CountingIndexInput(CountingDirectory directory, IndexInput input, int rangeSize) {
             super("CountingIndexInput(" + input + ")");
             this.dir = Objects.requireNonNull(directory);
             this.in = Objects.requireNonNull(input);
+            this.rangeSize = rangeSize;
             dir.totalOpens.increment();
         }
 
@@ -199,36 +198,36 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            return new CountingIndexInput(dir, in.slice(sliceDescription, offset, length));
+            return new CountingIndexInput(dir, in.slice(sliceDescription, offset, length), rangeSize);
         }
 
         @Override
         public IndexInput clone() {
-            return new CountingIndexInput(dir, in.clone());
+            return new CountingIndexInput(dir, in.clone(), rangeSize);
         }
 
         @Override
         public void close() throws IOException {
             in.close();
-            if (start % RANGE_SIZE != 0) {
+            if (start % rangeSize != 0) {
                 throw new AssertionError("Read operation should start at the beginning of a range");
             }
-            if (end % RANGE_SIZE != 0) {
+            if (end % rangeSize != 0) {
                 if (end != in.length()) {
                     throw new AssertionError("Read operation should finish at the end of a range or the end of the file");
                 }
             }
-            if (in.length() <= RANGE_SIZE) {
+            if (in.length() <= rangeSize) {
                 if (bytesRead != in.length()) {
                     throw new AssertionError("All [" + in.length() + "] bytes should have been read, no more no less but got:" + bytesRead);
                 }
             } else {
-                if (bytesRead != RANGE_SIZE) {
+                if (bytesRead != rangeSize) {
                     if (end != in.length()) {
-                        throw new AssertionError("Expecting [" + RANGE_SIZE + "] bytes to be read but got:" + bytesRead);
+                        throw new AssertionError("Expecting [" + rangeSize + "] bytes to be read but got:" + bytesRead);
 
                     }
-                    final long remaining = in.length() % RANGE_SIZE;
+                    final long remaining = in.length() % rangeSize;
                     if (bytesRead != remaining) {
                         throw new AssertionError("Expecting [" + remaining + "] bytes to be read but got:" + bytesRead);
                     }

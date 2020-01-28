@@ -61,7 +61,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING,
             SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING,
             SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING,
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING
+            CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
         );
     }
 

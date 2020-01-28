@@ -383,7 +383,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     public boolean hasNamedQueries() {
-        return parsedQuery().matchNamedQueries() || (parsedPostFilter() != null && parsedPostFilter().matchNamedQueries());
+        return (parsedQuery() != null && parsedQuery().matchNamedQueries())
+            || (parsedPostFilter() != null && parsedPostFilter().matchNamedQueries());
     }
 
     @Override

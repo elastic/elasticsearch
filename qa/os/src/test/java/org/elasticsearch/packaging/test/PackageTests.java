@@ -105,7 +105,7 @@ public class PackageTests extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"),
             containsString(systemJavaHome));
     }
 
@@ -162,6 +162,7 @@ public class PackageTests extends PackagingTestCase {
 
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
+        stopElasticsearch();
     }
 
     public void test50Remove() throws Exception {

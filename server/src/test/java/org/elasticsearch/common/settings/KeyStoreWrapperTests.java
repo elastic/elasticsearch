@@ -84,7 +84,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         byte[] bytes = new byte[256];
         for (int i = 0; i < 256; ++i) {
-            bytes[i] = (byte)i;
+            bytes[i] = (byte) i;
         }
         keystore.setFile("foo", bytes);
         keystore.save(env.configFile(), new char[0]);
@@ -113,7 +113,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
         final SecurityException exception = expectThrows(SecurityException.class,
             () -> loadedkeystore.decrypt(new char[]{'i', 'n', 'v', 'a', 'l', 'i', 'd'}));
-        assertThat(exception.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+        assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {
@@ -388,7 +388,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             byte[] base64Bytes = Base64.getEncoder().encode(fileBytes);
             char[] chars = new char[base64Bytes.length];
             for (int i = 0; i < chars.length; ++i) {
-                chars[i] = (char)base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
+                chars[i] = (char) base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
             }
             secretKey = secretFactory.generateSecret(new PBEKeySpec(chars));
             keystore.setEntry("file_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);

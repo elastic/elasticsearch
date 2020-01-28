@@ -52,6 +52,10 @@ public interface Transport extends LifecycleComponent {
 
     void setMessageListener(TransportMessageListener listener);
 
+    default boolean isSecure() {
+        return false;
+    }
+
     /**
      * The address the transport is bound on.
      */

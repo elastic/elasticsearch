@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.hamcrest.Matchers;
 
@@ -19,7 +20,7 @@ import java.nio.file.Path;
 public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testPkiRealmBootstrapDefault() throws Exception {
-        final Settings settings = Settings.EMPTY;
+        final Settings settings = getSettingsBuilder().build();
         final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         assertFalse(runCheck(settings, env).isFailure());
     }
@@ -29,7 +30,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
                 .put("xpack.security.authc.realms.pki.test_pki.order", 0)
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
@@ -39,7 +40,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
 
         // enable transport tls
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
-        settings = Settings.builder().put(settings)
+        settings = getSettingsBuilder().put(settings)
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.certificate", certPath)
                 .put("xpack.security.transport.ssl.key", keyPath)
@@ -48,7 +49,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
 
         // enable ssl for http
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        settings = Settings.builder().put(settings)
+        settings = getSettingsBuilder().put(settings)
                 .put("xpack.security.transport.ssl.enabled", false)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.certificate", certPath)
@@ -58,28 +59,28 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         assertTrue(runCheck(settings, env).isFailure());
 
         // enable client auth for http
-        settings = Settings.builder().put(settings)
+        settings = getSettingsBuilder().put(settings)
                 .put("xpack.security.http.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
 
         // disable http ssl
-        settings = Settings.builder().put(settings)
+        settings = getSettingsBuilder().put(settings)
                 .put("xpack.security.http.ssl.enabled", false)
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertTrue(runCheck(settings, env).isFailure());
 
         // set transport client auth
-        settings = Settings.builder().put(settings)
+        settings = getSettingsBuilder().put(settings)
                 .put("xpack.security.transport.client_authentication", randomFrom("required", "optional"))
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertTrue(runCheck(settings, env).isFailure());
 
         // test with transport profile
-        settings = Settings.builder().put(settings)
+        settings = getSettingsBuilder().put(settings)
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.client_authentication", "none")
                 .put("transport.profiles.foo.xpack.security.ssl.client_authentication", randomFrom("required", "optional"))
@@ -93,7 +94,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
     }
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
                 .put("xpack.security.authc.realms.pki.test_pki.enabled", false)
                 .put("xpack.security.transport.ssl.enabled", false)
                 .put("xpack.security.transport.ssl.client_authentication", "none")
@@ -109,7 +110,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         MockSecureSettings secureSettings = new MockSecureSettings();
         // enable transport tls
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
                 .put("xpack.security.authc.realms.pki.test_pki.enabled", true)
                 .put("xpack.security.authc.realms.pki.test_pki.delegation.enabled", true)
                 .put("xpack.security.transport.ssl.enabled", randomBoolean())
@@ -127,7 +128,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         final boolean expectFail = randomBoolean();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
             .put("xpack.security.authc.realms.pki.test_pki.order", 0)
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.client_authentication", expectFail ? "none" : "optional")
@@ -143,5 +144,13 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(new SSLService(settings, env));
         secureSettings.close();
         assertThat(check.check(createTestContext(settings, null)).isFailure(), Matchers.equalTo(expectFail));
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

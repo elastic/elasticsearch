@@ -93,7 +93,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
-        Settings.Builder nodeSettings = Settings.builder()
+        Settings.Builder nodeSettings = getSettingsBuilder()
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
@@ -131,7 +131,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
-        Settings.Builder nodeSettings = Settings.builder()
+        Settings.Builder nodeSettings = getSettingsBuilder()
             .put("xpack.security.authc.realms.file.file.order", 0)
             .put("node.name", "my-test-node")
             .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
@@ -203,6 +203,14 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 latch.await();
             }
         }
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 
 }

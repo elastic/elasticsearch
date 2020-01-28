@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -96,6 +97,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
+        assumeFalse("We disable Diagnostic trust manager in FIPS 140 mode", inFipsJvm());
         final Settings settings = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
             SSLClientAuth.NONE, VerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
@@ -184,6 +186,9 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             .put(prefix + ".key", getPath(keyPath))
             .put(prefix + ".client_authentication", clientAuth.name())
             .put(prefix + ".verification_mode", verificationMode.name());
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         if (caPath != null) {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }

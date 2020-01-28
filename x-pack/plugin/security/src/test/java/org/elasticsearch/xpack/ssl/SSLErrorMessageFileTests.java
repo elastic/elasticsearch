@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
@@ -55,7 +56,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        env = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
         paths = new HashMap<>();
 
         requirePath("ca1.p12");
@@ -130,7 +131,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     public void testMessageForTransportSslEnabledWithoutKeys() throws Exception {
         final String prefix = "xpack.security.transport.ssl";
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = getSettingsBuilder();
         settings.put(prefix + ".enabled", true);
         configureWorkingTruststore(prefix, settings);
 
@@ -142,7 +143,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     public void testNoErrorIfTransportSslDisabledWithoutKeys() throws Exception {
         final String prefix = "xpack.security.transport.ssl";
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = getSettingsBuilder();
         settings.put(prefix + ".enabled", false);
         configureWorkingTruststore(prefix, settings);
         expectSuccess(settings);
@@ -210,7 +211,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private void checkMissingResource(String sslManagerType, String fileType, String configKey,
                                       BiConsumer<String, Settings.Builder> configure) {
         final String prefix = randomSslPrefix();
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = getSettingsBuilder();
         configure.accept(prefix, settings);
 
         final String fileName = missingFile();
@@ -234,7 +235,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private void checkUnreadableResource(String sslManagerType, String fromResource, String fileType, String configKey,
                                          BiConsumer<String, Settings.Builder> configure) throws Exception {
         final String prefix = randomSslPrefix();
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings =getSettingsBuilder();
         configure.accept(prefix, settings);
 
         final String fileName = unreadableFile(fromResource);
@@ -258,7 +259,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private void checkBlockedResource(String sslManagerType, String fileType, String configKey,
                                       BiConsumer<String, Settings.Builder> configure) throws Exception {
         final String prefix = randomSslPrefix();
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = getSettingsBuilder();
         configure.accept(prefix, settings);
 
         final String fileName = blockedFile();
@@ -281,7 +282,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private void checkUnusedConfiguration(String prefix, String settingsConfigured, BiConsumer<String, Settings.Builder> configure) {
-        final Settings.Builder settings = Settings.builder();
+        final Settings.Builder settings = getSettingsBuilder();
         configure.accept(prefix, settings);
 
         expectSuccess(settings);
@@ -323,12 +324,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     private Settings.Builder withKey(String fileName) {
         assertThat(fileName, endsWith(".key"));
-        return Settings.builder().put("key", resource(fileName));
+        return getSettingsBuilder().put("key", resource(fileName));
     }
 
     private Settings.Builder withCertificate(String fileName) {
         assertThat(fileName, endsWith(".crt"));
-        return Settings.builder().put("certificate", resource(fileName));
+        return getSettingsBuilder().put("certificate", resource(fileName));
     }
 
     private Settings.Builder configureWorkingTruststore(String prefix, Settings.Builder settings) {
@@ -377,5 +378,13 @@ public class SSLErrorMessageFileTests extends ESTestCase {
             "xpack.security.authc.realms.saml.saml1.ssl",
             "xpack.monitoring.exporters.http.ssl"
         );
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        final Settings.Builder settings = Settings.builder();
+        if (inFipsJvm()) {
+            settings.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return settings;
     }
 }

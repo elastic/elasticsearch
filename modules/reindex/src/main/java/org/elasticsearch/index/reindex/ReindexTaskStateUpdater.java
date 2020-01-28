@@ -45,7 +45,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final ThreadPool threadPool;
     private final String taskId;
     private final long allocationId;
-    private final boolean persistent;
+    private final boolean resilient;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
     private final Runnable onCheckpointAssignmentConflict;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
@@ -54,13 +54,13 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String taskId, long allocationId,
-                                   boolean persistent, ActionListener<ReindexTaskStateDoc> finishedListener,
+                                   boolean resilient, ActionListener<ReindexTaskStateDoc> finishedListener,
                                    Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.taskId = taskId;
         this.allocationId = allocationId;
-        this.persistent = persistent;
+        this.resilient = resilient;
         this.finishedListener = finishedListener;
         this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
     }
@@ -79,7 +79,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
                 assert oldDoc.getAllocationId() == null || allocationId != oldDoc.getAllocationId();
 
-                ElasticsearchException assignmentFailureReason = assignmentFailureReason(oldDoc, persistent);
+                ElasticsearchException assignmentFailureReason = assignmentFailureReason(oldDoc, resilient);
 
 
                 if (assignmentFailureReason == null) {

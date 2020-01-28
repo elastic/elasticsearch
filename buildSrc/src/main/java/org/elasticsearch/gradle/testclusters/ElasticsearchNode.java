@@ -1209,10 +1209,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ElasticsearchNode that = (ElasticsearchNode) o;
         return Objects.equals(name, that.name) && Objects.equals(path, that.path);
     }

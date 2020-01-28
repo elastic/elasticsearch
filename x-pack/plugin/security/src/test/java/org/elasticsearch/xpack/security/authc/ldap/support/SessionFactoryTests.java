@@ -69,7 +69,6 @@ public class SessionFactoryTests extends ESTestCase {
         {
             Settings settings = Settings.builder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "10s")
-                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                     .put("path.home", pathHome)
                     .build();
 
@@ -81,7 +80,6 @@ public class SessionFactoryTests extends ESTestCase {
         {
             Settings settings = Settings.builder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "7s")
-                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                     .put("path.home", pathHome)
                     .build();
 
@@ -96,7 +94,6 @@ public class SessionFactoryTests extends ESTestCase {
             Settings settings = Settings.builder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "11s")
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "6s")
-                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                     .put("path.home", pathHome)
                     .build();
 
@@ -110,7 +107,6 @@ public class SessionFactoryTests extends ESTestCase {
         {
             Settings settings = Settings.builder()
                     .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_LDAP_SETTING), "750ms")
-                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                     .put("path.home", pathHome)
                     .build();
 

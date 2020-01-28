@@ -75,7 +75,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
     private static class SyncedFlushEngine extends InternalEngine {
         private volatile IndexWriter indexWriter;
 
-        public SyncedFlushEngine(EngineConfig engineConfig) {
+        SyncedFlushEngine(EngineConfig engineConfig) {
             super(engineConfig);
         }
 

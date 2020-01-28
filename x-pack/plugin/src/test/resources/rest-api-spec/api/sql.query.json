@@ -1,7 +1,8 @@
 {
   "sql.query":{
     "documentation":{
-      "url":"Execute SQL"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-rest-overview.html",
+      "description":"Executes an SQL request"
     },
     "stability":"stable",
     "url":{

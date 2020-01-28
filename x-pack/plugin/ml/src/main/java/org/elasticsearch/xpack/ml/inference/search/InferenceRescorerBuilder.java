@@ -219,10 +219,13 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             this.model = model;
             this.inferenceConfig = inferenceConfig;
             this.fieldMap = fieldMap;
+            String foo = "\.".split()
         }
 
         @Override
         public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) {
+
+            model.
 
             Map<String, Object> doc = buildDoc(fieldMap);
             InferenceResults results = model.infer(doc, inferenceConfig);

@@ -68,6 +68,10 @@ public class LocalModel implements Model {
         return modelId;
     }
 
+    public Set<String> getFieldNames() {
+        return fieldNames;
+    }
+
     @Override
     public InferenceStats getLatestStatsAndReset() {
         return statsAccumulator.currentStatsAndReset();

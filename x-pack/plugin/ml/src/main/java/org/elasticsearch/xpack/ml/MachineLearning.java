@@ -368,7 +368,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     };
 
     public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-        return Collections.singletonList(new InferenceFetchSubPhase());
+//        return Collections.singletonList(new InferenceFetchSubPhase());
+        return Collections.emptyList();
     }
 
     @Override

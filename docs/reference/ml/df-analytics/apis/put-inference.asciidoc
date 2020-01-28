@@ -279,7 +279,7 @@ models).
 `weighted_mode`::
 (Optional, object) 
 This `aggregated_output` type works with regression or classification. It takes 
-a weighted vote of the input values. The the most common input value (taking the 
+a weighted vote of the input values. The most common input value (taking the 
 weights into account) is returned.
 
 `weighted_mode`.`weights`:::

@@ -443,7 +443,7 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-deprecated[7.5] The TCP read timeout period after establishing an LDAP
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
 connection. This is equivalent to and is deprecated in favor of
 `timeout.response` and they cannot be used simultaneously. An `s` at the end
 indicates seconds, or `ms` indicates milliseconds.
@@ -698,7 +698,7 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-deprecated[7.5] The TCP read timeout period after establishing an LDAP
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
 connection.  This is equivalent to and is deprecated in favor of
 `timeout.response` and they cannot be used simultaneously. An `s` at the end
 indicates seconds, or `ms` indicates milliseconds. Defaults to the value of

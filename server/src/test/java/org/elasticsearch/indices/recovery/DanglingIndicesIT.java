@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class DanglingIndicesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test-idx-1";
+    private static final String OTHER_INDEX_NAME = INDEX_NAME + "-other";
 
     private Settings buildSettings(int maxTombstones, boolean writeDanglingIndices, boolean importDanglingIndices) {
         return Settings.builder()
@@ -80,15 +81,22 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
         ensureGreen(INDEX_NAME);
-        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
-            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+        assertBusy(
+            () -> internalCluster().getInstances(IndicesService.class)
+                .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
+        );
 
         boolean refreshIntervalChanged = randomBoolean();
         if (refreshIntervalChanged) {
-            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(
-                Settings.builder().put("index.refresh_interval", "42s").build()).get();
-            assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
-                indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put("index.refresh_interval", "42s").build())
+                .get();
+            assertBusy(
+                () -> internalCluster().getInstances(IndicesService.class)
+                    .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
+            );
         }
 
         if (randomBoolean()) {
@@ -109,8 +117,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
         if (refreshIntervalChanged) {
-            assertThat(client().admin().indices().prepareGetSettings(INDEX_NAME).get().getSetting(INDEX_NAME, "index.refresh_interval"),
-                equalTo("42s"));
+            assertThat(
+                client().admin().indices().prepareGetSettings(INDEX_NAME).get().getSetting(INDEX_NAME, "index.refresh_interval"),
+                equalTo("42s")
+            );
         }
         ensureGreen(INDEX_NAME);
     }
@@ -124,8 +134,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
         ensureGreen(INDEX_NAME);
-        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
-            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+        assertBusy(
+            () -> internalCluster().getInstances(IndicesService.class)
+                .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
+        );
 
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -154,8 +166,8 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
         ensureGreen(INDEX_NAME);
-        internalCluster().getInstances(IndicesService.class).forEach(
-            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()));
+        internalCluster().getInstances(IndicesService.class)
+            .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()));
 
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -371,7 +383,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        createIndex(INDEX_NAME + "-other", Settings.builder().put("number_of_replicas", 2).build());
+        createIndex(OTHER_INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -383,7 +395,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 ensureClusterSizeConsistency();
                 stoppedNodeName.set(nodeName);
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME + "-other"));
+                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -437,12 +449,14 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
     public void testDanglingIndexOverMultipleNodesCanBeDeleted() throws Exception {
         final Settings settings = buildSettings(1, true, false);
+        // We're going to shut down 2 nodes, so we need 5 nodes in order to keep quorum
         internalCluster().startNodes(5, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 4).build());
-        createIndex(INDEX_NAME + "-other", Settings.builder().put("number_of_replicas", 4).build());
+        createIndex(OTHER_INDEX_NAME, Settings.builder().put("number_of_replicas", 4).build());
 
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
+        // We need to ensure that all the replicas are set up before we start turning off nodes
+        ensureGreen(INDEX_NAME, OTHER_INDEX_NAME);
 
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNodes(2, new InternalTestCluster.RestartCallback() {
@@ -451,14 +465,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             public void onAllNodesStopped() {
                 ensureClusterSizeConsistency();
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME + "-other"));
-            }
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                // We don't care which node name we store
-                stoppedNodeName.set(nodeName);
-                return super.onNodeStopped(nodeName);
+                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
             }
         });
 
@@ -471,7 +478,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             // Both the stopped nodes should have found a dangling index.
             assertThat(results, hasSize(2));
             danglingIndices.set(results);
-        }, 60, TimeUnit.SECONDS);
+        });
 
         // Try to delete the index - this request should succeed
         client().admin()
@@ -490,7 +497,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        createIndex(INDEX_NAME + "-other", Settings.builder().put("number_of_replicas", 2).build());
+        createIndex(OTHER_INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -502,7 +509,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 ensureClusterSizeConsistency();
                 stoppedNodeName.set(nodeName);
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME + "-other"));
+                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
         });

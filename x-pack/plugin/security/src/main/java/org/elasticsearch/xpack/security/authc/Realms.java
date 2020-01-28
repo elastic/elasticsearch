@@ -337,7 +337,7 @@ public class Realms implements Iterable<Realm> {
             .map(entry -> entry.getKey() + ": " + entry.getValue())
             .collect(Collectors.joining("; "));
         if (Strings.hasText(duplicateOrders)) {
-            throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders + "");
+            throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders);
         }
     }
 

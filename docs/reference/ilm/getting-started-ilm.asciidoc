@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[getting-started-index-lifecycle-management]]
-== Getting started with {ilm}
+== Get started with {ilm}
 
 Let's jump into {ilm} ({ilm-init}) by working through a hands-on scenario.
 This section will leverage many new concepts unique to {ilm-init} that
@@ -170,7 +170,7 @@ GET datastream-*/_ilm/explain
 The above request will retrieve {ilm-init} execution information for all our
 managed indices.
 
-
+[[36818c6d9f434d387819c30bd9addb14]]
 [source,console-result]
 --------------------------------------------------
 {

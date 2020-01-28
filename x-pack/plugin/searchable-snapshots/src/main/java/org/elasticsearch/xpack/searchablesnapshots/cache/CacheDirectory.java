@@ -59,13 +59,11 @@ public class CacheDirectory extends FilterDirectory {
 
         private final String fileName;
         private final long fileLength;
-        private final Path file;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
 
-        private CacheFileReference(String fileName, long fileLength, Path file) {
+        private CacheFileReference(String fileName, long fileLength) {
             this.fileName = fileName;
             this.fileLength = fileLength;
-            this.file = file;
         }
 
         @Nullable
@@ -75,7 +73,7 @@ public class CacheDirectory extends FilterDirectory {
                 return currentCacheFile;
             }
 
-            final CacheFile newCacheFile = cacheService.get(fileName, fileLength, file);
+            final CacheFile newCacheFile = cacheService.get(fileName, fileLength, cacheDir);
             synchronized (this) {
                 currentCacheFile = cacheFile.get();
                 if (currentCacheFile != null) {
@@ -117,7 +115,7 @@ public class CacheDirectory extends FilterDirectory {
             return "CacheFileReference{" +
                 "fileName='" + fileName + '\'' +
                 ", fileLength=" + fileLength +
-                ", file=" + file +
+                ", cacheDir=" + cacheDir +
                 ", acquired=" + (cacheFile.get() != null) +
                 '}';
         }
@@ -135,7 +133,7 @@ public class CacheDirectory extends FilterDirectory {
         private boolean isClone;
 
         CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
-            this(new CacheFileReference(fileName, fileLength, cacheDir.resolve(fileName)), ioContext,
+            this(new CacheFileReference(fileName, fileLength), ioContext,
                 "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength, false);
         }
 

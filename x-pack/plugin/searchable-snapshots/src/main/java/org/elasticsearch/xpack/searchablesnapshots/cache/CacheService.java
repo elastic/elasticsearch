@@ -64,17 +64,17 @@ public class CacheService extends AbstractLifecycleComponent {
         }
     }
 
-    public CacheFile get(final String name, final long length, final Path file) throws Exception {
+    public CacheFile get(final String fileName, final long length, final Path cacheDir) throws Exception {
         ensureLifecycleStarted();
-        return cache.computeIfAbsent(toCacheKey(file), key -> {
+        return cache.computeIfAbsent(toCacheKey(cacheDir, fileName), key -> {
             ensureLifecycleStarted();
             // generate a random UUID for the name of the cache file on disk
             final String uuid = UUIDs.randomBase64UUID();
             // resolve the cache file on disk w/ the expected cached file
-            final Path path = file.getParent().resolve(uuid);
+            final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(name, length, path);
+            return new CacheFile(fileName, length, path);
         });
     }
 
@@ -94,11 +94,9 @@ public class CacheService extends AbstractLifecycleComponent {
 
     /**
      * Computes the cache key associated to the given Lucene cached file
-     *
-     * @param cacheFile the cached file
-     * @return the cache key
      */
-    private static String toCacheKey(final Path cacheFile) { // TODO Fix this. Cache Key should be computed from snapshot id/index id/shard
-        return cacheFile.toAbsolutePath().toString();
+    private static String toCacheKey(final Path cacheDir, String fileName) {
+        // TODO Fix this. Cache Key should be computed from snapshot id/index id/shard
+        return cacheDir.resolve(fileName).toAbsolutePath().toString();
     }
 }

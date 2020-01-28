@@ -42,8 +42,7 @@ public final class SchemaUtil {
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
 
-    private SchemaUtil() {
-    }
+    private SchemaUtil() {}
 
     public static boolean isNumericType(String type) {
         return type != null && NUMERIC_FIELD_MAPPER_TYPES.contains(type);
@@ -59,10 +58,12 @@ public final class SchemaUtil {
      * @param source Source index that contains the data to pivot
      * @param listener Listener to alert on success or failure.
      */
-    public static void deduceMappings(final Client client,
-                                      final PivotConfig config,
-                                      final String[] source,
-                                      final ActionListener<Map<String, String>> listener) {
+    public static void deduceMappings(
+        final Client client,
+        final PivotConfig config,
+        final String[] source,
+        final ActionListener<Map<String, String>> listener
+    ) {
         // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
         // collects the aggregation types by source name
@@ -70,16 +71,16 @@ public final class SchemaUtil {
         // collects the fieldnames and target fieldnames used for grouping
         Map<String, String> fieldNamesForGrouping = new HashMap<>();
 
-        config.getGroupConfig().getGroups().forEach((destinationFieldName, group) -> {
-            fieldNamesForGrouping.put(destinationFieldName, group.getField());
-        });
+        config.getGroupConfig()
+            .getGroups()
+            .forEach((destinationFieldName, group) -> { fieldNamesForGrouping.put(destinationFieldName, group.getField()); });
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (agg instanceof ValuesSourceAggregationBuilder) {
                 ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
                 aggregationTypes.put(valueSourceAggregation.getName(), valueSourceAggregation.getType());
-            } else if(agg instanceof ScriptedMetricAggregationBuilder || agg instanceof MultiValuesSourceAggregationBuilder) {
+            } else if (agg instanceof ScriptedMetricAggregationBuilder || agg instanceof MultiValuesSourceAggregationBuilder) {
                 aggregationTypes.put(agg.getName(), agg.getType());
             } else {
                 // execution should not reach this point
@@ -98,13 +99,17 @@ public final class SchemaUtil {
         allFieldNames.putAll(aggregationSourceFieldNames);
         allFieldNames.putAll(fieldNamesForGrouping);
 
-        getSourceFieldMappings(client, source, allFieldNames.values().toArray(new String[0]),
+        getSourceFieldMappings(
+            client,
+            source,
+            allFieldNames.values().toArray(new String[0]),
             ActionListener.wrap(
-                sourceMappings -> listener.onResponse(resolveMappings(aggregationSourceFieldNames,
-                    aggregationTypes,
-                    fieldNamesForGrouping,
-                    sourceMappings)),
-                listener::onFailure));
+                sourceMappings -> listener.onResponse(
+                    resolveMappings(aggregationSourceFieldNames, aggregationTypes, fieldNamesForGrouping, sourceMappings)
+                ),
+                listener::onFailure
+            )
+        );
     }
 
     /**
@@ -115,27 +120,29 @@ public final class SchemaUtil {
      * @param index The index, or index pattern, from which to gather all the field mappings
      * @param listener The listener to be alerted on success or failure.
      */
-    public static void getDestinationFieldMappings(final Client client,
-                                                   final String index,
-                                                   final ActionListener<Map<String, String>> listener) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest()
-            .indices(index)
+    public static void getDestinationFieldMappings(
+        final Client client,
+        final String index,
+        final ActionListener<Map<String, String>> listener
+    ) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
             .fields("*")
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        ClientHelper.executeAsyncWithOrigin(client,
+        ClientHelper.executeAsyncWithOrigin(
+            client,
             ClientHelper.TRANSFORM_ORIGIN,
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
-            ActionListener.wrap(
-                r -> listener.onResponse(extractFieldMappings(r)),
-                listener::onFailure
-            ));
+            ActionListener.wrap(r -> listener.onResponse(extractFieldMappings(r)), listener::onFailure)
+        );
     }
 
-    private static Map<String, String> resolveMappings(Map<String, String> aggregationSourceFieldNames,
-                                                       Map<String, String> aggregationTypes,
-                                                       Map<String, String> fieldNamesForGrouping,
-                                                       Map<String, String> sourceMappings) {
+    private static Map<String, String> resolveMappings(
+        Map<String, String> aggregationSourceFieldNames,
+        Map<String, String> aggregationTypes,
+        Map<String, String> fieldNamesForGrouping,
+        Map<String, String> sourceMappings
+    ) {
         Map<String, String> targetMapping = new HashMap<>();
 
         aggregationTypes.forEach((targetFieldName, aggregationName) -> {
@@ -143,8 +150,7 @@ public final class SchemaUtil {
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
             String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
-            logger.debug("Deduced mapping for: [{}], agg type [{}] to [{}]",
-                targetFieldName, aggregationName, destinationMapping);
+            logger.debug("Deduced mapping for: [{}], agg type [{}] to [{}]", targetFieldName, aggregationName, destinationMapping);
 
             if (Aggregations.isDynamicMapping(destinationMapping)) {
                 logger.debug("Dynamic target mapping set for field [{}] and aggregation [{}]", targetFieldName, aggregationName);
@@ -165,34 +171,75 @@ public final class SchemaUtil {
                 targetMapping.put(targetFieldName, "keyword");
             }
         });
+
+        // insert object mappings for nested fields
+        insertNestedObjectMappings(targetMapping);
+
         return targetMapping;
     }
 
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    private static void getSourceFieldMappings(Client client, String[] index, String[] fields,
-                                               ActionListener<Map<String, String>> listener) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest()
-            .indices(index)
+    private static void getSourceFieldMappings(
+        Client client,
+        String[] index,
+        String[] fields,
+        ActionListener<Map<String, String>> listener
+    ) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
             .fields(fields)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, ActionListener.wrap(
-            response -> listener.onResponse(extractFieldMappings(response)),
-            listener::onFailure));
+        client.execute(
+            FieldCapabilitiesAction.INSTANCE,
+            fieldCapabilitiesRequest,
+            ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
+        );
     }
 
     private static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
         Map<String, String> extractedTypes = new HashMap<>();
 
-        response.get().forEach((fieldName, capabilitiesMap) -> {
-            // TODO: overwrites types, requires resolve if
-            // types are mixed
-            capabilitiesMap.forEach((name, capability) -> {
-                logger.trace("Extracted type for [{}] : [{}]", fieldName, capability.getType());
-                extractedTypes.put(fieldName, capability.getType());
-            });
-        });
+        response.get()
+            .forEach(
+                (fieldName, capabilitiesMap) -> {
+                    // TODO: overwrites types, requires resolve if
+                    // types are mixed
+                    capabilitiesMap.forEach((name, capability) -> {
+                        logger.trace("Extracted type for [{}] : [{}]", fieldName, capability.getType());
+                        extractedTypes.put(fieldName, capability.getType());
+                    });
+                }
+            );
         return extractedTypes;
+    }
+
+    /**
+     * Insert object mappings for fields like:
+     *
+     * a.b.c : some_type
+     *
+     * in which case it creates additional mappings:
+     *
+     * a.b : object
+     * a : object
+     *
+     * avoids snafu with index templates injecting incompatible mappings
+     *
+     * @param fieldMappings field mappings to inject to
+     */
+    static void insertNestedObjectMappings(Map<String, String> fieldMappings) {
+        Map<String, String> additionalMappings = new HashMap<>();
+        fieldMappings.keySet().stream().filter(key -> key.contains(".")).forEach(key -> {
+            int pos;
+            String objectKey = key;
+            // lastIndexOf returns -1 on mismatch, but to disallow empty strings check for > 0
+            while ((pos = objectKey.lastIndexOf(".")) > 0) {
+                objectKey = objectKey.substring(0, pos);
+                additionalMappings.putIfAbsent(objectKey, "object");
+            }
+        });
+
+        additionalMappings.forEach(fieldMappings::putIfAbsent);
     }
 }

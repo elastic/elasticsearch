@@ -25,9 +25,12 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,12 +39,42 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyList;
+
 public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
+
+    private static NamedWriteableRegistry namedWriteableRegistry;
+    private static NamedXContentRegistry xContentRegistry;
+
+    @BeforeClass
+    public static void init() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        namedWriteableRegistry = null;
+        xContentRegistry = null;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);

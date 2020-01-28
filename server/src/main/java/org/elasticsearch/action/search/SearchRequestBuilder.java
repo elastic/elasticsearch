@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesContextBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -40,6 +42,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A search action request builder.
@@ -213,7 +216,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         sourceBuilder().version(version);
         return this;
     }
-    
+
     /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
@@ -411,6 +414,21 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder highlighter(HighlightBuilder highlightBuilder) {
         sourceBuilder().highlighter(highlightBuilder);
+        return this;
+    }
+
+    public SearchRequestBuilder matchDetails(MatchesContextBuilder matchesBuilder) {
+        sourceBuilder().matches(matchesBuilder);
+        return this;
+    }
+
+    public SearchRequestBuilder matchDetails(String processor, String... settings) {
+        Settings.Builder sb = Settings.builder();
+        assert settings.length % 2 == 0 : "Settings vararg must be a list of key, value pairs";
+        for (int i = 0; i < settings.length; i += 2) {
+            sb.put(settings[i], settings[i + 1]);
+        }
+        sourceBuilder().matches(new MatchesContextBuilder(Map.of(processor, sb.build())));
         return this;
     }
 

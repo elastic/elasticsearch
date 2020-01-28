@@ -80,6 +80,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesContextBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -846,8 +847,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.matches() != null) {
-            context.matches(source.matches().build(context.parsedQuery().matchNamedQueries()
-                || context.parsedPostFilter().matchNamedQueries()));
+            context.matches(source.matches().build(context.hasNamedQueries()));
+        } else {
+            if (context.hasNamedQueries()) {
+                MatchesContextBuilder mcb = new MatchesContextBuilder(new HashMap<>());
+                context.matches(mcb.build(true));
+            }
         }
         if (source.scriptFields() != null && source.size() != 0) {
             int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();

@@ -27,7 +27,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,6 +46,8 @@ import org.elasticsearch.search.fetch.subphase.matches.NamedQueries;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -61,6 +67,23 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
+
+    private static NamedWriteableRegistry namedWriteableRegistry;
+    private static NamedXContentRegistry xContentRegistry;
+
+    @BeforeClass
+    public static void init() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        namedWriteableRegistry = null;
+        xContentRegistry = null;
+    }
+
     public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
@@ -151,6 +174,16 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         return createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean());
     }
 
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
+
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, false);
@@ -180,7 +213,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
-                || path.contains("inner_hits"));
+                || path.contains("match_details") || path.contains("inner_hits"));
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;

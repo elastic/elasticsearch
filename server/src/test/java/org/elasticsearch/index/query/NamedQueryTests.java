@@ -24,7 +24,6 @@ import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.MatchesUtils;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +38,7 @@ public class NamedQueryTests extends ESTestCase {
     private static class InstanceMatches implements Matches {
 
         @Override
-        public MatchesIterator getMatches(String field) throws IOException {
+        public MatchesIterator getMatches(String field) {
             return null;
         }
 

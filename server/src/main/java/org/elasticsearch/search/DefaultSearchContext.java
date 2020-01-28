@@ -382,6 +382,10 @@ final class DefaultSearchContext extends SearchContext {
         this.highlight = highlight;
     }
 
+    public boolean hasNamedQueries() {
+        return parsedQuery().matchNamedQueries() || (parsedPostFilter() != null && parsedPostFilter().matchNamedQueries());
+    }
+
     @Override
     public MatchesContext matches() {
         return matches;

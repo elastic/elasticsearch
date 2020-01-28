@@ -25,10 +25,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class MatchingTerms extends MatchesResult {
 
@@ -41,10 +43,33 @@ public class MatchingTerms extends MatchesResult {
         this.allMatchingTerms = allMatchingTerms;
         this.termsPerNamedQuery = termsPerNamedQuery;
     }
+
     public MatchingTerms(StreamInput in) throws IOException {
         allMatchingTerms = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
         termsPerNamedQuery = in.readMap(StreamInput::readString,
             i -> i.readMapOfLists(StreamInput::readString, StreamInput::readString));
+    }
+
+    public Set<String> matchedFields() {
+        return allMatchingTerms.keySet();
+    }
+
+    public Set<String> matchedFields(String query) {
+        if (termsPerNamedQuery.containsKey(query)) {
+            return termsPerNamedQuery.get(query).keySet();
+        }
+        return Collections.emptySet();
+    }
+
+    public List<String> matches(String field) {
+        return allMatchingTerms.get(field);
+    }
+
+    public List<String> matches(String query, String field) {
+        if (termsPerNamedQuery.containsKey(query)) {
+            return termsPerNamedQuery.get(query).get(field);
+        }
+        return Collections.emptyList();
     }
 
     @Override

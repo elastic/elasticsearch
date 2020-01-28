@@ -21,13 +21,13 @@ package org.elasticsearch.search.fetch.subphase.matches;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class NamedQueries extends MatchesResult {
 
@@ -77,14 +77,7 @@ public class NamedQueries extends MatchesResult {
         return Objects.hash(names);
     }
 
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<NamedQueries, Void> PARSER = new ConstructingObjectParser<>(NamedQueriesProcessor.NAME,
-        args -> {
-            List<String> names = (List<String>) args[0];
-            return new NamedQueries(names);
-        });
-
     public static NamedQueries fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return new NamedQueries(parser.list().stream().map(Object::toString).collect(Collectors.toList()));
     }
 }

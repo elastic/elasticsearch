@@ -106,11 +106,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE 
 
 f:s                  | l:s           | start:i
 
-Sreekrishna          |Servieres      |1985           
-Zhongwei             |Rosen          |1986           
-Chirstian            |Koblick        |1986           
-null                 |Chappelet      |1988           
-Zvonko               |Nyanchama      |1989     
+Parto                |Bamford        |1995
+Chirstian            |Koblick        |1986
+Duangkaew            |Piveteau       |1996
+Kazuhide             |Peha           |1992
+null                 |Demeyer        |1994
 ;
 
 selectWithScalarOnNestedWithoutProjection
@@ -118,11 +118,11 @@ SELECT first_name f, last_name l FROM test_emp WHERE dep.dep_name = 'Production'
 
 f:s                  | l:s
 
-Sreekrishna          |Servieres      
-Zhongwei             |Rosen          
-Chirstian            |Koblick        
-null                 |Chappelet      
-Zvonko               |Nyanchama  
+Parto                |Bamford
+Chirstian            |Koblick
+Duangkaew            |Piveteau
+Kazuhide             |Peha
+null                 |Demeyer
 ;
 
 //

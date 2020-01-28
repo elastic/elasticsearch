@@ -35,13 +35,6 @@ import java.util.Map;
 
 public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
 
-    public abstract static class AnyValuesSourceParser extends ArrayValuesSourceParser<ValuesSource> {
-
-        protected AnyValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.ANY, null);
-        }
-    }
-
     public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Numeric> {
 
         protected NumericValuesSourceParser(boolean formattable) {

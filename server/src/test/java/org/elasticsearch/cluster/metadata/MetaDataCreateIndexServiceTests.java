@@ -56,9 +56,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -476,26 +480,43 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testValidateIndexName() throws Exception {
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                Collections.emptyList(),
+                false
+            );
+            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
-        validateIndexName("index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName(checkerService, "index#name", "must not contain '#'");
 
-        validateIndexName("index#name", "must not contain '#'");
+            validateIndexName(checkerService, "_indexname", "must not start with '_', '-', or '+'");
+            validateIndexName(checkerService, "-indexname", "must not start with '_', '-', or '+'");
+            validateIndexName(checkerService, "+indexname", "must not start with '_', '-', or '+'");
 
-        validateIndexName("_indexname", "must not start with '_', '-', or '+'");
-        validateIndexName("-indexname", "must not start with '_', '-', or '+'");
-        validateIndexName("+indexname", "must not start with '_', '-', or '+'");
+            validateIndexName(checkerService, "INDEXNAME", "must be lowercase");
 
-        validateIndexName("INDEXNAME", "must be lowercase");
+            validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
-        validateIndexName("..", "must not be '.' or '..'");
-
-        validateIndexName("foo:bar", "must not contain ':'");
+            validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 
-    private void validateIndexName(String indexName, String errorMessage) {
+    private void validateIndexName(MetaDataCreateIndexService metaDataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
-            () -> MetaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).build()));
+            () -> metaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+                .getDefault(Settings.EMPTY)).build(), false));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -562,6 +583,58 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             currentShards,
             maxShards);
         assertThat(e, hasToString(containsString(expectedMessage)));
+    }
+
+    public void testValidateIndexNameChecksSystemIndexNames() {
+        List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test-overlapping", "test-2"));
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                systemIndexDescriptors,
+                false
+            );
+            // Check deprecations
+            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE, false);
+            assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
+                "names starting with a dot are reserved for hidden indices and system indices");
+
+            // Check non-system hidden indices don't trigger a warning
+            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE, true);
+
+            // Check NO deprecation warnings if we give the index name
+            checkerService.validateIndexName(".test", ClusterState.EMPTY_STATE, false);
+            checkerService.validateIndexName(".test3", ClusterState.EMPTY_STATE, false);
+
+            // Check that patterns with wildcards work
+            checkerService.validateIndexName(".pattern-test", ClusterState.EMPTY_STATE, false);
+            checkerService.validateIndexName(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
+            checkerService.validateIndexName(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
+
+            // Check that an exception is thrown if more than one descriptor matches the index name
+            AssertionError exception = expectThrows(AssertionError.class,
+                () -> checkerService.validateIndexName(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
+            assertThat(exception.getMessage(),
+                containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
+            assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
+            assertThat(exception.getMessage(), containsString("pattern: [.pattern-test-overlapping], description: [test-2]"));
+
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {

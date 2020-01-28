@@ -90,6 +90,16 @@ PUT _template/datastream_template
 -----------------------
 // TEST[continued]
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/datastream_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 <1> match all indices starting with "datastream-". These will include all
     newly created indices from actions like rollover
 <2> the name of the lifecycle policy managing the index

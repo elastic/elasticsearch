@@ -19,7 +19,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.TupleMatchers.isTuple;
+import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

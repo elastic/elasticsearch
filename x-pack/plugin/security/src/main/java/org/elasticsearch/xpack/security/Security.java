@@ -43,12 +43,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.reindex.ReindexHeaders;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -56,6 +56,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -130,6 +131,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -234,6 +236,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
+import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
@@ -273,7 +276,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
-public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
+public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(Security.class);
@@ -393,10 +396,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityIndex.get(), threadPool);
+        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(env, client, clusterService,
+            resourceWatcherService, nativeRoleMappingStore);
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));
         for (SecurityExtension extension : securityExtensions) {
-            Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
+            Map<String, Realm.Factory> newRealms = extension.getRealms(extensionComponents);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");
@@ -414,7 +419,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
 
-        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState(),
             xContentRegistry);
@@ -422,7 +427,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
         for (SecurityExtension extension : securityExtensions) {
-            rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
+            rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
         }
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
@@ -438,7 +443,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         getLicenseState().addListener(allRolesStore::invalidateAll);
         getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
-        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService, apiKeyService));
         components.add(authcService.get());
@@ -498,11 +503,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         return authorizationEngine;
     }
 
-    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {
+    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms,
+                                                                            final SecurityExtension.SecurityComponents components) {
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
         for (SecurityExtension extension : securityExtensions) {
-            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
+            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler(components);
             if (extensionFailureHandler != null && failureHandler != null) {
                 throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
                         + "both set an authentication failure handler");
@@ -1063,5 +1069,17 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             groupFactory.set(new NioGroupFactory(settings, logger));
             return groupFactory.get();
          }
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.unmodifiableList(Arrays.asList(
+            new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, this.getClass().getSimpleName()),
+
+            new SystemIndexDescriptor(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, this.getClass().getSimpleName())
+            ));
     }
 }

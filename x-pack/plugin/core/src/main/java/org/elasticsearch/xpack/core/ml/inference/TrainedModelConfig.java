@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.inference;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -34,6 +35,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -352,11 +356,29 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Long estimatedHeapMemory;
         private Long estimatedOperations;
         private LazyModelDefinition definition;
-        private String licenseLevel = License.OperationMode.PLATINUM.description();
+        private String licenseLevel;
+
+        public Builder() {}
+
+        public Builder(TrainedModelConfig config) {
+            this.modelId = config.getModelId();
+            this.createdBy = config.getCreatedBy();
+            this.version = config.getVersion();
+            this.createTime = config.getCreateTime();
+            this.definition = config.definition == null ? null : new LazyModelDefinition(config.definition);
+            this.description = config.getDescription();
+            this.tags = config.getTags();
+            this.metadata = config.getMetadata();
+            this.input = config.getInput();
+        }
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
             return this;
+        }
+
+        public String getModelId() {
+            return this.modelId;
         }
 
         public Builder setCreatedBy(String createdBy) {
@@ -466,51 +488,99 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        // TODO move to REST level instead of here in the builder
-        public void validate() {
-            // We require a definition to be available here even though it will be stored in a different doc
-            ExceptionsHelper.requireNonNull(definition, DEFINITION);
-            ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-
-            if (MlStrings.isValidId(modelId) == false) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, MODEL_ID.getPreferredName(), modelId));
-            }
-
-            if (MlStrings.hasValidLengthForId(modelId) == false) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.ID_TOO_LONG,
-                    MODEL_ID.getPreferredName(),
-                    modelId,
-                    MlStrings.ID_LENGTH_LIMIT));
-            }
-
-            checkIllegalSetting(version, VERSION.getPreferredName());
-            checkIllegalSetting(createdBy, CREATED_BY.getPreferredName());
-            checkIllegalSetting(createTime, CREATE_TIME.getPreferredName());
-            checkIllegalSetting(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
-            checkIllegalSetting(estimatedOperations, ESTIMATED_OPERATIONS.getPreferredName());
-            checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName());
+        public Builder validate() {
+            return validate(false);
         }
 
-        private static void checkIllegalSetting(Object value, String setting) {
-            if (value != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", setting);
+        /**
+         * Runs validations against the builder.
+         * @return The current builder object if validations are successful
+         * @throws ActionRequestValidationException when there are validation failures.
+         */
+        public Builder validate(boolean forCreation) {
+            // We require a definition to be available here even though it will be stored in a different doc
+            ActionRequestValidationException validationException = null;
+            if (definition == null) {
+                validationException = addValidationError("[" + DEFINITION.getPreferredName() + "] must not be null.", validationException);
             }
+            if (modelId == null) {
+                validationException = addValidationError("[" + MODEL_ID.getPreferredName() + "] must not be null.", validationException);
+            }
+
+            if (modelId != null && MlStrings.isValidId(modelId) == false) {
+                validationException = addValidationError(Messages.getMessage(Messages.INVALID_ID,
+                    TrainedModelConfig.MODEL_ID.getPreferredName(),
+                    modelId),
+                    validationException);
+            }
+            if (modelId != null && MlStrings.hasValidLengthForId(modelId) == false) {
+                validationException = addValidationError(Messages.getMessage(Messages.ID_TOO_LONG,
+                    TrainedModelConfig.MODEL_ID.getPreferredName(),
+                    modelId,
+                    MlStrings.ID_LENGTH_LIMIT), validationException);
+            }
+            List<String> badTags = tags.stream()
+                .filter(tag -> (MlStrings.isValidId(tag) && MlStrings.hasValidLengthForId(tag)) == false)
+                .collect(Collectors.toList());
+            if (badTags.isEmpty() == false) {
+                validationException = addValidationError(Messages.getMessage(Messages.INFERENCE_INVALID_TAGS,
+                    badTags,
+                    MlStrings.ID_LENGTH_LIMIT),
+                    validationException);
+            }
+
+            for(String tag : tags) {
+                if (tag.equals(modelId)) {
+                    validationException = addValidationError("none of the tags must equal the model_id", validationException);
+                    break;
+                }
+            }
+            if (input != null && input.getFieldNames().isEmpty()) {
+                validationException = addValidationError("[input.field_names] must not be empty", validationException);
+            }
+            if (forCreation) {
+                validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(estimatedHeapMemory,
+                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                    validationException);
+                validationException = checkIllegalSetting(estimatedOperations,
+                    ESTIMATED_OPERATIONS.getPreferredName(),
+                    validationException);
+                validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+            }
+
+            if (validationException != null) {
+                throw validationException;
+            }
+
+            return this;
+        }
+
+        private static ActionRequestValidationException checkIllegalSetting(Object value,
+                                                                            String setting,
+                                                                            ActionRequestValidationException validationException) {
+            if (value != null) {
+                return addValidationError("illegal to set [" + setting + "] at inference model creation", validationException);
+            }
+            return validationException;
         }
 
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
-                createdBy,
-                version,
+                createdBy == null ? "user" : createdBy,
+                version == null ? Version.CURRENT : version,
                 description,
                 createTime == null ? Instant.now() : createTime,
                 definition,
                 tags,
                 metadata,
                 input,
-                estimatedHeapMemory,
-                estimatedOperations,
-                licenseLevel);
+                estimatedHeapMemory == null ? 0 : estimatedHeapMemory,
+                estimatedOperations == null ? 0 : estimatedOperations,
+                licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel);
         }
     }
 
@@ -529,6 +599,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
             return new LazyModelDefinition(input.readString(), null);
+        }
+
+        private LazyModelDefinition(LazyModelDefinition definition) {
+            if (definition != null) {
+                this.compressedString = definition.compressedString;
+                this.parsedDefinition = definition.parsedDefinition;
+            }
         }
 
         private LazyModelDefinition(String compressedString, TrainedModelDefinition trainedModelDefinition) {

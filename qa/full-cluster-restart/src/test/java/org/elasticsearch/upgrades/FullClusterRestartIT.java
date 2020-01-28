@@ -23,7 +23,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -668,7 +667,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
              * an index without a translog so we randomize whether
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
-
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
@@ -679,16 +683,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             flushRequest.addParameter("force", "true");
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
-
             if (randomBoolean()) {
-                // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
-                // We added this synced flush so we can exercise different paths of recovery code.
-                try {
-                    client().performRequest(new Request("POST", index + "/_flush/synced"));
-                } catch (ResponseException ignored) {
-                    // synced flush is optional here
-                }
+                syncedFlush(index);
             }
+
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(
@@ -783,6 +781,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             // Create the index
             count = between(200, 300);
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            createIndex(index, settings.build());
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
         } else {
             count = countOfIndexedRandomDocuments();
@@ -1264,11 +1267,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            createIndex(index, Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-                .build());
+            Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
             ensureGreen(index);
             int committedDocs = randomIntBetween(100, 200);
             for (int i = 0; i < committedDocs; i++) {
@@ -1315,5 +1320,79 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEmptyTranslog(index);
             ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
+    }
+
+    public void testResize() throws Exception {
+        int numDocs;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            numDocs = randomIntBetween(10, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                indexDocument(Integer.toString(i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            saveInfoDocument("num_doc_" + index, Integer.toString(numDocs));
+            ensureGreen(index);
+        } else {
+            ensureGreen(index);
+            numDocs = Integer.parseInt(loadInfoDocument("num_doc_" + index));
+            int moreDocs = randomIntBetween(0, 100);
+            for (int i = 0; i < moreDocs; i++) {
+                indexDocument(Integer.toString(numDocs + i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            client().performRequest(updateSettingsRequest);
+            {
+                final String target = index + "_shrunken";
+                Request shrinkRequest = new Request("PUT", "/" + index + "/_shrink/" + target);
+                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+                if (randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
+                shrinkRequest.setJsonEntity("{\"settings\":" + Strings.toString(settings.build()) + "}");
+                client().performRequest(shrinkRequest);
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 1);
+            }
+            {
+                final String target = index + "_split";
+                Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 6);
+                if (randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
+                Request splitRequest = new Request("PUT", "/" + index + "/_split/" + target);
+                splitRequest.setJsonEntity("{\"settings\":" + Strings.toString(settings.build()) + "}");
+                client().performRequest(splitRequest);
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 6);
+            }
+            {
+                final String target = index + "_cloned";
+                client().performRequest(new Request("PUT", "/" + index + "/_clone/" + target));
+                ensureGreenLongWait(target);
+                assertNumHits(target, numDocs + moreDocs, 3);
+            }
+        }
+    }
+
+    private void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+        Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(resp);
+        assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
+        assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
+        assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 }

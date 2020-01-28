@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
@@ -33,9 +32,9 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
@@ -49,35 +48,30 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TruncateTranslogAction;
-import org.elasticsearch.indices.IndicesModule;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
-public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
+public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     private static final Logger logger = LogManager.getLogger(RemoveCorruptedShardDataCommand.class);
 
@@ -88,7 +82,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
-    private final NamedXContentRegistry namedXContentRegistry;
 
     public RemoveCorruptedShardDataCommand() {
         super("Removes corrupted shard files");
@@ -105,11 +98,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             .ofType(Integer.class);
 
         parser.accepts(TRUNCATE_CLEAN_TRANSLOG_FLAG, "Truncate the translog even if it is not corrupt");
-
-        namedXContentRegistry = new NamedXContentRegistry(
-                Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
-                        .flatMap(Function.identity())
-                        .collect(Collectors.toList()));
 
         removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
         truncateTranslogAction = new TruncateTranslogAction(namedXContentRegistry);
@@ -130,11 +118,12 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected void findAndProcessShardPath(OptionSet options, Environment environment, CheckedConsumer<ShardPath, IOException> consumer)
+    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path[] dataPaths, ClusterState clusterState,
+                                           CheckedConsumer<ShardPath, IOException> consumer)
     throws IOException {
         final Settings settings = environment.settings();
 
-        final String indexName;
+        final IndexMetaData indexMetaData;
         final int shardId;
 
         if (options.has(folderOption)) {
@@ -146,65 +135,48 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
             }
 
-            final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
-
             final String shardIdFileName = path.getFileName().toString();
+            final String indexUUIDFolderName = shardParent.getFileName().toString();
             if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
-                indexName = indexMetaData.getIndex().getName();
+                indexMetaData = StreamSupport.stream(clusterState.metaData().indices().values().spliterator(), false)
+                    .map(imd -> imd.value)
+                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
+                    .orElse(null);
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
                     + " ], expected .../indices/[INDEX-UUID]/[SHARD-ID]");
             }
         } else {
             // otherwise resolve shardPath based on the index name and shard id
-            indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
+            String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
+            indexMetaData = clusterState.metaData().index(indexName);
         }
 
-        try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
-            final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
-            for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                if (Files.exists(nodePath.indicesPath)) {
-                    // have to scan all index uuid folders to resolve from index name
-                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
-                        for (Path file : stream) {
-                            if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
-                                continue;
-                            }
+        if (indexMetaData == null) {
+            throw new ElasticsearchException("Unable to find index in cluster state");
+        }
 
-                            final IndexMetaData indexMetaData =
-                                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
-                            if (indexMetaData == null) {
-                                continue;
-                            }
-                            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                            final Index index = indexMetaData.getIndex();
-                            if (indexName.equals(index.getName()) == false) {
-                                continue;
-                            }
-                            final ShardId shId = new ShardId(index, shardId);
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final Index index = indexMetaData.getIndex();
+        final ShardId shId = new ShardId(index, shardId);
 
-                            final Path shardPathLocation = nodePath.resolve(shId);
-                            if (Files.exists(shardPathLocation) == false) {
-                                continue;
-                            }
-                            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
-                                new Path[]{shardPathLocation}, nodePath.path);
-                            if (shardPath != null) {
-                                consumer.accept(shardPath);
-                                return;
-                            }
-                        }
-                    }
+        for (Path dataPath : dataPaths) {
+            final Path shardPathLocation = dataPath
+                .resolve(NodeEnvironment.INDICES_FOLDER)
+                .resolve(index.getUUID())
+                .resolve(Integer.toString(shId.id()));
+            if (Files.exists(shardPathLocation)) {
+                final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
+                    new Path[]{shardPathLocation}, dataPath);
+                if (shardPath != null) {
+                    consumer.accept(shardPath);
+                    return;
                 }
             }
-        } catch (LockObtainFailedException lofe) {
-            throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
-                + "], is Elasticsearch still running ?");
         }
     }
 
@@ -256,10 +228,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void warnAboutESShouldBeStopped(Terminal terminal) {
+    private void warnAboutIndexBackup(Terminal terminal) {
         terminal.println("-----------------------------------------------------------------------");
-        terminal.println("");
-        terminal.println("    WARNING: Elasticsearch MUST be stopped before running this tool.");
         terminal.println("");
         terminal.println("  Please make a complete backup of your index before using this tool.");
         terminal.println("");
@@ -268,10 +238,13 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     // Visible for testing
     @Override
-    public void execute(Terminal terminal, OptionSet options, Environment environment) throws Exception {
-        warnAboutESShouldBeStopped(terminal);
+    public void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
+        warnAboutIndexBackup(terminal);
 
-        findAndProcessShardPath(options, environment, shardPath -> {
+        final ClusterState clusterState =
+            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPaths), environment).v2();
+
+        findAndProcessShardPath(options, environment, dataPaths, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
@@ -320,7 +293,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                         terminal.println("Opening translog at " + translogPath);
                         terminal.println("");
                         try {
-                            translogCleanStatus = truncateTranslogAction.getCleanStatus(shardPath, indexDir);
+                            translogCleanStatus = truncateTranslogAction.getCleanStatus(shardPath, clusterState, indexDir);
                         } catch (Exception e) {
                             terminal.println(e.getMessage());
                             throw e;
@@ -464,21 +437,17 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         printRerouteCommand(shardPath, terminal, true);
     }
 
-    private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale) throws IOException {
-        final IndexMetaData indexMetaData =
-            IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
-                shardPath.getDataPath().getParent());
-
+    private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale)
+        throws IOException {
         final Path nodePath = getNodePath(shardPath);
-        final NodeMetaData nodeMetaData =
-            NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodePath);
+        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(nodePath);
 
         if (nodeMetaData == null) {
             throw new ElasticsearchException("No node meta data at " + nodePath);
         }
 
         final String nodeId = nodeMetaData.nodeId();
-        final String index = indexMetaData.getIndex().getName();
+        final String index = shardPath.getShardId().getIndexName();
         final int id = shardPath.getShardId().id();
         final AllocationCommands commands = new AllocationCommands(
             allocateStale
@@ -494,7 +463,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     private Path getNodePath(ShardPath shardPath) {
         final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
-        if (Files.exists(nodePath) == false || Files.exists(nodePath.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+        if (Files.exists(nodePath) == false ||
+            Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
             throw new ElasticsearchException("Unable to resolve node path for " + shardPath);
         }
         return nodePath;

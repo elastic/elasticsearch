@@ -11,6 +11,7 @@ The Java High Level REST Client supports the following Document APIs:
 Single document APIs::
 * <<{upid}-index>>
 * <<{upid}-get>>
+* <<{upid}-get-source>>
 * <<{upid}-exists>>
 * <<{upid}-delete>>
 * <<{upid}-update>>
@@ -28,6 +29,7 @@ Multi-document APIs::
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
+include::document/get-source.asciidoc[]
 include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
@@ -102,7 +104,6 @@ Index Management::
 * <<{upid}-clone-index>>
 * <<{upid}-refresh>>
 * <<{upid}-flush>>
-* <<{upid}-flush-synced>>
 * <<{upid}-clear-cache>>
 * <<{upid}-force-merge>>
 * <<{upid}-rollover-index>>
@@ -138,7 +139,6 @@ include::indices/split_index.asciidoc[]
 include::indices/clone_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
-include::indices/flush_synced.asciidoc[]
 include::indices/clear_cache.asciidoc[]
 include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
@@ -304,6 +304,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-evaluate-data-frame>>
 * <<{upid}-explain-data-frame-analytics>>
 * <<{upid}-get-trained-models>>
+* <<{upid}-put-trained-model>>
 * <<{upid}-get-trained-models-stats>>
 * <<{upid}-delete-trained-model>>
 * <<{upid}-put-filter>>
@@ -359,6 +360,7 @@ include::ml/stop-data-frame-analytics.asciidoc[]
 include::ml/evaluate-data-frame.asciidoc[]
 include::ml/explain-data-frame-analytics.asciidoc[]
 include::ml/get-trained-models.asciidoc[]
+include::ml/put-trained-model.asciidoc[]
 include::ml/get-trained-models-stats.asciidoc[]
 include::ml/delete-trained-model.asciidoc[]
 include::ml/put-filter.asciidoc[]

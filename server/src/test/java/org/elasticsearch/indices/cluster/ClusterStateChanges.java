@@ -110,6 +110,7 @@ import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -163,7 +164,7 @@ public class ClusterStateChanges {
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
             @SuppressWarnings("unchecked") final List<IndexEventListener> listeners = anyList();
-            when(indicesService.createIndex(any(IndexMetaData.class), listeners))
+            when(indicesService.createIndex(any(IndexMetaData.class), listeners, anyBoolean()))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
                     IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];
@@ -204,7 +205,7 @@ public class ClusterStateChanges {
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(SETTINGS, clusterService, indicesService,
             allocationService, new AliasValidator(), environment,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, true);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, Collections.emptyList(), true);
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

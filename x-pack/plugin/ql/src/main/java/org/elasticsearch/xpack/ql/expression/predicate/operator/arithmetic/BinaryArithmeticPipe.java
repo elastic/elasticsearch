@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -34,7 +34,7 @@ public class BinaryArithmeticPipe extends BinaryPipe {
     }
 
     @Override
-    public BinaryArithmeticProcessor asProcessor() {
+    public Processor asProcessor() {
         return new BinaryArithmeticProcessor(left().asProcessor(), right().asProcessor(), operation);
     }
 

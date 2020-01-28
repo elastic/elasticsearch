@@ -83,6 +83,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 Settings settings = Settings.builder()
                         .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName())
+                        .masterNodeTimeout(getMasterTimeout(clusterState))
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
                         ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

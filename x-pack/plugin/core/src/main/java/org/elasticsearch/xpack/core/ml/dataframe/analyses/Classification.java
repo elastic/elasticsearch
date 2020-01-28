@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class Classification implements DataFrameAnalysis {
 
@@ -50,11 +52,11 @@ public class Classification implements DataFrameAnalysis {
             lenient,
             a -> new Classification(
                 (String) a[0],
-                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5]),
-                (String) a[6],
-                (Integer) a[7],
-                (Double) a[8],
-                (Long) a[9]));
+                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6]),
+                (String) a[7],
+                (Integer) a[8],
+                (Double) a[9],
+                (Long) a[10]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -112,7 +114,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     public Classification(String dependentVariable) {
-        this(dependentVariable, new BoostedTreeParams(), null, null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null);
     }
 
     public Classification(StreamInput in) throws IOException {
@@ -241,17 +243,37 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
-        return Collections.singletonMap(dependentVariable, 2L);
+        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, 2));
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
-        return new HashMap<>() {{
-            put(resultsFieldName + "." + predictionFieldName, dependentVariable);
-            put(resultsFieldName + ".top_classes.class_name", dependentVariable);
-        }};
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
+        if ((dependentVariableMapping instanceof Map) == false) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
+        // If the source field is an alias, fetch the concrete field that the alias points to.
+        if (FieldAliasMapper.CONTENT_TYPE.equals(dependentVariableMappingAsMap.get("type"))) {
+            String path = (String) dependentVariableMappingAsMap.get(FieldAliasMapper.Names.PATH);
+            dependentVariableMapping = extractMapping(path, mappingsProperties);
+        }
+        // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
+        // Hence, we need to check the "instanceof" condition again.
+        if ((dependentVariableMapping instanceof Map) == false) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
+        additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
+        return additionalProperties;
+    }
+
+    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
+        return extractValue(String.join(".properties.", path.split("\\.")), mappingsProperties);
     }
 
     @Override

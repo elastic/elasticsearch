@@ -40,18 +40,18 @@ import java.util.Objects;
  *
  * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
  */
-public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
+public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValuesSourceAggregationBuilder<AB>>
         extends AbstractAggregationBuilder<AB> {
 
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
-            extends MultiValuesSourceAggregationBuilder<VS, AB> {
+    public abstract static class LeafOnly<AB extends MultiValuesSourceAggregationBuilder<AB>>
+            extends MultiValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name, ValueType targetValueType) {
             super(name, targetValueType);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
             super(clone, factoriesBuilder, metaData);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
@@ -85,7 +85,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.targetValueType = targetValueType;
     }
 
-    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<VS, AB> clone,
+    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<AB> clone,
                                                   Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
 
@@ -163,8 +163,8 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                                                   Builder subFactoriesBuilder) throws IOException {
+    protected final MultiValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                               Builder subFactoriesBuilder) throws IOException {
         ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
 
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
@@ -189,10 +189,10 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return valueFormat;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                         Map<String, ValuesSourceConfig> configs,
-                                                                         DocValueFormat format, AggregatorFactory parent,
-                                                                         Builder subFactoriesBuilder) throws IOException;
+    protected abstract MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                     Map<String, ValuesSourceConfig> configs,
+                                                                     DocValueFormat format, AggregatorFactory parent,
+                                                                     Builder subFactoriesBuilder) throws IOException;
 
 
     /**

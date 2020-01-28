@@ -31,8 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource>
-        extends AggregatorFactory {
+public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFactory {
 
     protected final Map<String, ValuesSourceConfig> configs;
     protected final DocValueFormat format;

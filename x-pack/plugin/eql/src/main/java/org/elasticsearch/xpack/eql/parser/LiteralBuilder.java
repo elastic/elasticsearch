@@ -6,19 +6,15 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
-import org.antlr.v4.runtime.tree.TerminalNode;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class LiteralBuilder extends IdentifierBuilder {
 

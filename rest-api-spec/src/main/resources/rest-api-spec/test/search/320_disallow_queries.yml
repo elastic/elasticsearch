@@ -39,10 +39,10 @@ teardown:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: null
+            search.allow_expensive_queries: null
 
 ---
-"Test disallow slow queries":
+"Test disallow expensive queries":
   - skip:
       version: " - 7.99.99"
       reason: "implemented in 8.0.0"
@@ -52,7 +52,7 @@ teardown:
       cluster.get_settings:
         flat_settings: true
 
-  - match: {search.disallow_slow_queries: null}
+  - match: {search.allow_expensive_queries: null}
 
   ### Prefix
   - do:
@@ -117,19 +117,19 @@ teardown:
 
   - match: { hits.total.value: 1 }
 
-  ### Update setting to true
+  ### Update setting to false
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: "true"
+            search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.disallow_slow_queries: "true"}}
+  - match: {transient: {search.allow_expensive_queries: "false"}}
 
   ### Prefix
   - do:
-      catch: /prefix queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /prefix queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -140,7 +140,7 @@ teardown:
 
   ### Fuzzy
   - do:
-      catch: /fuzzy queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /fuzzy queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -151,7 +151,7 @@ teardown:
 
   ### Regexp
   - do:
-      catch: /regexp queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /regexp queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -162,7 +162,7 @@ teardown:
 
   ### Wildcard
   - do:
-      catch: /wildcard queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /wildcard queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:
@@ -173,7 +173,7 @@ teardown:
 
   ### Nested
   - do:
-      catch: /joining queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /joining queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index:  test
         body:
@@ -184,15 +184,15 @@ teardown:
                 bool:
                   must: [{"match" : {"nested1.foo" : "bar2"}}]
 
-  ### Revert setting to false
+  ### Revert setting to true
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: "false"
+            search.allow_expensive_queries: "true"
         flat_settings: true
 
-  - match: {transient: {search.disallow_slow_queries: "false"}}
+  - match: {transient: {search.allow_expensive_queries: "true"}}
 
   ### Prefix
   - do:

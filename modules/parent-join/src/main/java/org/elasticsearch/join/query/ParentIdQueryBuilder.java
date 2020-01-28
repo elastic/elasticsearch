@@ -39,7 +39,7 @@ import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.DISALLOW_SLOW_QUERIES;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
     public static final String NAME = "parent_id";
@@ -156,9 +156,9 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("joining queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("joining queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
 
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());

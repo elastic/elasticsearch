@@ -43,7 +43,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.search.SearchService.DISALLOW_SLOW_QUERIES;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A query that computes a document score based on the provided script
@@ -172,9 +172,9 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("script score queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("script score queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());

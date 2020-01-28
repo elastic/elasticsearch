@@ -74,7 +74,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
     @After
     public void resetSettings() {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.disallow_slow_queries", (String) null));
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
@@ -165,7 +165,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertOrderedSearchHits(resp, "3", "2", "1");
     }
 
-    public void testDisallowSlowQueries() {
+    public void testDisallowExpensiveQueries() {
         assertAcked(
                 prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double")
         );
@@ -186,7 +186,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertNoFailures(resp);
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.disallow_slow_queries", true));
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -194,11 +194,11 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
                 .prepareSearch("test-index")
                 .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
                 .get());
-        assertEquals("script score queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+        assertEquals("script score queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getCause().getMessage());
 
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.disallow_slow_queries", false));
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         resp = client()
                 .prepareSearch("test-index")

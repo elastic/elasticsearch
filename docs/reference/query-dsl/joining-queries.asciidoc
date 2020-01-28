@@ -30,6 +30,6 @@ include::has-parent-query.asciidoc[]
 include::parent-id-query.asciidoc[]
 
 === Notes
-==== Disallow slow queries
-Joining queries will not be executed if <<query-dsl-disallow-slow, `search.disallow_slow_queries`>>
-is set to true.
+==== Allow expensive queries
+Joining queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

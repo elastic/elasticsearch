@@ -66,10 +66,10 @@ mapping parameter. If enabled, {es} indexes prefixes between 2 and 5
 characters in a separate field. This lets {es} run prefix queries more
 efficiently at the cost of a larger index.
 
-[[prefix-query-disallow-slow]]
-===== Disallow slow queries
-Prefix queries will not be executed if <<query-dsl-disallow-slow, `search.disallow_slow_queries`>>
-is set to true. If <<index-prefixes, `index prefixes`>> are enabled though, an optimised query is
+[[prefix-query-allow-expensive-queries]]
+===== Allow expensive queries
+Prefix queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false. If <<index-prefixes, `index prefixes`>> are enabled though, an optimised query is
 built, which is not considered slow and is executed despite of the fact that the
-<<query-dsl-disallow-slow, `search.disallow_slow_queries`>> set to true.
+<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> set to false.
 

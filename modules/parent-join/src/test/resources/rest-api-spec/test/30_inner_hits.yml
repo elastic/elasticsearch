@@ -54,7 +54,7 @@ teardown:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: null
+            search.allow_expensive_queries: null
 
 ---
 "Test two sub-queries with only one having inner_hits":
@@ -86,23 +86,23 @@ teardown:
   - match: { hits.hits.1.inner_hits.question.hits.hits.0._id: "1"}
 
 ---
-"HasParent disallow slow queries":
+"HasParent disallow expensive queries":
   - skip:
       version: " - 7.99.99"
       reason: "implemented in 8.0.0"
 
-  ### Update setting to true
+  ### Update setting to false
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: "true"
+            search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.disallow_slow_queries: "true"}}
+  - match: {transient: {search.allow_expensive_queries: "false"}}
 
   - do:
-      catch: /joining queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /joining queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         index: test
         body:

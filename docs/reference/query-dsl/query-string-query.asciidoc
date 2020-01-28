@@ -539,7 +539,7 @@ The example above creates a boolean query:
 that matches documents with at least two of the three per-term blended queries.
 
 ==== Notes
-===== Disallow slow queries
+===== Allow expensive queries
 Query string query can be internally be transformed to a <<query-dsl-prefix-query, `prefix query`>> which means
-that if the prefix queries are disabled as explained <<prefix-query-disallow-slow, here>> the query will not be
+that if the prefix queries are disabled as explained <<prefix-query-allow-expensive-queries, here>> the query will not be
 executed and an exception will be thrown.

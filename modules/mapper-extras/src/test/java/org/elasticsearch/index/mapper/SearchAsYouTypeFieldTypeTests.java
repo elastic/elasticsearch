@@ -112,8 +112,8 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
             equalTo(new PrefixQuery(new Term(NAME, longTerm))));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("prefix queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 }

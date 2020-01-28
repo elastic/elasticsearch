@@ -58,7 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.DISALLOW_SLOW_QUERIES;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
@@ -268,9 +268,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("joining queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("joining queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
 
         ObjectMapper nestedObjectMapper = context.getObjectMapper(path);

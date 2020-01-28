@@ -43,8 +43,8 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("prefix queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 
@@ -57,8 +57,8 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.regexpQuery("foo?", 0, 10, null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("regexp queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("regexp queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 
@@ -71,8 +71,8 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("wildcard queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("wildcard queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 }

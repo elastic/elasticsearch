@@ -39,7 +39,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.util.List;
 
-import static org.elasticsearch.search.SearchService.DISALLOW_SLOW_QUERIES;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
@@ -66,9 +66,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions, QueryShardContext context) {
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("fuzzy queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("fuzzy queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
         failIfNotIndexed();
         return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
@@ -77,9 +77,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("prefix queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("prefix queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
         failIfNotIndexed();
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
@@ -96,9 +96,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
             return termQuery;
         }
 
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("wildcard queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("wildcard queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
         Term term = MappedFieldType.extractTerm(termQuery);
 
@@ -110,9 +110,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        if (context.isDisallowSlowQueries() == true) {
-            throw new ElasticsearchException("regexp queries cannot be executed when '" + DISALLOW_SLOW_QUERIES.getKey() +
-                    "' is set to true");
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("regexp queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
+                    "' is set to false");
         }
         failIfNotIndexed();
         RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);

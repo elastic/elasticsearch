@@ -132,14 +132,14 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
-    public void testDisallowSlowQueries() {
+    public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isDisallowSlowQueries()).thenReturn(true);
+        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
 
         ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("script queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+        assertEquals("script queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getMessage());
     }
 }

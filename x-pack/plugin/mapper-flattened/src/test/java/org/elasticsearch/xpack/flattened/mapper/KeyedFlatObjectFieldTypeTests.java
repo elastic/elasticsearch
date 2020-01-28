@@ -102,8 +102,8 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("prefix queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("prefix queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 

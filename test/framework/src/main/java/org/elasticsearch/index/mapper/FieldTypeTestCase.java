@@ -37,8 +37,8 @@ import static org.mockito.Mockito.when;
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends ESTestCase {
 
-    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(false);
-    public static final QueryShardContext MOCK_QSC_DISALLOW_SLOW = createMockQueryShardContext(true);
+    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
+    public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
 
     /** Abstraction for mutating a property of a MappedFieldType */
     public abstract static class Modifier {
@@ -250,12 +250,12 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     }
 
     protected QueryShardContext randomMockShardContext() {
-        return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_SLOW);
+        return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_EXPENSIVE);
     }
 
-    static QueryShardContext createMockQueryShardContext(boolean disallowSlowQueries) {
+    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isDisallowSlowQueries()).thenReturn(disallowSlowQueries);
+        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         return queryShardContext;
     }
 

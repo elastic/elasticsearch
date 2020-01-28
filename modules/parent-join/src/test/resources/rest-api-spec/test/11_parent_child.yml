@@ -36,7 +36,7 @@ teardown:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: null
+            search.allow_expensive_queries: null
 
 ---
 "Parent/child inner hits":
@@ -67,22 +67,22 @@ teardown:
   - gte: { hits.hits.0.inner_hits.child.hits.hits.0._primary_term: 1 }
 
 ---
-"HasChild disallow slow queries":
+"HasChild disallow expensive queries":
   - skip:
       version: " - 7.99.99"
       reason: "implemented in 8.0.0"
 
-  ### Update setting to true
+  ### Update setting to false
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.disallow_slow_queries: "true"
+            search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.disallow_slow_queries: "true"}}
+  - match: {transient: {search.allow_expensive_queries: "false"}}
 
   - do:
-      catch: /joining queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      catch: /joining queries cannot be executed when \'search.allow_expensive_queries\' is set to false/
       search:
         body: { "query": { "has_child": { "type": "child", "query": { "match_all": {} }, "inner_hits": {} } } }

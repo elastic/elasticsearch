@@ -164,8 +164,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("regexp queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                () -> ft.regexpQuery("foo.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("regexp queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 
@@ -183,8 +183,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1,
-                        randomBoolean(), MOCK_QSC_DISALLOW_SLOW));
-        assertEquals("fuzzy queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+                        randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("fuzzy queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 ee.getMessage());
     }
 

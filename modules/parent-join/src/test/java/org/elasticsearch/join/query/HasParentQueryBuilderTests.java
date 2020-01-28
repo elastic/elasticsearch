@@ -267,15 +267,15 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertEquals("[inner_hits] already contains an entry for key [some_name]", e.getMessage());
     }
 
-    public void testDisallowSlowQueries() {
+    public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.isDisallowSlowQueries()).thenReturn(true);
+        when(queryShardContext.isAllowExpensiveQueries()).thenReturn(false);
 
         HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder(
                 CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), false);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("joining queries cannot be executed when 'search.disallow_slow_queries' is set to true",
+        assertEquals("joining queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getMessage());
     }
 }

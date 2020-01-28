@@ -93,7 +93,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());
-        result.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(ParsedTopMetrics.NAME),
+        result.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(TopMetricsAggregationBuilder.NAME),
                 (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c)));
         return result;
     }

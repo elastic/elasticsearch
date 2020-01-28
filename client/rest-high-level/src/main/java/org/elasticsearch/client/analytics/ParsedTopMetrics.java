@@ -36,7 +36,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ParsedTopMetrics extends ParsedAggregation {
-    public static final String NAME = "top_metrics";
     private static final ParseField TOP_FIELD = new ParseField("top");
 
     private final List<TopMetrics> topMetrics;
@@ -55,7 +54,7 @@ public class ParsedTopMetrics extends ParsedAggregation {
 
     @Override
     public String getType() {
-        return NAME;
+        return TopMetricsAggregationBuilder.NAME;
     }
 
     @Override
@@ -67,8 +66,8 @@ public class ParsedTopMetrics extends ParsedAggregation {
         return builder.endArray();
     }
 
-    public static final ConstructingObjectParser<ParsedTopMetrics, String> PARSER = new ConstructingObjectParser<>(NAME, true,
-            (args, name) -> {
+    public static final ConstructingObjectParser<ParsedTopMetrics, String> PARSER = new ConstructingObjectParser<>(
+            TopMetricsAggregationBuilder.NAME, true, (args, name) -> {
                 @SuppressWarnings("unchecked")
                 List<TopMetrics> topMetrics = (List<TopMetrics>) args[0];
                 return new ParsedTopMetrics(name, topMetrics);
@@ -104,7 +103,7 @@ public class ParsedTopMetrics extends ParsedAggregation {
             return metrics;
         }
 
-        private static final ConstructingObjectParser<TopMetrics, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
+        private static final ConstructingObjectParser<TopMetrics, Void> PARSER = new ConstructingObjectParser<>("top", true,
                 (args, name) -> {
                     @SuppressWarnings("unchecked")
                     List<Object> sort = (List<Object>) args[0];

@@ -383,7 +383,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "keyword").field("store", true).endObject()
                 .endObject().endObject().endObject())
@@ -473,8 +473,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
                 // prevent a sequence-number-based recovery from being possible
                 client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "0s")
                 ).get();

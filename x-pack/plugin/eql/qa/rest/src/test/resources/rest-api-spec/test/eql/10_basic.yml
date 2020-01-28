@@ -1,0 +1,27 @@
+---
+setup:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    1
+          - str: test1
+            int: 1
+
+---
+# Testing round-trip and the basic shape of the response
+# Currently not implemented or wired and always returns empty result.
+# TODO: define more test once everything is wired up
+"Execute some EQL.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          rule: "process where user = 'SYSTEM'"
+
+  - match: {timed_out: false}
+  - match: {took: 0}
+  - match: {hits.total.value: 0}
+

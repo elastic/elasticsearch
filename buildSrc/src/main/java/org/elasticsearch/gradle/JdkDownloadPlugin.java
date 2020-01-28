@@ -215,8 +215,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     String[] pathSegments = details.getRelativePath().getSegments();
                     int index = 0;
                     for (; index < pathSegments.length; index++) {
-                        if (pathSegments[index].matches("jdk-.*"))
-                            break;
+                        if (pathSegments[index].matches("jdk-.*")) break;
                     }
                     assert index + 1 <= pathSegments.length;
                     String[] newPathSegments = Arrays.copyOfRange(pathSegments, index + 1, pathSegments.length);

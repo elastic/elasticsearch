@@ -213,6 +213,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -246,8 +247,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
             clearDisruptionsAndAwaitSync();
 
             final StepListener<CleanupRepositoryResponse> cleanupResponse = new StepListener<>();
-            client().admin().cluster().cleanupRepository(
-                new CleanupRepositoryRequest("repo"), cleanupResponse);
+            final StepListener<CreateSnapshotResponse> createSnapshotResponse = new StepListener<>();
+            // Create another snapshot and then clean up the repository to verify that the repository works correctly no matter the
+            // failures seen during the previous test.
+            client().admin().cluster().prepareCreateSnapshot("repo", "last-snapshot")
+                .setWaitForCompletion(true).execute(createSnapshotResponse);
+            continueOrDie(createSnapshotResponse, r -> {
+                final SnapshotInfo snapshotInfo = r.getSnapshotInfo();
+                // Snapshot can fail because some tests leave indices in a red state because data nodes were stopped
+                assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.FAILED)));
+                assertThat(snapshotInfo.shardFailures(), iterableWithSize(snapshotInfo.failedShards()));
+                assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards() - snapshotInfo.failedShards()));
+                client().admin().cluster().cleanupRepository(new CleanupRepositoryRequest("repo"), cleanupResponse);
+            });
             final AtomicBoolean cleanedUp = new AtomicBoolean(false);
             continueOrDie(cleanupResponse, r -> cleanedUp.set(true));
 
@@ -1218,7 +1230,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                     indicesService,
                     allocationService, new AliasValidator(), environment, indexScopedSettings,
-                    threadPool, namedXContentRegistry, false);
+                    threadPool, namedXContentRegistry, Collections.emptyList(), false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,

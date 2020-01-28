@@ -191,7 +191,10 @@ public final class ELambda extends AExpression implements ILambda {
         lambdaNode.setLocation(location);
         lambdaNode.setExpressionType(actual);
         lambdaNode.setFuncRef(ref);
-        lambdaNode.getCaptures().addAll(captures);
+
+        for (Variable capture : captures) {
+            lambdaNode.addCapture(capture.name);
+        }
 
         return lambdaNode;
     }

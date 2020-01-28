@@ -22,10 +22,11 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -42,19 +43,29 @@ public class ForEachSubIterableNode extends LoopNode {
 
     /* ---- begin node data ---- */
 
-    private Variable variable;
+    private Class<?> variableType;
+    private String variableName;
     private PainlessCast cast;
-    private Variable iterator;
+    private Class<?> iteratorType;
+    private String iteratorName;
     private PainlessMethod method;
 
-    public void setVariable(Variable variable) {
-        this.variable = variable;
+    public void setVariableType(Class<?> variableType) {
+        this.variableType = variableType;
     }
 
-    public Variable getVariable() {
-        return variable;
+    public Class<?> getVariableType() {
+        return variableType;
     }
 
+    public void setVariableName(String variableName) {
+        this.variableName = variableName;
+    }
+
+    public String getVariableName() {
+        return variableName;
+    }
+    
     public void setCast(PainlessCast cast) {
         this.cast = cast;
     }
@@ -63,12 +74,20 @@ public class ForEachSubIterableNode extends LoopNode {
         return cast;
     }
 
-    public void setIterator(Variable iterator) {
-        this.iterator = iterator;
+    public void setIteratorType(Class<?> iteratorType) {
+        this.iteratorType = iteratorType;
     }
 
-    public Variable getIterator() {
-        return iterator;
+    public Class<?> getIteratorType() {
+        return iteratorType;
+    }
+
+    public void setIteratorName(String iteratorName) {
+        this.iteratorName = iteratorName;
+    }
+
+    public String getIteratorName() {
+        return iteratorName;
     }
 
     public void setMethod(PainlessMethod method) {
@@ -82,10 +101,13 @@ public class ForEachSubIterableNode extends LoopNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
-        getConditionNode().write(classWriter, methodWriter, globals);
+        Variable variable = scopeTable.defineVariable(variableType, variableName);
+        Variable iterator = scopeTable.defineInternalVariable(iteratorType, iteratorName);
+
+        getConditionNode().write(classWriter, methodWriter, globals, scopeTable);
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
@@ -95,29 +117,31 @@ public class ForEachSubIterableNode extends LoopNode {
             methodWriter.invokeMethodCall(method);
         }
 
-        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());
+        methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ISTORE), iterator.getSlot());
 
         Label begin = new Label();
         Label end = new Label();
 
         methodWriter.mark(begin);
 
-        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
+        methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
         methodWriter.ifZCmp(MethodWriter.EQ, end);
 
-        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
+        methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
         methodWriter.writeCast(cast);
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        if (getLoopCounter() != null) {
-            methodWriter.writeLoopCounter(getLoopCounter().getSlot(), getBlockNode().getStatementCount(), location);
+        Variable loop = scopeTable.getInternalVariable("loop");
+
+        if (loop != null) {
+            methodWriter.writeLoopCounter(loop.getSlot(), getBlockNode().getStatementCount(), location);
         }
 
         getBlockNode().continueLabel = begin;
         getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, globals);
+        getBlockNode().write(classWriter, methodWriter, globals, scopeTable);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

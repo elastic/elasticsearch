@@ -150,9 +150,9 @@ public final class SFunction extends AStatement {
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
+        functionNode.getParameterNames().addAll(paramNameStrs);
         functionNode.setSynthetic(synthetic);
         functionNode.setMethodEscape(methodEscape);
-        functionNode.setLoopCounter(loopCounter);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 
         return functionNode;

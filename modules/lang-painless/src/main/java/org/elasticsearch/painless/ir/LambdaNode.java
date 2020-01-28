@@ -22,8 +22,9 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
@@ -33,14 +34,14 @@ public class LambdaNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
-    private final List<Variable> captures = new ArrayList<>();
+    private final List<String> captures = new ArrayList<>();
     private FunctionRef funcRef;
 
-    public void addCapture(Variable capture) {
+    public void addCapture(String capture) {
         captures.add(capture);
     }
 
-    public List<Variable> getCaptures() {
+    public List<String> getCaptures() {
         return captures;
     }
 
@@ -55,14 +56,15 @@ public class LambdaNode extends ExpressionNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         if (funcRef != null) {
             methodWriter.writeDebugInfo(location);
             // load captures
-            for (Variable capture : captures) {
-                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+            for (String capture : captures) {
+                Variable variable = scopeTable.getVariable(capture);
+                methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
             }
 
             methodWriter.invokeLambdaCall(funcRef);
@@ -70,8 +72,9 @@ public class LambdaNode extends ExpressionNode {
             // placeholder
             methodWriter.push((String)null);
             // load captures
-            for (Variable capture : captures) {
-                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+            for (String capture : captures) {
+                Variable variable = scopeTable.getVariable(capture);
+                methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
             }
         }
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class DotSubShortcutNode extends ExpressionNode {
 
@@ -50,7 +51,7 @@ public class DotSubShortcutNode extends ExpressionNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.invokeMethodCall(getter);
@@ -66,12 +67,12 @@ public class DotSubShortcutNode extends ExpressionNode {
     }
 
     @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         // do nothing
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.invokeMethodCall(getter);
@@ -82,7 +83,7 @@ public class DotSubShortcutNode extends ExpressionNode {
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.invokeMethodCall(setter);

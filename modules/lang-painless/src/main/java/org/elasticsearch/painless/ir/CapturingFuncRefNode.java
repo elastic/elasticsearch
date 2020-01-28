@@ -23,8 +23,9 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
@@ -33,7 +34,7 @@ public class CapturingFuncRefNode extends ExpressionNode {
     /* ---- begin node data ---- */
 
     private String name;
-    private Variable captured;
+    private String capturedName;
     private FunctionRef funcRef;
     private String pointer;
 
@@ -45,12 +46,12 @@ public class CapturingFuncRefNode extends ExpressionNode {
         return name;
     }
 
-    public void setCaptured(Variable captured) {
-        this.captured = captured;
+    public void setCapturedName(String capturedName) {
+        this.capturedName = capturedName;
     }
 
-    public Variable getCaptured() {
-        return captured;
+    public String getCapturedName() {
+        return capturedName;
     }
 
     public void setFuncRef(FunctionRef funcRef) {
@@ -72,20 +73,21 @@ public class CapturingFuncRefNode extends ExpressionNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
+        Variable captured = scopeTable.getVariable(capturedName);
         if (pointer != null) {
             // dynamic interface: placeholder for run-time lookup
             methodWriter.push((String)null);
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
+            methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
         } else if (funcRef == null) {
             // typed interface, dynamic implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), MethodWriter.getType(captured.clazz));
+            methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
+            Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), captured.getAsmType());
             methodWriter.invokeDefCall(name, methodType, DefBootstrap.REFERENCE, getExpressionCanonicalTypeName());
         } else {
             // typed interface, typed implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
+            methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
             methodWriter.invokeLambdaCall(funcRef);
         }
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 import org.objectweb.asm.Label;
 
 import java.util.ArrayList;
@@ -53,7 +54,7 @@ public class TryNode extends StatementNode {
     /* ---- end tree structure ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
         Label begin = new Label();
@@ -64,7 +65,7 @@ public class TryNode extends StatementNode {
 
         blockNode.continueLabel = continueLabel;
         blockNode.breakLabel = breakLabel;
-        blockNode.write(classWriter, methodWriter, globals);
+        blockNode.write(classWriter, methodWriter, globals, scopeTable.newScope());
 
         if (blockNode.doAllEscape() == false) {
             methodWriter.goTo(exception);
@@ -76,7 +77,7 @@ public class TryNode extends StatementNode {
             catchNode.begin = begin;
             catchNode.end = end;
             catchNode.exception = catchNodes.size() > 1 ? exception : null;
-            catchNode.write(classWriter, methodWriter, globals);
+            catchNode.write(classWriter, methodWriter, globals, scopeTable.newScope());
         }
 
         if (blockNode.doAllEscape() == false || catchNodes.size() > 1) {

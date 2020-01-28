@@ -10,8 +10,6 @@
 
 Updates certain properties of a {transform}.
 
-beta[]
-
 [[update-transform-request]]
 ==== {api-request-title}
 

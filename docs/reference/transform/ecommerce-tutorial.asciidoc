@@ -3,8 +3,6 @@
 [[ecommerce-transforms]]
 === Tutorial: Transforming the eCommerce sample data
 
-beta[]
-
 <<transforms,{transforms-cap}>> enable you to retrieve information
 from an {es} index, transform it, and store it in another index. Let's use the
 {kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can

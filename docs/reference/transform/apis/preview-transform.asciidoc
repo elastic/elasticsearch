@@ -10,8 +10,6 @@
 
 Previews a {transform}.
 
-beta[]
-
 [[preview-transform-request]]
 ==== {api-request-title}
 

@@ -82,7 +82,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings1 = builder

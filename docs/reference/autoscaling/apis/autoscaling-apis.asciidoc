@@ -9,7 +9,7 @@ You can use the following APIs to perform autoscaling operations.
 [[autoscaling-api-top-level]]
 === Top-Level
 
-* <<get-autoscaling-decision,Get autoscaling decision>>
+* <<autoscaling-get-autoscaling-decision,Get autoscaling decision>>
 
 // top-level
 include::get-autoscaling-decision.asciidoc[]

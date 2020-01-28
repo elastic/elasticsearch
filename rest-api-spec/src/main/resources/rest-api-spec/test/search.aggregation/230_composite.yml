@@ -243,7 +243,7 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 7.99.99" # after BWC merged revert to 7.1.99
+      version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
       features: warnings
 
@@ -309,7 +309,7 @@ setup:
 ---
 "Composite aggregation with format and calendar_interval":
   - skip:
-      version: " - 7.99.99"  # after BWC merged revert to 7.1.99
+      version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -370,8 +370,8 @@ setup:
 ---
 "Composite aggregation with date_histogram offset":
   - skip:
-      version: " - 7.99.99" # after BWC merged revert to 7.5.99
-      reason:  offset introduced in 8.0.0
+      version: " - 7.5.99"
+      reason:  offset introduced in 7.6.0
 
   - do:
       search:
@@ -694,6 +694,7 @@ setup:
   - match: { aggregations.test.buckets.3.key.geo: "12/2048/0" }
   - match: { aggregations.test.buckets.3.key.kw: "bar" }
   - match: { aggregations.test.buckets.3.doc_count: 1 }
+
 ---
 "Simple Composite aggregation with geotile grid add aggregate after":
   - skip:
@@ -735,3 +736,117 @@ setup:
   - match: { aggregations.test.buckets.2.key.geo: "12/2048/0" }
   - match: { aggregations.test.buckets.2.key.kw: "bar" }
   - match: { aggregations.test.buckets.2.doc_count: 1 }
+
+---
+"Mixed ip and unmapped fields":
+  - skip:
+      version: " - 7.5.99"
+      reason: This was fixed in 7.6.0
+  # It is important that the index *without* the ip field be sorted *before*
+  # the index *with* the ip field because that has caused bugs in the past.
+  - do:
+      indices.create:
+        index: test_1
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          mappings:
+            properties:
+              f:
+                type: ip
+  - do:
+      index:
+        index:   test_2
+        id:      1
+        body:    { "f": "192.168.0.1" }
+        refresh: true
+
+  - do:
+      search:
+        index: test_*
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "f": {
+                    "terms": {
+                      "field": "f"
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.f: "192.168.0.1" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"date_histogram with time_zone":
+  - skip:
+      version: " - 7.99.99"
+      reason: This will fail against 7.whatever until we backport the fix
+  - do:
+      index:
+        index:   test
+        id:      7
+        body:    { "date": "2017-10-22T01:00:00" }
+        refresh: true
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "iso8601" # Format makes the comparisons a little more obvious
+                    }
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                after: {
+                  date: "2017-10-20"
+                }
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "iso8601" # Format makes the comparisons a little more obvious
+                    }
+                  }
+                }
+            ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }

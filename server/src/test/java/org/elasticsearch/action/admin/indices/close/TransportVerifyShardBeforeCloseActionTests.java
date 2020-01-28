@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -72,6 +71,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -161,8 +161,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
-
+        doNothing().when(indexShard).flush(flushRequest.capture());
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));

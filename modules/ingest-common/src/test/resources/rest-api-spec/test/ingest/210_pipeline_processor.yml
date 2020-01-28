@@ -202,3 +202,81 @@ teardown:
           }
   - match: { error.root_cause.0.type: "illegal_state_exception" }
   - match: { error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [legal-department]" }
+
+---
+"Test _ingest.pipeline metadata":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline1"
+        body:  >
+          {
+            "processors" : [
+              {
+                "append" : {
+                  "field": "pipelines",
+                  "value": "{{_ingest.pipeline}}"
+                }
+              },
+              {
+                "pipeline" : {
+                  "name": "another_pipeline"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "another_pipeline"
+        body:  >
+          {
+            "processors" : [
+              {
+                "append" : {
+                  "field": "pipelines",
+                  "value": "{{_ingest.pipeline}}"
+                }
+              },
+              {
+                "pipeline" : {
+                  "name": "another_pipeline2"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "another_pipeline2"
+        body:  >
+          {
+            "processors" : [
+              {
+                "append" : {
+                  "field": "pipelines",
+                  "value": "{{_ingest.pipeline}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "pipeline1"
+        body: >
+          {
+          }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - length: { _source.pipelines: 3 }
+  - match: { _source.pipelines.0: "pipeline1" }
+  - match: { _source.pipelines.1: "another_pipeline" }
+  - match: { _source.pipelines.2: "another_pipeline2" }

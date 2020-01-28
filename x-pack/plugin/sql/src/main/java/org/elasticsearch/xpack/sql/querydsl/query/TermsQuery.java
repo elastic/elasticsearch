@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -26,7 +27,7 @@ public class TermsQuery extends LeafQuery {
     public TermsQuery(Source source, String term, List<Expression> values) {
         super(source);
         this.term = term;
-        values.removeIf(e -> e.dataType().isNull());
+        values.removeIf(e -> DataTypes.isNull(e.dataType()));
         if (values.isEmpty()) {
             this.values = Collections.emptySet();
         } else {

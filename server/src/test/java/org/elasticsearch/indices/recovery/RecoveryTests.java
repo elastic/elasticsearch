@@ -103,8 +103,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             recoveryBlocked.await();
             IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
             builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                 // force a roll and flush
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
             );
@@ -117,78 +115,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(19L));
                 assertThat(getTranslog(replica).totalOperations(), equalTo(0));
             });
-        }
-    }
-
-    public void testRecoveryWithOutOfOrderDeleteWithTranslog() throws Exception {
-        /*
-         * The flow of this test:
-         * - delete #1
-         * - roll generation (to create gen 2)
-         * - index #0
-         * - index #3
-         * - flush (commit point has max_seqno 3, and local checkpoint 1 -> points at gen 2, previous commit point is maintained)
-         * - index #2
-         * - index #5
-         * - If flush and the translog retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
-         */
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
-        try (ReplicationGroup shards = createGroup(1, settings)) {
-            shards.startAll();
-            // create out of order delete and index op on replica
-            final IndexShard orgReplica = shards.getReplicas().get(0);
-            final String indexName = orgReplica.shardId().getIndexName();
-            final long primaryTerm = orgReplica.getOperationPrimaryTerm();
-
-            // delete #1
-            orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
-            getTranslog(orgReplica).rollGeneration(); // isolate the delete in it's own generation
-            // index #0
-            orgReplica.applyIndexOperationOnReplica(0, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "id", new BytesArray("{}"), XContentType.JSON));
-            // index #3
-            orgReplica.applyIndexOperationOnReplica(3, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "id-3", new BytesArray("{}"), XContentType.JSON));
-            // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
-            orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
-            // index #2
-            orgReplica.applyIndexOperationOnReplica(2, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "id-2", new BytesArray("{}"), XContentType.JSON));
-            orgReplica.sync(); // advance local checkpoint
-            orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
-            // index #5 -> force NoOp #4.
-            orgReplica.applyIndexOperationOnReplica(5, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "id-5", new BytesArray("{}"), XContentType.JSON));
-
-            final int translogOps;
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    logger.info("--> flushing shard (translog will be trimmed)");
-                    IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
-                    builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1"));
-                    orgReplica.indexSettings().updateIndexMetaData(builder.build());
-                    orgReplica.onSettingsChanged();
-                    translogOps = 5; // 4 ops + seqno gaps (delete #1 is removed but index #0 will be replayed).
-                } else {
-                    logger.info("--> flushing shard (translog will be retained)");
-                    translogOps = 6; // 5 ops + seqno gaps
-                }
-                flushShard(orgReplica);
-            } else {
-                translogOps = 6; // 5 ops + seqno gaps
-            }
-
-            final IndexShard orgPrimary = shards.getPrimary();
-            shards.promoteReplicaToPrimary(orgReplica).get(); // wait for primary/replica sync to make sure seq# gap is closed.
-
-            IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            shards.assertAllEqual(3);
-
-            assertThat(getTranslog(newReplica).totalOperations(), equalTo(translogOps));
         }
     }
 
@@ -245,7 +171,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
-            try (Translog.Snapshot snapshot = newReplica.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
+            try (Translog.Snapshot snapshot = newReplica.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
                 assertThat(snapshot, SnapshotMatchers.size(6));
             }
         }

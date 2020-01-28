@@ -1,0 +1,20 @@
+[[release-highlights-7.7.0]]
+== 7.7.0 release highlights
+++++
+<titleabbrev>7.7.0</titleabbrev>
+++++
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[discrete]
+=== {transforms-cap}
+
+We introduced {transforms} in 7.2.0 as a beta feature. It is now mature enough
+to declare the feature GA (general availability). {transforms-cap} enable you to
+pivot and summarize your data and store it in a new index. See
+{ref}/transforms.html[{transforms-cap}] and
+{ref}//transform-apis.html[{transform-cap} APIs].
+
+// end::notable-highlights[]

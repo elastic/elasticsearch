@@ -434,13 +434,11 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
             case "maintenance" :
                 if (userIsAllowed) {
-                    assertUserIsDenied(user, "crud", index);
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush/synced");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
                 } else {
-                    assertUserIsDenied(user, "crud", index);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced");

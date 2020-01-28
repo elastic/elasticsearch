@@ -106,7 +106,7 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
-            entry("maintenance",MAINTENANCE));
+            entry("maintenance", MAINTENANCE));
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();

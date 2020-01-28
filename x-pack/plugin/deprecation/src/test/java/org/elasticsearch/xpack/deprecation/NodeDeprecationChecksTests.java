@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.startsWith;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
@@ -58,6 +60,50 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]");
         assertThat(issues, contains(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{EsExecutors.PROCESSORS_SETTING});
+    }
+
+    public void testCheckMissingRealmOrders() {
+        String realmName = randomAlphaOfLengthBetween(4, 12);
+        String realmType = randomAlphaOfLengthBetween(4, 12);
+        final Settings settings =
+            Settings.builder()
+                .put("xpack.security.authc.realms." + realmType + "." + realmName + ".enabled", "true").build();
+
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> deprecationIssues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+
+        assertEquals(1, deprecationIssues.size());
+        assertEquals(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Realm order will be required in next major release.",
+            "",
+            String.format(
+                Locale.ROOT,
+                "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order",
+                realmName
+            )
+        ), deprecationIssues.get(0));
+    }
+
+    public void testCheckUniqueRealmOrders() {
+        final int order = randomInt();
+        final Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms."
+                + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(4, 12) + ".order", order)
+            .put("xpack.security.authc.realms." 
+                + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(4, 12) + ".order", order)
+            .build();
+
+
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> deprecationIssues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+
+        assertEquals(1, deprecationIssues.size());
+        assertEquals(DeprecationIssue.Level.CRITICAL, deprecationIssues.get(0).getLevel());
+        assertEquals("Realm orders must be unique in next major release", deprecationIssues.get(0).getMessage());
+        assertThat(deprecationIssues.get(0).getDetails(), startsWith("Found multiple realms configured with the same order:"));
     }
 
 }

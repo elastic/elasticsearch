@@ -65,6 +65,16 @@ POST mylogs-pre-ilm-2019.06.25/_doc
 -----------------------
 // TEST[continued]
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 Now that we have these indices, we'll look at a few different ways of migrating
 these indices to ILM.
 
@@ -315,6 +325,16 @@ PUT ilm-mylogs-000001
 }
 -----------------------
 // TEST[continued]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 All new documents should be indexed via the `mylogs` alias at this point. Adding
 new data to the old indices during the reindexing process can cause data to be

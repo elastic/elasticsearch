@@ -36,7 +36,7 @@ PUT _template/template_1
 
 [source,console]
 --------------------------------------------------
-DELETE _template/template_1
+DELETE _template/template_*
 --------------------------------------------------
 // TEARDOWN
 
@@ -154,7 +154,6 @@ PUT _template/template_1
     }
 }
 --------------------------------------------------
-// TEST[s/^/DELETE _template\/template_1\n/]
 
 <1> the `{index}` placeholder in the alias name will be replaced with the
 actual index name that the template gets applied to, during index creation.
@@ -195,7 +194,6 @@ PUT /_template/template_2
     }
 }
 --------------------------------------------------
-// TEST[s/^/DELETE _template\/template_1\n/]
 
 The above will disable storing the `_source`, but
 for indices that start with `te*`, `_source` will still be enabled.

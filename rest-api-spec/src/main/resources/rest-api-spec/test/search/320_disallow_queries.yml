@@ -13,18 +13,21 @@ setup:
               text:
                 type: text
                 analyzer: standard
+              nested1:
+                type: nested
+
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "test", "_id": "1"}}'
-          - '{"text" : "Some like it hot, some like it cold"}'
+          - '{"text" : "Some like it hot, some like it cold", "nested1": [{"foo": "bar1"}]}'
           - '{"index": {"_index": "test", "_id": "2"}}'
-          - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
+          - '{"text" : "Its cold outside, theres no kind of atmosphere", "nested1": [{"foo": "bar2"}]}'
           - '{"index": {"_index": "test", "_id": "3"}}'
-          - '{"text" : "Baby its cold there outside"}'
+          - '{"text" : "Baby its cold there outside", "nested1": [{"foo": "bar3"}]}'
           - '{"index": {"_index": "test", "_id": "4"}}'
-          - '{"text" : "Outside it is cold and wet"}'
+          - '{"text" : "Outside it is cold and wet", "nested1": [{"foo": "bar4"}]}'
 
 ---
 teardown:
@@ -100,6 +103,20 @@ teardown:
 
   - match: { hits.total.value: 3 }
 
+  ### Nested
+  - do:
+      search:
+        index:  test
+        body:
+          query:
+            nested:
+              path: "nested1"
+              query:
+                bool:
+                  must: [{"match": {"nested1.foo": "bar2"}}]
+
+  - match: { hits.total.value: 1 }
+
   ### Update setting to true
   - do:
       cluster.put_settings:
@@ -153,6 +170,19 @@ teardown:
             wildcard:
               text:
                 value: out?ide
+
+  ### Nested
+  - do:
+      catch: /joining queries cannot be executed when \'search.disallow_slow_queries\' is set to true/
+      search:
+        index:  test
+        body:
+          query:
+            nested:
+              path: "nested1"
+              query:
+                bool:
+                  must: [{"match" : {"nested1.foo" : "bar2"}}]
 
   ### Revert setting to false
   - do:
@@ -211,3 +241,17 @@ teardown:
                 value: out?ide
 
   - match: { hits.total.value: 3 }
+
+  ### Nested
+  - do:
+      search:
+        index:  test
+        body:
+          query:
+            nested:
+              path: "nested1"
+              query:
+                bool:
+                  must: [{"match": {"nested1.foo": "bar2"}}]
+
+  - match: { hits.total.value: 1 }

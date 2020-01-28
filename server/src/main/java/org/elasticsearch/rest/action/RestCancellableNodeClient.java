@@ -17,54 +17,84 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.search;
+package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+
 /**
- * This class executes a request and associates the corresponding {@link Task} with the {@link HttpChannel} that it was originated from,
- * so that the tasks associated with a certain channel get cancelled when the underlying connection gets closed.
+ * A {@linkplain Client} that cancels tasks executed locally when the provided {@link HttpChannel}
+ * is closed before completion.
  */
-public final class HttpChannelTaskHandler {
+public class RestCancellableNodeClient extends FilterClient {
+    private static final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();
 
-    public static final HttpChannelTaskHandler INSTANCE = new HttpChannelTaskHandler();
-    //package private for testing
-    final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();
+    private final NodeClient client;
+    private final HttpChannel httpChannel;
 
-    private HttpChannelTaskHandler() {
+    public RestCancellableNodeClient(NodeClient client, HttpChannel httpChannel) {
+        super(client);
+        this.client = client;
+        this.httpChannel = httpChannel;
     }
 
-    <Response extends ActionResponse> void execute(NodeClient client, HttpChannel httpChannel, ActionRequest request,
-                                                   ActionType<Response> actionType, ActionListener<Response> listener) {
+    /**
+     * Returns the number of channels tracked globally.
+     */
+    public static int getNumChannels() {
+        return httpChannels.size();
+    }
 
-        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
+    /**
+     * Returns the number of tasks tracked globally.
+     */
+    static int getNumTasks() {
+        return httpChannels.values().stream()
+            .mapToInt(CloseListener::getNumTasks)
+            .sum();
+    }
+
+    /**
+     * Returns the number of tasks tracked by the provided {@link HttpChannel}.
+     */
+    static int getNumTasks(HttpChannel channel) {
+        CloseListener listener = httpChannels.get(channel);
+        return listener == null ? 0 : listener.getNumTasks();
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener());
         TaskHolder taskHolder = new TaskHolder();
-        Task task = client.executeLocally(actionType, request,
+        Task task = client.executeLocally(action, request,
             new ActionListener<>() {
                 @Override
-                public void onResponse(Response searchResponse) {
+                public void onResponse(Response response) {
                     try {
                         closeListener.unregisterTask(taskHolder);
                     } finally {
-                        listener.onResponse(searchResponse);
+                        listener.onResponse(response);
                     }
                 }
 
@@ -77,32 +107,35 @@ public final class HttpChannelTaskHandler {
                     }
                 }
             });
-        closeListener.registerTask(taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
+        final TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
+        closeListener.registerTask(taskHolder, taskId);
         closeListener.maybeRegisterChannel(httpChannel);
     }
 
-    public int getNumChannels() {
-        return httpChannels.size();
+    private void cancelTask(TaskId taskId) {
+        CancelTasksRequest req = new CancelTasksRequest()
+            .setTaskId(taskId)
+            .setReason("channel closed");
+        // force the origin to execute the cancellation as a system user
+        new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }
 
-    final class CloseListener implements ActionListener<Void> {
-        private final Client client;
+    private class CloseListener implements ActionListener<Void> {
         private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
-        private final Set<TaskId> taskIds = new HashSet<>();
+        private final Set<TaskId> tasks = new HashSet<>();
 
-        CloseListener(Client client) {
-            this.client = client;
+        CloseListener() {
         }
 
-        int getNumTasks() {
-            return taskIds.size();
+        synchronized int getNumTasks() {
+            return tasks.size();
         }
 
         void maybeRegisterChannel(HttpChannel httpChannel) {
             if (channel.compareAndSet(null, httpChannel)) {
                 //In case the channel is already closed when we register the listener, the listener will be immediately executed which will
                 //remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
-                //with the channel. This guarantees that the close listener is already in the map when the it gets registered to its
+                //with the channel. This guarantees that the close listener is already in the map when it gets registered to its
                 //corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
                 httpChannel.addCloseListener(this);
             }
@@ -111,34 +144,31 @@ public final class HttpChannelTaskHandler {
         synchronized void registerTask(TaskHolder taskHolder, TaskId taskId) {
             taskHolder.taskId = taskId;
             if (taskHolder.completed == false) {
-                this.taskIds.add(taskId);
+                this.tasks.add(taskId);
             }
         }
 
         synchronized void unregisterTask(TaskHolder taskHolder) {
             if (taskHolder.taskId != null) {
-                this.taskIds.remove(taskHolder.taskId);
+                this.tasks.remove(taskHolder.taskId);
             }
             taskHolder.completed = true;
         }
 
         @Override
-        public synchronized void onResponse(Void aVoid) {
-            //When the channel gets closed it won't be reused: we can remove it from the map and forget about it.
-            CloseListener closeListener = httpChannels.remove(channel.get());
+        public void onResponse(Void aVoid) {
+            final HttpChannel httpChannel = channel.get();
+            assert httpChannel != null : "channel not registered";
+            // when the channel gets closed it won't be reused: we can remove it from the map and forget about it.
+            CloseListener closeListener = httpChannels.remove(httpChannel);
             assert closeListener != null : "channel not found in the map of tracked channels";
-            for (TaskId taskId : taskIds) {
-                ThreadContext threadContext = client.threadPool().getThreadContext();
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    // we stash any context here since this is an internal execution and should not leak any existing context information
-                    threadContext.markAsSystemContext();
-                    ContextPreservingActionListener<CancelTasksResponse> contextPreservingListener = new ContextPreservingActionListener<>(
-                        threadContext.newRestorableContext(false),  ActionListener.wrap(r -> {}, e -> {}));
-                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                    cancelTasksRequest.setTaskId(taskId);
-                    //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
-                    client.admin().cluster().cancelTasks(cancelTasksRequest, contextPreservingListener);
-                }
+            final List<TaskId> toCancel;
+            synchronized (this) {
+                toCancel = new ArrayList<>(tasks);
+                tasks.clear();
+            }
+            for (TaskId taskId : toCancel) {
+                cancelTask(taskId);
             }
         }
 

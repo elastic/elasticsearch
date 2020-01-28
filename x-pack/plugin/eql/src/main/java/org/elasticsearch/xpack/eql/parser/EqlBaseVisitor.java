@@ -123,18 +123,6 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLogicalBinary(EqlBaseParser.LogicalBinaryContext ctx);
   /**
-   * Visit a parse tree produced by {@link EqlBaseParser#predicated}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitPredicated(EqlBaseParser.PredicatedContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EqlBaseParser#predicate}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitPredicate(EqlBaseParser.PredicateContext ctx);
-  /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EqlBaseParser#valueExpression}.
    * @param ctx the parse tree
@@ -148,6 +136,13 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitComparison(EqlBaseParser.ComparisonContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code containsExpression}
+   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitContainsExpression(EqlBaseParser.ContainsExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code arithmeticBinary}
    * labeled alternative in {@link EqlBaseParser#valueExpression}.

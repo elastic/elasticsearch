@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SingleStatementContext;
 
-public class AstBuilder extends ExpressionBuilder {
+public class AstBuilder extends QueryBuilder {
 
     @Override
     public Object visitSingleStatement(SingleStatementContext ctx) {

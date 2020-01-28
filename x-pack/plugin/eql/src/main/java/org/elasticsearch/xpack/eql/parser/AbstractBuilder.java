@@ -44,14 +44,6 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                         type.getSimpleName(), (result != null ? result.getClass().getSimpleName() : "null"));
     }
 
-    protected Expression expression(ParseTree ctx) {
-        return typedParsing(ctx, Expression.class);
-    }
-
-    protected List<Expression> expressions(List<? extends ParserRuleContext> ctxs) {
-        return visitList(ctxs, Expression.class);
-    }
-
     protected <T> List<T> visitList(List<? extends ParserRuleContext> contexts, Class<T> clazz) {
         List<T> results = new ArrayList<>(contexts.size());
         for (ParserRuleContext context : contexts) {
@@ -111,71 +103,6 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
      */
     static String text(ParseTree node) {
         return node == null ? null : node.getText();
-    }
-
-    /**
-     * Extracts the actual unescaped string (literal) value of a terminal node.
-     */
-    static String string(TerminalNode node) {
-        return node == null ? null : unquoteString(node.getText());
-    }
-
-    static String unquoteString(String text) {
-        // remove leading and trailing ' for strings and also eliminate escaped single quotes
-        if (text == null) {
-            return null;
-        }
-
-        // unescaped strings can be interpreted directly
-        if (text.startsWith("?")) {
-            return text.substring(2, text.length() - 1);
-        }
-
-        text = text.substring(1, text.length() - 1);
-        Pattern regex = Pattern.compile("\\\\.");
-        StringBuffer resultString = new StringBuffer();
-        Matcher regexMatcher = regex.matcher(text);
-
-        while (regexMatcher.find()) {
-            String source = regexMatcher.group();
-            String replacement;
-
-            switch (source) {
-                case "\\t":
-                    replacement = "\t";
-                    break;
-                case "\\b":
-                    replacement = "\b";
-                    break;
-                case "\\f":
-                    replacement = "\f";
-                    break;
-                case "\\n":
-                    replacement = "\n";
-                    break;
-                case "\\r":
-                    replacement = "\r";
-                    break;
-                case "\\\"":
-                    replacement = "\"";
-                    break;
-                case "\\'":
-                    replacement = "'";
-                    break;
-                case "\\\\":
-                    // will be interpreted as regex, so we have to escape it
-                    replacement = "\\\\";
-                    break;
-                default:
-                    replacement = source;
-            }
-
-            regexMatcher.appendReplacement(resultString, replacement);
-
-        }
-        regexMatcher.appendTail(resultString);
-
-        return resultString.toString();
     }
 
     @Override

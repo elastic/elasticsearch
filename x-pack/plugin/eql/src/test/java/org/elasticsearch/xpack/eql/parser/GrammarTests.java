@@ -28,29 +28,14 @@ import java.util.Objects;
  */
 public class GrammarTests extends ESTestCase {
 
-    public void testStrings() throws Exception {
-        assertEquals("hello\"world", AstBuilder.unquoteString("'hello\"world'"));
-        assertEquals("hello'world", AstBuilder.unquoteString("\"hello'world\""));
-        assertEquals("hello\nworld", AstBuilder.unquoteString("'hello\\nworld'"));
-        assertEquals("hello\\\nworld", AstBuilder.unquoteString("'hello\\\\\\nworld'"));
-        assertEquals("hello\\\"world", AstBuilder.unquoteString("'hello\\\\\\\"world'"));
-
-        // test for unescaped strings: ?"...." or ?'....'
-        assertEquals("hello\"world", AstBuilder.unquoteString("?'hello\"world'"));
-        assertEquals("hello\\\"world", AstBuilder.unquoteString("?'hello\\\"world'"));
-        assertEquals("hello'world", AstBuilder.unquoteString("?\"hello'world\""));
-        assertEquals("hello\\nworld", AstBuilder.unquoteString("?'hello\\nworld'"));
-        assertEquals("hello\\\\nworld", AstBuilder.unquoteString("?'hello\\\\nworld'"));
-        assertEquals("hello\\\\\\nworld", AstBuilder.unquoteString("?'hello\\\\\\nworld'"));
-        assertEquals("hello\\\\\\\"world", AstBuilder.unquoteString("?'hello\\\\\\\"world'"));
-    }
-
     public void testSupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
         List<Tuple<String, Integer>> lines = readQueries("/queries-supported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
+            parser.createStatement(q);
 
+            /*
             try {
                 parser.createStatement(q);
             } catch (ParsingException pe) {
@@ -61,6 +46,7 @@ public class GrammarTests extends ESTestCase {
                         pe.getErrorMessage() + " inside statement <{}>", q);
                 }
             }
+            */
         }
     }
     public void testUnsupportedQueries() throws Exception {

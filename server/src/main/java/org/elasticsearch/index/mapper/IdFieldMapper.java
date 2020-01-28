@@ -46,6 +46,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -151,6 +153,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 bytesRefs[i] = Uid.encodeId(idObject.toString());
             }
             return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: should this even exist? Is aggregating on the ID field valid?
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override

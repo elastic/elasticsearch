@@ -102,12 +102,12 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
             leaf.setScorer(scorer);
             scorer.doc = 1;
             scorer.score = 10;
-            assertFalse(leaf.hit(0, 0));
-            assertTrue(leaf.hit(1, 0));
+            assertFalse(leaf.collectIfCompetitive(0, 0));
+            assertTrue(leaf.collectIfCompetitive(1, 0));
             assertEquals(sort.getValue(0), SortValue.forDouble(10.0));
             scorer.doc = 2;
             scorer.score = 1;
-            assertFalse(leaf.hit(2, 0));
+            assertFalse(leaf.collectIfCompetitive(2, 0));
             assertEquals(sort.getValue(0), SortValue.forDouble(10.0));
         }
     }

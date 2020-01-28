@@ -72,7 +72,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public final void testSingleDoc() throws IOException {
         try (T sort = build(randomFrom(SortOrder.values()), new double[] {1})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(1)));
         }
     }
@@ -80,8 +80,8 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public void testNonCompetitive() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {2, 1})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 0));
-            assertFalse(leaf.hit(1, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
+            assertFalse(leaf.collectIfCompetitive(1, 0));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(2)));
         }
     }
@@ -89,8 +89,8 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public void testCompetitive() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {1, 2})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 0));
-            assertTrue(leaf.hit(1, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
+            assertTrue(leaf.collectIfCompetitive(1, 0));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(2)));
         }
     }
@@ -98,7 +98,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public void testNegativeValue() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {-1})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(-1)));
         }
     }
@@ -106,10 +106,10 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public void testManyBuckets() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {2, 3})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 0));
-            assertTrue(leaf.hit(0, 1));
-            assertTrue(leaf.hit(0, 2));
-            assertTrue(leaf.hit(1, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 1));
+            assertTrue(leaf.collectIfCompetitive(0, 2));
+            assertTrue(leaf.collectIfCompetitive(1, 0));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(3)));
             assertThat(sort.getValue(1), equalTo(expectedSortValue(2)));
             assertThat(sort.getValue(2), equalTo(expectedSortValue(2)));
@@ -120,8 +120,8 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public void testBucketGaps() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {2})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 0));
-            assertTrue(leaf.hit(0, 2));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 2));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(2)));
             assertThat(sort.getValue(1), nullValue());
             assertThat(sort.getValue(2), equalTo(expectedSortValue(2)));
@@ -132,8 +132,8 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
     public void testBucketsOutOfOrder() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {2})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
-            assertTrue(leaf.hit(0, 1));
-            assertTrue(leaf.hit(0, 0));
+            assertTrue(leaf.collectIfCompetitive(0, 1));
+            assertTrue(leaf.collectIfCompetitive(0, 0));
             assertThat(sort.getValue(0), equalTo(expectedSortValue(2.0)));
             assertThat(sort.getValue(1), equalTo(expectedSortValue(2.0)));
             assertThat(sort.getValue(2), nullValue());

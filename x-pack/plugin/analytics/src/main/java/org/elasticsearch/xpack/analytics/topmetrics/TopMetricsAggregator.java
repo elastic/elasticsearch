@@ -64,7 +64,7 @@ class TopMetricsAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, metricValues) { // NOCOMMIT do we need to extend *Base*? It doesn't look like we use it.
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (leafSort.hit(doc, bucket)) {
+                if (leafSort.collectIfCompetitive(doc, bucket)) {
                     if (bucket >= values.size()) {
                         long oldSize = values.size();
                         values = context.bigArrays().grow(values, bucket + 1);

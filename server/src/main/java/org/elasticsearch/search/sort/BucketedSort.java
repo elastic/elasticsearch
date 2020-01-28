@@ -90,11 +90,12 @@ public abstract class BucketedSort implements Releasable {
 
     /**
      * Grow the {@linkplain BigArray} backing this sort to account for new buckets.
+     * This will only be called if the array is too small.
      */
     protected abstract void grow(long minSize);
 
     /**
-     * Get the value for a bucket. This will only be called if the bucket was hit.
+     * Get the value for a bucket. This will only be called if the bucket was collected.
      */
     protected abstract SortValue getValueForBucket(long bucket);
 
@@ -105,7 +106,7 @@ public abstract class BucketedSort implements Releasable {
         /**
          * Collect this doc, returning {@code true} if it is competitive.
          */
-        public final boolean hit(int doc, long bucket) throws IOException {
+        public final boolean collectIfCompetitive(int doc, long bucket) throws IOException {
             if (false == advanceExact(doc)) {
                 return false;
             }

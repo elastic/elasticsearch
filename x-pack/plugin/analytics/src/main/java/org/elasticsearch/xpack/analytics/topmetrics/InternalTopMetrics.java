@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,7 +28,7 @@ public class InternalTopMetrics extends InternalAggregation {
     private final String metricName;
     private final double metricValue;
 
-    public InternalTopMetrics(String name, DocValueFormat sortFormat, SortOrder sortOrder, SortValue sortValue, String metricName,
+    public InternalTopMetrics(String name, DocValueFormat sortFormat, @Nullable SortOrder sortOrder, SortValue sortValue, String metricName,
             double metricValue, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sortFormat = sortFormat;
@@ -38,7 +39,7 @@ public class InternalTopMetrics extends InternalAggregation {
     }
 
     // NOCOMMIT drop this one
-    InternalTopMetrics(String name, DocValueFormat sortFormat, SortOrder sortOrder, Object sortValue, String metricName,
+    InternalTopMetrics(String name, DocValueFormat sortFormat, @Nullable SortOrder sortOrder, Object sortValue, String metricName,
             double metricValue, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         this(name, sortFormat, sortOrder, sortValueFor(sortValue), metricName, metricValue, pipelineAggregators, metaData);
     }
@@ -90,23 +91,20 @@ public class InternalTopMetrics extends InternalAggregation {
     public InternalTopMetrics reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Iterator<InternalAggregation> itr = aggregations.iterator();
         InternalTopMetrics first;
+        // Skip to the first non-empty metric because empty metrics don't have the correct sort format or order.
         do {
             if (false == itr.hasNext()) {
                 // All of the aggregations are empty.
                 return buildEmptyAggregation(name, metricName, pipelineAggregators(), getMetaData());
             }
             first = (InternalTopMetrics) itr.next();
-        } while (first.sortValue == null);
+        } while (first.sortValue != null);
         DocValueFormat bestSortFormat = first.sortFormat;
         SortValue bestSortValue = first.sortValue;
         double bestMetricValue = first.metricValue;
         int reverseMul = first.sortOrder.reverseMul();
         while (itr.hasNext()) {
             InternalTopMetrics result = (InternalTopMetrics) itr.next();
-            if (result.sortValue == null) {
-                // Don't bother checking empty results.
-                continue;
-            }
             if (reverseMul * bestSortValue.compareTo(result.sortValue) > 0) {
                 bestSortFormat = result.sortFormat;
                 bestSortValue = result.sortValue;

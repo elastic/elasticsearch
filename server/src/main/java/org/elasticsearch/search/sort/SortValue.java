@@ -70,16 +70,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         return compareToSameType(other);
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || false == getClass().equals(obj.getClass())) {
-            return false;
-        }
-        SortValue other = (SortValue) obj;
-        assert getWriteableName().equals(other.getWriteableName());
-        return equalsSameType(other);
-    }
-
     /**
      * Write the key as xcontent.
      */
@@ -110,10 +100,9 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
      */
     protected abstract int compareToSameType(SortValue obj);
 
-    /**
-     * Is this sort value equal to another sort value of the same type?
-     */
-    protected abstract boolean equalsSameType(SortValue obj);
+    // Force implementations to override equals for consistency with compareToSameType
+    @Override
+    public abstract boolean equals(Object obj);
 
     // Force implementations to override hashCode for consistency with equals
     @Override
@@ -168,7 +157,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        protected boolean equalsSameType(SortValue obj) {
+        public boolean equals(Object obj) {
+            if (obj == null || false == getClass().equals(obj.getClass())) {
+                return false;
+            }
             DoubleSortValue other = (DoubleSortValue) obj;
             return key == other.key;
         }
@@ -229,7 +221,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        protected boolean equalsSameType(SortValue obj) {
+        public boolean equals(Object obj) {
+            if (obj == null || false == getClass().equals(obj.getClass())) {
+                return false;
+            }
             LongSortValue other = (LongSortValue) obj;
             return key == other.key;
         }

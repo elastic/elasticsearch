@@ -61,19 +61,17 @@ class TopMetricsAggregator extends MetricsAggregator {
         // TODO allow configuration of value mode
         NumericDoubleValues metricValues = MultiValueMode.AVG.select(metricValueSource.doubleValues(ctx));
 
-        return new LeafBucketCollectorBase(sub, metricValues) {
+        return new LeafBucketCollectorBase(sub, metricValues) { // NOCOMMIT do we need to extend *Base*? It doesn't look like we use it.
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                long offset = bucket;
-                if (offset >= values.size()) {
-                    long oldSize = values.size();
-                    values = context.bigArrays().grow(values, offset + 1);
-                    values.fill(oldSize, values.size(), Double.NaN);
-                }
-
                 if (leafSort.hit(doc, bucket)) {
+                    if (bucket >= values.size()) {
+                        long oldSize = values.size();
+                        values = context.bigArrays().grow(values, bucket + 1);
+                        values.fill(oldSize, values.size(), Double.NaN);
+                    }
                     double metricValue = metricValues.advanceExact(doc) ? metricValues.doubleValue() : Double.NaN; 
-                    values.set(offset, metricValue);
+                    values.set(bucket, metricValue);
                 }
             }
 
@@ -89,8 +87,8 @@ class TopMetricsAggregator extends MetricsAggregator {
         if (metricValueSource == null) {
             return buildEmptyAggregation();
         }
-        Object sortValue = sort.getValue(bucket);
         double metricValue = values.get(bucket);
+        Object sortValue = sort.getValue(bucket);
         return new InternalTopMetrics(name, sort.getFormat(), sort.getOrder(), sortValue, metricName, metricValue, pipelineAggregators(),
                 metaData());
     }
@@ -104,6 +102,6 @@ class TopMetricsAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(values);
+        Releasables.close(sort, values);
     }
 }

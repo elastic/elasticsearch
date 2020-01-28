@@ -4,30 +4,43 @@
 <titleabbrev>Nodes reload secure settings</titleabbrev>
 ++++
 
-
 The cluster nodes reload secure settings API is used to re-load the keystore on each node.
 
-[source,console]
---------------------------------------------------
-POST _nodes/reload_secure_settings
-POST _nodes/nodeId1,nodeId2/reload_secure_settings
---------------------------------------------------
-// TEST[setup:node]
-// TEST[s/nodeId1,nodeId2/*/]
+[[cluster-nodes-reload-secure-settings-api-request]]
+==== {api-request-title}
+`POST _nodes/reload_secure_settings` +
 
-The first command reloads the keystore on each node. The seconds allows
-to selectively target `nodeId1` and `nodeId2`. The node selection options are
-detailed <<cluster-nodes,here>>.
+`POST _nodes/nodeId1,nodeId2/reload_secure_settings` +
+
+`POST _nodes/_local/reload_secure_settings`
+
+[[cluster-nodes-reload-secure-settings-api-desc]]
+==== {api-description-title}
+Secure settings are stored in an on-disk keystore. When you have updated
+the secure settings in your keystore, you can use this API to reload those
+settings on each node. You may also selectively target `nodeId1` and
+`nodeId2`. The node selection options are detailed <<cluster-nodes,here>>.
+
+[[cluster-nodes-reload-secure-settings-path-params]]
+==== {api-path-parms-title}
+
+`<nodes>`::
+    (Optional, string) The names of particular nodes in the cluster to target.
+    May also be `_local` to reload settings on just the local node.
 
 NOTE: {es} requires consistent secure settings across the cluster nodes, but this consistency is not enforced.
 Hence, reloading specific nodes is not standard. It is only justifiable when retrying failed reload operations.
 
-==== Reload Password Protected Secure Settings
+[[cluster-nodes-reload-secure-settings-api-request-body]]
+==== {api-request-body-title}
 
 When the {es} keystore is password protected and not simply obfuscated, the password for the keystore needs
 to be provided in the request to reload the secure settings.
 Reloading the settings for the whole cluster assumes that all nodes' keystores are protected with the same password
 and is only allowed when {ref}/configuring-tls.html#tls-transport[node to node communications are encrypted]
+
+`reload_secure_settings`::
+  (Optional, string) The password for the Elasticsearch keystore.
 
 [source,js]
 --------------------------------------------------
@@ -56,8 +69,8 @@ POST _nodes/_local/reload_secure_settings
 
 
 [float]
-[[rest-reload-secure-settings]]
-==== REST Reload Secure Settings Response
+[[cluster-nodes-reload-secure-settings-api-response-body]]
+==== {api-response-body-title}
 
 The response contains the `nodes` object, which is a map, keyed by the
 node id. Each value has the node `name` and an optional `reload_exception`
@@ -82,3 +95,14 @@ that was thrown during the reload process, if any.
 --------------------------------------------------
 // TESTRESPONSE[s/"my_cluster"/$body.cluster_name/]
 // TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]
+
+[[cluster-nodes-reload-secure-settings-api-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _nodes/reload_secure_settings
+POST _nodes/nodeId1,nodeId2/reload_secure_settings
+--------------------------------------------------
+// TEST[setup:node]
+// TEST[s/nodeId1,nodeId2/*/]

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
         for (DocValueFormat format : RANDOM_FORMATS) {
             writeables.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, format.getWriteableName(), in -> format));
         }
+        writeables.addAll(SortValue.namedWriteables());
         return new NamedWriteableRegistry(writeables); 
     }
 
@@ -39,7 +41,7 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
         String name = randomAlphaOfLength(5);
         DocValueFormat sortFormat = randomFrom(RANDOM_FORMATS);
         SortOrder sortOrder = randomFrom(SortOrder.values());
-        Object sortValue = randomBoolean() ? randomLong() : randomDouble();
+        SortValue sortValue = randomSortValue();
         String metricName = randomAlphaOfLength(5);
         double metricValue = randomDouble();
         return new InternalTopMetrics(name, sortFormat, sortOrder, sortValue, metricName, metricValue, emptyList(), null);
@@ -50,7 +52,7 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
         String name = instance.getName();
         DocValueFormat sortFormat = instance.getSortFormat();
         SortOrder sortOrder = instance.getSortOrder();
-        Object sortValue = instance.getSortValue();
+        SortValue sortValue = instance.getSortValue();
         String metricName = instance.getMetricName();
         double metricValue = instance.getMetricValue();
         switch (randomInt(5)) {
@@ -64,7 +66,7 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
             sortOrder = sortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
             break;
         case 3:
-            sortValue = randomValueOtherThan(sortValue, () -> randomBoolean() ? randomLong() : randomDouble());
+            sortValue = randomValueOtherThan(sortValue, InternalTopMetricsWireTests::randomSortValue);
             break;
         case 4:
             metricName = randomAlphaOfLength(6);
@@ -81,5 +83,9 @@ public class InternalTopMetricsWireTests extends AbstractWireSerializingTestCase
     @Override
     protected Reader<InternalTopMetrics> instanceReader() {
         return InternalTopMetrics::new;
+    }
+
+    private static SortValue randomSortValue() {
+        return randomBoolean() ? SortValue.from(randomLong()) : SortValue.from(randomDouble());
     }
 }

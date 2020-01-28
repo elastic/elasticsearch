@@ -50,6 +50,6 @@ public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort
 
     @Override
     protected SortValue expectedSortValue(double v) {
-        return SortValue.forLong((long) v);
+        return SortValue.from((long) v);
     }
 }

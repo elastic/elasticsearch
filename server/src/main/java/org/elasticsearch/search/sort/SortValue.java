@@ -37,14 +37,14 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     /**
      * Get a {@linkplain SortValue} for a double.
      */
-    public static SortValue forDouble(double d) {
+    public static SortValue from(double d) {
         return new DoubleSortValue(d);
     }
 
     /**
      * Get a {@linkplain SortValue} for a long.
      */
-    public static SortValue forLong(long l) {
+    public static SortValue from(long l) {
         return new LongSortValue(l);
     }
 
@@ -83,7 +83,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     /**
      * Get the java object that represents the sort value.
      */
-    public abstract Object getKey();
+    public abstract Object getKey(); // NOCOMMIT do we need this?
 
     /**
      * Format this value using the provided format.

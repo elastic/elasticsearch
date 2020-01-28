@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,7 +33,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
 
     public void testFirstEmpty() {
         InternalTopMetrics first = buildEmpty();
-        InternalTopMetrics filled = buildFilled(randomDouble(), randomDouble());
+        InternalTopMetrics filled = buildFilled(SortValue.from(randomDouble()), randomDouble());
         InternalTopMetrics reduced = reduce(first, buildEmpty(), filled, buildEmpty());
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getSortValue(), equalTo(filled.getSortValue()));
@@ -43,10 +44,10 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     public void testMany() {
-        InternalTopMetrics min = buildFilled(1.0, randomDouble());
-        InternalTopMetrics max = buildFilled(7.0, randomDouble());
+        InternalTopMetrics min = buildFilled(SortValue.from(1.0), randomDouble());
+        InternalTopMetrics max = buildFilled(SortValue.from(7.0), randomDouble());
         InternalTopMetrics[] metrics = new InternalTopMetrics[] {
-                min, buildEmpty(), buildFilled(2.0, randomDouble()), buildEmpty(), max
+                min, buildEmpty(), buildFilled(SortValue.from(2.0), randomDouble()), buildEmpty(), max
         };
         Collections.shuffle(Arrays.asList(metrics), random());
         SortOrder sortOrder = Arrays.stream(metrics).filter(i -> i.getSortValue() != null).findFirst().get().getSortOrder();
@@ -60,11 +61,13 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
 
+    // NOCOMMIT tests for mixed types
+
     private InternalTopMetrics buildEmpty() {
         return InternalTopMetrics.buildEmptyAggregation("test", "test", emptyList(), null);
     }
 
-    private InternalTopMetrics buildFilled(double sortValue, double metricValue) {
+    private InternalTopMetrics buildFilled(SortValue sortValue, double metricValue) {
         DocValueFormat sortFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
         SortOrder sortOrder = randomFrom(SortOrder.values());
         return new InternalTopMetrics("test", sortFormat, sortOrder, sortValue, "test", metricValue, emptyList(), null);

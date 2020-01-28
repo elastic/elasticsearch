@@ -50,6 +50,6 @@ public class BucketedSortForDoublesTests extends BucketedSortTestCase<BucketedSo
 
     @Override
     protected SortValue expectedSortValue(double v) {
-        return SortValue.forDouble(v);
+        return SortValue.from(v);
     }
 }

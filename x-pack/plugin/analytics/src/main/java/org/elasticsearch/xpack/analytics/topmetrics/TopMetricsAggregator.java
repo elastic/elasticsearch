@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,7 +89,7 @@ class TopMetricsAggregator extends MetricsAggregator {
             return buildEmptyAggregation();
         }
         double metricValue = values.get(bucket);
-        Object sortValue = sort.getValue(bucket);
+        SortValue sortValue = sort.getValue(bucket);
         return new InternalTopMetrics(name, sort.getFormat(), sort.getOrder(), sortValue, metricName, metricValue, pipelineAggregators(),
                 metaData());
     }

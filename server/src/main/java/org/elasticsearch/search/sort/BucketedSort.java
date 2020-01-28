@@ -147,7 +147,7 @@ public abstract class BucketedSort implements Releasable {
     }
 
     /**
-     * Extend me to implement {@linkplain BucketedSort} for {@code double} keys.
+     * Superclass for implementations of {@linkplain BucketedSort} for {@code double} keys.
      */
     public abstract static class ForDoubles extends BucketedSort {
         private DoubleArray buckets = bigArrays.newDoubleArray(1);
@@ -177,7 +177,7 @@ public abstract class BucketedSort implements Releasable {
             if (Double.isNaN(val)) {
                 return null;
             }
-            return SortValue.forDouble(val);
+            return SortValue.from(val);
         }
 
         @Override
@@ -211,7 +211,7 @@ public abstract class BucketedSort implements Releasable {
     }
 
     /**
-     * Extend me to implement {@linkplain BucketedSort} for {@code float} keys.
+     * Superclass for implementations of {@linkplain BucketedSort} for {@code float} keys.
      */
     public abstract static class ForFloats extends BucketedSort {
         private FloatArray buckets = bigArrays.newFloatArray(1);
@@ -238,7 +238,7 @@ public abstract class BucketedSort implements Releasable {
             if (Float.isNaN(val)) {
                 return null;
             }
-            return SortValue.forDouble(val);
+            return SortValue.from(val);
         }
 
         @Override
@@ -312,7 +312,7 @@ public abstract class BucketedSort implements Releasable {
                  * skip "gaps" in seen buckets. */
                 return null;
             }
-            return SortValue.forLong(buckets.get(bucket));
+            return SortValue.from(buckets.get(bucket));
         }
 
         @Override

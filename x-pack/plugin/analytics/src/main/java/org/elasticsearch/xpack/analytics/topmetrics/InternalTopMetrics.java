@@ -38,12 +38,6 @@ public class InternalTopMetrics extends InternalAggregation {
         this.metricValue = metricValue;
     }
 
-    // NOCOMMIT drop this one
-    InternalTopMetrics(String name, DocValueFormat sortFormat, @Nullable SortOrder sortOrder, Object sortValue, String metricName,
-            double metricValue, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        this(name, sortFormat, sortOrder, sortValueFor(sortValue), metricName, metricValue, pipelineAggregators, metaData);
-    }
-
     static InternalTopMetrics buildEmptyAggregation(String name, String metricField,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         return new InternalTopMetrics(name, DocValueFormat.RAW, SortOrder.ASC, null, metricField, Double.NaN, pipelineAggregators,
@@ -163,8 +157,8 @@ public class InternalTopMetrics extends InternalAggregation {
         return sortOrder;
     }
 
-    Object getSortValue() {
-        return sortValue == null ? null : sortValue.getKey();
+    SortValue getSortValue() {
+        return sortValue;
     }
 
     String getFormattedSortValue() {
@@ -177,22 +171,5 @@ public class InternalTopMetrics extends InternalAggregation {
 
     double getMetricValue() {
         return metricValue;
-    }
-
-    // NOCOMMIT drop this sone
-    private static SortValue sortValueFor(Object o) {
-        if (o == null) {
-            return null;
-        }
-        if (o instanceof Double) {
-            return SortValue.forDouble((double) o);
-        }
-        if (o instanceof Float) {
-            return SortValue.forDouble((float) o);
-        }
-        if (o instanceof Long) {
-            return SortValue.forLong((long) o);
-        }
-        throw new UnsupportedOperationException("no support for non-long or double keys but got [" + o.getClass() + "]");
     }
 }

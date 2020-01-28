@@ -91,7 +91,7 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
 
     @Override
     protected SortValue expectedSortValue(double v) {
-        return SortValue.forDouble(v);
+        return SortValue.from(v);
     }
 
     public void testScorer() throws IOException {
@@ -104,11 +104,11 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
             scorer.score = 10;
             assertFalse(leaf.collectIfCompetitive(0, 0));
             assertTrue(leaf.collectIfCompetitive(1, 0));
-            assertEquals(sort.getValue(0), SortValue.forDouble(10.0));
+            assertEquals(sort.getValue(0), SortValue.from(10.0));
             scorer.doc = 2;
             scorer.score = 1;
             assertFalse(leaf.collectIfCompetitive(2, 0));
-            assertEquals(sort.getValue(0), SortValue.forDouble(10.0));
+            assertEquals(sort.getValue(0), SortValue.from(10.0));
         }
     }
     

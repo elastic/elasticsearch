@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
@@ -18,7 +19,6 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.antlr.v4.runtime.ANTLRInputStream;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.Arrays;

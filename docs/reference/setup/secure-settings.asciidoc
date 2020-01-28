@@ -14,9 +14,6 @@ reference.
 
 All the modifications to the keystore take affect only after restarting {es}.
 
-NOTE: The {es} keystore currently only provides obfuscation. In the future,
-password protection will be added.
-
 These settings, just like the regular ones in the `elasticsearch.yml` config file,
 need to be specified on each node in the cluster. Currently, all secure settings
 are node-specific settings that must have the same value on every node.
@@ -37,7 +34,13 @@ using the `bin/elasticsearch-keystore add` command, call:
 [source,console]
 ----
 POST _nodes/reload_secure_settings
+{
+  "reload_secure_settings": "s3cr3t" <1>
+}
 ----
+// NOTCONSOLE
+
+<1> The password that the {es} keystore is encrypted with.
 
 This API decrypts and re-reads the entire keystore, on every cluster node,
 but only the *reloadable* secure settings are applied. Changes to other

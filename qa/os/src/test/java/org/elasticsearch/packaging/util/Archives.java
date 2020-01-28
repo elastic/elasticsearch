@@ -244,7 +244,28 @@ public class Archives {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh) {
+    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
+        return runElasticsearchStartCommand(installation, sh, "");
+    }
+
+    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
+        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+        final Installation.Executables bin = installation.executables();
+
+        // requires the "expect" utility to be installed
+        String script = "expect -c \"$(cat<<EXPECT\n" +
+            "spawn -ignore HUP sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile + "\n" +
+            "expect \"Elasticsearch keystore password:\"\n" +
+            "send \"" + keystorePassword + "\\r\"\n" +
+            "expect eof\n" +
+            "EXPECT\n" +
+            ")\"";
+
+        sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
+        return sh.runIgnoreExitCode(script);
+    }
+
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh, String keystorePassword) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));
@@ -261,7 +282,8 @@ public class Archives {
 
             // We need to give Elasticsearch enough time to print failures to stderr before exiting
             sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-            return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile);
+            return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
+                " <<<'" + keystorePassword + "'");
         }
         final Path stdout = getPowershellOutputPath(installation);
         final Path stderr = getPowershellErrorPath(installation);
@@ -306,6 +328,7 @@ public class Archives {
                 "$process.Start() | Out-Null; " +
                 "$process.BeginOutputReadLine(); " +
                 "$process.BeginErrorReadLine(); " +
+                "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
                 "Wait-Process -Timeout " + ES_STARTUP_SLEEP_TIME_SECONDS + " -Id $process.Id; " +
                 "$process.Id;"
             );

@@ -1113,7 +1113,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
-            if (inFipsJvm()){
+            if (inFipsJvm()) {
                 builder.put("xpack.security.ssl.diagnose.trust", false);
             }
             if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {

@@ -48,7 +48,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings = builder
@@ -155,7 +155,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings = builder

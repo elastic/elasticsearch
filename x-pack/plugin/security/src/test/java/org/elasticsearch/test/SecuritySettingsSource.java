@@ -147,7 +147,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
                 .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
                 .put("xpack.license.self_generated.type", "trial");
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             builder.put("xpack.security.ssl.diagnose.trust", false);
         }
         addNodeSSLSettings(builder);

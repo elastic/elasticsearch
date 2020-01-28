@@ -56,7 +56,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings = builder
@@ -188,7 +188,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
         Settings.Builder builder = Settings.builder();
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
         Settings settings = builder

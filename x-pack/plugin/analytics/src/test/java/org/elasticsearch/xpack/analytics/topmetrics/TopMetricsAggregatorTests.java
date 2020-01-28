@@ -41,6 +41,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -76,7 +77,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), notANumber());
     }
 
@@ -86,7 +87,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
@@ -98,7 +99,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
@@ -110,7 +111,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(2.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
         assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
@@ -122,7 +123,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 floatAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
@@ -134,7 +135,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 floatAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(2.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
         assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
@@ -146,7 +147,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 longAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(10L));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(10)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
@@ -158,7 +159,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 longAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(20L));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(20)));
         assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
@@ -170,7 +171,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 textAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(2.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
@@ -182,7 +183,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 textAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(1.0d));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
@@ -199,13 +200,13 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(bucket1.getKey(), equalTo(1.0));
         InternalTopMetrics top1 = bucket1.getAggregations().get("test");
         assertThat(top1.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(top1.getSortValue(), equalTo(1.0d));
+        assertThat(top1.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(top1.getMetricValue(), equalTo(2.0d));
         Terms.Bucket bucket2 = result.getBuckets().get(1);
         assertThat(bucket2.getKey(), equalTo(2.0));
         InternalTopMetrics top2 = bucket2.getAggregations().get("test");
         assertThat(top2.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(top2.getSortValue(), equalTo(4.0d));
+        assertThat(top2.getSortValue(), equalTo(SortValue.from(4.0)));
         assertThat(top2.getMetricValue(), equalTo(9.0d));
     }
 

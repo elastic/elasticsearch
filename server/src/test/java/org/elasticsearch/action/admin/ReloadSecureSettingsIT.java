@@ -149,6 +149,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51546")
     public void testReloadAllNodesWithPasswordWithoutTLSFails() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)

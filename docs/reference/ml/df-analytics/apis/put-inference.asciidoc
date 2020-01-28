@@ -32,7 +32,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 [[ml-put-inference-desc]]
 ==== {api-description-title}
 
-Create {infer} trained model API enables you to supply a trained model that is 
+The create {infer} trained model API enables you to supply a trained model that is 
 not created by {dfanalytics}. 
 
 

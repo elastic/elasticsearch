@@ -43,7 +43,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
+import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;

@@ -1,6 +1,13 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.test.NodeInfo
 
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import java.security.KeyStore
+import java.security.SecureRandom
+
 // Tell the tests we're running with ssl enabled
 integTestRunner {
   systemProperty 'tests.ssl.enabled', 'true'

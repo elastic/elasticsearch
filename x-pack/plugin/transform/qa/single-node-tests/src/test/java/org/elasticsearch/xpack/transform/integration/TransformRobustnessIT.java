@@ -89,7 +89,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // the task is gone
-        assertEquals(1, getNumberOfTransformTasks());
+        assertEquals(0, getNumberOfTransformTasks());
     }
 
     @SuppressWarnings("unchecked")

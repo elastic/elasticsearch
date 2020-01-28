@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -215,7 +216,15 @@ public final class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
+            Set<Failure> localFailures = new LinkedHashSet<>();
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+
+            // Full-Text search function are not allowed in the SELECT clause
+            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                if (e instanceof FullTextPredicate) {
+                    localFailures.add(fail(e, "Cannot use a Full-Text search functions in the SELECT clause"));
+                }
+            }), Project.class);
 
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
@@ -241,8 +250,6 @@ public final class Verifier {
                 if (!p.childrenResolved()) {
                     return;
                 }
-
-                Set<Failure> localFailures = new LinkedHashSet<>();
 
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);

@@ -458,14 +458,23 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         // We need to ensure that all the replicas are set up before we start turning off nodes
         ensureGreen(INDEX_NAME, OTHER_INDEX_NAME);
 
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNodes(2, new InternalTestCluster.RestartCallback() {
+        // Restart 2 nodes, deleting the indices in their absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
             @Override
-            public void onAllNodesStopped() {
-                ensureClusterSizeConsistency();
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+                    @Override
+                    public Settings onNodeStopped(String nodeName) throws Exception {
+                        ensureClusterSizeConsistency();
+                        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                        assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
+                        return super.onNodeStopped(nodeName);
+                    }
+                });
+
+                return super.onNodeStopped(nodeName);
             }
         });
 

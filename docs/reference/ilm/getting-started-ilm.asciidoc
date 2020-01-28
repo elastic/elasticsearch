@@ -3,46 +3,57 @@
 [[getting-started-index-lifecycle-management]]
 == Getting started with {ilm}
 
-Let's jump into {ilm} ({ilm-init}) by working through a hands-on scenario.
-This section will leverage many new concepts unique to {ilm-init} that
-you may not be familiar with. The following sections will explore
-these in more details.
+This tutorial demonstrates how to use {ilm} ({ilm-init}) 
+to manage indices that contain time-series data. 
 
-The goal of this example is to set up a set of indices that will encapsulate
-the data from a time series data source. We can imagine there is a system
-like {filebeat-ref}[Filebeat] that continuously indexes documents into
-our writing index. We wish to roll over the index after it reaches a size
-of 50 gigabytes, or has been created 30 days ago, and then delete the index
-after 90 days.
+When you use a mechanism like Filebeat to continuously index documents into {es},
+you typically use an index alias so you can periodically roll over to a new index.
+This enables you to implement a hot-warm-cold architecture to meet your performance
+requirements for your newest data, control costs over time, enforce retention policies,
+and still get the most out of your data.
+
+To automate roll over and management of time-series indices with {ilm-init}, you:
+
+. <<ilm-gs-create-policy, Create a lifecycle policy>> with the {ilm-init} Put policy API.  
+. <<ilm-gs-apply-policy, Create an index template>> to apply the policy to each new time-series index.
+. <<ilm-gs-bootstrap, Bootstrap the initial time-series index>> by explicitly designating it as the write index.
+. <<ilm-gs-check-progress, Verify that indexes are moving through the lifecycle phases>> as expected with the 
+you use the {ilm-init} explain API. 
 
 [float]
 [[ilm-gs-create-policy]]
-=== Setting up a policy
+=== Create a lifecycle policy
 
-There are many new features introduced by {ilm-init}, but we will only focus on
-a few that are needed for our example. For starters, we will use the
-<<ilm-put-lifecycle,Put Policy>> API to define our first policy. Lifecycle
-policies are defined in JSON and include specific
-<<ilm-policy-definition,phases and actions>>.
+In your lifecycle policy, you specify the phases in your index lifecycle
+and the actions to perform in each phase. A lifecycle can have up to four  phases:
+`hot`, `warm`, `cold`, and `delete`. Policies are defined in JSON 
+and added through the {ilm-init} Put policy API. 
+
+For example, the following request creates a `data_stream` policy with two phases:
+ 
+* The `hot` phase defines a `rollover` action to specify that an index rolls over when it 
+reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
+* The `delete` phase uses `min_age` to move an index into the
+delete phase when it is 90 days old and immediately triggers the  `delete` action to remove the index.
 
 [source,console]
 ------------------------
-PUT _ilm/policy/datastream_policy   <1>
+PUT _ilm/policy/datastream_policy 
 {
-  "policy": {                       <2>
+  "policy": {                       
     "phases": {
-      "hot": {                      <3>
+      "hot": {                      <1>
         "actions": {
-          "rollover": {             <4>
-            "max_size": "50GB",
+          "rollover": {             
+            "max_size": "50GB",     <2>
             "max_age": "30d"
           }
         }
       },
       "delete": {
-        "min_age": "90d",           <5>
+        "min_age": "90d",           <3>
         "actions": {
-          "delete": {}              <6>
+          "delete": {}              <4>
         }
       }
     }
@@ -50,30 +61,29 @@ PUT _ilm/policy/datastream_policy   <1>
 }
 ------------------------
 
-<1> call to the <<ilm-put-lifecycle,put lifecycle API>> endpoint to create
-    a new policy named "datastream_policy"
-<2> policy definition sub-object
-<3> the hot phase defined in the "phases" section. Optional `min_age` field
-    not defined -- defaults to `0ms`
-<4> rollover action definition
-<5> delete phase begins after 90 days
-<6> delete action definition
 
+<1> The `min_age` field defaults to `0ms` in the hot phase, so new indices immediately enter the hot phase. 
+<2> The `rollover` action is triggered when any of the conditions are met.
+<3> An index is moved into the delete phase after 90 days.
+<4> No additional conditions are specified, so the `delete` action is triggered when the index enters the delete phase. 
 
-Here we created the policy called `datastream_policy` which rolls over
-the index being written to after it reaches 50 gigabytes, or it is 30
-days old. The rollover will occur when either of these conditions is true.
-The index will be deleted 90 days after it is rolled over.
+See <<ilm-policy-actions>> for the complete list of actions available in each phase.
 
 [float]
 [[ilm-gs-apply-policy]]
-=== Applying a policy to our index
+=== Create an index template to apply the lifecycle policy
 
-There are <<set-up-lifecycle-policy,a few ways>> to associate a
-policy to an index. Since we wish specific settings to be applied to
-the new index created from Rollover, we will set the policy via
-index templates.
+To automaticaly apply a lifecycle policy to the new write index on rollover, 
+you specify the policy in an index template.
 
+For example, the following request creates a `datastream_template` that is applied to new indices
+whose names match the `datastream-*` index pattern. 
+The template configures two {ilm-init} settings:
+
+* `index.lifecycle.name` specifies the name of the lifecycle policy to apply to all new indices that match 
+the index pattern.  
+* `index.lifecycle.rollover_alias` specifies the index alias that will be rolled over 
+when the rollover action is triggered for an index.
 
 [source,console]
 -----------------------
@@ -90,22 +100,19 @@ PUT _template/datastream_template
 -----------------------
 // TEST[continued]
 
-<1> match all indices starting with "datastream-". These will include all
-    newly created indices from actions like rollover
-<2> the name of the lifecycle policy managing the index
-<3> alias to use for the rollover action, required since a rollover action is
-    defined in the policy.
+<1> Apply the template to a new index if its name starts with "datastream-". 
+<2> The name of the lifecycle policy to apply to each new index.
+<3> The index alias must be specified if a policy uses the rollover action.
 
-The above index template introduces a few new settings specific to {ilm-init}.
-The first being `index.lifecycle.name`. This setting will configure
-the "datastream_policy" to the index applying this template. This means
-that all newly created indices prefixed "datastream-" will be managed by
-our policy. The other setting used here is `index.lifecycle.rollover_alias`.
-This setting is required when using a policy containing the rollover
-action and specifies which alias to rollover on behalf of this index.
-The intention here is that the rollover alias is also defined on the index.
+[float]
+[[ilm-gs-bootstrap]]
+=== Bootstrap the initial time-series index
 
-To begin, we will want to bootstrap our first index to write to.
+To get things started, you need to bootstrap an initial index and designate it as the write index 
+for the index alias specified as the rollover alias.  
+
+For example, the following request creates an index that matches the `datastream_template` 
+and sets `is_write_index` to `true` for the `datastream` alias.
 
 
 [source,console]

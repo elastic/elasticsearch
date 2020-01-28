@@ -37,31 +37,26 @@ public class ReindexTaskParams implements PersistentTaskParams {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexTaskParams, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexTaskParams((Boolean) a[0], (Boolean) a[1], (Map<String, String>) a[2]));
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexTaskParams((Boolean) a[0], (Map<String, String>) a[1]));
 
     private static String STORE_RESULT = "store_result";
-    private static String RESILIENT = "resilient";
     private static String HEADERS = "headers";
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(STORE_RESULT));
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(RESILIENT));
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), new ParseField(HEADERS));
     }
 
     private final boolean storeResult;
-    private final boolean resilient;
     private final Map<String, String> headers;
 
-    public ReindexTaskParams(boolean storeResult, boolean resilient, Map<String, String> headers) {
+    public ReindexTaskParams(boolean storeResult, Map<String, String> headers) {
         this.storeResult = storeResult;
-        this.resilient = resilient;
         this.headers = headers;
     }
 
     public ReindexTaskParams(StreamInput in) throws IOException {
         storeResult = in.readBoolean();
-        resilient = in.readBoolean();
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
@@ -79,7 +74,6 @@ public class ReindexTaskParams implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(storeResult);
-        out.writeBoolean(resilient);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -87,17 +81,12 @@ public class ReindexTaskParams implements PersistentTaskParams {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STORE_RESULT, storeResult);
-        builder.field(RESILIENT, resilient);
         builder.field(HEADERS, headers);
         return builder.endObject();
     }
 
     public boolean shouldStoreResult() {
         return storeResult;
-    }
-
-    public boolean isResilient() {
-        return resilient;
     }
 
     public Map<String, String> getHeaders() {

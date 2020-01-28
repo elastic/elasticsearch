@@ -33,11 +33,13 @@ import java.io.IOException;
 public class ReindexTaskStateDoc implements ToXContentObject {
 
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
-        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (Long) a[1],
-            (BulkByScrollResponse) a[2], (ElasticsearchException) a[3], (Integer) a[4], (ScrollableHitSource.Checkpoint) a[5]));
+        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (Boolean) a[1],
+            (Long) a[2], (BulkByScrollResponse) a[3], (ElasticsearchException) a[4], (Integer) a[5],
+            (ScrollableHitSource.Checkpoint) a[6]));
 
     private static final String REINDEX_REQUEST = "request";
     private static final String ALLOCATION = "allocation";
+    private static final String RESILIENT = "resilient";
     private static final String REINDEX_RESPONSE = "response";
     private static final String REINDEX_EXCEPTION = "exception";
     private static final String FAILURE_REST_STATUS = "failure_rest_status";
@@ -46,6 +48,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(RESILIENT));
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ALLOCATION));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
             new ParseField(REINDEX_RESPONSE));
@@ -58,34 +61,37 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
     private final ReindexRequest reindexRequest;
     private final Long allocationId;
+    private final boolean resilient;
     private final BulkByScrollResponse reindexResponse;
     private final ElasticsearchException exception;
     private final RestStatus failureStatusCode;
     private final ScrollableHitSource.Checkpoint checkpoint;
 
-    public ReindexTaskStateDoc(ReindexRequest reindexRequest) {
-        this(reindexRequest, null, null, null, (RestStatus) null, null);
+    public ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient) {
+        this(reindexRequest, resilient, null, null, null, (RestStatus) null, null);
     }
 
-    public ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
-                               @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                               @Nullable Integer failureStatusCode, ScrollableHitSource.Checkpoint checkpoint) {
-        this(reindexRequest, allocationId, reindexResponse, exception,
+    private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, @Nullable Long allocationId,
+                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                                @Nullable Integer failureStatusCode, ScrollableHitSource.Checkpoint checkpoint) {
+        this(reindexRequest, resilient, allocationId, reindexResponse, exception,
             failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode), checkpoint);
     }
 
-    public ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
-                               @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                               @Nullable ScrollableHitSource.Checkpoint checkpoint) {
-        this(reindexRequest, allocationId, reindexResponse, exception, exception != null ? exception.status() : null, checkpoint);
+    private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, @Nullable Long allocationId,
+                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                                @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+        this(reindexRequest, resilient, allocationId, reindexResponse, exception, exception != null ? exception.status() : null,
+            checkpoint);
     }
 
-    private ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
+    private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, @Nullable Long allocationId,
                                 @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
                                 @Nullable RestStatus failureStatusCode, @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+        this.reindexRequest = reindexRequest;
+        this.resilient = resilient;
         this.allocationId = allocationId;
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
-        this.reindexRequest = reindexRequest;
         this.reindexResponse = reindexResponse;
         this.exception = exception;
         this.failureStatusCode = failureStatusCode;
@@ -97,6 +103,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         builder.startObject();
         builder.field(REINDEX_REQUEST);
         reindexRequest.toXContent(builder, params, true);
+        builder.field(RESILIENT, resilient);
         if (allocationId != null) {
             builder.field(ALLOCATION, allocationId);
         }
@@ -128,6 +135,10 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         return reindexRequest;
     }
 
+    public boolean isResilient() {
+        return resilient;
+    }
+
     public BulkByScrollResponse getReindexResponse() {
         return reindexResponse;
     }
@@ -150,15 +161,16 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
     public ReindexTaskStateDoc withCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         // todo: also store and resume from status.
-        return new ReindexTaskStateDoc(reindexRequest, allocationId, reindexResponse, exception, failureStatusCode, checkpoint);
+        return new ReindexTaskStateDoc(reindexRequest, resilient, allocationId, reindexResponse, exception, failureStatusCode, checkpoint);
     }
 
     public ReindexTaskStateDoc withNewAllocation(long newAllocationId) {
-        return new ReindexTaskStateDoc(reindexRequest, newAllocationId, reindexResponse, exception, failureStatusCode, checkpoint);
+        return new ReindexTaskStateDoc(reindexRequest, resilient, newAllocationId, reindexResponse, exception, failureStatusCode,
+            checkpoint);
     }
 
     public ReindexTaskStateDoc withFinishedState(@Nullable BulkByScrollResponse reindexResponse,
                                                  @Nullable ElasticsearchException exception) {
-        return new ReindexTaskStateDoc(reindexRequest, allocationId, reindexResponse, exception, checkpoint);
+        return new ReindexTaskStateDoc(reindexRequest, resilient, allocationId, reindexResponse, exception, checkpoint);
     }
 }

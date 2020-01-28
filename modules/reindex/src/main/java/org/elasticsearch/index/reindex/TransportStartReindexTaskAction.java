@@ -108,9 +108,9 @@ public class TransportStartReindexTaskAction
 
         // In the current implementation, we only need to store task results if we do not wait for completion
         boolean storeTaskResult = request.getWaitForCompletion() == false;
-        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, request.isResilient(), included);
+        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, included);
 
-        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
+        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest(), request.isResilient());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {

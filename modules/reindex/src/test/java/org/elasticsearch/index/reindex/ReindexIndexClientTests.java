@@ -36,7 +36,7 @@ public class ReindexIndexClientTests extends ESSingleNodeTestCase {
         ReindexIndexClient client = new ReindexIndexClient(client(), getInstanceFromNode(ClusterService.class), null);
 
         PlainActionFuture<ReindexTaskState> future = new PlainActionFuture<>();
-        client.createReindexTaskDoc(randomAlphaOfLength(5), new ReindexTaskStateDoc(new ReindexRequest()), future);
+        client.createReindexTaskDoc(randomAlphaOfLength(5), new ReindexTaskStateDoc(new ReindexRequest(), randomBoolean()), future);
         future.actionGet(10, TimeUnit.SECONDS);
 
         GetAliasesResponse aliases = client().admin().indices().prepareGetAliases(REINDEX_ALIAS).get();

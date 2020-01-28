@@ -45,7 +45,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final ThreadPool threadPool;
     private final String taskId;
     private final long allocationId;
-    private final boolean resilient;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
     private final Runnable onCheckpointAssignmentConflict;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
@@ -54,13 +53,11 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String taskId, long allocationId,
-                                   boolean resilient, ActionListener<ReindexTaskStateDoc> finishedListener,
-                                   Runnable onCheckpointAssignmentConflict) {
+                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.taskId = taskId;
         this.allocationId = allocationId;
-        this.resilient = resilient;
         this.finishedListener = finishedListener;
         this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
     }
@@ -79,8 +76,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
                 assert oldDoc.getAllocationId() == null || allocationId != oldDoc.getAllocationId();
 
-                ElasticsearchException assignmentFailureReason = assignmentFailureReason(oldDoc, resilient);
-
+                ElasticsearchException assignmentFailureReason = assignmentFailureReason(oldDoc);
 
                 if (assignmentFailureReason == null) {
                     ReindexTaskStateDoc newDoc = oldDoc.withNewAllocation(allocationId);
@@ -129,8 +125,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         });
     }
 
-    private ElasticsearchException assignmentFailureReason(ReindexTaskStateDoc oldDoc, boolean persistent) {
-        if (persistent) {
+    private ElasticsearchException assignmentFailureReason(ReindexTaskStateDoc oldDoc) {
+        if (oldDoc.isResilient()) {
             if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
                 return null;
             } else {

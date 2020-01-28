@@ -26,7 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class CoreValuesSourceTypeTests extends ESTestCase {
 
     public void testFromString() {
-        assertThat(CoreValuesSourceType.fromString("any"), equalTo(CoreValuesSourceType.ANY));
         assertThat(CoreValuesSourceType.fromString("numeric"), equalTo(CoreValuesSourceType.NUMERIC));
         assertThat(CoreValuesSourceType.fromString("bytes"), equalTo(CoreValuesSourceType.BYTES));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));

@@ -260,16 +260,11 @@ public class ValuesSourceConfig {
             }
         } else {
             if (fieldContext() == null) {
+                // Script case
                 vs = valueSourceType().getScript(script(), scriptValueType());
             } else {
-                if (valueSourceType() == CoreValuesSourceType.ANY) {
-                    // TODO: Clean up special cases around CoreValuesSourceType.ANY
-                    // falling back to bytes values
-                    vs = CoreValuesSourceType.BYTES.getField(fieldContext(), script());
-                } else {
-                    // TODO: Better docs for Scripts vs Scripted Fields
-                    vs = valueSourceType().getField(fieldContext(), script());
-                }
+                // Field or Value Script case
+                vs = valueSourceType().getField(fieldContext(), script());
             }
         }
 

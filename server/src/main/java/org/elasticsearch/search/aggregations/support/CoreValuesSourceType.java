@@ -43,31 +43,6 @@ import java.util.function.LongSupplier;
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
-    ANY(EquivalenceType.STRING) {
-        // ANY still has a lot of special handling in ValuesSourceConfig, and as such doesn't adhere to this interface yet
-        @Override
-        public ValuesSource getEmpty() {
-            // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("CoreValuesSourceType.ANY is still a special case");
-        }
-
-        @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("CoreValuesSourceType.ANY is still a special case");
-        }
-
-        @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("CoreValuesSourceType.ANY is still a special case");
-        }
-
-        @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
-            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
-        }
-    },
     NUMERIC(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {

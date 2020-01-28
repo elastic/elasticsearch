@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ecommerce-transforms]]
 === Tutorial: Transforming the eCommerce sample data
 

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-inference-stats]]
 === Get {infer} trained model statistics API
 [subs="attributes"]

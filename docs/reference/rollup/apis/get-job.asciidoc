@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-get-job]]
 === Get {rollup-jobs} API
 ++++

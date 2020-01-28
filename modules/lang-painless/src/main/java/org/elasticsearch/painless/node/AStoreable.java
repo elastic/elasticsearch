@@ -19,15 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * The super class for an expression that can store a value in local memory.
@@ -59,23 +53,6 @@ abstract class AStoreable extends AExpression {
     }
 
     /**
-     * Returns a value based on the number of elements previously placed on the
-     * stack to load/store a certain piece of a variable/method chain.  This is
-     * used during the writing phase to dup stack values from this storeable as
-     * necessary during certain store operations.
-     * <p>
-     * Examples:
-     * {@link EVariable} returns 0 because it requires nothing extra to perform
-     *                   a load/store
-     * {@link PSubField} returns 1 because it requires the name of the field as
-     *                   an index on the stack to perform a load/store
-     * {@link PSubBrace} returns 2 because it requires both the variable slot and
-     *                   an index into the array on the stack to perform a
-     *                   load/store
-     */
-    abstract int accessElementCount();
-
-    /**
      * Returns true if this node or a sub-node of this node can be optimized with
      * rhs actual type to avoid an unnecessary cast.
      */
@@ -87,37 +64,4 @@ abstract class AStoreable extends AExpression {
      * during assignment to def type targets.
      */
     abstract void updateActual(Class<?> actual);
-
-    /**
-     * Called before a storeable node is loaded or stored.  Used to load prefixes and
-     * push load/store constants onto the stack if necessary.
-     */
-    abstract void setup(ClassWriter classWriter, MethodWriter writer, Globals globals);
-
-    /**
-     * Called to load a storable used for compound assignments.
-     */
-    abstract void load(ClassWriter classWriter, MethodWriter writer, Globals globals);
-
-    /**
-     * Called to store a storabable to local memory.
-     */
-    abstract void store(ClassWriter classWriter, MethodWriter writer, Globals globals);
-
-    /**
-     * Writes the opcodes to flip a negative array index (meaning slots from the end of the array) into a 0-based one (meaning slots from
-     * the start of the array).
-     */
-    static void writeIndexFlip(MethodWriter writer, Consumer<MethodWriter> writeGetLength) {
-        Label noFlip = new Label();
-        // Everywhere when it says 'array' below that could also be a list
-        // The stack after each instruction:       array, unnormalized_index
-        writer.dup();                           // array, unnormalized_index, unnormalized_index
-        writer.ifZCmp(Opcodes.IFGE, noFlip);    // array, unnormalized_index
-        writer.swap();                          // negative_index, array
-        writer.dupX1();                         // array, negative_index, array
-        writeGetLength.accept(writer);          // array, negative_index, length
-        writer.visitInsn(Opcodes.IADD);         // array, noralized_index
-        writer.mark(noFlip);                    // array, noralized_index
-    }
 }

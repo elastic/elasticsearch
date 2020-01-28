@@ -171,7 +171,7 @@ public class Shell {
                     readFileIfExists(stdErr)
                 );
                 throw new IllegalStateException(
-                    "Timed out running shell command: " + command + "\n" +
+                    "Timed out running shell command: " + Arrays.toString(command) + "\n" +
                     "Result:\n" + result
                 );
             }

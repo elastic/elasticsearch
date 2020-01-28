@@ -58,8 +58,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 //The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
-// gh#49753, tv#49753 : increasing timeout to 40 minutes until this gets fixes properly
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -106,6 +105,31 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (isMachineLearningTest() || isTransformTest()) {
             ESRestTestCase.waitForPendingTasks(adminClient());
         }
+    }
+
+    @Override
+    protected boolean preserveSLMPoliciesUponCompletion() {
+        return isSLMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return isILMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    protected boolean isSLMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\"));
+    }
+
+    protected boolean isILMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\"));
     }
 
     protected boolean isMachineLearningTest() {

@@ -9,16 +9,24 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 
 public class TrainedModelProviderTests extends ESTestCase {
@@ -58,6 +66,24 @@ public class TrainedModelProviderTests extends ESTestCase {
             assertThat(configWithoutDefinition.getModelId(), equalTo(modelId));
             assertThat(configWithDefinition.ensureParsedDefinition(xContentRegistry()).getModelDefinition(), is(not(nullValue())));
         }
+    }
+
+    public void testExpandIdsQuery() {
+        QueryBuilder queryBuilder = TrainedModelProvider.buildExpandIdsQuery(new String[]{"model*", "trained_mode"},
+            Arrays.asList("tag1", "tag2"));
+        assertThat(queryBuilder, is(instanceOf(ConstantScoreQueryBuilder.class)));
+
+        QueryBuilder innerQuery = ((ConstantScoreQueryBuilder)queryBuilder).innerQuery();
+        assertThat(innerQuery, is(instanceOf(BoolQueryBuilder.class)));
+
+        ((BoolQueryBuilder)innerQuery).filter().forEach(qb -> {
+            if (qb instanceof TermQueryBuilder) {
+                assertThat(((TermQueryBuilder)qb).fieldName(), equalTo(TrainedModelConfig.TAGS.getPreferredName()));
+                assertThat(((TermQueryBuilder)qb).value(), is(oneOf("tag1", "tag2")));
+                return;
+            }
+            assertThat(qb, is(instanceOf(BoolQueryBuilder.class)));
+        });
     }
 
     public void testGetModelThatExistsAsResourceButIsMissing() {

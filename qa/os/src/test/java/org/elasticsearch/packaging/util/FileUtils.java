@@ -153,7 +153,7 @@ public class FileUtils {
 
     public static String slurp(Path file) {
         try {
-            return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
+            return String.join(System.lineSeparator(), Files.readAllLines(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

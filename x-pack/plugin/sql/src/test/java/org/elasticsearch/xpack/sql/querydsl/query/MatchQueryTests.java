@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -23,6 +22,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryTests extends ESTestCase {
@@ -68,7 +68,7 @@ public class MatchQueryTests extends ESTestCase {
 
     private static MatchQueryBuilder getBuilder(String options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.KEYWORD, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
         final MatchQueryPredicate mmqp = new MatchQueryPredicate(source, fa, "eggplant", options);
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", mmqp);
         return (MatchQueryBuilder) mmq.asBuilder();
@@ -76,7 +76,7 @@ public class MatchQueryTests extends ESTestCase {
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.KEYWORD, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
         final MatchQueryPredicate mmqp = new MatchQueryPredicate(source, fa, "eggplant", "");
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", mmqp);
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());

@@ -72,8 +72,10 @@ public final class IndexLifecycleTransition {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-        if (currentStepKey != null && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(lifecycleState)) == false) {
-            throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
+        Step.StepKey realKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        if (currentStepKey != null && currentStepKey.equals(realKey) == false) {
+            throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey +
+                "], currently: [" + realKey + "]");
         }
 
         if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false) {

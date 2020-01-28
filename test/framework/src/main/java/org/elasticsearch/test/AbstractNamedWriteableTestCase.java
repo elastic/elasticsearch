@@ -28,7 +28,9 @@ import java.io.IOException;
 
 /**
  * Standard test case for testing the wire serialization of subclasses of {@linkplain NamedWriteable}.
- * See {@link AbstractWireSerializingTestCase} for subclasses of {@link Writeable}.
+ * See {@link AbstractWireSerializingTestCase} for subclasses of {@link Writeable}. While you *can*
+ * use {@linkplain AbstractWireSerializingTestCase} to test susbclasses of {@linkplain NamedWriteable}
+ * this superclass will also test reading and writing the name.
  */
 public abstract class AbstractNamedWriteableTestCase<T extends NamedWriteable> extends AbstractWireTestCase<T> {
     // Force subclasses to override to customize the registry for their NamedWriteable

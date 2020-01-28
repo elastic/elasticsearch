@@ -54,7 +54,8 @@ class TopMetricsAggregator extends MetricsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        assert sub == null;
+        assert sub == LeafBucketCollector.NO_OP_COLLECTOR : "Expected noop but was " + sub.toString();
+        
         if (metricValueSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

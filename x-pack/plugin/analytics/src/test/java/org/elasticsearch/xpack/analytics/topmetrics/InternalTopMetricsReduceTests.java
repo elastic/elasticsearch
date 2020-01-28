@@ -12,51 +12,42 @@ import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notANumber;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
+/**
+ * Some explicit and simple tests for reducing {@link InternalTopMetrics}.
+ * All of the randomized testing, including randomized reduce testing is
+ * in {@link InternalTopMetricsTests}.
+ */
 public class InternalTopMetricsReduceTests extends ESTestCase {
     public void testAllEmpty() {
         InternalTopMetrics first = buildEmpty();
         InternalTopMetrics reduced = reduce(first, buildEmpty(), buildEmpty(), buildEmpty());
-        assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getSortValue(), nullValue());
-        assertThat(reduced.getSortFormat(), equalTo(DocValueFormat.RAW));
-        assertThat(reduced.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(reduced.getMetricValue(), notANumber());
-        assertThat(reduced.getMetricName(), equalTo("test"));
+        assertThat(reduced, sameInstance(first));
     }
 
     public void testFirstEmpty() {
         InternalTopMetrics first = buildEmpty();
-        InternalTopMetrics filled = buildFilled(SortValue.from(randomDouble()), randomDouble());
-        InternalTopMetrics reduced = reduce(first, buildEmpty(), filled, buildEmpty());
-        assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getSortValue(), equalTo(filled.getSortValue()));
-        assertThat(reduced.getSortFormat(), equalTo(filled.getSortFormat()));
-        assertThat(reduced.getSortOrder(), equalTo(filled.getSortOrder()));
-        assertThat(reduced.getMetricValue(), equalTo(filled.getMetricValue()));
-        assertThat(reduced.getMetricName(), equalTo("test"));
+        InternalTopMetrics reduced = reduce(first, buildFilled(SortValue.from(1), 1.0));
+        assertThat(reduced, sameInstance(first));
     }
 
     public void testMany() {
+        InternalTopMetrics first = buildFilled(SortValue.from(2.0), randomDouble());
         InternalTopMetrics min = buildFilled(SortValue.from(1.0), randomDouble());
         InternalTopMetrics max = buildFilled(SortValue.from(7.0), randomDouble());
         InternalTopMetrics[] metrics = new InternalTopMetrics[] {
-                min, buildEmpty(), buildFilled(SortValue.from(2.0), randomDouble()), buildEmpty(), max
+                first, max, min, buildEmpty(), buildEmpty(),
         };
-        Collections.shuffle(Arrays.asList(metrics), random());
-        SortOrder sortOrder = Arrays.stream(metrics).filter(i -> i.getSortValue() != null).findFirst().get().getSortOrder();
-        InternalTopMetrics winner = sortOrder == SortOrder.ASC ? min : max; 
+        InternalTopMetrics winner = first.getSortOrder() == SortOrder.ASC ? min : max;
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getSortValue(), equalTo(winner.getSortValue()));
         assertThat(reduced.getSortFormat(), equalTo(winner.getSortFormat()));
-        assertThat(reduced.getSortOrder(), equalTo(sortOrder));
+        assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
         assertThat(reduced.getMetricValue(), equalTo(winner.getMetricValue()));
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
@@ -74,6 +65,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         assertThat(reduced.getMetricValue(), equalTo(winner.getMetricValue()));
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
+
     private InternalTopMetrics buildEmpty() {
         return InternalTopMetrics.buildEmptyAggregation("test", "test", emptyList(), null);
     }

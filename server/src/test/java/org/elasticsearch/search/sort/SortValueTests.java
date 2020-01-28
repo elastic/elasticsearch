@@ -56,7 +56,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     @Override
     protected SortValue mutateInstance(SortValue instance) throws IOException {
-        return randomValueOtherThanMany(mut -> keysDiffer(instance, mut), this::createTestInstance);
+        return randomValueOtherThanMany(mut -> instance.getKey().equals(mut.getKey()), this::createTestInstance);
     }
 
     public void testFormatDouble() {
@@ -72,6 +72,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     public void testToXContentDouble() {
         assertThat(toXContent(SortValue.from(1.0), DocValueFormat.RAW), equalTo("{\"test\":1.0}"));
+        // The date formatter coerces the double into a long to format it
         assertThat(toXContent(SortValue.from(1.0), STRICT_DATE_TIME), equalTo("{\"test\":\"1970-01-01T00:00:00.001Z\"}"));
     }
 
@@ -109,21 +110,5 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
                 return sortValue.toXContent(builder, format);
             }
         });
-    }
-
-    private boolean keysDiffer(SortValue lhs, SortValue rhs) {
-        if (lhs instanceof SortValue.DoubleSortValue) {
-            if (false == rhs instanceof SortValue.DoubleSortValue) {
-                return true;
-            }
-            return ((SortValue.DoubleSortValue) lhs).key == ((SortValue.DoubleSortValue) rhs).key;
-        }
-        if (lhs instanceof SortValue.LongSortValue) {
-            if (false == rhs instanceof SortValue.LongSortValue) {
-                return true;
-            }
-            return ((SortValue.LongSortValue) lhs).key == ((SortValue.LongSortValue) rhs).key;
-        }
-        throw new IllegalArgumentException("[" + lhs + "] is of an unknown type");
     }
 }

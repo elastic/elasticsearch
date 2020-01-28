@@ -16,7 +16,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -83,47 +82,47 @@ public class InternalTopMetrics extends InternalAggregation {
 
     @Override
     public InternalTopMetrics reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        Iterator<InternalAggregation> itr = aggregations.iterator();
-        InternalTopMetrics first;
-        // Skip to the first non-empty metric because empty metrics don't have the correct sort format or order.
-        do {
-            if (false == itr.hasNext()) {
-                // All of the aggregations are empty.
-                return buildEmptyAggregation(name, metricName, pipelineAggregators(), getMetaData());
-            }
-            first = (InternalTopMetrics) itr.next();
-        } while (first.sortValue == null);
-        DocValueFormat bestSortFormat = first.sortFormat;
-        SortValue bestSortValue = first.sortValue;
-        double bestMetricValue = first.metricValue;
-        int reverseMul = first.sortOrder.reverseMul();
-        while (itr.hasNext()) {
-            InternalTopMetrics result = (InternalTopMetrics) itr.next();
+        if (false == isMapped()) {
+            return this;
+        }
+        DocValueFormat bestSortFormat = sortFormat;
+        SortValue bestSortValue = sortValue;
+        double bestMetricValue = metricValue;
+        int reverseMul = sortOrder.reverseMul();
+        for (InternalAggregation agg : aggregations) {
+            InternalTopMetrics result = (InternalTopMetrics) agg;
             if (result.sortValue != null && reverseMul * bestSortValue.compareTo(result.sortValue) > 0) {
                 bestSortFormat = result.sortFormat;
                 bestSortValue = result.sortValue;
                 bestMetricValue = result.metricValue;
             }
         }
-        return new InternalTopMetrics(getName(), bestSortFormat, first.sortOrder, bestSortValue, metricName, bestMetricValue,
+        return new InternalTopMetrics(getName(), bestSortFormat, sortOrder, bestSortValue, metricName, bestMetricValue,
                 pipelineAggregators(), getMetaData());
+    }
+
+    @Override
+    public boolean isMapped() {
+        return sortValue != null;
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("top");
-        builder.startObject();
-        {
-            builder.startArray("sort");
-            sortValue.toXContent(builder, sortFormat);
-            builder.endArray();
-            builder.startObject("metrics");
+        if (sortValue != null) {
+            builder.startObject();
             {
-                builder.field(metricName, Double.isNaN(metricValue) ? null : metricValue);
+                builder.startArray("sort");
+                sortValue.toXContent(builder, sortFormat);
+                builder.endArray();
+                builder.startObject("metrics");
+                {
+                    builder.field(metricName, Double.isNaN(metricValue) ? null : metricValue);
+                }
+                builder.endObject();
             }
             builder.endObject();
         }
-        builder.endObject();
         builder.endArray();
         return builder;
     }
@@ -139,7 +138,7 @@ public class InternalTopMetrics extends InternalAggregation {
         InternalTopMetrics other = (InternalTopMetrics) obj;
         return sortFormat.equals(other.sortFormat) &&
             sortOrder.equals(other.sortOrder) &&
-            sortValue.equals(other.sortValue) &&
+            Objects.equals(sortValue, other.sortValue) &&
             metricName.equals(other.metricName) &&
             metricValue == other.metricValue;
     }

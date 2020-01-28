@@ -63,6 +63,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     @Override
     public final int compareTo(SortValue other) {
+        /*
+         * It might make sense to try and compare doubles to longs
+         * *carefully* to get a real sort. but it might not. For now
+         * we sort all doubles before all longs. 
+         */
         int typeCompare = getWriteableName().compareTo(other.getWriteableName());
         if (typeCompare != 0) {
             return typeCompare;
@@ -79,6 +84,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
         return builder.value(format(format));
     }
+
+    /**
+     * The java object representing the sort value.
+     */
+    public abstract Object getKey();
 
     /**
      * Format this value using the provided format.
@@ -107,10 +117,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
-    static class DoubleSortValue extends SortValue {
+    private static class DoubleSortValue extends SortValue {
         public static final String NAME = "double";
 
-        final double key;
+        private final double key;
 
         private DoubleSortValue(double key) {
             this.key = key;
@@ -128,6 +138,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public Object getKey() {
+            return key;
         }
 
         @Override
@@ -166,10 +181,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
     }
 
-    static class LongSortValue extends SortValue {
+    private static class LongSortValue extends SortValue {
         public static final String NAME = "long";
 
-        final long key;
+        private final long key;
 
         LongSortValue(long key) {
             this.key = key;
@@ -187,6 +202,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public Object getKey() {
+            return key;
         }
 
         @Override

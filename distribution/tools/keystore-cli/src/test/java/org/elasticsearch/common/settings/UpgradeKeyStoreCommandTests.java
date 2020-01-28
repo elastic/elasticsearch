@@ -71,7 +71,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreDoesNotExist() {
         final UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e, hasToString(containsString("keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
+        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
     }
 
 }

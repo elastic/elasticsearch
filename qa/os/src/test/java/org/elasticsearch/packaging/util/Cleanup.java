@@ -37,6 +37,7 @@ public class Cleanup {
 
     private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
         "/usr/share/elasticsearch",
+        "/etc/elasticsearch/elasticsearch.keystore",
         "/etc/elasticsearch",
         "/var/lib/elasticsearch",
         "/var/log/elasticsearch",

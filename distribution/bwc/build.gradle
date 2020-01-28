@@ -162,12 +162,6 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         spoolOutput = true
         workingDir = checkoutDir
         doFirst {
-          // TODO: Remove this once we've updated to Gradle 6.1
-          // Workaround for https://github.com/gradle/gradle/issues/11426
-          if (GradleVersion.version(file("${ checkoutDir}/buildSrc/src/main/resources/minimumGradleVersion").text) != GradleVersion.current()) {
-            environment = environment.findAll { key, val -> key != 'OPENSHIFT_IP' }
-          }
-
           // Execution time so that the checkouts are available
           List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
           environment(
@@ -202,6 +196,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         }
 
         args "-Dbuild.snapshot=true"
+        args "-Dscan.tag.NESTED"
         final LogLevel logLevel = gradle.startParameter.logLevel
         if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
           args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"

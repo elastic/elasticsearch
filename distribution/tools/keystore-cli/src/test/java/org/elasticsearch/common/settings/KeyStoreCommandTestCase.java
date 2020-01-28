@@ -89,16 +89,16 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         return keystore;
     }
 
-    void assertSecureString(String setting, String value) throws Exception {
-        assertSecureString(loadKeystore(""), setting, value);
+    void assertSecureString(String setting, String value, String password) throws Exception {
+        assertSecureString(loadKeystore(password), setting, value);
     }
 
     void assertSecureString(KeyStoreWrapper keystore, String setting, String value) throws Exception {
         assertEquals(value, keystore.getString(setting).toString());
     }
 
-    void assertSecureFile(String setting, Path file) throws Exception {
-        assertSecureFile(loadKeystore(""), setting, file);
+    void assertSecureFile(String setting, Path file, String password) throws Exception {
+        assertSecureFile(loadKeystore(password), setting, file);
     }
 
     void assertSecureFile(KeyStoreWrapper keystore, String setting, Path file) throws Exception {
@@ -114,8 +114,12 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
             }
             int eof = input.read();
             if (eof != -1) {
-                fail("Found extra bytes in file stream from keystore, expected " + expectedBytes.length +
-                     " bytes but found 0x" + Integer.toHexString(eof));
+                fail(
+                    "Found extra bytes in file stream from keystore, expected "
+                        + expectedBytes.length
+                        + " bytes but found 0x"
+                        + Integer.toHexString(eof)
+                );
             }
         }
 

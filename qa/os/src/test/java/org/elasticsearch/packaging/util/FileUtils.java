@@ -84,6 +84,30 @@ public class FileUtils {
         }
     }
 
+    public static void rmWithRetries(Path... paths) {
+        int tries = 10;
+        Exception exception = null;
+        while (tries-- > 0) {
+            try {
+                IOUtils.rm(paths);
+                return;
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new RuntimeException(exception);
+    }
+
     public static Path mktempDir(Path path) {
         try {
             return Files.createTempDirectory(path,"tmp");
@@ -129,7 +153,7 @@ public class FileUtils {
 
     public static String slurp(Path file) {
         try {
-            return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
+            return String.join(System.lineSeparator(), Files.readAllLines(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -262,7 +286,7 @@ public class FileUtils {
 
     // vagrant creates /tmp for us in windows so we use that to avoid long paths
     public static Path getTempDir() {
-        return Paths.get("/tmp");
+        return Paths.get("/tmp").toAbsolutePath();
     }
 
     public static Path getDefaultArchiveInstallPath() {
@@ -314,5 +338,16 @@ public class FileUtils {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * Return the given path a string suitable for using on the host system.
+     */
+    public static String escapePath(Path path) {
+        if (Platforms.WINDOWS) {
+            // replace single backslash with forward slash, to avoid unintended escapes in scripts
+            return path.toString().replace('\\', '/');
+        }
+        return path.toString();
     }
 }

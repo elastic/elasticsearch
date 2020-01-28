@@ -62,6 +62,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -78,7 +79,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
@@ -109,7 +109,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -118,7 +117,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
@@ -329,8 +327,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT)
-            .getShards()[0].getStats().getStore().size();
+        createIndex(INDEX_NAME, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms").build());
+
+        int numDocs = randomIntBetween(10, 200);
+        final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex(INDEX_NAME).
+                setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+        }
+        indexRandom(randomBoolean(), docs);
 
         logger.info("--> start node B");
         // force a shard recovery from nodeA to nodeB
@@ -346,8 +355,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> start node C");
         final String nodeC = internalCluster().startNode();
 
-        // do sync flush to gen sync id
-        assertThat(client().admin().indices().prepareSyncedFlush(INDEX_NAME).get().failedShards(), equalTo(0));
+        ReplicaShardAllocatorIT.ensureActivePeerRecoveryRetentionLeasesAdvanced(INDEX_NAME);
 
         // hold peer recovery on phase 2 after nodeB down
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
@@ -1074,73 +1082,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         } finally {
             allowToCompletePhase1Latch.countDown();
         }
-        ensureGreen(indexName);
-    }
-
-    public void testRecoveryFlushReplica() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        String indexName = "test-index";
-        createIndex(indexName, Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build());
-        int numDocs = randomIntBetween(0, 10);
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, numDocs)
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.number_of_replicas", 1)));
-        ensureGreen(indexName);
-        ShardId shardId = null;
-        for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()) {
-            shardId = shardStats.getShardRouting().shardId();
-            if (shardStats.getShardRouting().primary() == false) {
-                assertThat(shardStats.getCommitStats().getNumDocs(), equalTo(numDocs));
-                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                    shardStats.getCommitStats().getUserData().entrySet());
-                assertThat(commitInfo.localCheckpoint, equalTo(shardStats.getSeqNoStats().getLocalCheckpoint()));
-                assertThat(commitInfo.maxSeqNo, equalTo(shardStats.getSeqNoStats().getMaxSeqNo()));
-            }
-        }
-        SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
-        assertBusy(() -> assertThat(client().admin().indices().prepareSyncedFlush(indexName).get().failedShards(), equalTo(0)));
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.number_of_replicas", 2)));
-        ensureGreen(indexName);
-        // Recovery should keep syncId if no indexing activity on the primary after synced-flush.
-        Set<String> syncIds = Stream.of(client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards())
-            .map(shardStats -> shardStats.getCommitStats().syncId())
-            .collect(Collectors.toSet());
-        assertThat(syncIds, hasSize(1));
-    }
-
-    public void testRecoveryUsingSyncedFlushWithoutRetentionLease() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "24h") // do not reallocate the lost shard
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "100ms") // expire leases quickly
-            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms") // sync frequently
-            .build());
-        int numDocs = randomIntBetween(0, 10);
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, numDocs)
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
-        ensureGreen(indexName);
-
-        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-        assertThat(SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId).successfulShards(), equalTo(2));
-
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        final ShardRouting shardToResync = randomFrom(clusterState.routingTable().shardRoutingTable(shardId).activeShards());
-        internalCluster().restartNode(clusterState.nodes().get(shardToResync.currentNodeId()).getName(),
-            new InternalTestCluster.RestartCallback() {
-                @Override
-                public Settings onNodeStopped(String nodeName) throws Exception {
-                    assertBusy(() -> assertFalse(client().admin().indices().prepareStats(indexName).get()
-                        .getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
-                        ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardToResync))));
-                    return super.onNodeStopped(nodeName);
-                }
-            });
-
         ensureGreen(indexName);
     }
 

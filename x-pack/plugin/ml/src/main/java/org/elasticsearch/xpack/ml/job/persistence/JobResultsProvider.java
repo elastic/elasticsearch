@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -130,7 +131,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class JobResultsProvider {
@@ -715,7 +715,7 @@ public class JobResultsProvider {
      * @return a bucket {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
-        return new BatchedBucketsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedBucketsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -727,7 +727,7 @@ public class JobResultsProvider {
      * @return a record {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<AnomalyRecord> newBatchedRecordsIterator(String jobId) {
-        return new BatchedRecordsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedRecordsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -924,7 +924,7 @@ public class JobResultsProvider {
      * @return an influencer {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
-        return new BatchedInfluencersIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedInfluencersIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**

@@ -87,9 +87,9 @@ endif::[]
 This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
-Please note that this configuration exposes port 9200 on all network interfaces, and given how 
-Docker manipulates `iptables` on Linux, this means that your {es} cluster is publically accessible, 
-potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use 
+Please note that this configuration exposes port 9200 on all network interfaces, and given how
+Docker manipulates `iptables` on Linux, this means that your {es} cluster is publicly accessible,
+potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
 
@@ -220,12 +220,6 @@ mkdir esdatadir
 chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
-
-As a last resort, you can force the container to mutate the ownership of
-any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`. When you do this, they will be owned by
-uid:gid `1000:0`, which provides the required read/write access to the {es} process.
-
 
 ===== Increase ulimits for nofile and nproc
 
@@ -359,6 +353,25 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,
 and the data and log directories must be writable by this user.
+
+[[docker-keystore-bind-mount]]
+===== Mounting an {es} keystore
+
+By default, {es} will auto-generate a keystore file for secure settings. This
+file is obfuscated but not encrypted. If you want to encrypt your
+<<secure-settings,secure settings>> with a password, you must use the
+`elasticsearch-keystore` utility to create a password-protected keystore and
+bind-mount it to the container as
+`/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
+the Docker container with the password at startup, set the Docker environment
+value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker
+run` command might have the following options:
+
+[source, sh]
+--------------------------------------------
+-v full_path_to/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
+-E KEYSTORE_PASSWORD=mypassword
+--------------------------------------------
 
 [[_c_customized_image]]
 ===== Using custom Docker images

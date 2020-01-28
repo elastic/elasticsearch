@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -46,7 +47,6 @@ import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.clearJournal;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
@@ -105,7 +105,7 @@ public class PackageTests extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"),
             containsString(systemJavaHome));
     }
 
@@ -161,6 +161,7 @@ public class PackageTests extends PackagingTestCase {
 
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
+        stopElasticsearch();
     }
 
     public void test50Remove() throws Exception {
@@ -342,10 +343,9 @@ public class PackageTests extends PackagingTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
-            clearJournal(sh);
+            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             runElasticsearchStartCommand();
-
-            final Result logs = sh.run("journalctl -u elasticsearch.service");
+            final Result logs = journald.getLogs();
 
             assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
         });

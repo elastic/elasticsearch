@@ -58,7 +58,7 @@ tasks.dependenciesInfo.enabled = false
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
+  dependsOn 'destructiveDistroTest' 
 }
 
 processTestResources {

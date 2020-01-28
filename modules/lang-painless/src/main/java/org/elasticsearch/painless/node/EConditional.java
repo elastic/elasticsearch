@@ -20,14 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.ir.ConditionalNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -90,20 +86,17 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    ConditionalNode write() {
+        ConditionalNode conditionalNode = new ConditionalNode();
 
-        Label fals = new Label();
-        Label end = new Label();
+        conditionalNode.setLeftNode(left.write());
+        conditionalNode.setRightNode(right.write());
+        conditionalNode.setConditionNode(condition.write());
 
-        condition.write(classWriter, methodWriter, globals);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
+        conditionalNode.setLocation(location);
+        conditionalNode.setExpressionType(actual);
 
-        left.write(classWriter, methodWriter, globals);
-        methodWriter.goTo(end);
-        methodWriter.mark(fals);
-        right.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
+        return conditionalNode;
     }
 
     @Override

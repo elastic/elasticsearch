@@ -23,14 +23,12 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.lease.Releasable;
 
-import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TranslogDeletionPolicy {
+public final class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
 
@@ -59,16 +57,8 @@ public class TranslogDeletionPolicy {
      */
     private long translogGenerationOfLastCommit = 1;
 
-    private long retentionSizeInBytes;
 
-    private long retentionAgeInMillis;
-
-    private int retentionTotalFiles;
-
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
-        this.retentionSizeInBytes = retentionSizeInBytes;
-        this.retentionAgeInMillis = retentionAgeInMillis;
-        this.retentionTotalFiles = retentionTotalFiles;
+    public TranslogDeletionPolicy() {
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
         } else {
@@ -93,18 +83,6 @@ public class TranslogDeletionPolicy {
                 "current [" + translogGenerationOfLastCommit + "], minRequiredGen [" + minTranslogGenerationForRecovery + "]");
         }
         translogGenerationOfLastCommit = lastGen;
-    }
-
-    public synchronized void setRetentionSizeInBytes(long bytes) {
-        retentionSizeInBytes = bytes;
-    }
-
-    public synchronized void setRetentionAgeInMillis(long ageInMillis) {
-        retentionAgeInMillis = ageInMillis;
-    }
-
-    synchronized void setRetentionTotalFiles(int retentionTotalFiles) {
-        this.retentionTotalFiles = retentionTotalFiles;
     }
 
     /**
@@ -156,66 +134,9 @@ public class TranslogDeletionPolicy {
     /**
      * returns the minimum translog generation that is still required by the system. Any generation below
      * the returned value may be safely deleted
-     *
-     * @param readers current translog readers
-     * @param writer  current translog writer
      */
-    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
-        long minByLocks = getMinTranslogGenRequiredByLocks();
-        long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
-        long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
-        final long minByAgeAndSize;
-        if (minBySize == Long.MIN_VALUE && minByAge == Long.MIN_VALUE) {
-            // both size and age are disabled;
-            minByAgeAndSize = Long.MAX_VALUE;
-        } else {
-            minByAgeAndSize = Math.max(minByAge, minBySize);
-        }
-        long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
-        return Math.min(Math.max(minByAgeAndSize, minByNumFiles), Math.min(minByLocks, minTranslogGenerationForRecovery));
-    }
-
-    static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
-        if (retentionSizeInBytes >= 0) {
-            long totalSize = writer.sizeInBytes();
-            long minGen = writer.getGeneration();
-            for (int i = readers.size() - 1; i >= 0 && totalSize < retentionSizeInBytes; i--) {
-                final TranslogReader reader = readers.get(i);
-                totalSize += reader.sizeInBytes();
-                minGen = reader.getGeneration();
-            }
-            return minGen;
-        } else {
-            return Long.MIN_VALUE;
-        }
-    }
-
-    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
-        throws IOException {
-        if (maxRetentionAgeInMillis >= 0) {
-            for (TranslogReader reader: readers) {
-                if (now - reader.getLastModifiedTime() <= maxRetentionAgeInMillis) {
-                    return reader.getGeneration();
-                }
-            }
-            return writer.getGeneration();
-        } else {
-            return Long.MIN_VALUE;
-        }
-    }
-
-    static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
-        long minGen = writer.generation;
-        int totalFiles = 1; // for the current writer
-        for (int i = readers.size() - 1; i >= 0 && totalFiles < maxTotalFiles; i--) {
-            totalFiles++;
-            minGen = readers.get(i).generation;
-        }
-        return minGen;
-    }
-
-    protected long currentTime() {
-        return System.currentTimeMillis();
+    synchronized long minTranslogGenRequired() {
+        return Math.min(getMinTranslogGenRequiredByLocks(), minTranslogGenerationForRecovery);
     }
 
     private long getMinTranslogGenRequiredByLocks() {

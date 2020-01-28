@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.expression;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -22,10 +21,9 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toCollection;
 
-@AwaitsFix(bugUrl = "classpath inside tests is different")
 public class ProcessorTests extends ESTestCase {
 
-    private static List<Class<? extends Processor>> processors;
+    private static Set<Class<? extends Processor>> processors;
 
     @BeforeClass
     public static void init() throws Exception {
@@ -34,6 +32,7 @@ public class ProcessorTests extends ESTestCase {
 
     public void testProcessorRegistration() throws Exception {
         LinkedHashSet<String> registered = Processors.getNamedWriteables().stream()
+                .filter(e -> Processor.class == e.categoryClass)
                 .map(e -> e.name)
                 .collect(toCollection(LinkedHashSet::new));
 

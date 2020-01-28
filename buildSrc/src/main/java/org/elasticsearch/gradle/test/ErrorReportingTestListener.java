@@ -196,9 +196,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Descriptor that = (Descriptor) o;
-            return Objects.equals(name, that.name) &&
-                Objects.equals(className, that.className) &&
-                Objects.equals(parent, that.parent);
+            return Objects.equals(name, that.name) && Objects.equals(className, that.className) && Objects.equals(parent, that.parent);
         }
 
         @Override

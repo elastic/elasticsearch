@@ -14,7 +14,7 @@ between `10` and `20`.
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -150,7 +150,7 @@ contains a date between today and yesterday.
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -212,7 +212,7 @@ UTC offset. For example:
 
 [source,console]
 ----
-GET _search
+GET /_search
 {
   "query": {
     "range": {

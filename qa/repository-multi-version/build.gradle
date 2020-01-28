@@ -43,7 +43,6 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
       version = v
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

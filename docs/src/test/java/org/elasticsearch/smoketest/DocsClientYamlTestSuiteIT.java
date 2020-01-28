@@ -22,10 +22,13 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -104,6 +107,50 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (isMachineLearningTest() || isTransformTest()) {
             ESRestTestCase.waitForPendingTasks(adminClient());
         }
+
+        // check that there are no templates
+        Request request = new Request("GET", "_cat/templates");
+        request.addParameter("h", "name");
+        String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+        if (false == "".equals(templates)) {
+            for (String template : templates.split("\n")) {
+                if (isXPackTemplate(template)) continue;
+                if ("".equals(template)) {
+                    throw new IllegalStateException("empty template in templates list:\n" + templates);
+                }
+                throw new RuntimeException("Template " + template + " not cleared after test");
+            }
+        }
+    }
+
+    @Override
+    protected boolean preserveSLMPoliciesUponCompletion() {
+        return isSLMTest() == false;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return isILMTest() == false;
+    }
+
+    /**
+     * Tests are themselves responsible for cleaning up templates, which speeds up build.
+     */
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    protected boolean isSLMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\") ||
+            // TODO: Remove after backport of https://github.com/elastic/elasticsearch/pull/48705 which moves SLM docs to correct folder
+            testName.contains("/ilm/") || testName.contains("\\ilm\\"));
+    }
+
+    protected boolean isILMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\"));
     }
 
     protected boolean isMachineLearningTest() {

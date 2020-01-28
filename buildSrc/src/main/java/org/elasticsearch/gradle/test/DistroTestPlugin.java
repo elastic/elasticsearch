@@ -114,13 +114,18 @@ public class DistroTestPlugin implements Plugin<Project> {
                 destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             }
         }
-        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
+
+        Map<String, TaskProvider<BatsTestTask>> batsTests = new HashMap<>();
+        TaskProvider<BatsTestTask> batsPluginsTest = configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask);
+        batsPluginsTest.configure(
             t -> t.setPluginsDir(pluginsDir)
         );
-        configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(
+        batsTests.put("bats plugins", batsPluginsTest);
+        TaskProvider<BatsTestTask> batsUpgradeTest = configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask);
+        batsUpgradeTest.configure(
             t -> t.setUpgradeDir(upgradeDir)
         );
+        batsTests.put("bats upgrade", batsUpgradeTest);
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);

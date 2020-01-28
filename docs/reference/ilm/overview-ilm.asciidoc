@@ -9,14 +9,26 @@
 
 You can create and apply {ilm-cap} ({ilm-init}) policies to automatically manage your indices 
 according to your performance, resiliency, and retention requirements. 
-Index lifecycle policies can trigger actions such as rollover, shrink, freeze, and delete. 
+Index lifecycle policies can trigger actions such as:
 
-Typically, you associate a lifecycle policy with an index template so it is applied   
-whenever an index is created from the template. 
+* **Rollover** - 
+include::../glossary.asciidoc[tag=rollover-def-short]
+* **Shrink** - 
+include::../glossary.asciidoc[tag=shrink-def-short]
+* **Force merge** - 
+include::../glossary.asciidoc[tag=force-merge-def-short]
+* **Freeze** -
+include::../glossary.asciidoc[tag=freeze-def-short]
+* **Delete** - Permanently remove an index, including all of its data and metadata.
+
+Typically, you associate a lifecycle policy with an index template so it is automatically applied   
+to new indices. 
 You can also apply a policy manually when you create an index.
 
-Index lifecycle policies are most often used to manage time-series indices. 
-Time-series indices have a four stage lifecycle:
+{ilm-init} simplifies managing indices in hot-warm-cold architectures, 
+which are common when you're working with time-series data such as logs and metrics.
+
+As an index ages, it moves through four possible phases: 
 
 * Hot--the index is actively being updated and queried.
 * Warm--the index is no longer being updated, but is still being queried.
@@ -25,9 +37,8 @@ information still needs to be searchable, but it's okay if those queries are
 slower.
 * Delete--the index is no longer needed and can safely be deleted.
 
-A lifecycle policy governs how the index transitions through these stages and
-the actions that are performed on the index at each stage. 
-The policy can specify:
+A lifecycle policy controls how an index moves between phases and
+what actions to perform during each phase. You can specify:
 
 * The maximum size or age at which you want to roll over to a new index.
 * The point at which the index is no longer being updated and the number of
@@ -50,8 +61,8 @@ hardware.
 
 [IMPORTANT]
 ===========================
-{ilm} does not support mixed-version clusters. 
-Although it might be possible to create and apply policies in a mixed cluster, 
+To use {ilm-init}, all nodes in a cluster must run the same version. 
+Although it might be possible to create and apply policies in a mixed-version cluster, 
 there is no guarantee they will work as intended.
 Attempting to use a policy that contains actions that aren't
 supported on all nodes in a cluster will cause errors. 

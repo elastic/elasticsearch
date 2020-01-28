@@ -81,11 +81,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     }
 
     /**
-     * Get the java object that represents the sort value.
-     */
-    public abstract Object getKey(); // NOCOMMIT do we need this?
-
-    /**
      * Format this value using the provided format.
      */
     public abstract String format(DocValueFormat format);
@@ -112,10 +107,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
-    private static class DoubleSortValue extends SortValue {
+    static class DoubleSortValue extends SortValue {
         public static final String NAME = "double";
 
-        private final double key;
+        final double key;
 
         private DoubleSortValue(double key) {
             this.key = key;
@@ -133,11 +128,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-
-        @Override
-        public Object getKey() {
-            return key;
         }
 
         @Override
@@ -176,10 +166,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
     }
 
-    private static class LongSortValue extends SortValue {
+    static class LongSortValue extends SortValue {
         public static final String NAME = "long";
 
-        private final long key;
+        final long key;
 
         LongSortValue(long key) {
             this.key = key;
@@ -197,11 +187,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-
-        @Override
-        public Object getKey() {
-            return key;
         }
 
         @Override

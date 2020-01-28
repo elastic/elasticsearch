@@ -92,14 +92,14 @@ public class InternalTopMetrics extends InternalAggregation {
                 return buildEmptyAggregation(name, metricName, pipelineAggregators(), getMetaData());
             }
             first = (InternalTopMetrics) itr.next();
-        } while (first.sortValue != null);
+        } while (first.sortValue == null);
         DocValueFormat bestSortFormat = first.sortFormat;
         SortValue bestSortValue = first.sortValue;
         double bestMetricValue = first.metricValue;
         int reverseMul = first.sortOrder.reverseMul();
         while (itr.hasNext()) {
             InternalTopMetrics result = (InternalTopMetrics) itr.next();
-            if (reverseMul * bestSortValue.compareTo(result.sortValue) > 0) {
+            if (result.sortValue != null && reverseMul * bestSortValue.compareTo(result.sortValue) > 0) {
                 bestSortFormat = result.sortFormat;
                 bestSortValue = result.sortValue;
                 bestMetricValue = result.metricValue;
@@ -115,12 +115,7 @@ public class InternalTopMetrics extends InternalAggregation {
         builder.startObject();
         {
             builder.startArray("sort");
-            // NOCOMMIT move this into SortValue
-            if (sortFormat == DocValueFormat.RAW) {
-                builder.value(sortValue.getKey());
-            } else {
-                builder.value(sortValue.format(sortFormat));
-            }
+            sortValue.toXContent(builder, sortFormat);
             builder.endArray();
             builder.startObject("metrics");
             {

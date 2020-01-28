@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.XPackLicenseState;

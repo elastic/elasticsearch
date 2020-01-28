@@ -61,8 +61,19 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         assertThat(reduced.getMetricName(), equalTo("test"));
     }
 
-    // NOCOMMIT tests for mixed types
-
+    public void testDifferentTypes() {
+        InternalTopMetrics doubleMetrics = buildFilled(SortValue.from(100.0), randomDouble());
+        InternalTopMetrics longMetrics = buildFilled(SortValue.from(7), randomDouble());
+        InternalTopMetrics reduced = reduce(doubleMetrics, longMetrics);
+        // Doubles sort first.
+        InternalTopMetrics winner = doubleMetrics.getSortOrder() == SortOrder.ASC ? doubleMetrics : longMetrics; 
+        assertThat(reduced.getName(), equalTo("test"));
+        assertThat(reduced.getSortValue(), equalTo(winner.getSortValue()));
+        assertThat(reduced.getSortFormat(), equalTo(winner.getSortFormat()));
+        assertThat(reduced.getSortOrder(), equalTo(doubleMetrics.getSortOrder()));
+        assertThat(reduced.getMetricValue(), equalTo(winner.getMetricValue()));
+        assertThat(reduced.getMetricName(), equalTo("test"));
+    }
     private InternalTopMetrics buildEmpty() {
         return InternalTopMetrics.buildEmptyAggregation("test", "test", emptyList(), null);
     }

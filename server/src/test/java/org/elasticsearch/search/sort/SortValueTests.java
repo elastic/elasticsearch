@@ -56,7 +56,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     @Override
     protected SortValue mutateInstance(SortValue instance) throws IOException {
-        return randomValueOtherThanMany(c -> c.getKey().equals(instance.getKey()), this::createTestInstance);
+        return randomValueOtherThanMany(mut -> keysDiffer(instance, mut), this::createTestInstance);
     }
 
     public void testFormatDouble() {
@@ -109,5 +109,21 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
                 return sortValue.toXContent(builder, format);
             }
         });
+    }
+
+    private boolean keysDiffer(SortValue lhs, SortValue rhs) {
+        if (lhs instanceof SortValue.DoubleSortValue) {
+            if (false == rhs instanceof SortValue.DoubleSortValue) {
+                return true;
+            }
+            return ((SortValue.DoubleSortValue) lhs).key == ((SortValue.DoubleSortValue) rhs).key;
+        }
+        if (lhs instanceof SortValue.LongSortValue) {
+            if (false == rhs instanceof SortValue.LongSortValue) {
+                return true;
+            }
+            return ((SortValue.LongSortValue) lhs).key == ((SortValue.LongSortValue) rhs).key;
+        }
+        throw new IllegalArgumentException("[" + lhs + "] is of an unknown type");
     }
 }

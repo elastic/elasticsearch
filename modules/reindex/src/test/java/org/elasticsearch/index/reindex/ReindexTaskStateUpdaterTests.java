@@ -84,6 +84,52 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         assertThat(exceptionRef.get().getMessage(), equalTo("A newer task has already been allocated"));
     }
 
+    public void testFailoverAssignmentFailsIfNonResilient() throws Exception {
+        String taskId = randomAlphaOfLength(10);
+        ReindexIndexClient reindexClient = getReindexClient();
+        createDoc(reindexClient, taskId);
+
+        ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
+            taskId, 0, false, ActionListener.wrap(() -> {}), () -> {});
+        CountDownLatch successLatch = new CountDownLatch(1);
+
+        updater.assign(new ActionListener<>() {
+            @Override
+            public void onResponse(ReindexTaskStateDoc stateDoc) {
+                successLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                successLatch.countDown();
+                fail();
+            }
+        });
+        successLatch.await();
+
+        ReindexTaskStateUpdater oldAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
+            taskId, 1, false, ActionListener.wrap(() -> {}), () -> {});
+        CountDownLatch failureLatch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+
+        oldAllocationUpdater.assign(new ActionListener<>() {
+            @Override
+            public void onResponse(ReindexTaskStateDoc stateDoc) {
+                failureLatch.countDown();
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                exceptionRef.set(exception);
+                failureLatch.countDown();
+            }
+        });
+        failureLatch.await();
+        assertThat(exceptionRef.get().getMessage(),
+            equalTo("A prior task has already been allocated and reindexing is configured to be non-resilient"));
+    }
+
     public void testEnsureHighestAllocationIsWinningAssignment() throws Exception {
         String taskId = randomAlphaOfLength(10);
         ReindexIndexClient reindexClient = getReindexClient();

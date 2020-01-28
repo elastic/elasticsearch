@@ -140,7 +140,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             if (oldDoc.getAllocationId() == null) {
                 return null;
             } else {
-                return new ElasticsearchException("A prior task has already been allocated and task is configured to not be persistent");
+                return new ElasticsearchException("A prior task has already been allocated and reindexing is configured to be " +
+                    "non-resilient");
             }
 
         }

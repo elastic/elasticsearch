@@ -80,6 +80,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1108,7 +1109,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Is this template one that is automatically created by xpack?
      */
-    private static boolean isXPackTemplate(String name) {
+    protected static boolean isXPackTemplate(String name) {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
@@ -1121,10 +1122,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".ml-")) {
             return true;
         }
+        if (name.startsWith(".transform-")) {
+            return true;
+        }
         switch (name) {
         case ".triggered_watches":
         case ".watches":
         case "logstash-index-template":
+        case ".logstash-management":
         case "security_audit_log":
         case ".slm-history":
             return true;

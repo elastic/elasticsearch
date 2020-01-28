@@ -160,7 +160,6 @@ class BuildPlugin implements Plugin<Project> {
                     for (File dep : project.getConfigurations().getByName("extraJars").getFiles()){
                         cluster.extraJarFile(dep)
                     }
-                    cluster.setTestDistribution(TestDistribution.DEFAULT)
                     cluster.extraConfigFile("fips_java.security", securityProperties)
                     cluster.extraConfigFile("fips_java.policy", securityPolicy)
                     cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)

@@ -215,7 +215,16 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * If we have an encrypted keystore, we shouldn't require a password to
      * view help information.
      */
-    public void test44EncryptedKeystoreAllowsHelpMessage(){
+    public void test44EncryptedKeystoreAllowsHelpMessage() throws Exception {
+        assumeTrue("users call elasticsearch directly in archive case",
+            distribution.isArchive());
+
+        String password = "keystorepass";
+
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
+
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
         assertThat(r.stdout, startsWith("Starts Elasticsearch"));

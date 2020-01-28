@@ -197,7 +197,7 @@ The index of the right child.
 
 `tree_node`.`default_left`:::
 (Optional, boolean) 
-Should default to the left if the feature is missing. Defaults to `true`.
+Indicates whether to default to the left when the feature is missing. Defaults to `true`.
 
 `tree_node`.`split_feature`:::
 (Optional, integer) 

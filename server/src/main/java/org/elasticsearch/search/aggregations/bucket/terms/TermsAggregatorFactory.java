@@ -23,14 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -48,7 +40,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.Bucket
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.TermsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -73,35 +64,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     // TODO: Registration should happen on the actual aggregator classes
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME, CoreValuesSourceType.BYTES, TermsAggregatorFactory.bytesSupplier(),
-            (fieldType, indexFieldData) -> fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)
-                || fieldType.typeName().equals(BinaryFieldMapper.CONTENT_TYPE)
-                || fieldType.typeName().equals(IdFieldMapper.CONTENT_TYPE)
-                || fieldType.typeName().equals(IndexFieldMapper.CONTENT_TYPE)
-        );
+        valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            TermsAggregatorFactory.bytesSupplier());
 
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME, CoreValuesSourceType.IP, TermsAggregatorFactory.bytesSupplier(),
-            (fieldType, indexFieldData) -> fieldType.typeName().equals(IpFieldMapper.CONTENT_TYPE)
-        );
-
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME, CoreValuesSourceType.DATE, TermsAggregatorFactory.numericSupplier(),
-            (fieldType, indexFieldData) -> fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
-        );
-
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME, CoreValuesSourceType.BOOLEAN, TermsAggregatorFactory.numericSupplier(),
-            (fieldType, indexFieldData) -> fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)
-        );
-
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC, TermsAggregatorFactory.numericSupplier(),
-            (fieldType, indexFieldData) -> {
-                for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-                    if (fieldType.typeName().equals(type.typeName())) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        );
+        valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            TermsAggregatorFactory.numericSupplier());
     }
 
     /**
@@ -140,6 +109,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
                 if (subAggCollectMode == null) {
                     subAggCollectMode = SubAggCollectionMode.DEPTH_FIRST;
+                    // TODO can we remove concept of AggregatorFactories.EMPTY?
                     if (factories != AggregatorFactories.EMPTY) {
                         subAggCollectMode = subAggCollectionMode(bucketCountThresholds.getShardSize(), maxOrd);
                     }
@@ -190,6 +160,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 IncludeExclude.LongFilter longFilter = null;
                 if (subAggCollectMode == null) {
+                    // TODO can we remove concept of AggregatorFactories.EMPTY?
                     if (factories != AggregatorFactories.EMPTY) {
                         subAggCollectMode = subAggCollectionMode(bucketCountThresholds.getShardSize(), -1);
                     } else {

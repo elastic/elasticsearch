@@ -70,6 +70,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -754,6 +756,11 @@ public class TextFieldMapper extends FieldMapper {
                                 + "use significant memory. Alternatively use a keyword field instead.");
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override

@@ -29,7 +29,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -119,21 +118,30 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             "2019-11-09T17:09:50",
             "2019-11-10T22:55:46");
 
+        String fieldName = "date_field";
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(fieldName);
+        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
+        fieldType.setName(fieldName);
+        fieldType.setHasDocValues(true);
+
         try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (String value : dataset) {
-                Document doc = new Document();
-                long millis = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(value)).toInstant().toEpochMilli();
-                doc.add(new SortedNumericDocValuesField("field", millis));
-                w.addDocument(doc);
+             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir)) {
+            Document document = new Document();
+            for (String date : dataset) {
+                if (frequently()) {
+                    indexWriter.commit();
+                }
+
+                long instant = fieldType.parse(date);
+                document.add(new SortedNumericDocValuesField(fieldName, instant));
+                indexWriter.addDocument(document);
+                document.clear();
             }
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
-                .field("field")
+                .field(fieldName)
                 .interval(1000 * 60 * 60 * 24);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
-            try (IndexReader reader = w.getReader()) {
+            try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));

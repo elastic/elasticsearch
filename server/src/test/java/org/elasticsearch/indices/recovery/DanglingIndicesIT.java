@@ -79,8 +79,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final Settings settings = buildSettings(0, true, true);
         internalCluster().startNodes(3, settings);
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        ensureGreen(INDEX_NAME);
+        createIndices(INDEX_NAME);
         assertBusy(
             () -> internalCluster().getInstances(IndicesService.class)
                 .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
@@ -132,8 +131,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        ensureGreen(INDEX_NAME);
+        createIndices(INDEX_NAME);
         assertBusy(
             () -> internalCluster().getInstances(IndicesService.class)
                 .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
@@ -164,8 +162,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesAreNotRecoveredWhenNotWritten() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, false, true));
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        ensureGreen(INDEX_NAME);
+        createIndices(INDEX_NAME);
         internalCluster().getInstances(IndicesService.class)
             .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()));
 
@@ -194,7 +191,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesCanBeListed() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndices(INDEX_NAME);
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -238,12 +235,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that dangling indices can be restored.
+     * Check that dangling indices can be imported.
      */
-    public void testDanglingIndicesCanBeRestored() throws Exception {
+    public void testDanglingIndicesCanBeImported() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndices(INDEX_NAME);
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -284,18 +281,18 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), true);
 
-        final ImportDanglingIndexResponse restoreResponse = client().admin().cluster().importDanglingIndex(request).actionGet();
+        final ImportDanglingIndexResponse importResponse = client().admin().cluster().importDanglingIndex(request).actionGet();
 
-        assertThat(restoreResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertThat(importResponse.status(), equalTo(RestStatus.ACCEPTED));
 
         assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
     }
 
     /**
-     * Check that the when sending a restore-dangling-indices request, the specified UUIDs are validated as
+     * Check that the when sending an import-dangling-indices request, the specified UUIDs are validated as
      * being dangling.
      */
-    public void testDanglingIndicesMustExistToBeRestored() {
+    public void testDanglingIndicesMustExistToBeImported() {
         internalCluster().startNodes(1, buildSettings(0, true, false));
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true);
@@ -313,12 +310,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that a dangling index can only be restored if "accept_data_loss" is set to true.
+     * Check that a dangling index can only be imported if "accept_data_loss" is set to true.
      */
-    public void testMustAcceptDataLossToRestoreDanglingIndex() throws Exception {
+    public void testMustAcceptDataLossToImportDanglingIndex() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndices(INDEX_NAME);
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -373,17 +370,21 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that dangling indices can be deleted. To do this, we set the index graveyard size to 1, then create
-     * two indices and delete them both while one node in the cluster is stopped. When the stopped node is resumed,
-     * only one index will be found into the graveyard, while the the other will be considered dangling, and can
-     * therefore be listed and deleted through the API
+     * Check that dangling indices can be deleted. Since this requires that
+     * we add an entry to the index graveyard, the graveyard size must be
+     * greater than 1. To test deletes, we set the index graveyard size to
+     * 1, then create two indices and delete them both while one node in
+     * the cluster is stopped. The deletion of the second push the deletion
+     * of the first out of the graveyard. When the stopped node is resumed,
+     * only the second index will be found into the graveyard and the the
+     * other will be considered dangling, and can therefore be listed and
+     * deleted through the API
      */
     public void testDanglingIndexCanBeDeleted() throws Exception {
         final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(3, settings);
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        createIndex(OTHER_INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -447,16 +448,14 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Check that when a index is found to be dangling on more than one node, it can be deleted.
+     */
     public void testDanglingIndexOverMultipleNodesCanBeDeleted() throws Exception {
         final Settings settings = buildSettings(1, true, false);
-        // We're going to shut down 2 nodes, so we need 5 nodes in order to keep quorum
-        internalCluster().startNodes(5, settings);
+        internalCluster().startNodes(3, settings);
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 4).build());
-        createIndex(OTHER_INDEX_NAME, Settings.builder().put("number_of_replicas", 4).build());
-
-        // We need to ensure that all the replicas are set up before we start turning off nodes
-        ensureGreen(INDEX_NAME, OTHER_INDEX_NAME);
+        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         // Restart 2 nodes, deleting the indices in their absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -505,8 +504,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(3, settings);
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
-        createIndex(OTHER_INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -561,6 +559,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         assertThat(caughtException.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 
+    /**
+     * Helper that fetches the current list of dangling indices.
+     */
     private List<DanglingIndexInfo> listDanglingIndices() {
         final ListDanglingIndicesResponse response = client().admin()
             .cluster()
@@ -577,5 +578,20 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         }
 
         return results;
+    }
+
+    /**
+     * Simple helper that creates one or more indices, and importantly,
+     * checks that they are green before proceeding. This is important
+     * because the tests in this class stop and restart nodes, assuming
+     * that each index has a primary or replica shard on every node, and if
+     * a node is stopped prematurely, this assumption is broken.
+     */
+    private void createIndices(String... indices) {
+        assert indices.length > 0;
+        for (String index : indices) {
+            createIndex(index, Settings.builder().put("number_of_replicas", 2).build());
+        }
+        ensureGreen(indices);
     }
 }

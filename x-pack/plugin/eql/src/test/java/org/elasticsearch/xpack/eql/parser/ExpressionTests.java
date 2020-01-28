@@ -24,7 +24,15 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
@@ -38,6 +46,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class ExpressionTests extends ESTestCase {
 
     private final EqlParser parser = new EqlParser();
+
+    public Expression expr(String source) {
+        return parser.createExpression(source);
+    }
 
     public void testStrings() throws Exception {
         assertEquals("hello\"world", AstBuilder.unquoteString("'hello\"world'"));
@@ -124,11 +136,69 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parser.createExpression("concat(some.field, 'test string')"));
     }
 
+    public void testComparison() {
+        String fieldText = "field";
+        String valueText = "2.0";
+
+        Expression field = expr(fieldText);
+        Expression value = expr(valueText);
+
+        assertEquals( new Equals(null, field, value), expr(fieldText + "==" + valueText));
+        assertEquals( new NotEquals(null, field, value), expr(fieldText + "!=" + valueText));
+        assertEquals( new LessThanOrEqual(null, field, value), expr(fieldText + "<=" + valueText));
+        assertEquals( new GreaterThanOrEqual(null, field, value), expr(fieldText + ">=" + valueText));
+        assertEquals( new GreaterThan(null, field, value), expr(fieldText + ">" + valueText));
+        assertEquals( new LessThan(null, field, value), expr(fieldText + "<" + valueText));
+    }
+
     public void testEventQuery() {
         Expression fullQuery = parser.createStatement("process where process_name == 'net.exe'");
         Expression baseExpression = parser.createExpression("process_name == 'net.exe'");
         Expression fullExpression = parser.createExpression("event.category == 'process' and process_name == 'net.exe'");
         assertEquals(fullQuery, fullExpression);
         assertNotEquals(baseExpression, fullExpression);
+    }
+
+    public void testBoolean() {
+        String leftText = "process_name == 'net.exe'";
+        String rightText = "command_line == '* localgroup*'";
+
+        Expression lhs = parser.createExpression(leftText);
+        Expression rhs = parser.createExpression(rightText);
+
+        Expression booleanAnd = parser.createExpression(leftText + " and " + rightText);
+        assertEquals(new And(null, lhs, rhs), booleanAnd);
+
+        Expression booleanOr = parser.createExpression(leftText + " or " + rightText);
+        assertEquals(new Or(null, lhs, rhs), booleanOr);
+    }
+
+    public void testWildcard() {
+        assertEquals(
+            parser.createExpression("command_line == '* localgroup*'"),
+            parser.createExpression("wildcard(command_line, '* localgroup*')")
+        );
+
+        assertEquals(
+            parser.createExpression("command_line != '* localgroup*'"),
+            parser.createExpression("not wildcard(command_line, '* localgroup*')")
+        );
+    }
+
+    public void testInSet() {
+        assertEquals(
+            parser.createExpression("name in ('net.exe')"),
+            parser.createExpression("name == 'net.exe'")
+        );
+
+        assertEquals(
+            parser.createExpression("name in ('net.exe', 'whoami.exe', 'hostname.exe')"),
+            parser.createExpression("name == 'net.exe' or name == 'whoami.exe' or name == 'hostname.exe'")
+        );
+
+        assertEquals(
+            parser.createExpression("name not in ('net.exe', 'whoami.exe', 'hostname.exe')"),
+            parser.createExpression("not (name == 'net.exe' or name == 'whoami.exe' or name == 'hostname.exe')")
+        );
     }
 }

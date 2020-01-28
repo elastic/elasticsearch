@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEq
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -97,6 +98,24 @@ public class ExpressionBuilder extends LiteralBuilder {
 
         Source source = source(ctx);
 
+        // check if the RHS is a wildcard string and convert to a function check instead
+        if (right instanceof Literal) {
+            Object rightValue = ((Literal) right).value();
+            if ((rightValue instanceof String) && ((String) rightValue).contains("*")) {
+
+                List<Expression> arguments = Arrays.asList(left, right);
+                UnresolvedFunction.ResolutionType resolutionType = UnresolvedFunction.ResolutionType.STANDARD;
+                Expression wildcardExpression = new UnresolvedFunction(source, "wildcard", resolutionType, arguments);
+
+                switch (op.getSymbol().getType()) {
+                    case EqlBaseParser.EQ:
+                        return wildcardExpression;
+                    case EqlBaseParser.NEQ:
+                        return new Not(source, wildcardExpression);
+                }
+            }
+        }
+
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.EQ:
                 // TODO: check for left == null after moving IsNotNull from SQL -> QL
@@ -132,7 +151,7 @@ public class ExpressionBuilder extends LiteralBuilder {
             checkInSet = checkInSet == null ? termCheck : new Or(source, checkInSet, termCheck);
         }
 
-        return checkInSet;
+        return ctx.NOT() != null ? new Not(source, checkInSet) : checkInSet;
     }
 
     @Override

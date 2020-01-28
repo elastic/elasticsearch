@@ -16,7 +16,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -55,6 +54,7 @@ class TopMetricsAggregator extends MetricsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        assert sub == null;
         if (metricValueSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -62,7 +62,7 @@ class TopMetricsAggregator extends MetricsAggregator {
         // TODO allow configuration of value mode
         NumericDoubleValues metricValues = MultiValueMode.AVG.select(metricValueSource.doubleValues(ctx));
 
-        return new LeafBucketCollectorBase(sub, metricValues) { // TODO do we need to extend *Base*? It doesn't look like we use it.
+        return new LeafBucketCollector() { // TODO do we need to extend *Base*? It doesn't look like we use it.
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (leafSort.collectIfCompetitive(doc, bucket)) {

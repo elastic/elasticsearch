@@ -274,7 +274,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());
-        final Map<String, Object> userMeta = repository.filterUserMetadata(request.userMetadata());
+        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;

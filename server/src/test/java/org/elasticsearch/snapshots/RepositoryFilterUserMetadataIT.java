@@ -102,7 +102,7 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public Map<String, Object> filterUserMetadata(Map<String, Object> userMetadata) {
+                    public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
                         return Collections.singletonMap(MOCK_FILTERED_META, clusterService.getNodeName());
                     }
                 });

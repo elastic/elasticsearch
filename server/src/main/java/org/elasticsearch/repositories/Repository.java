@@ -242,7 +242,7 @@ public interface Repository extends LifecycleComponent {
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
      * during snapshot initialization.
      */
-    default Map<String, Object> filterUserMetadata(Map<String, Object> userMetadata) {
+    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
     }
 }

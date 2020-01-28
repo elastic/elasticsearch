@@ -72,7 +72,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                     streamInput = decompressingStream(status, remoteVersion, streamInput);
                 }
 
-                threadContext.readHeaders(streamInput);
+                threadContext.readFrom(streamInput);
 
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {

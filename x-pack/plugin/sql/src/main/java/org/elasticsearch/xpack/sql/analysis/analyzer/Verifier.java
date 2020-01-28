@@ -220,11 +220,13 @@ public final class Verifier {
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
 
             // Full-Text search function are not allowed in the SELECT clause
-            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
-                if (e instanceof FullTextPredicate) {
-                    localFailures.add(fail(e, "Cannot use a Full-Text search functions in the SELECT clause"));
+            plan.forEachUp(p -> {
+                for (NamedExpression ne : p.projections()) {
+                    ne.forEachUp((e) ->
+                            localFailures.add(fail(e, "Cannot use a Full-Text search functions in the SELECT clause")),
+                            FullTextPredicate.class);
                 }
-            }), Project.class);
+            }, Project.class);
 
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions

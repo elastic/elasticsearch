@@ -167,7 +167,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // hidden
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", true).stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1"));
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("foo-2", "foo-1"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", true).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", true), empty());
@@ -176,9 +176,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // not hidden
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", false).stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1", "global"));
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("foo-2", "foo-1", "global"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", false).stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar", "global"));
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("bar", "global"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", false).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("global"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "sneaky1", false).stream()
@@ -186,9 +186,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // unknown
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", null).stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1", "global"));
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("foo-2", "foo-1", "global"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", null).stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar", "global"));
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("bar", "global"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", null).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("global"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "sneaky1", null).stream()
@@ -213,6 +213,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
+                Collections.emptyList(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(null, createIndexService,
                 new AliasValidator(), null,
@@ -246,6 +247,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry(),
+                Collections.emptyList(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
                 clusterService, createIndexService, new AliasValidator(), indicesService,

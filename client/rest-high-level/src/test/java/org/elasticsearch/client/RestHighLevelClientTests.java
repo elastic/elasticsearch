@@ -778,7 +778,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "delete_dangling_index",
             "get_script_context",
             "get_script_languages",
-            "get_source",
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",

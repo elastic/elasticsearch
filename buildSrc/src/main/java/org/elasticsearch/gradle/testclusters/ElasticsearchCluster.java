@@ -244,11 +244,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setJavaHome(File javaHome) {
-        nodes.all(each -> each.setJavaHome(javaHome));
-    }
-
-    @Override
     public void start() {
         commonNodeConfig();
         nodes.forEach(ElasticsearchNode::start);

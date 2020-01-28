@@ -183,7 +183,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }, listener::onFailure);
 
         // <4> Create the task in cluster state so that it will start executing on the node
-        ActionListener<Void> createOrGetIndexListener = ActionListener.wrap(unused -> {
+        ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskHolder.get();
             assert transformTask != null;
             PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> existingTask = getExistingTask(transformTask.getId(), state);
@@ -224,8 +224,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             String[] dest = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), destinationIndex);
 
             if (dest.length == 0) {
-                auditor.info(request.getId(), "Creating destination index [" + destinationIndex + "] with deduced mappings.");
-                createDestinationIndex(transformConfigHolder.get(), createOrGetIndexListener);
+                createDestinationIndex(transformConfigHolder.get(), ActionListener.wrap(r -> {
+                    auditor.info(request.getId(), "Created destination index [" + destinationIndex + "] with deduced mappings.");
+                    createOrGetIndexListener.onResponse(r);
+                }, createOrGetIndexListener::onFailure));
             } else {
                 auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
                 ClientHelper.executeAsyncWithOrigin(
@@ -240,12 +242,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                                 "Non-empty destination index [" + destinationIndex + "]. " + "Contains [" + docTotal + "] total documents."
                             );
                         }
-                        createOrGetIndexListener.onResponse(null);
+                        createOrGetIndexListener.onResponse(true);
                     }, e -> {
                         String msg = "Unable to determine destination index stats, error: " + e.getMessage();
-                        logger.error(msg, e);
+                        logger.warn(msg, e);
                         auditor.warning(request.getId(), msg);
-                        createOrGetIndexListener.onResponse(null);
+                        createOrGetIndexListener.onResponse(true);
                     }),
                     client.admin().indices()::stats
                 );
@@ -267,9 +269,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             transformConfigHolder.set(config);
             if (config.getDestination().getPipeline() != null) {
                 if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                        RestStatus.BAD_REQUEST
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                            RestStatus.BAD_REQUEST
                         )
                     );
                     return;
@@ -289,18 +292,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 
-    private void createDestinationIndex(final TransformConfig config, final ActionListener<Void> listener) {
+    private void createDestinationIndex(final TransformConfig config, final ActionListener<Boolean> listener) {
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(
-                client,
-                Clock.systemUTC(),
-                config,
-                mappings,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-            ),
+            mappings -> TransformIndex.createDestinationIndex(client, Clock.systemUTC(), config, mappings, listener),
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )

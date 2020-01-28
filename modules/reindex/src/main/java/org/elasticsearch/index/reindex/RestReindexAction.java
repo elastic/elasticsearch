@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -62,14 +63,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // todo: remove system property escape hatch in 8.0
         // todo: fix version constant on backport to 7.x
-        boolean resilient;
-        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
-            || System.getProperty("es.reindex.resilience", "true").equals("false")) {
-            resilient = false;
-        } else {
-            resilient = true;
+        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
+            return doPrepareRequest(request, client, true, true);
         }
 
+        boolean resilient = Booleans.parseBoolean(System.getProperty("es.reindex.resilience", "true"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request

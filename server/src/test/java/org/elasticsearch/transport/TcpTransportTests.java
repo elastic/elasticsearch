@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
@@ -460,7 +462,7 @@ public class TcpTransportTests extends ESTestCase {
             Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
             appender.stop();
             IOUtils.close(tcpTransport);
-            testThreadPool.shutdown();
+            ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }
     }
 }

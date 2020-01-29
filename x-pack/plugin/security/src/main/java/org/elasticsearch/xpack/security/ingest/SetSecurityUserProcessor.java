@@ -101,18 +101,17 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case REALM:
-                    if (Authentication.AuthenticationType.API_KEY.equals(authentication.getAuthenticationType())) {
-                        userObject.put("realm", Map.of(
-                            "name", authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME),
-                            "type", authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE)
-                        ));
-                    } else if (Authentication.AuthenticationType.TOKEN.equals(authentication.getAuthenticationType())) {
-
-                    } else {
-                        userObject.put("realm", Map.of(
-                            "name", authentication.getAuthenticatedBy().getName(),
-                            "type", authentication.getAuthenticatedBy().getType())
-                        );
+                    final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
+                    final Object realmType = ApiKeyService.getCreatorRealmType(authentication);
+                    final HashMap<String, Object> realm = new HashMap<>();
+                    if (realmName != null) {
+                        realm.put("name", realmName);
+                    }
+                    if (realmType != null) {
+                        realm.put("type", realmType);
+                    }
+                    if (false == realm.isEmpty()) {
+                        userObject.put("realm", realm);
                     }
                     break;
                 case AUTHENTICATION_TYPE:

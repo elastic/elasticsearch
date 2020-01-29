@@ -10,9 +10,8 @@ setup:
         index: test-index
         body:
           settings:
-            number_of_replicas: 0
-            # we need to have 1 shard to get request failure in test "Dense vectors should error with sparse vector functions"
             number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               my_dense_vector:

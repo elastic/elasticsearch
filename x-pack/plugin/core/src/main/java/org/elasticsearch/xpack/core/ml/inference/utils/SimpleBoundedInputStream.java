@@ -19,15 +19,16 @@ public final class SimpleBoundedInputStream extends InputStream {
     private final InputStream in;
     private final long maxBytes;
     private long numBytes;
+    private final boolean throwWhenExceeded;
 
-    public SimpleBoundedInputStream(InputStream inputStream, long maxBytes) {
+    public SimpleBoundedInputStream(InputStream inputStream, long maxBytes, boolean throwWhenExceeded) {
         this.in = ExceptionsHelper.requireNonNull(inputStream, "inputStream");
         if (maxBytes < 0) {
             throw new IllegalArgumentException("[maxBytes] must be greater than or equal to 0");
         }
         this.maxBytes = maxBytes;
+        this.throwWhenExceeded = throwWhenExceeded;
     }
-
 
     /**
      * A simple wrapper around the injected input stream that restricts the total number of bytes able to be read.
@@ -38,6 +39,9 @@ public final class SimpleBoundedInputStream extends InputStream {
     public int read() throws IOException {
         // We have reached the maximum, signal stream completion.
         if (numBytes >= maxBytes) {
+            if (throwWhenExceeded) {
+                throw new IOException("input stream exceeded maximum bytes of [" + maxBytes +"]");
+            }
             return -1;
         }
         numBytes++;

@@ -5,12 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -35,18 +31,11 @@ public class InferenceToXContentCompressorTests extends ESTestCase {
     public void testInflateTooLargeStream() throws IOException {
         TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder().build();
         String firstDeflate = InferenceToXContentCompressor.deflate(definition);
-        BytesReference inflatedBytes = InferenceToXContentCompressor.inflate(firstDeflate, 10L);
-        assertThat(inflatedBytes.length(), equalTo(10));
-        try(XContentParser parser = XContentHelper.createParser(xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            inflatedBytes,
-            XContentType.JSON)) {
-            expectThrows(IOException.class, () -> TrainedModelConfig.fromXContent(parser, true));
-        }
+        expectThrows(IOException.class, () -> Streams.readFully(InferenceToXContentCompressor.inflate(firstDeflate, 10L)));
     }
 
     public void testInflateGarbage() {
-        expectThrows(IOException.class, () -> InferenceToXContentCompressor.inflate(randomAlphaOfLength(10), 100L));
+        expectThrows(IOException.class, () -> Streams.readFully(InferenceToXContentCompressor.inflate(randomAlphaOfLength(10), 100L)));
     }
 
     @Override

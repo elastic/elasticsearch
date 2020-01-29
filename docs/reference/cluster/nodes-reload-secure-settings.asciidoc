@@ -16,17 +16,20 @@ The cluster nodes reload secure settings API is used to re-load the keystore on 
 
 [[cluster-nodes-reload-secure-settings-api-desc]]
 ==== {api-description-title}
-Secure settings are stored in an on-disk keystore. When you have updated
-the secure settings in your keystore, you can use this API to reload those
-settings on each node. You may also selectively target `nodeId1` and
-`nodeId2`. The node selection options are detailed <<cluster-nodes,here>>.
+<<secure-settings, Secure settings>> are stored in an on-disk keystore.
+Certain of these settings are <<reloadable-secure-settings,reloadable>>.
+That is, you can change them on disk and reload them without
+restarting any nodes in the cluster. When you have updated reloadable secure
+settings in your keystore, you can use this API to reload those
+settings on each node.
 
 [[cluster-nodes-reload-secure-settings-path-params]]
 ==== {api-path-parms-title}
 
 `<nodes>`::
     (Optional, string) The names of particular nodes in the cluster to target.
-    May also be `_local` to reload settings on just the local node.
+    For example, you may also selectively target `nodeId1` and `nodeId2`. The
+    node selection options are detailed <<cluster-nodes,here>>.
 
 NOTE: {es} requires consistent secure settings across the cluster nodes, but this consistency is not enforced.
 Hence, reloading specific nodes is not standard. It is only justifiable when retrying failed reload operations.

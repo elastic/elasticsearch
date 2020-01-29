@@ -992,14 +992,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 for (ShardRouting shard : index) {
                     if (shard.started()) {
                         // skip initializing, unassigned and relocating shards we can't relocate them anyway
-                        Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
-                        Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
-                        if (((allocationDecision.type() == Type.YES) || (allocationDecision.type() == Type.THROTTLE))
-                                && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
-                            if (maxNode.containsShard(shard)) {
-                                if (candidate == null || candidate.id() > shard.id()) {
-                                    /* this last condition is a tie-breaker to make the shard allocation alg deterministic
-                                     * otherwise we rely on the iteration order of the index.getAllShards() which is a set.*/
+                        if (maxNode.containsShard(shard)) {
+                            if (candidate == null || candidate.id() > shard.id()) {
+                                /* this last condition is a tie-breaker to make the shard allocation alg deterministic
+                                 * otherwise we rely on the iteration order of the index.getAllShards() which is a set.*/
+                                Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
+                                Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
+                                if (((allocationDecision.type() == Type.YES) || (allocationDecision.type() == Type.THROTTLE))
+                                    && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                                     candidate = shard;
                                     decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                                 }

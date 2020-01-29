@@ -524,7 +524,7 @@ public class DatafeedManager {
                 if (holder != null) {
                     innerRun(holder, task.getDatafeedStartTime(), task.getEndTime());
                 } else {
-                    logger.warn("Datafeed [{}] was closed while being opened", task.getDatafeedId());
+                    logger.warn("Datafeed [{}] was stopped while being started", task.getDatafeedId());
                 }
             }
         }

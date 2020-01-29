@@ -475,8 +475,7 @@ public class TrainedModelProvider {
             if (bufferedFrom > 0) {
                 allFoundIds.remove(allFoundIds.first());
                 bufferedFrom--;
-            }
-            else {
+            } else {
                 // If we have removed all items belonging on the previous page, but are still over sized, this means we should
                 // remove items that belong on the next page.
                 allFoundIds.remove(allFoundIds.last());

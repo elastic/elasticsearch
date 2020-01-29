@@ -91,7 +91,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     }
 
     public void testExpandIdsPagination() {
-        //NOTE: these test assume that the query pagination results are "buffered"
+        // NOTE: these tests assume that the query pagination results are "buffered"
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
             Collections.emptySet(),

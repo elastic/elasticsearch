@@ -153,6 +153,7 @@ setup:
       ml.get_trained_models:
         model_id: "*"
   - match: { count: 6 }
+  - length: { trained_model_configs: 6 }
   - match: { trained_model_configs.0.model_id: "a-classification-model" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
   - match: { trained_model_configs.2.model_id: "a-regression-model-1" }
@@ -164,6 +165,7 @@ setup:
       ml.get_trained_models:
         model_id: "a-regression*"
   - match: { count: 2 }
+  - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
 
@@ -173,6 +175,7 @@ setup:
         from: 0
         size: 2
   - match: { count: 6 }
+  - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "a-classification-model" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.BatchResult;
 import com.google.cloud.ReadChannel;
-import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
@@ -51,7 +50,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -244,25 +242,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
         for (int retry = 0; retry < 3; ++retry) {
             try {
-                final WriteChannel writeChannel = SocketAccess
-                    .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
-                Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
-                    @Override
-                    public boolean isOpen() {
-                        return writeChannel.isOpen();
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                    }
-
-                    @SuppressForbidden(reason = "Channel is based of a socket not a file")
-                    @Override
-                    public int write(ByteBuffer src) throws IOException {
-                        return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
-                    }
-                }));
+                SocketAccess.doPrivilegedVoidIOException(() ->
+                    Streams.copy(inputStream, Channels.newOutputStream(client().writer(blobInfo, writeOptions))));
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();

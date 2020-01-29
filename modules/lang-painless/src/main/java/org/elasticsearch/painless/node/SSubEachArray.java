@@ -75,12 +75,14 @@ final class SSubEachArray extends AStatement {
         forEachSubArrayNode.setBlockNode(block.write());
 
         forEachSubArrayNode.setLocation(location);
-        forEachSubArrayNode.setVariable(variable);
+        forEachSubArrayNode.setVariableType(variable.clazz);
+        forEachSubArrayNode.setVariableName(variable.name);
         forEachSubArrayNode.setCast(cast);
-        forEachSubArrayNode.setArray(array);
-        forEachSubArrayNode.setIndex(index);
+        forEachSubArrayNode.setArrayType(array.clazz);
+        forEachSubArrayNode.setArrayName(array.name.substring(1));
+        forEachSubArrayNode.setIndexType(index.clazz);
+        forEachSubArrayNode.setIndexName(index.name.substring(1));
         forEachSubArrayNode.setIndexedType(indexed);
-        forEachSubArrayNode.setLoopCounter(loopCounter);
         forEachSubArrayNode.setContinuous(false);
 
         return forEachSubArrayNode;

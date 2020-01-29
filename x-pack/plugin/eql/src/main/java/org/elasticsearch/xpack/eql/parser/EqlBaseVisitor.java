@@ -35,6 +35,12 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQuery(EqlBaseParser.QueryContext ctx);
   /**
+   * Visit a parse tree produced by {@link EqlBaseParser#sequenceParams}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSequenceParams(EqlBaseParser.SequenceParamsContext ctx);
+  /**
    * Visit a parse tree produced by {@link EqlBaseParser#sequence}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -59,23 +65,29 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinKeys(EqlBaseParser.JoinKeysContext ctx);
   /**
-   * Visit a parse tree produced by {@link EqlBaseParser#span}.
+   * Visit a parse tree produced by {@link EqlBaseParser#joinTerm}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitSpan(EqlBaseParser.SpanContext ctx);
+  T visitJoinTerm(EqlBaseParser.JoinTermContext ctx);
   /**
-   * Visit a parse tree produced by {@link EqlBaseParser#match}.
+   * Visit a parse tree produced by {@link EqlBaseParser#sequenceTerm}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatch(EqlBaseParser.MatchContext ctx);
+  T visitSequenceTerm(EqlBaseParser.SequenceTermContext ctx);
   /**
-   * Visit a parse tree produced by {@link EqlBaseParser#condition}.
+   * Visit a parse tree produced by {@link EqlBaseParser#subquery}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitCondition(EqlBaseParser.ConditionContext ctx);
+  T visitSubquery(EqlBaseParser.SubqueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EqlBaseParser#eventQuery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEventQuery(EqlBaseParser.EventQueryContext ctx);
   /**
    * Visit a parse tree produced by {@link EqlBaseParser#expression}.
    * @param ctx the parse tree
@@ -96,6 +108,13 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitBooleanDefault(EqlBaseParser.BooleanDefaultContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code processCheck}
+   * labeled alternative in {@link EqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitProcessCheck(EqlBaseParser.ProcessCheckContext ctx);
   /**
    * Visit a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EqlBaseParser#booleanExpression}.
@@ -218,12 +237,6 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanValue(EqlBaseParser.BooleanValueContext ctx);
   /**
-   * Visit a parse tree produced by {@link EqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQualifiedNames(EqlBaseParser.QualifiedNamesContext ctx);
-  /**
    * Visit a parse tree produced by {@link EqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -236,26 +249,11 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIdentifier(EqlBaseParser.IdentifierContext ctx);
   /**
-   * Visit a parse tree produced by the {@code quotedIdentifier}
-   * labeled alternative in {@link EqlBaseParser#quoteIdentifier}.
+   * Visit a parse tree produced by {@link EqlBaseParser#timeUnit}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code unquotedIdentifier}
-   * labeled alternative in {@link EqlBaseParser#unquoteIdentifier}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitUnquotedIdentifier(EqlBaseParser.UnquotedIdentifierContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code digitIdentifier}
-   * labeled alternative in {@link EqlBaseParser#unquoteIdentifier}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitDigitIdentifier(EqlBaseParser.DigitIdentifierContext ctx);
+  T visitTimeUnit(EqlBaseParser.TimeUnitContext ctx);
   /**
    * Visit a parse tree produced by the {@code decimalLiteral}
    * labeled alternative in {@link EqlBaseParser#number}.

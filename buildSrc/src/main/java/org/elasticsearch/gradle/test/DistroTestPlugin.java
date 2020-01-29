@@ -115,7 +115,6 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
         }
         Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
         configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
             t -> t.setPluginsDir(pluginsDir)
         );

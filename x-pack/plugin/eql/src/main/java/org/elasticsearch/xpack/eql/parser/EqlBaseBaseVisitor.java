@@ -45,6 +45,13 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitSequenceParams(EqlBaseParser.SequenceParamsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitSequence(EqlBaseParser.SequenceContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -73,21 +80,28 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSpan(EqlBaseParser.SpanContext ctx) { return visitChildren(ctx); }
+  @Override public T visitJoinTerm(EqlBaseParser.JoinTermContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitMatch(EqlBaseParser.MatchContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSequenceTerm(EqlBaseParser.SequenceTermContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitCondition(EqlBaseParser.ConditionContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSubquery(EqlBaseParser.SubqueryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitEventQuery(EqlBaseParser.EventQueryContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -109,6 +123,13 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitBooleanDefault(EqlBaseParser.BooleanDefaultContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitProcessCheck(EqlBaseParser.ProcessCheckContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -241,13 +262,6 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitQualifiedNames(EqlBaseParser.QualifiedNamesContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitQualifiedName(EqlBaseParser.QualifiedNameContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -262,21 +276,7 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitUnquotedIdentifier(EqlBaseParser.UnquotedIdentifierContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitDigitIdentifier(EqlBaseParser.DigitIdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitTimeUnit(EqlBaseParser.TimeUnitContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

@@ -350,6 +350,22 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(STANDARD, false, XPackLicenseState::isWatcherAllowed, false);
     }
 
+    public void testEncryptedSnapshotsWithInactiveLicense() {
+        assertAllowed(BASIC, false, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+        assertAllowed(TRIAL, false, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+        assertAllowed(GOLD, false, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+        assertAllowed(PLATINUM, false, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+        assertAllowed(STANDARD, false, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+    }
+
+    public void testEncryptedSnapshotsWithActiveLicense() {
+        assertAllowed(BASIC, true, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+        assertAllowed(TRIAL, true, XPackLicenseState::isEncryptedSnapshotAllowed, true);
+        assertAllowed(GOLD, true, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+        assertAllowed(PLATINUM, true, XPackLicenseState::isEncryptedSnapshotAllowed, true);
+        assertAllowed(STANDARD, true, XPackLicenseState::isEncryptedSnapshotAllowed, false);
+    }
+
     public void testGraphPlatinumTrial() throws Exception {
         assertAllowed(TRIAL, true, XPackLicenseState::isGraphAllowed, true);
         assertAllowed(PLATINUM, true, XPackLicenseState::isGraphAllowed, true);

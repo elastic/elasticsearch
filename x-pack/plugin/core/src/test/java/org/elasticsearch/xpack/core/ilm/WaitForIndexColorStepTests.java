@@ -44,7 +44,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     protected WaitForIndexColorStep mutateInstance(WaitForIndexColorStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        ClusterHealthStatus color = instance.getColor();
+        ClusterHealthStatus color = instance.getColor(), newColor = randomColor();
 
         switch (between(0, 2)) {
             case 0:
@@ -54,7 +54,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
                 nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                color = randomColor();
+                color = (color != newColor) ? newColor: randomColor();
+                break;
         }
 
         return new WaitForIndexColorStep(key, nextKey, color);

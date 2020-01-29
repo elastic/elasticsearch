@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -39,11 +38,11 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         return new ForceMergeAction(randomIntBetween(1, 100), createRandomCompressionSettings());
     }
 
-    static Codec createRandomCompressionSettings() {
+    static String createRandomCompressionSettings() {
         if (randomBoolean()) {
             return null;
         }
-        return Codec.forName(CodecService.BEST_COMPRESSION_CODEC);
+        return CodecService.BEST_COMPRESSION_CODEC;
     }
 
     @Override
@@ -81,26 +80,30 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(6, steps.size());
-        CloseIndexStep firstStep = (CloseIndexStep) steps.get(0);
-        UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
-        OpenIndexStep thirdStep = (OpenIndexStep) steps.get(2);
-        WaitForIndexColorStep fourthStep = (WaitForIndexColorStep) steps.get(3);
-        ForceMergeStep fifthStep = (ForceMergeStep) steps.get(4);
-        SegmentCountStep sixthStep = (SegmentCountStep) steps.get(4);
-        assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME)));
-        assertThat(firstStep.getNextStepKey(), equalTo(secondStep.getKey()));
-        assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, UpdateSettingsStep.NAME)));
-        assertThat(secondStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+        assertEquals(7, steps.size());
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
+        CloseIndexStep secondStep = (CloseIndexStep) steps.get(1);
+        UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
+        OpenIndexStep fourthStep = (OpenIndexStep) steps.get(3);
+        WaitForIndexColorStep fifthStep = (WaitForIndexColorStep) steps.get(4);
+        ForceMergeStep sixthStep = (ForceMergeStep) steps.get(5);
+        SegmentCountStep seventhStep = (SegmentCountStep) steps.get(6);
+        assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(firstStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME)));
+        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME)));
         assertThat(secondStep.getNextStepKey(), equalTo(thirdStep.getKey()));
-        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, OpenIndexStep.NAME)));
-        assertThat(thirdStep.getNextStepKey(), equalTo(fourthStep));
-        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitForIndexColorStep.NAME)));
+        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, UpdateSettingsStep.NAME)));
+        assertThat(thirdStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+        assertThat(thirdStep.getNextStepKey(), equalTo(fourthStep.getKey()));
+        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, OpenIndexStep.NAME)));
         assertThat(fourthStep.getNextStepKey(), equalTo(fifthStep));
-        assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(fifthStep.getNextStepKey(), equalTo(nextStepKey));
-        assertThat(sixthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitForIndexColorStep.NAME)));
+        assertThat(fifthStep.getNextStepKey(), equalTo(sixthStep));
+        assertThat(sixthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
         assertThat(sixthStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(seventhStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(seventhStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testMissingMaxNumSegments() throws IOException {
@@ -119,13 +122,13 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
 
     public void testInvalidCodec() {
         Exception r = expectThrows(IllegalArgumentException.class, () -> new
-            ForceMergeAction(randomIntBetween(1, 10), Codec.forName("DummyCompressingStoredFields")));
+            ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields"));
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
     }
 
     public void testToSteps() {
         ForceMergeAction instance = createTestInstance();
-        if (instance.getCodec() != null && CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec().getName())) {
+        if (instance.getCodec() != null && CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec())) {
             assertBestCompression(instance);
         }
         else {

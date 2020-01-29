@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -39,30 +38,30 @@ public class ForceMergeAction implements LifecycleAction {
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
         int maxNumSegments = (int) a[0];
-        Codec codec = a[1] != null ? Codec.forName((String) a[1]) : null;
+        String codec = a[1] != null ? (String) a[1] : null;
         return new ForceMergeAction(maxNumSegments, codec);
     });
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_NUM_SEGMENTS_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), CODEC);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CODEC);
     }
 
     private final int maxNumSegments;
-    private final Codec codec;
+    private final String codec;
 
     public static ForceMergeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public ForceMergeAction(int maxNumSegments, @Nullable Codec codec) {
+    public ForceMergeAction(int maxNumSegments, @Nullable String codec) {
         if (maxNumSegments <= 0) {
             throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName()
                 + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
-        if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec.getName()) == false) {
-            throw new IllegalArgumentException("unknown index codec: [" + codec.getName() + "]");
+        if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec) == false) {
+            throw new IllegalArgumentException("unknown index codec: [" + codec + "]");
         }
         this.codec = codec;
     }
@@ -74,7 +73,7 @@ public class ForceMergeAction implements LifecycleAction {
             if (codecStr == null) {
                 this.codec = null;
             } else {
-                this.codec = Codec.forName(codecStr);
+                this.codec = codecStr;
             }
         } else {
             this.codec = null;
@@ -85,7 +84,7 @@ public class ForceMergeAction implements LifecycleAction {
         return maxNumSegments;
     }
 
-    public Codec getCodec() {
+    public String getCodec() {
         return this.codec;
     }
 
@@ -96,7 +95,7 @@ public class ForceMergeAction implements LifecycleAction {
             if (codec == null) {
                 out.writeOptionalString(null);
             } else {
-                out.writeOptionalString(codec.getName());
+                out.writeOptionalString(codec);
             }
         }
     }
@@ -150,7 +149,7 @@ public class ForceMergeAction implements LifecycleAction {
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(readOnlyStep);
 
-        if (codec != null && codec.getName().equals(CodecService.BEST_COMPRESSION_CODEC)) {
+        if (codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC)) {
             mergeSteps.add(closeIndexStep);
             mergeSteps.add(updateBestCompressionSettings);
             mergeSteps.add(openIndexStep);
@@ -176,8 +175,8 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(maxNumSegments, other.maxNumSegments)
-            && Objects.equals(codec, other.codec);
+        return Objects.equals(this.maxNumSegments, other.maxNumSegments)
+            && Objects.equals(this.codec, other.codec);
     }
 
     @Override

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.PageParams;
@@ -42,13 +44,13 @@ import org.elasticsearch.client.transform.StopTransformRequest;
 import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.UpdateTransformResponse;
-import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
-import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
@@ -57,14 +59,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.joda.time.Instant;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -144,19 +151,36 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
     }
 
     @After
-    public void cleanUpTransforms() throws Exception {
+    public void cleanUpTransformsAndLogAudits() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().stopTransform(
-                    new StopTransformRequest(transformId, Boolean.TRUE, null, false), RequestOptions.DEFAULT);
+            highLevelClient().transform()
+                .stopTransform(new StopTransformRequest(transformId, Boolean.TRUE, null, false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().deleteTransform(
-                    new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
+            highLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
         transformsToClean = new ArrayList<>();
         waitForPendingTasks(adminClient());
+
+        // using '*' to make this lenient and do not fail if the audit index does not exist
+        SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
+
+        for (SearchHit hit : searchAll(searchRequest)) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            String level = (String) source.getOrDefault("level", "info");
+            logger.log(
+                Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                "Transform audit: [{}] [{}] [{}] [{}]",
+                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                source.getOrDefault("transform_id", "n/a"),
+                source.getOrDefault("message", "n/a"),
+                source.getOrDefault("node_name", "n/a")
+            );
+        }
+
     }
 
     public void testCreateDelete() throws IOException {

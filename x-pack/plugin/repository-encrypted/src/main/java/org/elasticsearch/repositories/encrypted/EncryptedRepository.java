@@ -92,7 +92,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
                               ActionListener<String> listener) {
-        if (EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
+        if (EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
             if (consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
                 super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
             } else {

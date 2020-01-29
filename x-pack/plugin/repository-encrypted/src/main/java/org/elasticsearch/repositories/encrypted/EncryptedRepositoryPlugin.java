@@ -47,7 +47,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
     protected static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public EncryptedRepositoryPlugin(Settings settings) {
-        if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
+        if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
             logger.warn("Encrypted snapshot repositories are not allowed for the current license." +
                     "Snapshotting to any encrypted repository is not permitted and will fail.",
                     LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
@@ -81,7 +81,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-                if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
+                if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
                     logger.warn("Encrypted snapshot repositories are not allowed for the current license." +
                                     "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted and will fail.",
                             LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));

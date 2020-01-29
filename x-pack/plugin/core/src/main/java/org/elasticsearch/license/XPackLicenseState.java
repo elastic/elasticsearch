@@ -528,22 +528,12 @@ public class XPackLicenseState {
     }
 
     /**
-     * Determine if creating and using an encrypted repository is available based on the current license.
+     * Determines if creating an encrypted snapshot is allowed. Note that restoring an encrypted snapshot is not conditioned upon the
+     * license operation mode (it's free for all).
      */
-    public synchronized boolean isEncryptedRepositoryAllowed() {
-        Status localStatus = status;
-
-        if (localStatus.active == false) {
-            return false;
-        }
-
-        switch (localStatus.mode) {
-            case TRIAL:
-            case PLATINUM:
-                return true;
-            default:
-                return false;
-        }
+    public synchronized boolean isEncryptedSnapshotAllowed() {
+        final Status currentStatus = status;
+        return currentStatus.active && isEncryptedSnapshotAllowedForOperationMode(currentStatus.mode);
     }
 
     /**
@@ -882,6 +872,10 @@ public class XPackLicenseState {
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
+        return isPlatinumOrTrialOperationMode(operationMode);
+    }
+
+    public static boolean isEncryptedSnapshotAllowedForOperationMode(final OperationMode operationMode) {
         return isPlatinumOrTrialOperationMode(operationMode);
     }
 

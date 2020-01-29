@@ -181,9 +181,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         }
 
         // check history, after watch has fired
-        ObjectPath objectPath = getWatchHistoryEntry(watchId);
-        String state = objectPath.evaluate("hits.hits.0._source.state");
-        assertThat(state, is("execution_not_needed"));
+        ObjectPath objectPath = getWatchHistoryEntry(watchId, "execution_not_needed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(false));
     }

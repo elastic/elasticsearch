@@ -26,14 +26,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -370,7 +371,7 @@ public class TcpTransportTests extends ESTestCase {
     }
 
     @TestLogging(reason = "testing logging", value = "org.elasticsearch.transport.TcpTransport:DEBUG")
-    public void testExceptionHandling() throws IOException, IllegalAccessException {
+    public void testExceptionHandling() throws IllegalAccessException {
         testExceptionHandling(false, new ElasticsearchException("simulated"), true,
             new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.ERROR, "*"),
             new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.WARN, "*"),
@@ -402,14 +403,13 @@ public class TcpTransportTests extends ESTestCase {
     }
 
     private void testExceptionHandling(Exception exception,
-                                       MockLogAppender.LoggingExpectation... expectations) throws IllegalAccessException, IOException {
+                                       MockLogAppender.LoggingExpectation... expectations) throws IllegalAccessException {
         testExceptionHandling(true, exception, true, expectations);
     }
 
     private void testExceptionHandling(boolean startTransport, Exception exception, boolean expectClosed,
-                                       MockLogAppender.LoggingExpectation... expectations) throws IllegalAccessException, IOException {
+                                       MockLogAppender.LoggingExpectation... expectations) throws IllegalAccessException {
         final TestThreadPool testThreadPool = new TestThreadPool("test");
-        TcpTransport tcpTransport = null;
         MockLogAppender appender = new MockLogAppender();
 
         try {
@@ -420,34 +420,18 @@ public class TcpTransportTests extends ESTestCase {
                 appender.addExpectation(expectation);
             }
 
-            tcpTransport = new TcpTransport(Settings.EMPTY, Version.CURRENT, testThreadPool,
-                new MockPageCacheRecycler(Settings.EMPTY),
-                new NoneCircuitBreakerService(), writableRegistry(), new NetworkService(Collections.emptyList())) {
-
-                @Override
-                protected TcpServerChannel bind(String name, InetSocketAddress address) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                protected TcpChannel initiateChannel(DiscoveryNode node) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                protected void stopInternal() {
-                }
-            };
+            final Lifecycle lifecycle = new Lifecycle();
 
             if (startTransport) {
-                tcpTransport.start();
+                lifecycle.moveToStarted();
             }
 
             final FakeTcpChannel channel = new FakeTcpChannel();
             final PlainActionFuture<Void> listener = new PlainActionFuture<>();
             channel.addCloseListener(listener);
 
-            tcpTransport.onException(channel, exception);
+            TcpTransport.handleException(channel, exception, lifecycle,
+                new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, testThreadPool, BigArrays.NON_RECYCLING_INSTANCE));
 
             if (expectClosed) {
                 assertTrue(listener.isDone());
@@ -461,7 +445,6 @@ public class TcpTransportTests extends ESTestCase {
         } finally {
             Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
             appender.stop();
-            IOUtils.close(tcpTransport);
             ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }
     }

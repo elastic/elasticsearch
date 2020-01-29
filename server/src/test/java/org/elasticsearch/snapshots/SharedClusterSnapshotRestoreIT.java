@@ -2662,6 +2662,66 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
     }
 
+    public void testDeleteSnapshotWhileRestoringFails() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        final String repoName = "test-repo";
+        assertAcked(client.admin().cluster().preparePutRepository(repoName)
+                        .setType("mock")
+                        .setSettings(Settings.builder().put("location", randomRepoPath())));
+
+        logger.info("--> creating index");
+        final String indexName = "test-idx";
+        assertAcked(prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.ALL));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            indexDoc(indexName, Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> take snapshots");
+        final String snapshotName = "test-snap";
+        assertThat(client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                       .setIndices(indexName).setWaitForCompletion(true).get().getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        final String snapshotName2 = "test-snap-2";
+        assertThat(client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName2)
+                       .setIndices(indexName).setWaitForCompletion(true).get().getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> delete index before restoring");
+        assertAcked(client.admin().indices().prepareDelete(indexName).get());
+
+        logger.info("--> execution will be blocked on all data nodes");
+        blockAllDataNodes(repoName);
+
+        final ActionFuture<RestoreSnapshotResponse> restoreFut;
+        try {
+            logger.info("--> start restore");
+            restoreFut = client.admin().cluster().prepareRestoreSnapshot(repoName, snapshotName)
+                             .setWaitForCompletion(true)
+                             .execute();
+
+            logger.info("--> waiting for block to kick in");
+            waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueMinutes(1));
+
+            logger.info("--> try deleting the snapshot while the restore is in progress (should throw an error)");
+            ConcurrentSnapshotExecutionException e = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
+                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
+            assertEquals(repoName, e.getRepositoryName());
+            assertEquals(snapshotName, e.getSnapshotName());
+            assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
+        } finally {
+            // unblock even if the try block fails otherwise we will get bogus failures when we delete all indices in test teardown.
+            logger.info("--> unblocking all data nodes");
+            unblockAllDataNodes(repoName);
+        }
+
+        logger.info("--> wait for restore to finish");
+        restoreFut.get();
+    }
+
     private void waitForIndex(final String index, TimeValue timeout) throws Exception {
         assertBusy(
             () -> assertTrue("Expected index [" + index + "] to exist", indexExists(index)),

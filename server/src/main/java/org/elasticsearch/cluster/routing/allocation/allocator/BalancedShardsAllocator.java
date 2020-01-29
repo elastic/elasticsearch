@@ -522,9 +522,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             logger.trace("Balancing from node [{}] weight: [{}] to node [{}] weight: [{}]  delta: [{}]",
                                     maxNode.getNodeId(), weights[highIdx], minNode.getNodeId(), weights[lowIdx], delta);
                         }
-                        /* pass the delta to the replication function to prevent relocations that only swap the weights of the two nodes.
-                         * a relocation must bring us closer to the balance if we only achieve the same delta the relocation is useless */
-                        if (tryRelocateShard(minNode, maxNode, index, delta)) {
+                        if (delta <= 1.0f) {
+                            /*
+                             * prevent relocations that only swap the weights of the two nodes. a relocation must bring us closer to the
+                             * balance if we only achieve the same delta the relocation is useless
+                             *
+                             * NB this comment above was preserved from an earlier version but doesn't obviously describe the code today. We
+                             * already know that lessThan(delta, threshold) == false and threshold defaults to 1.0, so by default we never
+                             * hit this case anyway.
+                             */
+                            logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]",
+                                maxNode.getNodeId(), minNode.getNodeId());
+                        } else if (tryRelocateShard(minNode, maxNode, index)) {
                             /*
                              * TODO we could be a bit smarter here, we don't need to fully sort necessarily
                              * we could just find the place to insert linearly but the win might be minor
@@ -974,17 +983,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
          * simulation model as well as on the cluster.
          */
-        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx, float minCost) {
+        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx) {
             final ModelIndex index = maxNode.getIndex(idx);
             Decision decision = null;
             if (index != null) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
                             minNode.getNodeId());
-                }
-                if (minCost <= 1) {
-                    logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]", maxNode.getNodeId(), minNode.getNodeId());
-                    return false;
                 }
                 ShardRouting candidate = null;
                 final AllocationDeciders deciders = allocation.deciders();

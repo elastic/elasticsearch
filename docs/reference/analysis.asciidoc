@@ -12,16 +12,14 @@ optimized for search.
 [[when-to-configure-analysis]]
 === When to configure text analysis
 
-{es} comes with smart defaults for text analysis. These defaults work well for
-most use cases and require no configuration.
+{es} performs text analysis when indexing or searching <<text,`text`>> fields.
 
-If you're happy with your search experience, no further setup is needed;
-you can skip the chapters in this section.
+If your index doesn't contain `text` fields, no further setup is needed; you can
+skip the pages in this section.
 
-However, there are less common cases where configuring text analysis is
-worth the effort. If your text searches aren't returning results as expected,
-checking your analysis setup can often help. You should also look into analysis
-configuration if you're using {es} to:
+However, if you use `text` fields or your text searches aren't returning results
+as expected, configuring text analysis can often help. You should also look into
+analysis configuration if you're using {es} to:
 
 * Build a search engine
 * Mine unstructured data

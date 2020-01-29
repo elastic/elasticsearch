@@ -253,7 +253,7 @@ public final class Verifier {
                 }
 
                 checkForScoreInsideFunctions(p, localFailures);
-                checkNestedUsedInGroupByOrHaving(p, localFailures);
+                checkNestedUsedInGroupByOrHavingOrOrderBy(p, localFailures, attributeRefs);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
 
@@ -722,16 +722,19 @@ public final class Verifier {
                 Function.class));
     }
 
-    private static void checkNestedUsedInGroupByOrHaving(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkNestedUsedInGroupByOrHavingOrOrderBy(LogicalPlan p, Set<Failure> localFailures,
+                                                                  AttributeMap<Expression> attributeRefs) {
         List<FieldAttribute> nested = new ArrayList<>();
-        Consumer<FieldAttribute> match = fa -> {
+        Consumer<FieldAttribute> match = (fa) -> {
             if (fa.isNested()) {
                 nested.add(fa);
             }
         };
 
         // nested fields shouldn't be used in aggregates or having (yet)
-        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(match, FieldAttribute.class)), Aggregate.class);
+        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(e ->
+                attributeRefs.getOrDefault(e, e).forEachUp(match, FieldAttribute.class)
+        )), Aggregate.class);
 
         if (!nested.isEmpty()) {
             localFailures.add(
@@ -740,15 +743,26 @@ public final class Verifier {
         }
 
         // check in having
-        p.forEachDown(f -> {
-            if (f.child() instanceof Aggregate) {
-                f.condition().forEachUp(match, FieldAttribute.class);
-            }
-        }, Filter.class);
+        p.forEachDown(f -> f.forEachDown(a -> f.condition().forEachUp(e ->
+                        attributeRefs.getOrDefault(e, e).forEachUp(match, FieldAttribute.class)),
+                Aggregate.class), Filter.class);
 
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+            nested.clear();
+        }
+
+        // check in order by (scalars not allowed)
+        p.forEachDown(ob -> ob.order().forEach(o -> o.forEachUp(e ->
+                attributeRefs.getOrDefault(e, e).forEachUp(f -> f.arguments().forEach(
+                        arg -> arg.forEachUp(match, FieldAttribute.class)), ScalarFunction.class)
+        )), OrderBy.class);
+
+        if (!nested.isEmpty()) {
+            localFailures.add(
+                    fail(nested.get(0), "ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                            new AttributeSet(nested).names()));
         }
     }
 

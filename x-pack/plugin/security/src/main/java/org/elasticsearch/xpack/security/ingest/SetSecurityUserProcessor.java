@@ -116,7 +116,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     break;
                 case AUTHENTICATION_TYPE:
                     if (authentication.getAuthenticationType() != null) {
-                        userObject.put("authentication_type", authentication.getAuthenticationType());
+                        userObject.put("authentication_type", authentication.getAuthenticationType().toString());
                     }
                     break;
                 default:

@@ -13,8 +13,7 @@ The flexibility to specify analyzers at different levels and for different times
 is great... _but only when it's needed_.
 
 In most cases, a simple approach works best: Specify an analyzer for each
-`text` field, as outlined in <<specify-index-field-analyzer>>. No other
-analyzers need to be specified.
+`text` field, as outlined in <<specify-index-field-analyzer>>.
 
 This approach works well with {es}'s default behavior, letting you use the same
 analyzer for indexing and search. It also lets you quickly see which analyzer

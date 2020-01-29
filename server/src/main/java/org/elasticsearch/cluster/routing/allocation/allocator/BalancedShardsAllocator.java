@@ -228,14 +228,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;
         }
-
-        float weightShardAdded(Balancer balancer, ModelNode node, String index) {
-            return weight(balancer, node, index) + 1;
-        }
-
-        float weightShardRemoved(Balancer balancer, ModelNode node, String index) {
-            return weight(balancer, node, index) - 1;
-        }
     }
 
     /**
@@ -404,10 +396,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // the gains make it worth it, as defined by the threshold
                     boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
                     // simulate the weight of the node if we were to relocate the shard to it
-                    float weightWithShardAdded = weight.weightShardAdded(this, node, idxName);
+                    float weightWithShardAdded = weight.weight(this, node, idxName) + 1;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    float proposedDelta = weightWithShardAdded - weight.weightShardRemoved(this, currentNode, idxName);
+                    float proposedDelta = weightWithShardAdded - (weight.weight(this, currentNode, idxName) - 1);
                     boolean betterWeightWithShardAdded = proposedDelta < currentDelta;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
@@ -911,7 +903,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 // simulate weight if we would add shard to node
-                float currentWeight = weight.weightShardAdded(this, node, shard.getIndexName());
+                float currentWeight = weight.weight(this, node, shard.getIndexName()) + 1;
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;
@@ -1004,7 +996,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             if (maxNode.containsShard(shard)) {
                                 // simulate moving shard from maxNode to minNode
-                                final float delta = weight.weightShardAdded(this, minNode, idx) - weight.weightShardRemoved(this, maxNode, idx);
+                                final float delta = weight.weight(this, minNode, idx) + 1 - (weight.weight(this, maxNode, idx) - 1);
                                 if (delta < minCost ||
                                         (candidate != null && Float.compare(delta, minCost) == 0 && candidate.id() > shard.id())) {
                                     /* this last line is a tie-breaker to make the shard allocation alg deterministic

@@ -19,23 +19,38 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
-import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
-import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
@@ -56,53 +71,21 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker.DockerShell;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 public class DockerTests extends PackagingTestCase {
-    protected DockerShell sh;
     private Path tempDir;
 
     @BeforeClass
     public static void filterDistros() {
-        assumeTrue("only Docker", distribution.packaging == Distribution.Packaging.DOCKER);
-
-        ensureImageIsLoaded(distribution);
-    }
-
-    @AfterClass
-    public static void cleanup() {
-        // runContainer also calls this, so we don't need this method to be annotated as `@After`
-        removeContainer();
+        assumeTrue("only Docker", distribution().isDocker());
     }
 
     @Before
     public void setupTest() throws IOException {
-        sh = new DockerShell();
         installation = runContainer(distribution());
         tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
     }
@@ -144,43 +127,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that a keystore can be manually created using the provided CLI tool.
-     */
-    public void test040CreateKeystoreManually() throws InterruptedException {
-        final Installation.Executables bin = installation.executables();
-
-        final Path keystorePath = installation.config("elasticsearch.keystore");
-
-        waitForPathToExist(keystorePath);
-
-        // Move the auto-created one out of the way, or else the CLI prompts asks us to confirm
-        sh.run("mv " + keystorePath + " " + keystorePath + ".bak");
-
-        sh.run(bin.keystoreTool + " create");
-
-        final Result r = sh.run(bin.keystoreTool + " list");
-        assertThat(r.stdout, containsString("keystore.seed"));
-    }
-
-    /**
-     * Check that the default keystore is automatically created
-     */
-    public void test041AutoCreateKeystore() throws Exception {
-        final Path keystorePath = installation.config("elasticsearch.keystore");
-
-        waitForPathToExist(keystorePath);
-
-        assertPermissionsAndOwnership(keystorePath, p660);
-
-        final Installation.Executables bin = installation.executables();
-        final Result result = sh.run(bin.keystoreTool + " list");
-        assertThat(result.stdout, containsString("keystore.seed"));
-    }
-
-    /**
      * Check that the JDK's cacerts file is a symlink to the copy provided by the operating system.
      */
-    public void test042JavaUsesTheOsProvidedKeystore() {
+    public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
         assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));

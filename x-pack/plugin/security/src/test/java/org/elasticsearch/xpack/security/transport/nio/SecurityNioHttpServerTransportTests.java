@@ -55,7 +55,11 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         Path testNodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", testNodeKey)
             .put("xpack.security.http.ssl.certificate", testNodeCert)
@@ -183,7 +187,11 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder
             .put("xpack.security.http.ssl.enabled", false)
             .put("xpack.security.http.ssl.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))

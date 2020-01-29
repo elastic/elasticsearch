@@ -279,6 +279,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        Repository repository = repositoriesService.repository(request.repository());
+        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
@@ -314,7 +316,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     threadPool.absoluteTimeInMillis(),
                     RepositoryData.UNKNOWN_REPO_GEN,
                     null,
-                    request.userMetadata(), false
+                    userMeta, false
                 );
                 initializingSnapshots.add(newSnapshot.snapshot());
                 snapshots = new SnapshotsInProgress(newSnapshot);
@@ -337,7 +339,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final Snapshot current = newSnapshot.snapshot();
                     assert initializingSnapshots.contains(current);
                     assert indices != null;
-                    beginSnapshot(newState, newSnapshot, request.partial(), indices, new ActionListener<Snapshot>() {
+                    beginSnapshot(newState, newSnapshot, request.partial(), indices, repository, new ActionListener<Snapshot>() {
                         @Override
                         public void onResponse(final Snapshot snapshot) {
                             initializingSnapshots.remove(snapshot);
@@ -443,6 +445,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                final SnapshotsInProgress.Entry snapshot,
                                final boolean partial,
                                final List<String> indices,
+                               final Repository repository,
                                final ActionListener<Snapshot> userCreateSnapshotListener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
@@ -453,8 +456,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             protected void doRun() {
                 assert initializingSnapshots.contains(snapshot.snapshot());
-                Repository repository = repositoriesService.repository(snapshot.snapshot().getRepository());
-
                 if (repository.isReadOnly()) {
                     throw new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository");
                 }

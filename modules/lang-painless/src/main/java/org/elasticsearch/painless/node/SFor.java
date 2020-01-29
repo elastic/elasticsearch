@@ -160,7 +160,6 @@ public final class SFor extends AStatement {
         forLoopNode.setBlockNode(block == null ? null : block.write());
 
         forLoopNode.setLocation(location);
-        forLoopNode.setLoopCounter(loopCounter);
         forLoopNode.setContinuous(continuous);
 
         return forLoopNode;

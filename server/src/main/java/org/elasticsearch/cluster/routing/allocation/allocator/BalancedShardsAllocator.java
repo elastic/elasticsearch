@@ -1000,7 +1000,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 if (candidate == null || candidate.id() > shard.id()) {
                                     /* this last condition is a tie-breaker to make the shard allocation alg deterministic
                                      * otherwise we rely on the iteration order of the index.getAllShards() which is a set.*/
-                                    minCost = delta;
                                     candidate = shard;
                                     decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                                 }

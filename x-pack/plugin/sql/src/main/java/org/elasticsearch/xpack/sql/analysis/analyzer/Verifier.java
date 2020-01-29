@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -60,8 +61,6 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.ql.type.DataType.SHAPE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -70,6 +69,8 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 
 /**
  * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
@@ -182,7 +183,7 @@ public final class Verifier {
                                     for (Attribute a : p.inputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
-                                        if ((a.dataType() != DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
+                                        if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
                                             potentialMatches.add(nameCandidate);
                                         }
                                     }
@@ -450,7 +451,7 @@ public final class Verifier {
             unsupported.add(e);
             return true;
         } else if (e instanceof Min || e instanceof Max) {
-            if (((AggregateFunction) e).field().dataType().isString()) {
+            if (DataTypes.isString(((AggregateFunction) e).field().dataType())) {
                 // Min & Max on a Keyword field will be translated to First & Last respectively
                 unsupported.add(e);
                 return true;
@@ -521,7 +522,7 @@ public final class Verifier {
             // TIME data type is not allowed for grouping key
             // https://github.com/elastic/elasticsearch/issues/40639
             a.groupings().forEach(f -> {
-                if (f.dataType().isTimeBased()) {
+                if (f.dataType() == SqlDataTypes.TIME) {
                     localFailures.add(fail(f, "Function [" + f.sourceText() + "] with data type [" + f.dataType().typeName() +
                         "] " + "cannot be used for grouping"));
                 }
@@ -810,7 +811,7 @@ public final class Verifier {
                     localFailures.add(fail(v, "Null not allowed as a PIVOT value", v.name()));
                 }
                 // and that their type is compatible with that of the column
-                else if (DataTypes.areTypesCompatible(colType, v.dataType()) == false) {
+                else if (SqlDataTypes.areCompatible(colType, v.dataType()) == false) {
                     localFailures.add(fail(v, "Literal [{}] of type [{}] does not match type [{}] of PIVOT column [{}]", v.name(),
                             v.dataType().typeName(), colType.typeName(), pv.column().sourceText()));
                 }

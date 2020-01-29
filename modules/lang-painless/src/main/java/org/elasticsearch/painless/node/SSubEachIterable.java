@@ -90,11 +90,12 @@ final class SSubEachIterable extends AStatement {
         forEachSubIterableNode.setBlockNode(block.write());
 
         forEachSubIterableNode.setLocation(location);
-        forEachSubIterableNode.setVariable(variable);
+        forEachSubIterableNode.setVariableType(variable.clazz);
+        forEachSubIterableNode.setVariableName(variable.name);
         forEachSubIterableNode.setCast(cast);
-        forEachSubIterableNode.setIterator(iterator);
+        forEachSubIterableNode.setIteratorType(iterator.clazz);
+        forEachSubIterableNode.setIteratorName(iterator.name.substring(1));
         forEachSubIterableNode.setMethod(method);
-        forEachSubIterableNode.setLoopCounter(loopCounter);
         forEachSubIterableNode.setContinuous(false);
 
         return forEachSubIterableNode;

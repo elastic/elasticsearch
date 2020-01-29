@@ -24,7 +24,9 @@ import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.Reader;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -77,6 +79,16 @@ public abstract class Terminal {
 
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public abstract char[] readSecret(String prompt);
+
+    /** Read password text form terminal input up to a maximum length. */
+    public char[] readSecret(String prompt, int maxLength) {
+        char[] result = readSecret(prompt);
+        if (result.length > maxLength) {
+            Arrays.fill(result, '\0');
+            throw new IllegalStateException("Secret exceeded maximum length of " + maxLength);
+        }
+        return result;
+    }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
@@ -151,6 +163,45 @@ public abstract class Terminal {
         }
     }
 
+    /**
+     * Read from the reader until we find a newline. If that newline
+     * character is immediately preceded by a carriage return, we have
+     * a Windows-style newline, so we discard the carriage return as well
+     * as the newline.
+     */
+    public static char[] readLineToCharArray(Reader reader, int maxLength) {
+        char[] buf = new char[maxLength + 2];
+        try {
+            int len = 0;
+            int next;
+            while ((next = reader.read()) != -1) {
+                char nextChar = (char) next;
+                if (nextChar == '\n') {
+                    break;
+                }
+                if (len < buf.length) {
+                    buf[len] = nextChar;
+                }
+                len++;
+            }
+
+            if (len > 0 && len < buf.length && buf[len-1] == '\r') {
+                len--;
+            }
+
+            if (len > maxLength) {
+                Arrays.fill(buf, '\0');
+                throw new RuntimeException("Input exceeded maximum length of " + maxLength);
+            }
+
+            char[] shortResult = Arrays.copyOf(buf, len);
+            Arrays.fill(buf, '\0');
+            return shortResult;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void flush() {
         this.getWriter().flush();
         this.getErrorWriter().flush();
@@ -184,9 +235,12 @@ public abstract class Terminal {
         }
     }
 
-    private static class SystemTerminal extends Terminal {
+    /** visible for testing */
+    static class SystemTerminal extends Terminal {
 
         private static final PrintWriter WRITER = newWriter();
+
+        private BufferedReader reader;
 
         SystemTerminal() {
             super(System.lineSeparator());
@@ -197,6 +251,14 @@ public abstract class Terminal {
             return new PrintWriter(System.out);
         }
 
+        /** visible for testing */
+        BufferedReader getReader() {
+            if (reader == null) {
+                reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
+            }
+            return reader;
+        }
+
         @Override
         public PrintWriter getWriter() {
             return WRITER;
@@ -205,9 +267,8 @@ public abstract class Terminal {
         @Override
         public String readText(String text) {
             getErrorWriter().print(text); // prompts should go to standard error to avoid mixing with list output
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
-                final String line = reader.readLine();
+                final String line = getReader().readLine();
                 if (line == null) {
                     throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
                 }
@@ -220,6 +281,12 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text) {
             return readText(text).toCharArray();
+        }
+
+        @Override
+        public char[] readSecret(String text, int maxLength) {
+            getErrorWriter().println(text);
+            return readLineToCharArray(getReader(), maxLength);
         }
     }
 }

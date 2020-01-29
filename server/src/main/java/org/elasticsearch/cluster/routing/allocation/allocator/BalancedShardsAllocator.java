@@ -666,12 +666,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to the {@link MoveDecision} return object:
          *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
-         *      {@link MoveDecision#canRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
+         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
          *      populated with the decision of moving to another node.  If {@link MoveDecision#forceMove()} ()} returns {@code true}, then
-         *      {@link MoveDecision#targetNode} will return a non-null value, otherwise the assignedNodeId will be null.
+         *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
-         *      {@link MoveDecision#nodeDecisions} will have a non-null value.
+         *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          */
         public MoveDecision decideMove(final ShardRouting shardRouting) {
             if (shardRouting.started() == false) {

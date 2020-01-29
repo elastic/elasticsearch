@@ -712,15 +712,15 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
     }
 
-    public void testFullTextFunctionsNotAllowedInSelect() {
-        assertEquals("1:8: Cannot use a Full-Text search functions in the SELECT clause",
+    public void testMatchAndQueryFunctionsNotAllowedInSelect() {
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
                 error("SELECT MATCH(text, 'foo') FROM test"));
-        assertEquals("1:8: Cannot use a Full-Text search functions in the SELECT clause",
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
                 error("SELECT MATCH(text, 'foo') AS fullTextSearch FROM test"));
-        assertEquals("1:38: Cannot use a Full-Text search functions in the SELECT clause",
+        assertEquals("1:38: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
                 error("SELECT int > 10 AND (bool = false OR QUERY('foo*')) AS fullTextSearch FROM test"));
-        assertEquals("1:8: Cannot use a Full-Text search functions in the SELECT clause\n" +
-                "line 1:28: Cannot use a Full-Text search functions in the SELECT clause",
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause\n" +
+                "line 1:28: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
                 error("SELECT MATCH(text, 'foo'), MATCH(text, 'bar') FROM test"));
         accept("SELECT * FROM test WHERE MATCH(text, 'foo')");
     }

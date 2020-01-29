@@ -223,7 +223,8 @@ public final class Verifier {
             plan.forEachUp(p -> {
                 for (NamedExpression ne : p.projections()) {
                     ne.forEachUp((e) ->
-                            localFailures.add(fail(e, "Cannot use a Full-Text search functions in the SELECT clause")),
+                            localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
+                                    "functions in the SELECT clause")),
                             FullTextPredicate.class);
                 }
             }, Project.class);

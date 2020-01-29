@@ -982,6 +982,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
                             minNode.getNodeId());
                 }
+                final float delta = weight.weight(this, minNode, idx) - weight.weight(this, maxNode, idx) + 2;
+                if (minCost <= delta) {
+                    logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]", maxNode.getNodeId(), minNode.getNodeId());
+                    return false;
+                }
                 ShardRouting candidate = null;
                 final AllocationDeciders deciders = allocation.deciders();
                 for (ShardRouting shard : index) {
@@ -993,7 +998,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             if (maxNode.containsShard(shard)) {
                                 // simulate moving shard from maxNode to minNode
-                                final float delta = weight.weight(this, minNode, idx) - weight.weight(this, maxNode, idx) + 2;
                                 if (delta < minCost ||
                                         (candidate != null && Float.compare(delta, minCost) == 0 && candidate.id() > shard.id())) {
                                     /* this last line is a tie-breaker to make the shard allocation alg deterministic

@@ -109,10 +109,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         EnrichMetadata that = (EnrichMetadata) o;
         return policies.equals(that.policies);
     }

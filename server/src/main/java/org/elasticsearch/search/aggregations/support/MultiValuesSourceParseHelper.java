@@ -31,7 +31,7 @@ public final class MultiValuesSourceParseHelper {
             AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
             ValueType expectedValueType) {
 
-        objectParser.declareField(MultiValuesSourceAggregationBuilder::valueType, p -> {
+        objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),

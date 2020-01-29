@@ -47,8 +47,8 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     public abstract static class LeafOnly<AB extends MultiValuesSourceAggregationBuilder<AB>>
             extends MultiValuesSourceAggregationBuilder<AB> {
 
-        protected LeafOnly(String name, ValueType targetValueType) {
-            super(name, targetValueType);
+        protected LeafOnly(String name) {
+            super(name);
         }
 
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -62,8 +62,8 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         /**
          * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, ValueType targetValueType) throws IOException {
-            super(in, targetValueType);
+        protected LeafOnly(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
@@ -76,13 +76,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
 
     private Map<String, MultiValuesSourceFieldConfig> fields = new HashMap<>();
-    private final ValueType targetValueType;
-    private ValueType valueType = null;
+    private ValueType userValueTypeHint = null;
     private String format = null;
 
-    protected MultiValuesSourceAggregationBuilder(String name, ValueType targetValueType) {
+    protected MultiValuesSourceAggregationBuilder(String name) {
         super(name);
-        this.targetValueType = targetValueType;
     }
 
     protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<AB> clone,
@@ -90,16 +88,16 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         super(clone, factoriesBuilder, metaData);
 
         this.fields = new HashMap<>(clone.fields);
-        this.targetValueType = clone.targetValueType;
-        this.valueType = clone.valueType;
+        this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;
     }
 
-    protected MultiValuesSourceAggregationBuilder(StreamInput in, ValueType targetValueType)
+    /**
+     * Read from a stream.
+     */
+    protected MultiValuesSourceAggregationBuilder(StreamInput in)
         throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
-        this.targetValueType = targetValueType;
         read(in);
     }
 
@@ -109,17 +107,14 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = in.readMap(StreamInput::readString, MultiValuesSourceFieldConfig::new);
-        valueType = in.readOptionalWriteable(ValueType::readFromStream);
+        userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
-            out.writeOptionalWriteable(targetValueType);
-        }
         out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
-        out.writeOptionalWriteable(valueType);
+        out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         innerWriteTo(out);
     }
@@ -142,11 +137,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB valueType(ValueType valueType) {
+    public AB userValueTypeHint(ValueType valueType) {
         if (valueType == null) {
-            throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }
-        this.valueType = valueType;
+        this.userValueTypeHint = valueType;
         return (AB) this;
     }
 
@@ -162,25 +157,34 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         return (AB) this;
     }
 
+    /**
+     * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver
+     * can't find a field and the user hasn't provided a value type hint.
+     *
+     * @return The CoreValuesSourceType we expect this script to yield.
+     */
+    protected abstract ValuesSourceType defaultValueSourceType();
+
     @Override
     protected final MultiValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                                Builder subFactoriesBuilder) throws IOException {
-        ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
-
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
-            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, finalValueType,
-                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, getType());
+            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, userValueTypeHint,
+                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, defaultValueSourceType(),
+                getType());
             configs.put(key, config);
         });
-        DocValueFormat docValueFormat = resolveFormat(format, finalValueType);
+        DocValueFormat docValueFormat = resolveFormat(format, userValueTypeHint, defaultValueSourceType());
         return innerBuild(queryShardContext, configs, docValueFormat, parent, subFactoriesBuilder);
     }
 
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType,
+                                                ValuesSourceType defaultValuesSourceType) {
         if (valueType == null) {
-            return DocValueFormat.RAW; // we can't figure it out
+            // If the user didn't send a hint, all we can do is fall back to the default
+            return defaultValuesSourceType.getFormatter(format, null);
         }
         DocValueFormat valueFormat = valueType.defaultFormat;
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
@@ -195,14 +199,6 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
                                                                      Builder subFactoriesBuilder) throws IOException;
 
 
-    /**
-     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true
-     * should use the three argument read constructor rather than the four argument version.
-     */
-    protected boolean serializeTargetValueType() {
-        return false;
-    }
-
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -214,8 +210,8 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         if (format != null) {
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
-        if (valueType != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), valueType.getPreferredName());
+        if (userValueTypeHint != null) {
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -226,7 +222,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, format, targetValueType, valueType);
+        return Objects.hash(super.hashCode(), fields, format, userValueTypeHint);
     }
 
 
@@ -239,6 +235,6 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         MultiValuesSourceAggregationBuilder other = (MultiValuesSourceAggregationBuilder) obj;
         return Objects.equals(this.fields, other.fields)
             && Objects.equals(this.format, other.format)
-            && Objects.equals(this.valueType, other.valueType);
+            && Objects.equals(this.userValueTypeHint, other.userValueTypeHint);
     }
 }

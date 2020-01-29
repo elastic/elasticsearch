@@ -31,12 +31,21 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Builds the Top Metrics aggregation request.
+ */
 public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<TopMetricsAggregationBuilder> {
     public static final String NAME = "top_metrics";
 
     private final SortBuilder<?> sort;
     private final String metric;
 
+    /**
+     * Build the request.
+     * @param name the name of the metric
+     * @param sort the sort key used to select the top metrics
+     * @param metric the name of the field to select
+     */
     public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, String metric) {
         super(name);
         this.sort = sort;

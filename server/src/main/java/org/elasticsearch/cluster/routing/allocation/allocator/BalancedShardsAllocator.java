@@ -395,11 +395,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
                     boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
-                    // simulate the weight of the node if we were to relocate the shard to it
-                    float weightWithShardAdded = weight.weight(this, node, idxName) + 1;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    float proposedDelta = weightWithShardAdded - (weight.weight(this, currentNode, idxName) - 1);
+                    float proposedDelta = weight.weight(this, node, idxName) - weight.weight(this, currentNode, idxName) + 2;
                     boolean betterWeightWithShardAdded = proposedDelta < currentDelta;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta

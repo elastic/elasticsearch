@@ -11,8 +11,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -20,12 +18,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
+import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
-        try (CacheService cacheService = createCacheService()) {
+        try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
             for (int i = 0; i < 5; i++) {
@@ -57,25 +57,6 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 directory.close();
             }
         }
-    }
-
-    private CacheService createCacheService() {
-        final ByteSizeValue cacheSize = new ByteSizeValue(randomIntBetween(1, 100),
-            randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB));
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(1, 100),
-            randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB));
-        return new CacheService(cacheSize, rangeSize);
-    }
-
-    private static long numberOfRanges(int fileSize, int rangeSize) {
-        long numberOfRanges = fileSize / rangeSize;
-        if (fileSize % rangeSize > 0) {
-            numberOfRanges++;
-        }
-        if (numberOfRanges == 0) {
-            numberOfRanges++;
-        }
-        return numberOfRanges;
     }
 
     /**

@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.io.EOFException;
@@ -22,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,13 +35,20 @@ public class CacheDirectory extends FilterDirectory {
 
     private static final int COPY_BUFFER_SIZE = 8192;
 
+    private final Map<String, IndexInputStats> stats;
     private final CacheService cacheService;
     private final Path cacheDir;
 
     public CacheDirectory(Directory in, CacheService cacheService, Path cacheDir) throws IOException {
         super(in);
+        this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Files.createDirectories(cacheDir);
+    }
+
+    // pkg private for tests
+    @Nullable IndexInputStats getStats(String name) {
+        return stats.get(name);
     }
 
     public void close() throws IOException {
@@ -52,7 +61,8 @@ public class CacheDirectory extends FilterDirectory {
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new CacheBufferedIndexInput(name, fileLength(name), context);
+        final long fileLength = fileLength(name);
+        return new CacheBufferedIndexInput(name, fileLength, context, stats.computeIfAbsent(name, n -> new IndexInputStats(fileLength)));
     }
 
     private class CacheFileReference implements CacheFile.EvictionListener {
@@ -127,22 +137,28 @@ public class CacheDirectory extends FilterDirectory {
         private final long offset;
         private final long end;
         private final CacheFileReference cacheFileReference;
+        private final IndexInputStats stats;
 
         // the following are only mutable so they can be adjusted after cloning
         private AtomicBoolean closed;
         private boolean isClone;
 
-        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
-            this(new CacheFileReference(fileName, fileLength), ioContext,
+        // last read position is kept around in order to detect (non)contiguous reads for stats
+        private long lastReadPosition;
+
+        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext, IndexInputStats stats) {
+            this(new CacheFileReference(fileName, fileLength), ioContext, stats,
                 "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength, false);
+            stats.incrementOpenCount();
         }
 
-        private CacheBufferedIndexInput(CacheFileReference cacheFileReference, IOContext ioContext, String desc, long offset, long length,
-                                        boolean isClone) {
+        private CacheBufferedIndexInput(CacheFileReference cacheFileReference, IOContext ioContext, IndexInputStats stats,
+                                        String desc, long offset, long length, boolean isClone) {
             super(desc, ioContext);
             this.ioContext = ioContext;
             this.offset = offset;
             this.cacheFileReference = cacheFileReference;
+            this.stats = stats;
             this.end = offset + length;
             this.closed = new AtomicBoolean(false);
             this.isClone = isClone;
@@ -157,6 +173,7 @@ public class CacheDirectory extends FilterDirectory {
         public void close() {
             if (closed.compareAndSet(false, true)) {
                 if (isClone == false) {
+                    stats.incrementCloseCount();
                     cacheFileReference.releaseOnClose();
                 }
             }
@@ -166,12 +183,13 @@ public class CacheDirectory extends FilterDirectory {
         protected void readInternal(final byte[] buffer, final int offset, final int length) throws IOException {
             final long position = getFilePointer() + this.offset;
 
-            int bytesRead = 0;
-            while (bytesRead < length) {
-                final long pos = position + bytesRead;
-                final int off = offset + bytesRead;
-                final int len = length - bytesRead;
+            int totalBytesRead = 0;
+            while (totalBytesRead < length) {
+                final long pos = position + totalBytesRead;
+                final int off = offset + totalBytesRead;
+                final int len = length - totalBytesRead;
 
+                int bytesRead = 0;
                 try {
                     final CacheFile cacheFile = cacheFileReference.get();
                     if (cacheFile == null) {
@@ -179,7 +197,7 @@ public class CacheDirectory extends FilterDirectory {
                     }
 
                     try (ReleasableLock ignored = cacheFile.fileLock()) {
-                        bytesRead += cacheFile.fetchRange(pos,
+                        bytesRead = cacheFile.fetchRange(pos,
                             (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, buffer, off, len),
                             (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end))
                             .get();
@@ -188,7 +206,8 @@ public class CacheDirectory extends FilterDirectory {
                     if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
                         try {
                             // cache file was evicted during the range fetching, read bytes directly from source
-                            bytesRead += readDirectly(pos, pos + len, buffer, off);
+                            bytesRead = readDirectly(pos, pos + len, buffer, off);
+                            stats.addDirectBytesRead(bytesRead);
                             continue;
                         } catch (Exception inner) {
                             e.addSuppressed(inner);
@@ -196,25 +215,31 @@ public class CacheDirectory extends FilterDirectory {
                     }
                     throw new IOException("Fail to read data from cache", e);
 
+                } finally {
+                    totalBytesRead += bytesRead;
                 }
             }
-            assert bytesRead == length : "partial read operation, read [" + bytesRead + "] bytes of [" + length + "]";
+            assert totalBytesRead == length : "partial read operation, read [" + totalBytesRead + "] bytes of [" + length + "]";
+            stats.incrementBytesRead(lastReadPosition, position, totalBytesRead);
+            lastReadPosition = position + totalBytesRead;
         }
 
         int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
             assert assertFileChannelOpen(fc);
-            return Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
+            int bytesRead = Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
+            stats.addCachedBytesRead(bytesRead);
+            return bytesRead;
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
         void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
+            int bytesCopied = 0;
             try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 if (start > 0) {
                     input.seek(start);
                 }
-                int bytesCopied = 0;
                 long remaining = end - start;
                 while (remaining > 0) {
                     final int size = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
@@ -223,6 +248,7 @@ public class CacheDirectory extends FilterDirectory {
                     bytesCopied += size;
                     remaining -= size;
                 }
+                stats.addCachedBytesWritten(bytesCopied);
             }
         }
 
@@ -233,6 +259,7 @@ public class CacheDirectory extends FilterDirectory {
             } else if (pos < 0L) {
                 throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
             }
+            stats.incrementSeeks(getFilePointer(), pos);
         }
 
         @Override
@@ -249,7 +276,7 @@ public class CacheDirectory extends FilterDirectory {
                 throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
                     + ",length=" + length + ",fileLength=" + this.length() + ": " + this);
             }
-            return new CacheBufferedIndexInput(cacheFileReference, ioContext,
+            return new CacheBufferedIndexInput(cacheFileReference, ioContext, stats,
                 getFullSliceDescription(sliceDescription), this.offset + offset, length, true);
         }
 

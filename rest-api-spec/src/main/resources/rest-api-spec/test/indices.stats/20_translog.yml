@@ -47,7 +47,7 @@
 "Translog retention settings are deprecated":
   - skip:
       version: " - 7.99.99"
-      reason: "translog retention are deprecated in 8.0"
+      reason: "translog retention settings are deprecated in 8.0"
       features: "warnings"
   - do:
       warnings:

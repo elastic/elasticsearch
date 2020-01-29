@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -42,6 +44,8 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -126,7 +130,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.stripWhitespace(String.format(Locale.ROOT, "{"
+        final String expected = stripWhitespace(String.format(Locale.ROOT, "{"
             + "  \"cluster_uuid\": \"_cluster\","
             + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
             + "  \"interval_ms\": 1506593717631,"
@@ -248,7 +252,9 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "      }"
             + "    }"
             + "  }"
-            + "}", indexStatsSummary()));
+            + "}",
+            // Since the summary is being merged with other data, remove the enclosing braces.
+            indexStatsSummary().replaceAll("(^\\{|}$)", "")));
         assertThat(xContent.utf8ToString(), equalTo(expected));
     }
 
@@ -269,44 +275,56 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
-                     + "\"cluster_uuid\":\"_cluster\","
-                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                     + "\"interval_ms\":1506593717631,"
-                     + "\"type\":\"index_stats\","
-                     + "\"source_node\":{"
-                       + "\"uuid\":\"_uuid\","
-                       + "\"host\":\"_host\","
-                       + "\"transport_address\":\"_addr\","
-                       + "\"ip\":\"_ip\","
-                       + "\"name\":\"_name\","
-                       + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                     + "},"
-                     + "\"index_stats\":{"
-                       + indexStatsSummary()
-                      + "}"
-                + "}", xContent.utf8ToString());
+        final String expected = stripWhitespace(
+            String.format(
+                Locale.ROOT,
+                "{"
+                    + "  \"cluster_uuid\": \"_cluster\","
+                    + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
+                    + "  \"interval_ms\": 1506593717631,"
+                    + "  \"type\": \"index_stats\","
+                    + "  \"source_node\": {"
+                    + "    \"uuid\": \"_uuid\","
+                    + "    \"host\": \"_host\","
+                    + "    \"transport_address\": \"_addr\","
+                    + "    \"ip\": \"_ip\","
+                    + "    \"name\": \"_name\","
+                    + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+                    + "  },"
+                    + "  \"index_stats\": %s"
+                    + "}",
+                indexStatsSummary()
+            )
+        );
+        assertEquals(expected, xContent.utf8ToString());
     }
 
-    private String indexStatsSummary() {
-        // must append , if total / primaries stats are included
-        return "\"index\":\"" + index.getName() + "\"," +
-               "\"uuid\":\"" + index.getUUID() + "\"," +
-               "\"created\":" + metaData.getCreationDate() + "," +
-               "\"status\":\"" + indexHealth.getStatus().name().toLowerCase(Locale.ROOT) + "\"," +
-               "\"shards\":{" +
-                 "\"total\":" + total + "," +
-                 "\"primaries\":" + primaries + "," +
-                 "\"replicas\":" + replicas + "," +
-                 "\"active_total\":" + (activePrimaries + activeReplicas) + "," +
-                 "\"active_primaries\":" + activePrimaries + "," +
-                 "\"active_replicas\":" + activeReplicas + "," +
-                 "\"unassigned_total\":" + (total - (activePrimaries + activeReplicas)) + "," +
-                 "\"unassigned_primaries\":" + (primaries - activePrimaries) + "," +
-                 "\"unassigned_replicas\":" + (total - (activePrimaries + activeReplicas) - (primaries - activePrimaries)) + "," +
-                 "\"initializing\":" + initializing + "," +
-                 "\"relocating\":" + relocating +
-               "}";
+    private String indexStatsSummary() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("index", index.getName())
+            .field("uuid", index.getUUID())
+            .field("created", metaData.getCreationDate())
+            .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
+        {
+            builder.startObject("shards")
+                .field("total", total)
+                .field("primaries", primaries)
+                .field("replicas", replicas)
+                .field("active_total", activePrimaries + activeReplicas)
+                .field("active_primaries", activePrimaries)
+                .field("active_replicas", activeReplicas)
+                .field("unassigned_total", total - (activePrimaries + activeReplicas))
+                .field("unassigned_primaries", primaries - activePrimaries)
+                .field("unassigned_replicas", total - (activePrimaries + activeReplicas) - (primaries - activePrimaries))
+                .field("initializing", initializing)
+                .field("relocating", relocating)
+                .endObject();
+        }
+
+        builder.endObject();
+
+        return convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
     }
 
     private static CommonStats mockCommonStats() {

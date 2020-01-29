@@ -25,8 +25,8 @@ public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<
     }
 
     static String randomSearchId() {
-        return AsyncSearchId.encode(randomRealisticUnicodeOfLengthBetween(2, 20), UUIDs.randomBase64UUID(),
-                new TaskId(randomAlphaOfLengthBetween(10, 20), randomLongBetween(0, Long.MAX_VALUE)));
+        return AsyncSearchId.encode(UUIDs.randomBase64UUID(),
+            new TaskId(randomAlphaOfLengthBetween(10, 20), randomLongBetween(0, Long.MAX_VALUE)));
     }
 
     public void testValidateWaitForCompletion() {

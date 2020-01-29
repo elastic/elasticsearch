@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_ALIAS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -87,7 +88,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-        ensureGreen(searchId.getIndexName());
+        ensureGreen(ASYNC_SEARCH_ALIAS);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {
@@ -110,7 +111,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncSearchId searchId = AsyncSearchId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
-                .setIndex(searchId.getIndexName())
+                .setIndex(ASYNC_SEARCH_ALIAS)
                 .setId(searchId.getDocId())
                 .get();
             assertFalse(resp.isExists());

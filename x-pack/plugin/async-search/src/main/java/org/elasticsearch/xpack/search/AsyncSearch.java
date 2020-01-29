@@ -16,10 +16,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -36,7 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public final class AsyncSearch extends Plugin implements ActionPlugin {
+public final class AsyncSearch extends Plugin implements ActionPlugin, PersistentTaskPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
@@ -70,5 +73,11 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                NamedWriteableRegistry namedWriteableRegistry) {
         new AsyncSearchTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
+                                                                       Client client, SettingsModule settingsModule) {
+        return Collections.singletonList(new AsyncSearchReaperExecutor(client, threadPool));
     }
 }

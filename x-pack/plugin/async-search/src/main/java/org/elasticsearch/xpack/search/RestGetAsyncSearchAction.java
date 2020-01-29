@@ -33,7 +33,9 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
         String id = request.param("id");
         int lastVersion = request.paramAsInt("last_version", -1);
         TimeValue waitForCompletion = request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1));
+        TimeValue keepAlive = request.paramAsTime("keep_alive", TimeValue.MINUS_ONE);
         GetAsyncSearchAction.Request get = new GetAsyncSearchAction.Request(id, waitForCompletion, lastVersion);
+        get.setKeepAlive(keepAlive);
         return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestStatusToXContentListener<>(channel));
     }
 }

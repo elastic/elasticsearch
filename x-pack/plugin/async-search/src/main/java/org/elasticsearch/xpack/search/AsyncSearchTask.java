@@ -19,6 +19,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -31,8 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
 
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
@@ -51,6 +50,8 @@ class AsyncSearchTask extends SearchTask {
     private final List<Runnable> initListeners = new ArrayList<>();
     private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
+    private long expirationTimeMillis;
+
     private AtomicReference<MutableSearchResponse> searchResponse;
 
     /**
@@ -59,6 +60,7 @@ class AsyncSearchTask extends SearchTask {
      * @param id The id of the task.
      * @param type The type of the task.
      * @param action The action name.
+     * @param parentTaskId The parent task id.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncSearchId} of the task.
@@ -68,12 +70,13 @@ class AsyncSearchTask extends SearchTask {
     AsyncSearchTask(long id,
                     String type,
                     String action,
+                    TaskId parentTaskId,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
                     AsyncSearchId searchId,
                     ThreadPool threadPool,
                     Supplier<ReduceContext> reduceContextSupplier) {
-        super(id, type, action, null, EMPTY_TASK_ID, taskHeaders);
+        super(id, type, action, "async_search", parentTaskId, taskHeaders);
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.threadPool = threadPool;
@@ -100,6 +103,14 @@ class AsyncSearchTask extends SearchTask {
     @Override
     public SearchProgressActionListener getProgressListener() {
         return progressListener;
+    }
+
+    public synchronized void setExpirationTime(long expirationTimeMillis) {
+        this.expirationTimeMillis = expirationTimeMillis;
+    }
+
+    public synchronized long getExpirationTime() {
+        return expirationTimeMillis;
     }
 
     /**
@@ -135,10 +146,10 @@ class AsyncSearchTask extends SearchTask {
     public void addCompletionListener(Consumer<AsyncSearchResponse>  listener) {
         boolean executeImmediately = false;
         synchronized (this) {
-            if (hasCompleted == false) {
-                completionListeners.put(completionId++, resp -> listener.accept(resp));
-            } else {
+            if (hasCompleted) {
                 executeImmediately = true;
+            } else {
+                completionListeners.put(completionId++, resp -> listener.accept(resp));
             }
         }
         if (executeImmediately) {
@@ -149,32 +160,27 @@ class AsyncSearchTask extends SearchTask {
     private void internalAddCompletionListener(Consumer<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
         boolean executeImmediately = false;
         synchronized (this) {
-            if (hasCompleted == false) {
-                if (waitForCompletion.getMillis() == 0) {
-                    // can happen if the initialization time was greater than the original waitForCompletion
-                    executeImmediately = true;
-                } else {
-                    // ensure that we consumes the listener only once
-                    AtomicBoolean hasRun = new AtomicBoolean(false);
-                    long id = completionId++;
-                    Cancellable cancellable =
-                        threadPool.schedule(() -> {
-                            if (hasRun.compareAndSet(false, true)) {
-                                // timeout occurred before completion
-                                removeCompletionListener(id);
-                                listener.accept(getResponse());
-                            }
-                        }, waitForCompletion, "generic");
-                    completionListeners.put(id, resp -> {
-                        if (hasRun.compareAndSet(false, true)) {
-                            // completion occurred before timeout
-                            cancellable.cancel();
-                            listener.accept(resp);
-                        }
-                    });
-                }
-            } else {
+            if (hasCompleted || waitForCompletion.getMillis() == 0) {
                 executeImmediately = true;
+            } else {
+                // ensure that we consumes the listener only once
+                AtomicBoolean hasRun = new AtomicBoolean(false);
+                long id = completionId++;
+                Cancellable cancellable =
+                    threadPool.schedule(() -> {
+                        if (hasRun.compareAndSet(false, true)) {
+                            // timeout occurred before completion
+                            removeCompletionListener(id);
+                            listener.accept(getResponse());
+                        }
+                     }, waitForCompletion, "generic");
+                completionListeners.put(id, resp -> {
+                    if (hasRun.compareAndSet(false, true)) {
+                        // completion occurred before timeout
+                        cancellable.cancel();
+                        listener.accept(resp);
+                    }
+                });
             }
         }
         if (executeImmediately) {

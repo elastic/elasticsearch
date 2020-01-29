@@ -17,6 +17,9 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest.MIN_KEEP_ALIVE;
+
 public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
     public static final GetAsyncSearchAction INSTANCE = new GetAsyncSearchAction();
     public static final String NAME = "indices:data/read/async_search/get";
@@ -34,6 +37,7 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
         private final String id;
         private final int lastVersion;
         private final TimeValue waitForCompletion;
+        private TimeValue keepAlive = TimeValue.MINUS_ONE;
 
         /**
          * Create a new request
@@ -64,7 +68,12 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (keepAlive != TimeValue.MINUS_ONE && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+                validationException =
+                    addValidationError("keep_alive must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+            }
+            return validationException;
         }
 
         public String getId() {
@@ -87,19 +96,28 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             return waitForCompletion;
         }
 
+        public TimeValue getKeepAlive() {
+            return keepAlive;
+        }
+
+        public void setKeepAlive(TimeValue keepAlive) {
+            this.keepAlive = keepAlive;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return lastVersion == request.lastVersion &&
-                id.equals(request.id) &&
-                waitForCompletion.equals(request.waitForCompletion);
+                Objects.equals(id, request.id) &&
+                waitForCompletion.equals(request.waitForCompletion) &&
+                keepAlive.equals(request.keepAlive);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, lastVersion, waitForCompletion);
+            return Objects.hash(id, lastVersion, waitForCompletion, keepAlive);
         }
     }
 }

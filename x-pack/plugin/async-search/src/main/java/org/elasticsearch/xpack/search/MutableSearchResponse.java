@@ -142,7 +142,7 @@ class MutableSearchResponse {
             resp = null;
         }
         return new AsyncSearchResponse(task.getSearchId().getEncoded(), version, resp, failure, isPartial,
-            frozen == false, task.getStartTime());
+            frozen == false, task.getStartTime(), task.getExpirationTime());
     }
 
     private void failIfFrozen() {

@@ -31,7 +31,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final boolean isRunning;
     private final boolean isPartial;
 
-    private final long startDateMillis;
+    private final long startTimeMillis;
+    private long expirationTimeMillis = -1;
 
     /**
      * Creates an {@link AsyncSearchResponse} with meta informations that omits
@@ -41,8 +42,9 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
                                int version,
                                boolean isPartial,
                                boolean isRunning,
-                               long startDateMillis) {
-        this(id, version, null, null, isPartial, isRunning, startDateMillis);
+                               long startTimeMillis,
+                               long expirationTimeMillis) {
+        this(id, version, null, null, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
     /**
@@ -54,7 +56,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      *                or completed without failure.
      * @param isPartial Whether the <code>searchResponse</code> contains partial results.
      * @param isRunning Whether the search is running in the cluster.
-     * @param startDateMillis The start date of the search in milliseconds since epoch.
+     * @param startTimeMillis The start date of the search in milliseconds since epoch.
      */
     public AsyncSearchResponse(String id,
                                int version,
@@ -62,14 +64,16 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
                                ElasticsearchException failure,
                                boolean isPartial,
                                boolean isRunning,
-                               long startDateMillis) {
+                               long startTimeMillis,
+                               long expirationTimeMillis) {
         this.id = id;
         this.version = version;
         this.failure = failure;
         this.searchResponse = searchResponse;
         this.isPartial = isPartial;
         this.isRunning = isRunning;
-        this.startDateMillis = startDateMillis;
+        this.startTimeMillis = startTimeMillis;
+        this.expirationTimeMillis = expirationTimeMillis;
     }
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
@@ -79,7 +83,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
-        this.startDateMillis = in.readLong();
+        this.startTimeMillis = in.readLong();
+        this.expirationTimeMillis = in.readLong();
     }
 
     @Override
@@ -90,13 +95,13 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         out.writeOptionalWriteable(searchResponse);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
-        out.writeLong(startDateMillis);
+        out.writeLong(startTimeMillis);
+        out.writeLong(expirationTimeMillis);
     }
 
     public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, version, searchResponse, failure, isPartial, isRunning, startDateMillis);
+        return new AsyncSearchResponse(id, version, searchResponse, failure, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
-
 
     /**
      * Returns the id of the async search request or null if the response is not stored in the cluster.
@@ -140,8 +145,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * When this response was created as a timestamp in milliseconds since epoch.
      */
-    public long getStartDate() {
-        return startDateMillis;
+    public long getStartTime() {
+        return startTimeMillis;
     }
 
     /**
@@ -153,6 +158,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      */
     public boolean isRunning() {
         return isRunning;
+    }
+
+    public long getExpirationTime() {
+        return expirationTimeMillis;
     }
 
     @Override
@@ -176,7 +185,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.field("version", version);
         builder.field("is_partial", isPartial);
         builder.field("is_running", isRunning);
-        builder.field("start_date_in_millis", startDateMillis);
+        builder.field("start_time_in_millis", startTimeMillis);
+        builder.field("expiration_time_in_millis", expirationTimeMillis);
 
         builder.field("response", searchResponse);
         if (failure != null) {

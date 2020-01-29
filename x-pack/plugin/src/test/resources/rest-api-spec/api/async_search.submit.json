@@ -37,6 +37,15 @@
         "type":"boolean",
         "description":"Specify whether the response should not be stored in the cluster if it completed within the provided wait_for_completion time (default: true)"
       },
+      "batched_reduce_size":{
+        "type":"number",
+        "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",
+        "default":5
+      },
+      "keep_alive": {
+        "type": "time",
+        "description": "Specify the time that the request should remain reachable in the cluster."
+      },
       "analyzer":{
         "type":"string",
         "description":"The analyzer to use for the query string"
@@ -204,20 +213,10 @@
         "type":"boolean",
         "description":"Specify if request cache should be used for this request or not, defaults to index level setting"
       },
-      "batched_reduce_size":{
-        "type":"number",
-        "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",
-        "default":5
-      },
       "max_concurrent_shard_requests":{
         "type":"number",
         "description":"The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
         "default":5
-      },
-      "pre_filter_shard_size":{
-        "type":"number",
-        "description":"A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
-        "default":1
       }
     },
     "body":{

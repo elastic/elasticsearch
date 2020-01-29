@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -27,6 +28,13 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest = new SubmitAsyncSearchRequest(generateRandomStringArray(10, 10, false, false));
         }  else {
             searchRequest = new SubmitAsyncSearchRequest();
+        }
+        if (randomBoolean()) {
+            searchRequest.setWaitForCompletion(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
+        }
+        searchRequest.setCleanOnCompletion(randomBoolean());
+        if (randomBoolean()) {
+            searchRequest.setKeepAlive(TimeValue.parseTimeValue(randomPositiveTimeValue(), "keep_alive"));
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest()

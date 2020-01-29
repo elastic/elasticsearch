@@ -28,6 +28,10 @@
       "last_version":{
         "type":"number",
         "description":"Specify the last version returned by a previous call. The request will return 304 (not modified) status if the new version is lower than or equals to the provided one and will remove all details in the response except id and version. (default: -1)"
+      },
+      "keep_alive": {
+        "type": "time",
+        "description": "Specify the time that the request should remain reachable in the cluster."
       }
     }
   }

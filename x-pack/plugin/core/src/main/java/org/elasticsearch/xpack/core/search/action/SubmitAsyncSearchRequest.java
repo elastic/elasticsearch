@@ -28,8 +28,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AsyncSearchResponse
  */
 public class SubmitAsyncSearchRequest extends ActionRequest {
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueHours(1).millis();
+
     private TimeValue waitForCompletion = TimeValue.timeValueSeconds(1);
     private boolean cleanOnCompletion = true;
+    private TimeValue keepAlive = TimeValue.timeValueDays(5);
 
     private final SearchRequest request;
 
@@ -55,6 +58,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         this.request = new SearchRequest(in);
         this.waitForCompletion = in.readTimeValue();
         this.cleanOnCompletion = in.readBoolean();
+        this.keepAlive = in.readTimeValue();
     }
 
     @Override
@@ -62,6 +66,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         request.writeTo(out);
         out.writeTimeValue(waitForCompletion);
         out.writeBoolean(cleanOnCompletion);
+        out.writeTimeValue(keepAlive);
     }
 
     public SearchRequest getSearchRequest() {
@@ -82,12 +87,12 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         return waitForCompletion;
     }
 
-    public void setBatchedReduceSize(int size) {
-        request.setBatchedReduceSize(size);
+    public void setKeepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
     }
 
-    public SearchSourceBuilder source() {
-        return request.source();
+    public TimeValue getKeepAlive() {
+        return keepAlive;
     }
 
     /**
@@ -101,6 +106,14 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         this.cleanOnCompletion = value;
     }
 
+    public void setBatchedReduceSize(int size) {
+        request.setBatchedReduceSize(size);
+    }
+
+    public SearchSourceBuilder source() {
+        return request.source();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = request.validate();
@@ -109,6 +122,10 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         }
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
+        }
+        if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            validationException =
+                addValidationError("keep_alive must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
         }
 
         return validationException;
@@ -131,11 +148,12 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
         return cleanOnCompletion == request1.cleanOnCompletion &&
             waitForCompletion.equals(request1.waitForCompletion) &&
+            keepAlive.equals(request1.keepAlive) &&
             request.equals(request1.request);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(waitForCompletion, cleanOnCompletion, request);
+        return Objects.hash(waitForCompletion, cleanOnCompletion, keepAlive, request);
     }
 }

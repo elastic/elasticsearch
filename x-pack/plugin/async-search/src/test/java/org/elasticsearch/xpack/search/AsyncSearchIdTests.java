@@ -10,14 +10,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
-
 public class AsyncSearchIdTests extends ESTestCase {
     public void testEncode() {
         for (int i = 0; i < 10; i++) {
-            AsyncSearchId instance = new AsyncSearchId(ASYNC_SEARCH_INDEX_PREFIX + randomAlphaOfLengthBetween(5, 20),
-                UUIDs.randomBase64UUID(), new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
-            String encoded = AsyncSearchId.encode(instance.getIndexName(), instance.getDocId(), instance.getTaskId());
+            AsyncSearchId instance = new AsyncSearchId(UUIDs.randomBase64UUID(),
+                new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
+            String encoded = AsyncSearchId.encode(instance.getDocId(), instance.getTaskId());
             AsyncSearchId same = AsyncSearchId.decode(encoded);
             assertEquals(same, instance);
 
@@ -28,16 +26,13 @@ public class AsyncSearchIdTests extends ESTestCase {
     }
 
     private AsyncSearchId mutate(AsyncSearchId id) {
-        int rand = randomIntBetween(0, 2);
+        int rand = randomIntBetween(0, 1);
         switch (rand) {
             case 0:
-                return new AsyncSearchId(randomAlphaOfLength(id.getIndexName().length()+1), id.getDocId(), id.getTaskId());
+                return new AsyncSearchId(randomAlphaOfLength(id.getDocId().length()+1), id.getTaskId());
 
             case 1:
-                return new AsyncSearchId(id.getIndexName(), randomAlphaOfLength(id.getDocId().length()+1), id.getTaskId());
-
-            case 2:
-                return new AsyncSearchId(id.getIndexName(), id.getDocId(),
+                return new AsyncSearchId(id.getDocId(),
                     new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong()));
 
             default:

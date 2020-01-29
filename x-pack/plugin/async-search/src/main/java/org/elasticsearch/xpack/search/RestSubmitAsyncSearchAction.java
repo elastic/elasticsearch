@@ -45,6 +45,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             parseSearchRequest(submitRequest.getSearchRequest(), request, parser, setSize));
         submitRequest.setWaitForCompletion(request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1)));
         submitRequest.setCleanOnCompletion(request.paramAsBoolean("clean_on_completion", true));
+        submitRequest.setKeepAlive(request.paramAsTime("keep_alive", submitRequest.getKeepAlive()));
 
         ActionRequestValidationException validationException = submitRequest.validate();
         if (validationException != null) {

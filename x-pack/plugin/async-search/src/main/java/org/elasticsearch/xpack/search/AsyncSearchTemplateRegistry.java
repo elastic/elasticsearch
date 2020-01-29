@@ -29,19 +29,13 @@ public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
     public static final String INDEX_TEMPLATE_VERSION = "1";
     public static final String ASYNC_SEARCH_TEMPLATE_VERSION_VARIABLE = "xpack.async-search.template.version";
     public static final String ASYNC_SEARCH_TEMPLATE_NAME = "async-search";
-
-    public static final String ASYNC_SEARCH_POLICY_NAME = "async-search-ilm-policy";
+    public static final String ASYNC_SEARCH_ALIAS =  ASYNC_SEARCH_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION;
 
     public static final IndexTemplateConfig TEMPLATE_ASYNC_SEARCH = new IndexTemplateConfig(
         ASYNC_SEARCH_TEMPLATE_NAME,
         "/async-search.json",
         INDEX_TEMPLATE_VERSION,
         ASYNC_SEARCH_TEMPLATE_VERSION_VARIABLE
-    );
-
-    public static final LifecyclePolicyConfig ASYNC_SEARCH_POLICY = new LifecyclePolicyConfig(
-        ASYNC_SEARCH_POLICY_NAME,
-        "/async-search-ilm-policy.json"
     );
 
     public AsyncSearchTemplateRegistry(Settings nodeSettings,
@@ -59,7 +53,7 @@ public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        return Collections.singletonList(ASYNC_SEARCH_POLICY);
+        return Collections.emptyList();
     }
 
     @Override

@@ -43,8 +43,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWaitForInit() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", Collections.emptyMap(), Collections.emptyMap(),
-            new AsyncSearchId("index", "0", new TaskId("node1", 0)), threadPool, null);
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0),
+            Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
+            threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -75,8 +76,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWithFailure() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", Collections.emptyMap(), Collections.emptyMap(),
-            new AsyncSearchId("index", "0", new TaskId("node1", 0)), threadPool, null);
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0),
+            Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
+            threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -107,8 +109,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWaitForCompletion() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", Collections.emptyMap(), Collections.emptyMap(),
-            new AsyncSearchId("index", "0", new TaskId("node1", 0)), threadPool, null);
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0),
+            Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
+            threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {

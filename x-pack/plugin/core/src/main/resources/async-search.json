@@ -19,6 +19,12 @@
           "type": "object",
           "enabled": false
         },
+        "is_running": {
+          "type": "boolean"
+        },
+        "expiration_time":{
+          "type": "long"
+        },
         "result": {
           "type": "object",
           "enabled": false

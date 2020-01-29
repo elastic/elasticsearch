@@ -92,15 +92,16 @@ public class AsyncSearchResponseTests extends ESTestCase {
         switch (rand) {
             case 0:
                 return new AsyncSearchResponse(searchId, randomIntBetween(0, Integer.MAX_VALUE), randomBoolean(),
-                    randomBoolean(), randomNonNegativeLong());
+                    randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
 
             case 1:
                 return new AsyncSearchResponse(searchId, randomIntBetween(0, Integer.MAX_VALUE), searchResponse, null,
-                    randomBoolean(), randomBoolean(), randomNonNegativeLong());
+                    randomBoolean(), randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
 
             case 2:
                 return new AsyncSearchResponse(searchId, randomIntBetween(0, Integer.MAX_VALUE), searchResponse,
-                    new ElasticsearchException(new IOException("boum")), randomBoolean(), randomBoolean(), randomNonNegativeLong());
+                    new ElasticsearchException(new IOException("boum")), randomBoolean(), randomBoolean(),
+                    randomNonNegativeLong(), randomNonNegativeLong());
 
             default:
                 throw new AssertionError();
@@ -124,6 +125,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assertEquals(expected.getFailure() == null, actual.getFailure() == null);
         assertEquals(expected.isRunning(), actual.isRunning());
         assertEquals(expected.isPartial(), actual.isPartial());
-        assertEquals(expected.getStartDate(), actual.getStartDate());
+        assertEquals(expected.getStartTime(), actual.getStartTime());
+        assertEquals(expected.getExpirationTime(), actual.getExpirationTime());
     }
 }

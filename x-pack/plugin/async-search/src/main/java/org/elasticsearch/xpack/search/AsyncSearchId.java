@@ -16,29 +16,18 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
-
 /**
  * A class that contains all information related to a submitted async search.
  */
 class AsyncSearchId {
-    private final String indexName;
     private final String docId;
     private final TaskId taskId;
     private final String encoded;
 
-    AsyncSearchId(String indexName, String docId, TaskId taskId) {
-        this.indexName = indexName;
+    AsyncSearchId(String docId, TaskId taskId) {
         this.docId = docId;
         this.taskId = taskId;
-        this.encoded = encode(indexName, docId, taskId);
-    }
-
-    /**
-     * The index name where to find the response if the task is not running.
-     */
-    String getIndexName() {
-        return indexName;
+        this.encoded = encode(docId, taskId);
     }
 
     /**
@@ -67,23 +56,29 @@ class AsyncSearchId {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AsyncSearchId searchId = (AsyncSearchId) o;
-        return indexName.equals(searchId.indexName) &&
-            docId.equals(searchId.docId) &&
+        return docId.equals(searchId.docId) &&
             taskId.equals(searchId.taskId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, docId, taskId);
+        return Objects.hash(docId, taskId);
+    }
+
+    @Override
+    public String toString() {
+        return "AsyncSearchId{" +
+            "docId='" + docId + '\'' +
+            ", taskId=" + taskId +
+            '}';
     }
 
     /**
      * Encode the informations needed to retrieve a async search response
      * in a base64 encoded string.
      */
-    static String encode(String indexName, String docId, TaskId taskId) {
+    static String encode(String docId, TaskId taskId) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeString(indexName);
             out.writeString(docId);
             out.writeString(taskId.toString());
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
@@ -99,20 +94,13 @@ class AsyncSearchId {
     static AsyncSearchId decode(String id) {
         final AsyncSearchId searchId;
         try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getUrlDecoder().decode(id)))) {
-            searchId = new AsyncSearchId(in.readString(), in.readString(), new TaskId(in.readString()));
+            searchId = new AsyncSearchId(in.readString(), new TaskId(in.readString()));
             if (in.available() > 0) {
                 throw new IllegalArgumentException("invalid id:[" + id + "]");
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("invalid id:[" + id + "]");
         }
-        validateAsyncSearchId(searchId);
         return searchId;
-    }
-
-    static void validateAsyncSearchId(AsyncSearchId searchId) {
-        if (searchId.getIndexName().startsWith(ASYNC_SEARCH_INDEX_PREFIX) == false) {
-            throw new IllegalArgumentException("invalid id:[" + searchId.getEncoded() + "]");
-        }
     }
 }

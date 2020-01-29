@@ -223,9 +223,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         AsyncSearchResponse response = it.next();
-        AsyncSearchId original = AsyncSearchId.decode(response.getId());
-        String invalid = AsyncSearchId.encode("another_index", original.getDocId(), original.getTaskId());
-        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch(invalid));
+        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getMessage(), containsString("invalid id"));
         while (it.hasNext()) {

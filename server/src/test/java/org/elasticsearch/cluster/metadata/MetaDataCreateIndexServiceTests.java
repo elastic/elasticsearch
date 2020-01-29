@@ -612,6 +612,46 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
+    public void testIndexNameExclusionsList() {
+        // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
+        List<String> excludedNames = Arrays.asList(
+            ".slm-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".watch-history-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-anomalies-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".ml-annotations-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".data-frame-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
+            ".transform-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT)
+        );
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                Collections.emptyList(),
+                false
+            );
+
+            excludedNames.forEach(name -> {
+                checkerService.validateIndexName(name, ClusterState.EMPTY_STATE, false);
+            });
+
+            excludedNames.forEach(name -> {
+                expectThrows(AssertionError.class, () -> checkerService.validateIndexName(name, ClusterState.EMPTY_STATE, true));
+            });
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
+
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(templateBuilder -> {
             templateBuilder.putAlias(AliasMetaData.builder("alias1"));

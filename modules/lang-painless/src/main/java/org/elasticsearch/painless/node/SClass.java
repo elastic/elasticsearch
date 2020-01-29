@@ -192,15 +192,11 @@ public final class SClass extends AStatement {
         classNode.setDebugStream(debugStream);
         classNode.setName(name);
         classNode.setSourceText(sourceText);
-        classNode.setMainMethod(mainMethod);
         classNode.setMethodEscape(methodEscape);
-        classNode.getGetMethods().addAll(getMethods);
         classNode.getExtractedVariables().addAll(extractedVariables);
 
         return classNode;
     }
-
-
 
     @Override
     public String toString() {

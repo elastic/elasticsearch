@@ -8,13 +8,13 @@
 
 #### Classes
 
-class org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape {
+class org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape {
 }
 
-class org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime {
 }
 
-class org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth {
 }
 
 class java.time.OffsetTime {

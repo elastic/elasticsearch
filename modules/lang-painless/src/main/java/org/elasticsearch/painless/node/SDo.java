@@ -101,7 +101,6 @@ public final class SDo extends AStatement {
         doWhileLoopNode.setBlockNode(block.write());
 
         doWhileLoopNode.setLocation(location);
-        doWhileLoopNode.setLoopCounter(loopCounter);
         doWhileLoopNode.setContinuous(continuous);
 
         return doWhileLoopNode;

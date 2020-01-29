@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.test.NodeInfo
 

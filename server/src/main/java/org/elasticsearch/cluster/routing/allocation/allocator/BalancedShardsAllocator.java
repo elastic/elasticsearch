@@ -982,8 +982,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
                             minNode.getNodeId());
                 }
-                final float delta = weight.weight(this, minNode, idx) - weight.weight(this, maxNode, idx) + 2;
-                if (minCost <= delta) {
+                if (minCost <= 1) {
                     logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]", maxNode.getNodeId(), minNode.getNodeId());
                     return false;
                 }

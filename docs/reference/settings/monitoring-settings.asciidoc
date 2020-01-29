@@ -206,7 +206,7 @@ The password for the `auth.username`. Takes precedence over `auth.password` if i
 
 `auth.password`::
 
-The password for the `auth.username`. This setting is ignored if `auth.secure_password` is also specified. This setting is
+The password for the `auth.username`. If `auth.secure_password` is also specified, this setting is ignored.
 deprecated[7.7.0, Use `auth.secure_password` instead.].
 
 `connection.timeout`::

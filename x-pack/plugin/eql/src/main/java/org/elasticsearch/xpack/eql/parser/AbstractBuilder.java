@@ -16,11 +16,15 @@ import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Base parsing visitor class offering utility methods.
  */
 abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
+
+    private static final Pattern slashPattern = Pattern.compile("\\\\.");
 
     @Override
     public Object visit(ParseTree tree) {
@@ -102,9 +106,68 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         return node == null ? null : node.getText();
     }
 
+    public static String unquoteString(String text) {
+        // remove leading and trailing ' for strings and also eliminate escaped single quotes
+        if (text == null) {
+            return null;
+        }
+
+        // unescaped strings can be interpreted directly
+        if (text.startsWith("?")) {
+            return text.substring(2, text.length() - 1);
+        }
+
+        text = text.substring(1, text.length() - 1);
+        StringBuffer resultString = new StringBuffer();
+        Matcher regexMatcher = slashPattern.matcher(text);
+
+        while (regexMatcher.find()) {
+            String source = regexMatcher.group();
+            String replacement;
+
+            switch (source) {
+                case "\\t":
+                    replacement = "\t";
+                    break;
+                case "\\b":
+                    replacement = "\b";
+                    break;
+                case "\\f":
+                    replacement = "\f";
+                    break;
+                case "\\n":
+                    replacement = "\n";
+                    break;
+                case "\\r":
+                    replacement = "\r";
+                    break;
+                case "\\\"":
+                    replacement = "\"";
+                    break;
+                case "\\'":
+                    replacement = "'";
+                    break;
+                case "\\\\":
+                    // will be interpreted as regex, so we have to escape it
+                    replacement = "\\\\";
+                    break;
+                default:
+                    // unknown escape sequence, pass through as-is
+                    replacement = source;
+            }
+
+            regexMatcher.appendReplacement(resultString, replacement);
+
+        }
+        regexMatcher.appendTail(resultString);
+
+        return resultString.toString();
+    }
+
     @Override
     public Object visitTerminal(TerminalNode node) {
         Source source = source(node);
         throw new ParsingException(source, "Does not know how to handle {}", source.text());
     }
+
 }

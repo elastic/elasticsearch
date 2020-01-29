@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -37,12 +38,14 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.util.Arrays;
 import java.util.List;
 
 
-public class ExpressionBuilder extends LiteralBuilder {
+public class ExpressionBuilder extends IdentifierBuilder {
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -90,6 +93,12 @@ public class ExpressionBuilder extends LiteralBuilder {
     }
 
     @Override
+    public Literal visitBooleanValue(EqlBaseParser.BooleanValueContext ctx) {
+        Source source = source(ctx);
+        return new Literal(source, ctx.TRUE() != null, DataTypes.BOOLEAN);
+    }
+
+    @Override
     public Expression visitComparison(ComparisonContext ctx) {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
@@ -97,30 +106,10 @@ public class ExpressionBuilder extends LiteralBuilder {
 
         Source source = source(ctx);
 
-        // check if the RHS is a wildcard string and convert to a function check instead
-        if (right instanceof Literal) {
-            Object rightValue = ((Literal) right).value();
-            if ((rightValue instanceof String) && ((String) rightValue).contains("*")) {
-
-                List<Expression> arguments = Arrays.asList(left, right);
-                UnresolvedFunction.ResolutionType resolutionType = UnresolvedFunction.ResolutionType.STANDARD;
-                Expression wildcardExpression = new UnresolvedFunction(source, "wildcard", resolutionType, arguments);
-
-                switch (op.getSymbol().getType()) {
-                    case EqlBaseParser.EQ:
-                        return wildcardExpression;
-                    case EqlBaseParser.NEQ:
-                        return new Not(source, wildcardExpression);
-                }
-            }
-        }
-
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.EQ:
-                // TODO: check for left == null after moving IsNotNull from SQL -> QL
                 return new Equals(source, left, right);
             case EqlBaseParser.NEQ:
-                // TODO: check for left != null after moving IsNotNull from SQL -> QL
                 return new NotEquals(source, left, right);
             case EqlBaseParser.LT:
                 return new LessThan(source, left, right);
@@ -145,12 +134,24 @@ public class ExpressionBuilder extends LiteralBuilder {
         // TODO: Add IN to QL and use that directly
         Expression checkInSet = null;
 
-        for (Expression inner: container) {
+        for (Expression inner : container) {
             Expression termCheck = new Equals(source, exp, inner);
             checkInSet = checkInSet == null ? termCheck : new Or(source, checkInSet, termCheck);
         }
 
         return ctx.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+    }
+
+    @Override
+    public Literal visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
+        Source source = source(ctx);
+        String text = ctx.getText();
+
+        try {
+            return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
+        } catch (QlIllegalArgumentException siae) {
+            throw new ParsingException(source, siae.getMessage());
+        }
     }
 
     @Override
@@ -165,6 +166,36 @@ public class ExpressionBuilder extends LiteralBuilder {
         List<Expression> arguments = expressions(ctx.expression());
 
         return new UnresolvedFunction(source, name, UnresolvedFunction.ResolutionType.STANDARD, arguments);
+    }
+
+    @Override
+    public Literal visitIntegerLiteral(EqlBaseParser.IntegerLiteralContext ctx) {
+        Source source = source(ctx);
+        String text = ctx.getText();
+
+        long value;
+
+        try {
+            value = Long.valueOf(StringUtils.parseLong(text));
+        } catch (QlIllegalArgumentException siae) {
+            // if it's too large, then quietly try to parse as a float instead
+            try {
+                return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
+            } catch (QlIllegalArgumentException ignored) {
+            }
+
+            throw new ParsingException(source, siae.getMessage());
+        }
+
+        Object val = Long.valueOf(value);
+        DataType type = DataTypes.LONG;
+
+        // try to downsize to int if possible (since that's the most common type)
+        if ((int) value == value) {
+            type = DataTypes.INTEGER;
+            val = Integer.valueOf((int) value);
+        }
+        return new Literal(source, val, type);
     }
 
     @Override
@@ -187,7 +218,18 @@ public class ExpressionBuilder extends LiteralBuilder {
     }
 
     @Override
+    public Literal visitNullLiteral(EqlBaseParser.NullLiteralContext ctx) {
+        Source source = source(ctx);
+        return new Literal(source, null, DataTypes.NULL);
+    }
+
+    @Override
     public Expression visitParenthesizedExpression(EqlBaseParser.ParenthesizedExpressionContext ctx) {
         return expression(ctx.expression());
+    }
+
+    @Override
+    public Literal visitString(EqlBaseParser.StringContext ctx) {
+        return new Literal(source(ctx), unquoteString(ctx.getText()), DataTypes.KEYWORD);
     }
 }

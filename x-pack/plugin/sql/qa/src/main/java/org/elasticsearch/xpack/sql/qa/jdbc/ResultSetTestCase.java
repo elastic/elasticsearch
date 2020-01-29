@@ -887,8 +887,11 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         
-        // Create simple timezones (in the form of Z/GMT+/-x so that timezones offsets differences between
-        // Java versions (the one server runs on and the one the test runs on) will not skew the tests' results
+        /*
+         * Create simple timezones (in the form of Z/GMT+/-x so that timezones offsets differences between Java versions (the one 
+         * server runs on and the one the test runs on) will not skew the tests' results.
+         * -18/+18 is the maximum range of offsets accepted by ZoneOffset, even if in reality this range is more like [-12, +14].
+         */
         int hoursOffset = randomIntBetween(0, 18);
         int subHours = hoursOffset != 18 ? randomFrom(0, 15, 30, 45) : 0;
         int plusMinus = randomBoolean() ? 1 : -1;

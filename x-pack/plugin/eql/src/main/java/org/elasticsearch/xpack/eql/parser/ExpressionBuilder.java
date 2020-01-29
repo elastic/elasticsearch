@@ -11,11 +11,12 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
-import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ContainsExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -124,26 +125,32 @@ public class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-
     @Override
-    public Expression visitContainsExpression(ContainsExpressionContext ctx) {
-        Expression exp = expression(ctx.primaryExpression());
+    public Expression visitValueExpressionDefault(ValueExpressionDefaultContext ctx) {
+        Expression expr = expression(ctx.primaryExpression());
         Source source = source(ctx);
-        List<Expression> container = expressions(ctx.expression());
+
+        PredicateContext predicate = ctx.predicate();
+
+        if (predicate == null) {
+            return expr;
+        }
+
+        List<Expression> container = expressions(predicate.expression());
 
         // TODO: Add IN to QL and use that directly
         Expression checkInSet = null;
 
         for (Expression inner : container) {
-            Expression termCheck = new Equals(source, exp, inner);
+            Expression termCheck = new Equals(source, expr, inner);
             checkInSet = checkInSet == null ? termCheck : new Or(source, checkInSet, termCheck);
         }
 
-        return ctx.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+        return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
     }
 
     @Override
-    public Literal visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
+    public Expression visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
 

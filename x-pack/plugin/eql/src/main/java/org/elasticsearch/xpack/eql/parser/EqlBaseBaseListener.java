@@ -256,18 +256,6 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterContainsExpression(EqlBaseParser.ContainsExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitContainsExpression(EqlBaseParser.ContainsExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx) { }
   /**
    * {@inheritDoc}
@@ -287,6 +275,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPredicate(EqlBaseParser.PredicateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPredicate(EqlBaseParser.PredicateContext ctx) { }
   /**
    * {@inheritDoc}
    *

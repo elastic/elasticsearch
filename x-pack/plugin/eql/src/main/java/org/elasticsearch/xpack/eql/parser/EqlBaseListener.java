@@ -220,18 +220,6 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitComparison(EqlBaseParser.ComparisonContext ctx);
   /**
-   * Enter a parse tree produced by the {@code containsExpression}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
-   * @param ctx the parse tree
-   */
-  void enterContainsExpression(EqlBaseParser.ContainsExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code containsExpression}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
-   * @param ctx the parse tree
-   */
-  void exitContainsExpression(EqlBaseParser.ContainsExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code arithmeticBinary}
    * labeled alternative in {@link EqlBaseParser#valueExpression}.
    * @param ctx the parse tree
@@ -255,6 +243,16 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void enterPredicate(EqlBaseParser.PredicateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void exitPredicate(EqlBaseParser.PredicateContext ctx);
   /**
    * Enter a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link EqlBaseParser#primaryExpression}.

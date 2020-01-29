@@ -80,12 +80,18 @@ booleanExpression
 
 
 valueExpression
-    : primaryExpression                                                                 #valueExpressionDefault
-    | primaryExpression NOT? IN LP expression (COMMA expression)* RP                    #containsExpression
+    : primaryExpression predicate?                                                      #valueExpressionDefault
     | operator=(MINUS | PLUS) valueExpression                                           #arithmeticUnary
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    ;
+
+// workaround for
+//   https://github.com/antlr/antlr4/issues/780
+//   https://github.com/antlr/antlr4/issues/781
+predicate
+    : NOT? kind=IN LP expression (COMMA expression)* RP
     ;
 
 primaryExpression

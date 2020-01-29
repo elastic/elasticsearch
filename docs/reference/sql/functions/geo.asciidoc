@@ -3,7 +3,7 @@
 [[sql-functions-geo]]
 === Geo Functions
 
-beta[]
+beta[{issue}48521]
 
 The geo functions work with geometries stored in `geo_point`, `geo_shape` and `shape` fields, or returned by other geo functions.
 

@@ -9,7 +9,7 @@
 
 Creates a {rollup-job}.
 
-experimental[]
+experimental[{issue}42720]
 
 [[rollup-put-job-api-request]]
 ==== {api-request-title}

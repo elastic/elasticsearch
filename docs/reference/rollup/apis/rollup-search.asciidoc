@@ -8,7 +8,7 @@
 
 Enables searching rolled-up data using the standard query DSL.  
 
-experimental[]
+experimental[{issue}42720]
 
 [[rollup-search-request]]
 ==== {api-request-title}

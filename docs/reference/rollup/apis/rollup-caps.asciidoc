@@ -9,7 +9,7 @@
 Returns the capabilities of any {rollup-jobs} that have been configured for a
 specific index or index pattern.
 
-experimental[]
+experimental[{issue}42720]
 
 [[rollup-get-rollup-caps-request]]
 ==== {api-request-title}

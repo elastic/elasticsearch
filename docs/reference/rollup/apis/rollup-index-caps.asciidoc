@@ -9,7 +9,7 @@
 Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the
 index where rollup data is stored).
 
-experimental[]
+experimental[{issue}42720]
 
 [[rollup-get-rollup-index-caps-request]]
 ==== {api-request-title}

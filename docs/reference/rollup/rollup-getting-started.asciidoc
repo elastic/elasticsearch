@@ -6,7 +6,7 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-experimental[]
+experimental[{issue}42720]
 
 To use the Rollup feature, you need to create one or more "Rollup Jobs".  These jobs run continuously in the background
 and rollup the index or indices that you specify, placing the rolled documents in a secondary index (also of your choosing).

@@ -6,7 +6,7 @@
 <titleabbrev>API quick reference</titleabbrev>
 ++++
 
-experimental[]
+experimental[{issue}42720]
 
 Most rollup endpoints have the following base:
 

@@ -9,7 +9,7 @@
 
 Deletes an existing {rollup-job}. 
 
-experimental[]
+experimental[{issue}42720]
 
 [[rollup-delete-job-request]]
 ==== {api-request-title}

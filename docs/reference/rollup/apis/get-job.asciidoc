@@ -8,7 +8,7 @@
 
 Retrieves the configuration, stats, and status of {rollup-jobs}.
 
-experimental[]
+experimental[{issue}42720]
 
 [[rollup-get-job-request]]
 ==== {api-request-title}

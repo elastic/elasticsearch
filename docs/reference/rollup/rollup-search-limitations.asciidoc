@@ -3,7 +3,7 @@
 [[rollup-search-limitations]]
 === {rollup-cap} search limitations
 
-experimental[]
+experimental[{issue}42720]
 
 While we feel the Rollup function is extremely flexible, the nature of summarizing data means there will be some limitations.  Once
 live data is thrown away, you will always lose some flexibility.

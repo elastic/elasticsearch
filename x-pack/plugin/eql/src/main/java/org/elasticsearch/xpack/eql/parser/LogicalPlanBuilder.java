@@ -11,28 +11,38 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class QueryBuilder extends ExpressionBuilder {
+import static java.util.Collections.emptyMap;
+
+public abstract class LogicalPlanBuilder extends ExpressionBuilder {
+
+    // TODO: these need to be made configurable
+    private static final String EVENT_TYPE = "event.category";
+    private static final EsIndex esIndex = new EsIndex("<not-specified>", emptyMap());
 
     @Override
-    public Expression visitEventQuery(EqlBaseParser.EventQueryContext ctx) {
+    public LogicalPlan visitEventQuery(EqlBaseParser.EventQueryContext ctx) {
         Source source = source(ctx);
         Expression condition = expression(ctx.expression());
 
         if (ctx.event != null) {
             Source eventTypeSource = source(ctx.event);
             String eventTypeName = visitIdentifier(ctx.event);
-            Literal eventTypeValue =  new Literal(eventTypeSource, eventTypeName, DataTypes.KEYWORD);
+            Literal eventTypeValue = new Literal(eventTypeSource, eventTypeName, DataTypes.KEYWORD);
 
-            UnresolvedAttribute eventTypeField = new UnresolvedAttribute(eventTypeSource, "event.category");
+            UnresolvedAttribute eventTypeField = new UnresolvedAttribute(eventTypeSource, EVENT_TYPE);
             Expression eventTypeCheck = new Equals(eventTypeSource, eventTypeField, eventTypeValue);
 
-            return new And(source, eventTypeCheck, condition);
+            condition = new And(source, eventTypeCheck, condition);
 
-        } else {
-            return condition;
         }
+
+        return new Filter(source(ctx), new EsRelation(Source.EMPTY, esIndex, false), condition);
     }
 }

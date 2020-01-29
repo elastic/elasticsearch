@@ -141,14 +141,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(new LessThan(null, field, value), expr(fieldText + "<" + valueText));
     }
 
-    public void testEventQuery() {
-        Expression fullQuery = parser.createStatement("process where process_name == 'net.exe'");
-        Expression baseExpression = expr("process_name == 'net.exe'");
-        Expression fullExpression = expr("event.category == 'process' and process_name == 'net.exe'");
-        assertEquals(fullQuery, fullExpression);
-        assertNotEquals(baseExpression, fullExpression);
-    }
-
     public void testBoolean() {
         String leftText = "process_name == 'net.exe'";
         String rightText = "command_line == '* localgroup*'";

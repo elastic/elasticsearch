@@ -10,6 +10,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Check;
@@ -43,6 +44,14 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         throw new ParsingException(source(ctx), "Invalid query '{}'[{}] given; expected {} but found {}",
                         ctx.getText(), ctx.getClass().getSimpleName(),
                         type.getSimpleName(), (result != null ? result.getClass().getSimpleName() : "null"));
+    }
+
+    protected LogicalPlan plan(ParseTree ctx) {
+        return typedParsing(ctx, LogicalPlan.class);
+    }
+
+    protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
+        return visitList(ctxs, LogicalPlan.class);
     }
 
     protected <T> List<T> visitList(List<? extends ParserRuleContext> contexts, Class<T> clazz) {

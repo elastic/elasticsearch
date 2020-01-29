@@ -517,6 +517,63 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentSnapshotRestoreAndDeleteOther() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNodes.TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createRepoAndIndex(repoName, index, shards),
+            createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
+
+        final StepListener<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createSnapshotResponseStepListener,
+            createSnapshotResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2")
+                .setWaitForCompletion(true)
+                .execute(createOtherSnapshotResponseStepListener));
+
+        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
+        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new StepListener<>();
+
+        continueOrDie(createOtherSnapshotResponseStepListener,
+            createSnapshotResponse -> {
+                scheduleNow(
+                    () -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener));
+                scheduleNow(() -> client().admin().cluster().restoreSnapshot(
+                    new RestoreSnapshotRequest(repoName, "snapshot-2").waitForCompletion(true)
+                        .renamePattern("(.+)").renameReplacement("restored_$1"),
+                    restoreSnapshotResponseListener));
+            });
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertThat(deleteSnapshotStepListener.result().isAcknowledged(), is(true));
+        assertThat(restoreSnapshotResponseListener.result().getRestoreInfo().failedShards(), is(0));
+
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        for (SnapshotId snapshotId : snapshotIds) {
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+            assertEquals(shards, snapshotInfo.successfulShards());
+            assertEquals(0, snapshotInfo.failedShards());
+        }
+    }
+
     public void testConcurrentSnapshotDeleteAndDeleteIndex() throws IOException {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 

@@ -200,7 +200,7 @@ xpack.monitoring.exporters:
 
 The username is required if `auth.secure_password` or `auth.password` is supplied.
 
-`auth.secure_password` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+`auth.secure_password` (<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)::
 
 The password for the `auth.username`. Takes precedence over `auth.password` if it is also specified.
 

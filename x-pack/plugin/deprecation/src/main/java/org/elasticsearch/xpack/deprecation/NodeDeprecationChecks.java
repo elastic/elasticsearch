@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -18,7 +17,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 class NodeDeprecationChecks {
@@ -42,24 +41,24 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkMissingRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules) {
-        final String orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
+        final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
-                .filter(e -> Objects.isNull(e.getValue().get(RealmSettings.ORDER_SETTING_KEY)))
+                .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
                 .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
-                .collect(Collectors.joining("; "));
+                .collect(Collectors.toSet());
 
-        if (false == Strings.hasText(orderNotConfiguredRealms)) {
+        if (orderNotConfiguredRealms.isEmpty()) {
             return null;
         }
 
         final String details = String.format(
             Locale.ROOT,
             "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order",
-            orderNotConfiguredRealms);
+            String.join("; ", orderNotConfiguredRealms));
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Realm order will be required in next major release.",
-            "",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-missing-realm-order",
             details
         );
     }
@@ -68,17 +67,18 @@ class NodeDeprecationChecks {
         final Map<String, List<String>> orderToRealmName =
             RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
-                .filter(e -> Objects.nonNull(e.getValue().get(RealmSettings.ORDER_SETTING_KEY)))
+                .filter(e -> e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
                 .collect(Collectors.groupingBy(
                     e -> e.getValue().get(RealmSettings.ORDER_SETTING_KEY),
-                    Collectors.mapping(e -> e.getKey().getName(), Collectors.toList())));
+                    Collectors.mapping(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY,
+                        Collectors.toList())));
 
-        String duplicateOrders = orderToRealmName.entrySet().stream()
+        Set<String> duplicateOrders = orderToRealmName.entrySet().stream()
             .filter(entry -> entry.getValue().size() > 1)
             .map(entry -> entry.getKey() + ": " + entry.getValue())
-            .collect(Collectors.joining("; "));
+            .collect(Collectors.toSet());
 
-        if (false == Strings.hasText(duplicateOrders)) {
+        if (duplicateOrders.isEmpty()) {
             return null;
         }
 
@@ -86,12 +86,12 @@ class NodeDeprecationChecks {
             Locale.ROOT,
             "Found multiple realms configured with the same order: [%s]. " +
                 "In next major release, node will fail to start with duplicated realm order",
-            duplicateOrders);
+            String.join("; ", duplicateOrders));
 
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Realm orders must be unique in next major release",
-            "",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
             details
         );
     }

@@ -11,6 +11,7 @@ For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
 --
 
+include::migrate_7_7.asciidoc[]
 include::migrate_7_6.asciidoc[]
 include::migrate_7_5.asciidoc[]
 include::migrate_7_4.asciidoc[]

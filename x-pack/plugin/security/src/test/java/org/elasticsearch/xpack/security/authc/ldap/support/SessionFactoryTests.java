@@ -18,6 +18,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -49,7 +50,7 @@ public class SessionFactoryTests extends ESTestCase {
     }
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() throws Exception {
-        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        final Environment environment = TestEnvironment.newEnvironment(getSettingsBuilder().put("path.home", createTempDir()).build());
         RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "conn_settings"),
                 environment.settings(), environment, new ThreadContext(Settings.EMPTY));
         LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
@@ -64,7 +65,7 @@ public class SessionFactoryTests extends ESTestCase {
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "conn_settings");
         final Path pathHome = createTempDir();
-        Settings settings = Settings.builder()
+        Settings settings = getSettingsBuilder()
                 .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), "10ms")
                 .put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), "false")
                 .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "20ms")
@@ -83,7 +84,7 @@ public class SessionFactoryTests extends ESTestCase {
         assertWarnings("the setting [xpack.security.authc.realms.ldap.conn_settings.hostname_verification] has been deprecated and will be "
             + "removed in a future version. use [xpack.security.authc.realms.ldap.conn_settings.ssl.verification_mode] instead");
 
-        settings = Settings.builder()
+        settings = getSettingsBuilder()
                 .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .put("path.home", pathHome)
                 .build();
@@ -102,7 +103,7 @@ public class SessionFactoryTests extends ESTestCase {
             assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
         }
 
-        settings = Settings.builder()
+        settings = getSettingsBuilder()
                 .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.FULL)
                 .put("path.home", pathHome)
                 .build();
@@ -122,10 +123,10 @@ public class SessionFactoryTests extends ESTestCase {
     }
 
     private SessionFactory createSessionFactory() {
-        Settings global = Settings.builder().put("path.home", createTempDir()).build();
+        Settings global = getSettingsBuilder().put("path.home", createTempDir()).build();
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "_name");
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier,
-                Settings.builder()
+            getSettingsBuilder()
                         .put(getFullSettingKey(realmIdentifier, SessionFactorySettings.URLS_SETTING), "ldap://localhost:389")
                         .put(global)
                         .build(),
@@ -137,5 +138,13 @@ public class SessionFactoryTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+    }
+
+    private Settings.Builder getSettingsBuilder() {
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder;
     }
 }

@@ -158,6 +158,7 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -1110,6 +1111,9 @@ public final class InternalTestCluster extends TestCluster {
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
+            if (inFipsJvm()) {
+                builder.put("xpack.security.ssl.diagnose.trust", false);
+            }
             if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
                 builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
             } else {

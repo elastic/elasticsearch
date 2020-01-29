@@ -19,6 +19,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -59,7 +60,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         final Path origCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-ca.crt");
         ldapCaPath = createTempFile();
         Files.copy(origCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
-        globalSettings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        globalSettings = builder
             .put("path.home", createTempDir())
             .putList(RealmSettings.realmSslPrefix(REALM_IDENTIFIER) + "certificate_authorities", ldapCaPath.toString())
             .build();

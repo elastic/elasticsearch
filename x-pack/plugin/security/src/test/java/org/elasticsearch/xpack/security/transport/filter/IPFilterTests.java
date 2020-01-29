@@ -20,6 +20,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
@@ -265,7 +266,11 @@ public class IPFilterTests extends ESTestCase {
     }
 
     public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder
                 .put("path.home", createTempDir())
                 .put("xpack.security.transport.filter.enabled", randomBoolean())
                 .put("xpack.security.http.filter.enabled", randomBoolean())

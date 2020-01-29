@@ -13,6 +13,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettingsTests;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -70,7 +71,11 @@ public class CommandLineHttpClientTests extends ESTestCase {
     }
 
     public void testGetDefaultURLFailsWithHelpfulMessage() {
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder
             .put("network.host", "_ec2:privateIpv4_")
             .build();
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
@@ -87,7 +92,11 @@ public class CommandLineHttpClientTests extends ESTestCase {
     private Settings.Builder getHttpSslSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return builder
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", keyPath.toString())
             .put("xpack.security.http.ssl.certificate", certPath.toString())

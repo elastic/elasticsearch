@@ -47,7 +47,11 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", testnodeKey)
             .put("xpack.security.http.ssl.certificate", testnodeCert)
@@ -150,7 +154,11 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder
             .put("xpack.security.http.ssl.enabled", false)
             .put("xpack.security.http.ssl.key", testnodeKey)
             .put("xpack.security.http.ssl.certificate", testnodeCert)

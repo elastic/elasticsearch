@@ -53,7 +53,7 @@ public enum ValueType implements Writeable {
     private final byte id;
     private String preferredName;
 
-    public static final ParseField VALUE_TYPE = new ParseField("value_type", "userValueTypeHint");
+    public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
               DocValueFormat defaultFormat) {
@@ -114,7 +114,7 @@ public enum ValueType implements Writeable {
                 return valueType;
             }
         }
-        throw new IOException("No userValueTypeHint found for id [" + id + "]");
+        throw new IOException("No ValueType found for id [" + id + "]");
     }
 
     @Override

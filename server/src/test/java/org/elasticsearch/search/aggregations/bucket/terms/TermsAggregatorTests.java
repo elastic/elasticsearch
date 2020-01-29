@@ -920,8 +920,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name") .field(fieldName);
-                    // Note - other places we throw IllegalArgumentException
-                    expectThrows(AggregationExecutionException.class, () -> {
+                    expectThrows(IllegalArgumentException.class, () -> {
                         createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     });
                 }
@@ -944,8 +943,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name") .field(field);
-                    // Note - other places we throw IllegalArgumentException
-                    expectThrows(AggregationExecutionException.class, () -> {
+                    expectThrows(IllegalArgumentException.class, () -> {
                         createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     });
                 }

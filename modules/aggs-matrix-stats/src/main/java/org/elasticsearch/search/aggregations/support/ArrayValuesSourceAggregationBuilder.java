@@ -72,7 +72,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     }
 
     private List<String> fields = Collections.emptyList();
-    /* The parser doesn't support setting userValueTypeHint (aka userValueTypeHint), but we do serialize and deserialize it, so keeping it around
+    /* The parser doesn't support setting userValueTypeHint (aka valueType), but we do serialize and deserialize it, so keeping it around
     for now so as to not break BWC.  Future refactors should feel free to remove this field. --Tozzi 2020-01-16
      */
     private ValueType userValueTypeHint = null;

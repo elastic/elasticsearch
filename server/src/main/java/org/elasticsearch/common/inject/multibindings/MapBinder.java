@@ -99,7 +99,7 @@ public abstract class MapBinder<K, V> {
     }
 
     /**
-     * Returns a new mapbinder that collects entries of {@code keyType}/{@code userValueTypeHint} in a
+     * Returns a new mapbinder that collects entries of {@code keyType}/{@code valueType} in a
      * {@link Map} that is itself bound with no binding annotation.
      */
     public static <K, V> MapBinder<K, V> newMapBinder(Binder binder,
@@ -112,7 +112,7 @@ public abstract class MapBinder<K, V> {
     }
 
     /**
-     * Returns a new mapbinder that collects entries of {@code keyType}/{@code userValueTypeHint} in a
+     * Returns a new mapbinder that collects entries of {@code keyType}/{@code valueType} in a
      * {@link Map} that is itself bound with no binding annotation.
      */
     public static <K, V> MapBinder<K, V> newMapBinder(Binder binder,
@@ -121,7 +121,7 @@ public abstract class MapBinder<K, V> {
     }
 
     /**
-     * Returns a new mapbinder that collects entries of {@code keyType}/{@code userValueTypeHint} in a
+     * Returns a new mapbinder that collects entries of {@code keyType}/{@code valueType} in a
      * {@link Map} that is itself bound with {@code annotation}.
      */
     public static <K, V> MapBinder<K, V> newMapBinder(Binder binder,
@@ -134,7 +134,7 @@ public abstract class MapBinder<K, V> {
     }
 
     /**
-     * Returns a new mapbinder that collects entries of {@code keyType}/{@code userValueTypeHint} in a
+     * Returns a new mapbinder that collects entries of {@code keyType}/{@code valueType} in a
      * {@link Map} that is itself bound with {@code annotation}.
      */
     public static <K, V> MapBinder<K, V> newMapBinder(Binder binder,
@@ -143,7 +143,7 @@ public abstract class MapBinder<K, V> {
     }
 
     /**
-     * Returns a new mapbinder that collects entries of {@code keyType}/{@code userValueTypeHint} in a
+     * Returns a new mapbinder that collects entries of {@code keyType}/{@code valueType} in a
      * {@link Map} that is itself bound with {@code annotationType}.
      */
     public static <K, V> MapBinder<K, V> newMapBinder(Binder binder, TypeLiteral<K> keyType,
@@ -156,7 +156,7 @@ public abstract class MapBinder<K, V> {
     }
 
     /**
-     * Returns a new mapbinder that collects entries of {@code keyType}/{@code userValueTypeHint} in a
+     * Returns a new mapbinder that collects entries of {@code keyType}/{@code valueType} in a
      * {@link Map} that is itself bound with {@code annotationType}.
      */
     public static <K, V> MapBinder<K, V> newMapBinder(Binder binder, Class<K> keyType,

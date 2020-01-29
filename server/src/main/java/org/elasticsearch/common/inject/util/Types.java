@@ -113,7 +113,7 @@ public final class Types {
 
     /**
      * Returns a type modelling a {@link Map} whose keys are of type
-     * {@code keyType} and whose values are of type {@code userValueTypeHint}.
+     * {@code keyType} and whose values are of type {@code valueType}.
      *
      * @return a parameterized type.
      */

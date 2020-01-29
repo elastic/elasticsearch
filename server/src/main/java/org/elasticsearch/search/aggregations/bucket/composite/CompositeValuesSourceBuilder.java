@@ -186,7 +186,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     @SuppressWarnings("unchecked")
     public AB valueType(ValueType valueType) {
         if (valueType == null) {
-            throw new IllegalArgumentException("[userValueTypeHint] must not be null");
+            throw new IllegalArgumentException("[valueType] must not be null");
         }
         this.valueType = valueType;
         return (AB) this;

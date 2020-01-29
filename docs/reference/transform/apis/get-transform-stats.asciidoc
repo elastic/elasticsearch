@@ -72,9 +72,78 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 [[get-transform-stats-response]]
 ==== {api-response-body-title}
 
-`transforms`::
-  (array) An array of statistics objects for {transforms}, which are
-  sorted by the `id` value in ascending order.
+The API returns an array of statistics objects for {transforms}, which are
+sorted by the `id` value in ascending order. All of these properties are
+informational; you cannot update their values.
+
+`checkpointing`::
+(object) TBD
+`checkpointing`.`changes_last_detected_at`:::
+(date) TBD
+`checkpointing`.`last`:::
+(object) Contains information about the last completed checkpoint. 
+`checkpointing`.`last`.`checkpoint`::::
+(TBD) TBD
+`checkpointing`.`last`.`time_upper_bound_millis`::::
+(date) TBD
+`checkpointing`.`last`.`timestamp_millis`::::
+(date) TBD
+
+`id`::
+(string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+`node`::
+(object) For started {transforms} only, the node upon which the {transform} is
+started.
+`node`.`attributes`:::
+(object) A list of attributes for the node.
+`node`.`ephemeral_id`:::
+(string) The node ephemeral ID.
+`node`.`id`:::
+(string) The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
+`node`.`name`:::
+(string) The node name. For example, `0-o0tOo`.
+`node`.`transport_address`:::
+(string) The host and port where transport HTTP connections are accepted. For
+example, `127.0.0.1:9300`.
+`state`::
+(string) The status of the {transform}, which can be one of the following values:
++
+--
+* `indexing`
+* `started`
+* `stopped`
+--
+
+`stats`::
+(object) An object that provides statistical information about the {transform}.
+`stats`.`documents_indexed`:::
+(TBD) The number of new documents that have been indexed.
+`stats`.`documents_processed`:::
+(TBD) The number of documents that have been processed.
+`stats`.`exponential_avg_checkpoint_duration_ms`:::
+(TBD) TBD
+`stats`.`exponential_avg_documents_indexed`:::
+(TBD) TBD
+`stats`.`exponential_avg_documents_processed`:::
+(TBD) TBD
+`stats`.`index_failures`:::
+(TBD) The number of indexing failures.
+`stats`.`index_time_in_ms`:::
+(TBD) The amount of time spent indexing, in milliseconds.
+`stats`.`index_total`:::
+(TBD) The number of indices created.
+`stats`.`pages_processed`:::
+(TBD) The number of pages processed.
+`stats`.`search_failures`:::
+(TBD) The number of search failures. 
+`stats`.`search_time_in_ms`:::
+(TBD) The amount of time spent searching, in milliseconds.
+`stats`.`search_total`:::
+(TBD) TBD 
+`stats`.`trigger_count`:::
+(TBD) TBD
   
 [[get-transform-stats-response-codes]]
 ==== {api-response-codes-title}

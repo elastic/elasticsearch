@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
@@ -52,6 +53,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -423,6 +425,32 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Wait for clean up
         responseLatch.await();
 
+    }
+
+    public void testNonExistingTaskCancellation() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+
+        // Cancel a task that doesn't exist
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setReason("Testing Cancellation");
+        request.setActions("do-not-match-anything");
+        request.setNodes(
+            randomSubsetOf(randomIntBetween(1,testNodes.length - 1), testNodes).stream().map(TestNode::getNodeId).toArray(String[]::new));
+        // And send the cancellation request to a random node
+        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+            testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction, request);
+
+        // Shouldn't have cancelled anything
+        assertThat(response.getTasks().size(), equalTo(0));
+
+        assertBusy(() -> {
+            // Make sure that main task is no longer running
+            ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
+                testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
+                new ListTasksRequest().setActions(CancelTasksAction.NAME + "*"));
+            assertEquals(0, listTasksResponse.getTasks().size());
+        });
     }
 
     private static void debugDelay(String name) {

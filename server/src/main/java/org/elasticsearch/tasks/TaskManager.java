@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -423,14 +422,17 @@ public class TaskManager implements ClusterStateApplier {
         if (holder != null) {
             holder.registerChildNode(node);
         }
+        logger.warn("Trying to register children for non cancellable task " + taskId);
     }
 
-    public Set<DiscoveryNode> startBanOnChildrenNodes(long taskId) {
+    public DiscoveryNodes startBanOnChildrenNodes(long taskId) {
         CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
             return holder.startBan();
         }
-        return Collections.emptySet();
+        logger.warn("Trying to cancel task without registered cancellable task " + taskId);
+        // We still need to set ban on local node for persistent tasks
+        return DiscoveryNodes.EMPTY_NODES;
     }
 
     private static class CancellableTaskHolder {
@@ -439,7 +441,7 @@ public class TaskManager implements ClusterStateApplier {
 
         private final CancellableTask task;
 
-        private final Set<DiscoveryNode> nodes = new HashSet<>();
+        private final DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
         private volatile boolean banChildren = false;
 
@@ -460,14 +462,15 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
 
-        public Set<DiscoveryNode> startBan() {
+        public DiscoveryNodes startBan() {
             synchronized (this) {
                 if (banChildren) {
-                    throw new TaskCancelledException("The parent task was cancelled, shouldn't start any children tasks");
+                    logger.warn("Trying to start ban twice for task " + task.getId());
+                    return null;
                 }
                 banChildren = true;
+                return nodes.build();
             }
-            return nodes;
         }
 
         /**

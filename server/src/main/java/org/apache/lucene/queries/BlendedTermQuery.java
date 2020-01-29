@@ -24,9 +24,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
@@ -36,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * BlendedTermQuery can be used to unify term statistics across
@@ -240,6 +244,17 @@ public abstract class BlendedTermQuery extends Query {
         }
         builder.append("])");
         return builder.toString();
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        Set<String> fields = Arrays.stream(terms).map(Term::field).collect(Collectors.toUnmodifiableSet());
+        for (String field : fields) {
+            if (visitor.acceptField(field) == false) {
+                return;
+            }
+        }
+        visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this).consumeTerms(this, terms);
     }
 
     private class TermAndBoost implements Comparable<TermAndBoost> {

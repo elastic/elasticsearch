@@ -9,11 +9,11 @@ https://www.docker.elastic.co[www.docker.elastic.co]. The source files
 are in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
-These images are free to use under the Elastic license. They contain open source 
-and free commercial features and access to paid commercial features.  
-{stack-ov}/license-management.html[Start a 30-day trial] to try out all of the 
-paid commercial features. See the 
-https://www.elastic.co/subscriptions[Subscriptions] page for information about 
+These images are free to use under the Elastic license. They contain open source
+and free commercial features and access to paid commercial features.
+{stack-ov}/license-management.html[Start a 30-day trial] to try out all of the
+paid commercial features. See the
+https://www.elastic.co/subscriptions[Subscriptions] page for information about
 Elastic license levels.
 
 ==== Pulling the image
@@ -35,9 +35,9 @@ ifeval::["{release-state}"!="unreleased"]
 docker pull {docker-repo}:{version}
 --------------------------------------------
 
-Alternatively, you can download other Docker images that contain only features 
-available under the Apache 2.0 license. To download the images, go to 
-https://www.docker.elastic.co[www.docker.elastic.co]. 
+Alternatively, you can download other Docker images that contain only features
+available under the Apache 2.0 license. To download the images, go to
+https://www.docker.elastic.co[www.docker.elastic.co].
 
 endif::[]
 
@@ -52,7 +52,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-To start a single-node {es} cluster for development or testing, specify 
+To start a single-node {es} cluster for development or testing, specify
 <<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:
 
 [source,sh,subs="attributes"]
@@ -65,7 +65,7 @@ endif::[]
 [[docker-compose-file]]
 ==== Starting a multi-node cluster with Docker Compose
 
-To get a three-node {es} cluster up and running in Docker, 
+To get a three-node {es} cluster up and running in Docker,
 you can use Docker Compose:
 
 . Create a `docker-compose.yml` file:
@@ -84,20 +84,26 @@ include::docker-compose.yml[]
 --------------------------------------------
 endif::[]
 
-This sample Docker Compose file brings up a three-node {es} cluster. 
+This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
-The  https://docs.docker.com/storage/volumes[Docker named volumes] 
-`data01`, `data02`, and `data03` store the node data directories so the data persists across restarts. 
+Please note that this configuration exposes port 9200 on all network interfaces, and given how
+Docker manipulates `iptables` on Linux, this means that your {es} cluster is publicly accessible,
+potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
+a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
+{es} will then only be accessible from the host machine itself.
+
+The  https://docs.docker.com/storage/volumes[Docker named volumes]
+`data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
 --
-. Make sure Docker Engine is allotted at least 4GiB of memory. 
+. Make sure Docker Engine is allotted at least 4GiB of memory.
 In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
 or Settings (Windows).
 +
 NOTE: Docker Compose is not pre-installed with Docker on Linux.
-See docs.docker.com for installation instructions: 
-https://docs.docker.com/compose/install[Install Compose on Linux] 
+See docs.docker.com for installation instructions:
+https://docs.docker.com/compose/install[Install Compose on Linux]
 
 . Run `docker-compose` to bring up the cluster:
 +
@@ -114,13 +120,13 @@ curl -X GET "localhost:9200/_cat/nodes?v&pretty"
 --------------------------------------------------
 // NOTCONSOLE
 
-Log messages go to the console and are handled by the configured Docker logging driver. 
+Log messages go to the console and are handled by the configured Docker logging driver.
 By default you can access logs with `docker logs`.
 
-To stop the cluster, run `docker-compose down`. 
-The data in the Docker volumes is preserved and loaded 
+To stop the cluster, run `docker-compose down`.
+The data in the Docker volumes is preserved and loaded
 when you restart the cluster with `docker-compose up`.
-To **delete the data volumes** when you bring down the cluster, 
+To **delete the data volumes** when you bring down the cluster,
 specify the `-v` option: `docker-compose down -v`.
 
 
@@ -137,7 +143,7 @@ The following requirements and recommendations apply when running {es} in Docker
 
 ===== Set `vm.max_map_count` to at least `262144`
 
-The `vm.max_map_count` kernel setting must be set to at least `262144` for production use. 
+The `vm.max_map_count` kernel setting must be set to at least `262144` for production use.
 
 How you set `vm.max_map_count` depends on your platform:
 
@@ -151,7 +157,7 @@ grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
 --------------------------------------------
 
-To apply the setting on a live system, run: 
+To apply the setting on a live system, run:
 
 [source,sh]
 --------------------------------------------
@@ -196,15 +202,15 @@ sudo sysctl -w vm.max_map_count=262144
 ===== Configuration files must be readable by the `elasticsearch` user
 
 By default, {es} runs inside the container as user `elasticsearch` using
-uid:gid `1000:1000`.
+uid:gid `1000:0`.
 
 IMPORTANT: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
-which runs containers using an arbitrarily assigned user ID. 
+which runs containers using an arbitrarily assigned user ID.
 Openshift presents persistent volumes with the gid set to `0`, which works without any adjustments.
 
 If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
-In addition, this user must have write access to the <<path-settings,data and log dirs>>. 
-A good strategy is to grant group access to gid `1000` or `0` for the local directory. 
+In addition, this user must have write access to the <<path-settings,data and log dirs>>.
+A good strategy is to grant group access to gid `0` for the local directory.
 
 For example, to prepare a local directory for storing data through a bind-mount:
 
@@ -212,21 +218,15 @@ For example, to prepare a local directory for storing data through a bind-mount:
 --------------------------------------------
 mkdir esdatadir
 chmod g+rwx esdatadir
-chgrp 1000 esdatadir
+chgrp 0 esdatadir
 --------------------------------------------
-
-As a last resort, you can force the container to mutate the ownership of
-any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`. When you do this, they will be owned by
-uid:gid `1000:0`, which provides the required read/write access to the {es} process.
-
 
 ===== Increase ulimits for nofile and nproc
 
-Increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>> 
-must be available for the {es} containers. 
+Increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>>
+must be available for the {es} containers.
 Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system]
-for the Docker daemon sets them to acceptable values. 
+for the Docker daemon sets them to acceptable values.
 
 To check the Docker daemon defaults for ulimits, run:
 
@@ -246,12 +246,12 @@ For example, when using `docker run`, set:
 ===== Disable swapping
 
 Swapping needs to be disabled for performance and node stability.
-For information about ways to do this, see <<setup-configuration-memory>>. 
+For information about ways to do this, see <<setup-configuration-memory>>.
 
-If you opt for the `bootstrap.memory_lock: true` approach, 
+If you opt for the `bootstrap.memory_lock: true` approach,
 you also need to define the `memlock: true` ulimit in the
 https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker Daemon],
-or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>. 
+or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>.
 When using `docker run`, you can specify:
 
   -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
@@ -260,12 +260,12 @@ When using `docker run`, you can specify:
 
 The image https://docs.docker.com/engine/reference/builder/#/expose[exposes]
 TCP ports 9200 and 9300. For production clusters, randomizing the
-published ports with `--publish-all` is recommended, 
+published ports with `--publish-all` is recommended,
 unless you are pinning one container per host.
 
 ===== Set the heap size
 
-Use the `ES_JAVA_OPTS` environment variable to set the heap size. 
+Use the `ES_JAVA_OPTS` environment variable to set the heap size.
 For example, to use 16GB, specify `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
 
 IMPORTANT: You must <<heap-size,configure the heap size>> even if you are
@@ -277,7 +277,7 @@ memory access] to the container.
 Pin your deployments to a specific version of the {es} Docker image. For
 example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 
-===== Always bind data volumes 
+===== Always bind data volumes
 
 You should use a volume bound on `/usr/share/elasticsearch/data` for the following reasons:
 
@@ -291,7 +291,7 @@ https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plug
 ===== Avoid using `loop-lvm` mode
 
 If you are using the devicemapper storage driver, do not use the default `loop-lvm` mode.
-Configure docker-engine to use 
+Configure docker-engine to use
 https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm].
 
 ===== Centralize your logs
@@ -304,14 +304,14 @@ production use.
 [[docker-configuration-methods]]
 ==== Configuring {es} with Docker
 
-When you run in Docker, the <<config-files-location,{es} configuration files>> are loaded from 
+When you run in Docker, the <<config-files-location,{es} configuration files>> are loaded from
 `/usr/share/elasticsearch/config/`.
 
 To use custom configuration files, you <<docker-config-bind-mount, bind-mount the files>>
-over the configuration files in the image. 
+over the configuration files in the image.
 
-You can set individual {es} configuration parameters using Docker environment variables. 
-The <<docker-compose-file, sample compose file>> and the 
+You can set individual {es} configuration parameters using Docker environment variables.
+The <<docker-compose-file, sample compose file>> and the
 <<docker-cli-run-dev-mode, single-node example>> use this method.
 
 To use the contents of a file to set an environment variable, suffix the environment
@@ -335,8 +335,8 @@ parameters as command line options. For example:
 docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclustername
 --------------------------------------------
 
-While bind-mounting your configuration files is usually the preferred method in production, 
-you can also <<_c_customized_image, create a custom Docker image>> 
+While bind-mounting your configuration files is usually the preferred method in production,
+you can also <<_c_customized_image, create a custom Docker image>>
 that contains your configuration.
 
 [[docker-config-bind-mount]]
@@ -351,8 +351,27 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 --------------------------------------------
 
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
-**uid:gid `1000:1000`**. Bind mounted host directories and files must be accessible by this user, 
+uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,
 and the data and log directories must be writable by this user.
+
+[[docker-keystore-bind-mount]]
+===== Mounting an {es} keystore
+
+By default, {es} will auto-generate a keystore file for secure settings. This
+file is obfuscated but not encrypted. If you want to encrypt your
+<<secure-settings,secure settings>> with a password, you must use the
+`elasticsearch-keystore` utility to create a password-protected keystore and
+bind-mount it to the container as
+`/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
+the Docker container with the password at startup, set the Docker environment
+value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker
+run` command might have the following options:
+
+[source, sh]
+--------------------------------------------
+-v full_path_to/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
+-E KEYSTORE_PASSWORD=mypassword
+--------------------------------------------
 
 [[_c_customized_image]]
 ===== Using custom Docker images
@@ -373,7 +392,7 @@ docker build --tag=elasticsearch-custom .
 docker run -ti -v /usr/share/elasticsearch/data elasticsearch-custom
 --------------------------------------------
 
-Some plugins require additional security permissions. 
+Some plugins require additional security permissions.
 You must explicitly accept them either by:
 
 * Attaching a `tty` when you run the Docker image and allowing the permissions when prompted.

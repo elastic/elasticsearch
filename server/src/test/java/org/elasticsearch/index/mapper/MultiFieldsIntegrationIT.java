@@ -47,7 +47,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     public void testMultiFields() throws Exception {
         assertAcked(
             client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", createTypeSource())
+                .setMapping(createTypeSource())
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
@@ -74,7 +74,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         assertAcked(
-                client().admin().indices().preparePutMapping("my-index").setType("my-type")
+                client().admin().indices().preparePutMapping("my-index")
                         .setSource(createPutMappingSource())
         );
 
@@ -105,7 +105,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     public void testGeoPointMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
-                        .addMapping("my-type", createMappingSource("geo_point"))
+                        .setMapping(createMappingSource("geo_point"))
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
@@ -136,7 +136,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     public void testCompletionMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
-                        .addMapping("my-type", createMappingSource("completion"))
+                        .setMapping(createMappingSource("completion"))
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
@@ -161,7 +161,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     public void testIpMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
-                        .addMapping("my-type", createMappingSource("ip"))
+                        .setMapping(createMappingSource("ip"))
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
@@ -183,7 +183,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("a")
                 .field("type", fieldType)
@@ -198,7 +198,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createTypeSource() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("title")
                 .field("type", "text")
@@ -213,7 +213,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createPutMappingSource() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("title")
                 .field("type", "text")
@@ -225,7 +225,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().endObject();
+                .endObject();
     }
 
 }

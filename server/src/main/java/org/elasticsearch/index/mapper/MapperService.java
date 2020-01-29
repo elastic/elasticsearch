@@ -67,6 +67,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -117,7 +118,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
     private static final String[] SORTED_META_FIELDS = new String[]{
-        "_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type"
+        "_id", IgnoredFieldMapper.NAME, "_index", "_nested_path", "_routing", "_size", "_timestamp", "_ttl", "_type"
     };
 
     private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
@@ -142,9 +143,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     final MapperRegistry mapperRegistry;
 
+    private final BooleanSupplier idFieldDataEnabled;
+
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
-                         Supplier<QueryShardContext> queryShardContextSupplier) {
+                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
         super(indexSettings);
         this.indexAnalyzers = indexAnalyzers;
         this.fieldTypes = new FieldTypeLookup();
@@ -154,12 +157,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
+        this.idFieldDataEnabled = idFieldDataEnabled;
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings()) &&
                 indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
         }
-
     }
 
     public boolean hasNested() {
@@ -661,6 +664,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuoteAnalyzer;
+    }
+
+    /**
+     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
+     */
+    public boolean isIdFieldDataEnabled() {
+        return idFieldDataEnabled.getAsBoolean();
     }
 
     @Override

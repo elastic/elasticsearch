@@ -19,51 +19,50 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
-import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
-import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import fixture.s3.S3HttpHandler;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
+
+    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(5L);
 
     @Override
     protected String repositoryType() {
@@ -86,7 +85,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/bucket", new InternalHttpHandler());
+        return Collections.singletonMap("/bucket", new S3BlobStoreHttpHandler("bucket"));
     }
 
     @Override
@@ -101,6 +100,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
 
         return Settings.builder()
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
             // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
             .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
@@ -109,6 +109,41 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .put(super.nodeSettings(nodeOrdinal))
             .setSecureSettings(secureSettings)
             .build();
+    }
+
+    public void testEnforcedCooldownPeriod() throws IOException {
+        final String repoName = createRepository(randomName(), Settings.builder().put(repositorySettings())
+            .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build());
+
+        final SnapshotId fakeOldSnapshot = client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-old")
+            .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final RepositoryData repositoryData =
+            PlainActionFuture.get(f -> repository.threadPool().generic().execute(() -> repository.getRepositoryData(f)));
+        final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
+            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
+        final BytesReference serialized =
+            BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), false));
+        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () -> {
+            try (InputStream stream = serialized.streamInput()) {
+                repository.blobStore().blobContainer(repository.basePath()).writeBlobAtomic(
+                    BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), stream, serialized.length(), true);
+            }
+        })));
+
+        final String newSnapshotName = "snapshot-new";
+        final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
+        client().admin().cluster().prepareCreateSnapshot(repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
+        assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
+
+        final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, newSnapshotName).get();
+        assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
+
+        final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
+        assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
     /**
@@ -128,8 +163,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetaData metadata, NamedXContentRegistry registry, ThreadPool threadPool) {
-            return new S3Repository(metadata, registry, service, threadPool) {
+        protected S3Repository createRepository(RepositoryMetaData metadata, NamedXContentRegistry registry,
+                                                ClusterService clusterService) {
+            return new S3Repository(metadata, registry, service, clusterService) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -153,159 +189,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
     }
 
-    /**
-     * Minimal HTTP handler that acts as a S3 compliant server
-     */
-    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private static class InternalHttpHandler implements HttpHandler {
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an S3 endpoint")
+    private static class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 
-        private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
-
-        @Override
-        public void handle(final HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-            try {
-                if (Regex.simpleMatch("POST /bucket/*?uploads", request)) {
-                    final String uploadId = UUIDs.randomBase64UUID();
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                        "<InitiateMultipartUploadResult>\n" +
-                        "  <Bucket>bucket</Bucket>\n" +
-                        "  <Key>" + exchange.getRequestURI().getPath() + "</Key>\n" +
-                        "  <UploadId>" + uploadId + "</UploadId>\n" +
-                        "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                    blobs.put(multipartKey(uploadId, 0), BytesArray.EMPTY);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
-
-                } else if (Regex.simpleMatch("PUT /bucket/*?uploadId=*&partNumber=*", request)) {
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-
-                    final String uploadId = params.get("uploadId");
-                    if (blobs.containsKey(multipartKey(uploadId, 0))) {
-                        final int partNumber = Integer.parseInt(params.get("partNumber"));
-                        MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                        blobs.put(multipartKey(uploadId, partNumber), Streams.readFully(md5));
-                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                    } else {
-                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                    }
-
-                } else if (Regex.simpleMatch("POST /bucket/*?uploadId=*", request)) {
-                    drainInputStream(exchange.getRequestBody());
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-                    final String uploadId = params.get("uploadId");
-
-                    final int nbParts = blobs.keySet().stream()
-                        .filter(blobName -> blobName.startsWith(uploadId))
-                        .map(blobName -> blobName.replaceFirst(uploadId + '\n', ""))
-                        .mapToInt(Integer::parseInt)
-                        .max()
-                        .orElse(0);
-
-                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-                    for (int partNumber = 0; partNumber <= nbParts; partNumber++) {
-                        BytesReference part = blobs.remove(multipartKey(uploadId, partNumber));
-                        assertNotNull(part);
-                        part.writeTo(blob);
-                    }
-                    blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
-
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                        "<CompleteMultipartUploadResult>\n" +
-                        "  <Bucket>bucket</Bucket>\n" +
-                        "  <Key>" + exchange.getRequestURI().getPath() + "</Key>\n" +
-                        "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
-
-                }else if (Regex.simpleMatch("PUT /bucket/*", request)) {
-                    blobs.put(exchange.getRequestURI().toString(), Streams.readFully(exchange.getRequestBody()));
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-
-                } else if (Regex.simpleMatch("GET /bucket/?prefix=*", request)) {
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-                    assertThat("Test must be adapted for GET Bucket (List Objects) Version 2", params.get("list-type"), nullValue());
-
-                    final StringBuilder list = new StringBuilder();
-                    list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                    list.append("<ListBucketResult>");
-                    final String prefix = params.get("prefix");
-                    if (prefix != null) {
-                        list.append("<Prefix>").append(prefix).append("</Prefix>");
-                    }
-                    for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                        if (prefix == null || blob.getKey().startsWith("/bucket/" + prefix)) {
-                            list.append("<Contents>");
-                            list.append("<Key>").append(blob.getKey().replace("/bucket/", "")).append("</Key>");
-                            list.append("<Size>").append(blob.getValue().length()).append("</Size>");
-                            list.append("</Contents>");
-                        }
-                    }
-                    list.append("</ListBucketResult>");
-
-                    byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
-
-                } else if (Regex.simpleMatch("GET /bucket/*", request)) {
-                    final BytesReference blob = blobs.get(exchange.getRequestURI().toString());
-                    if (blob != null) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
-                        blob.writeTo(exchange.getResponseBody());
-                    } else {
-                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                    }
-
-                } else if (Regex.simpleMatch("DELETE /bucket/*", request)) {
-                    int deletions = 0;
-                    for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
-                        Map.Entry<String, BytesReference> blob = iterator.next();
-                        if (blob.getKey().startsWith(exchange.getRequestURI().toString())) {
-                            iterator.remove();
-                            deletions++;
-                        }
-                    }
-                    exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
-
-                } else if (Regex.simpleMatch("POST /bucket/?delete", request)) {
-                    final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
-
-                    final StringBuilder deletes = new StringBuilder();
-                    deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                    deletes.append("<DeleteResult>");
-                    for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
-                        Map.Entry<String, BytesReference> blob = iterator.next();
-                        String key = blob.getKey().replace("/bucket/", "");
-                        if (requestBody.contains("<Key>" + key + "</Key>")) {
-                            deletes.append("<Deleted><Key>").append(key).append("</Key></Deleted>");
-                            iterator.remove();
-                        }
-                    }
-                    deletes.append("</DeleteResult>");
-
-                    byte[] response = deletes.toString().getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
-
-                } else {
-                    exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
-                }
-            } finally {
-                exchange.close();
-            }
-        }
-
-        private static String multipartKey(final String uploadId, int partNumber) {
-            return uploadId + "\n" + partNumber;
+        S3BlobStoreHttpHandler(final String bucket) {
+            super(bucket);
         }
     }
 

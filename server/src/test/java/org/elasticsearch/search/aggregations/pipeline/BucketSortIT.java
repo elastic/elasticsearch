@@ -69,7 +69,6 @@ public class BucketSortIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(INDEX, INDEX_WITH_GAPS);
         client().admin().indices().preparePutMapping(INDEX)
-                .setType("doc")
                 .setSource("time", "type=date", "foo", "type=keyword", "value_1", "type=float", "value_2", "type=float")
                 .get();
 

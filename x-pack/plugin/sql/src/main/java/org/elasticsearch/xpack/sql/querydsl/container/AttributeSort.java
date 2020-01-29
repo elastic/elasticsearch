@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.Objects;
 

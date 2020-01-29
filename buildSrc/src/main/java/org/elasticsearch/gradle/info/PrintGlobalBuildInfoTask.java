@@ -16,7 +16,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
     private final RegularFileProperty buildInfoFile;
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
-    private final RegularFileProperty fipsJvmFile;
     private List<Runnable> globalInfoListeners = new ArrayList<>();
 
     @Inject
@@ -24,7 +23,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         this.buildInfoFile = objectFactory.fileProperty();
         this.compilerVersionFile = objectFactory.fileProperty();
         this.runtimeVersionFile = objectFactory.fileProperty();
-        this.fipsJvmFile = objectFactory.fileProperty();
     }
 
     @InputFile
@@ -42,11 +40,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         return runtimeVersionFile;
     }
 
-    @InputFile
-    public RegularFileProperty getFipsJvmFile() {
-        return fipsJvmFile;
-    }
-
     public void setGlobalInfoListeners(List<Runnable> globalInfoListeners) {
         this.globalInfoListeners = globalInfoListeners;
     }
@@ -57,6 +50,7 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         getLogger().quiet("Elasticsearch Build Hamster says Hello!");
         getLogger().quiet(getFileText(getBuildInfoFile()).asString());
         getLogger().quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
+        getLogger().quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
         getLogger().quiet("=======================================");
 
         setGlobalProperties();
@@ -76,7 +70,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         BuildParams.init(params -> {
             params.setCompilerJavaVersion(JavaVersion.valueOf(getFileText(getCompilerVersionFile()).asString()));
             params.setRuntimeJavaVersion(JavaVersion.valueOf(getFileText(getRuntimeVersionFile()).asString()));
-            params.setInFipsJvm(Boolean.parseBoolean(getFileText(getFipsJvmFile()).asString()));
         });
     }
 }

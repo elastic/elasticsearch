@@ -91,7 +91,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
@@ -111,7 +110,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
-    protected final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected final String indexMapping = "{ \"_doc\": {} }";
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -126,25 +125,21 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return buildIndexMetaData(replicas, indexMapping);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas, Map<String, String> mappings) throws IOException {
+    protected IndexMetaData buildIndexMetaData(int replicas, String mappings) throws IOException {
         return buildIndexMetaData(replicas, Settings.EMPTY, mappings);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, Map<String, String> mappings) throws IOException {
+    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, String mappings) {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(indexSettings)
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
             .settings(settings)
+            .putMapping(mappings)
             .primaryTerm(0, randomIntBetween(1, 100));
-        for (Map.Entry<String, String> typeMapping : mappings.entrySet()) {
-            metaData.putMapping(typeMapping.getKey(), typeMapping.getValue());
-        }
         return metaData.build();
     }
 
@@ -181,21 +176,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 }
             });
 
-        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer() {
-            @Override
-            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
-                syncRetentionLeases(shardId, retentionLeases, listener);
-            }
-
-            @Override
-            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {
-                sync(shardId, retentionLeases, ActionListener.wrap(
+        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer(
+            (shardId, primaryAllocationId, primaryTerm, retentionLeases, listener) ->
+                syncRetentionLeases(shardId, retentionLeases, listener),
+            (shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(shardId, retentionLeases,
+                ActionListener.wrap(
                     r -> { },
                     e -> {
                         throw new AssertionError("failed to background sync retention lease", e);
-                    }));
-            }
-        };
+                    })));
 
         protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
@@ -610,14 +599,23 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.wrap(result -> result.respond(listener), listener::onFailure), new ReplicasRef(), logger, opType,
-                    primaryTerm).execute();
+                    ActionListener.map(listener, result -> {
+                        adaptResponse(result.finalResponse, getPrimaryShard());
+                        return result.finalResponse;
+                    }),
+                    new ReplicasRef(), logger, opType, primaryTerm)
+                    .execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }
 
-        IndexShard getPrimaryShard() {
+        // to be overridden by subclasses
+        protected void adaptResponse(Response response, IndexShard indexShard) {
+
+        }
+
+        protected IndexShard getPrimaryShard() {
             return replicationTargets.primary;
         }
 
@@ -740,8 +738,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 finalResponse.setShardInfo(shardInfo);
             }
 
-            public void respond(ActionListener<Response> listener) {
-                listener.onResponse(finalResponse);
+            @Override
+            public void runPostReplicationActions(ActionListener<Void> listener) {
+                listener.onResponse(null);
             }
         }
 
@@ -776,7 +775,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
                 null, ActionTestUtils.assertNoFailureListener(result -> {
                     TransportWriteActionTestHelper.performPostWriteActions(primary, request,

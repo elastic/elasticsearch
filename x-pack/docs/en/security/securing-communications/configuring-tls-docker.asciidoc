@@ -71,7 +71,6 @@ services:
     image: {docker-image}
     command: >
       bash -c '
-        yum install -y -q -e 0 unzip;
         if [[ ! -f /certs/bundle.zip ]]; then
           bin/elasticsearch-certutil cert --silent --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
           unzip /certs/bundle.zip -d /certs; <1>
@@ -206,9 +205,6 @@ WARNING: Windows users not running PowerShell will need to remove `\` and join l
 ----
 docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
 auto --batch \
--Expack.security.http.ssl.certificate=certificates/es01/es01.crt \
--Expack.security.http.ssl.certificate_authorities=certificates/ca/ca.crt \
--Expack.security.http.ssl.key=certificates/es01/es01.key \
 --url https://localhost:9200"
 ----
 --

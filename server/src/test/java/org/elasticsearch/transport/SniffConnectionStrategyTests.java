@@ -30,6 +30,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -42,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -60,7 +64,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
-    private final ConnectionProfile profile = RemoteClusterConnection.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
+    private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "sniff").build();
+    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings);
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override
@@ -481,7 +487,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSniffStrategyWillNeedToBeRebuiltIfSeedsOrProxyChange() {
+    public void testSniffStrategyWillNeedToBeRebuiltIfNumOfConnectionsOrSeedsOrProxyChange() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
@@ -508,11 +514,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(strategy.assertNoRunningConnections());
 
-                    Setting<?> seedSetting = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> proxySetting = RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> proxySetting = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> numConnections = SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS
+                        .getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(numConnections.getKey(), 3)
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings seedsChanged = Settings.builder()
@@ -524,6 +533,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         .put(proxySetting.getKey(), "proxy_address:9300")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(proxyChanged));
+                    Settings connectionsChanged = Settings.builder()
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(numConnections.getKey(), 4)
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(connectionsChanged));
                 }
             }
         }
@@ -632,6 +646,36 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
                 allRoles, Version.CURRENT);
             assertTrue(nodePredicate.test(node));
+        }
+    }
+
+    public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
+        List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
+            new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, "192.168.0.1:8080"),
+            new Tuple<>(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS, "2"));
+
+        RemoteConnectionStrategy.ConnectionStrategy proxy = RemoteConnectionStrategy.ConnectionStrategy.PROXY;
+
+        String clusterName = "cluster_name";
+        Settings settings = Settings.builder()
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), proxy.name())
+            .build();
+
+        Set<Setting<?>> clusterSettings = new HashSet<>();
+        clusterSettings.add(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE);
+        clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).collect(Collectors.toList()));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
+
+        // Should validate successfully
+        service.validate(settings, true);
+
+        for (Tuple<Setting.AffixSetting<?>, String> restrictedSetting : restrictedSettings) {
+            Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
+            Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
+            String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
+                "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=PROXY]";
+            assertEquals(expected, iae.getMessage());
         }
     }
 

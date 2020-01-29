@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -86,7 +87,9 @@ public class RestNodesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        if (request.hasParam("local") && Version.CURRENT.major == Version.V_7_0_0.major + 1) { // only needed in v8 to catch breaking usages
+            throw new IllegalArgumentException("parameter [local] is not supported");
+        }
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {

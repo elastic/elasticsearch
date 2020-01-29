@@ -47,10 +47,10 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
 
     public void testProcessWithFieldPresent() {
         String field = "categorical";
-        List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
-        Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Function.identity(), v -> "Column_" + v));
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
+        Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Object::toString, v -> "Column_" + v.toString()));
         OneHotEncoding encoding = new OneHotEncoding(field, valueMap);
-        String fieldValue = randomFrom(values);
+        Object fieldValue = randomFrom(values);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
 
         Map<String, Matcher<? super Object>> matchers = values.stream().map(v -> "Column_" + v)
@@ -65,6 +65,21 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         fieldValues = randomFieldValues(field, "unknownValue");
         matchers.put("Column_" + fieldValue, equalTo(0));
         testProcess(encoding, fieldValues, matchers);
+    }
+
+    public void testProcessWithNestedField() {
+        String field = "categorical.child";
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
+        Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Object::toString, v -> "Column_" + v.toString()));
+        OneHotEncoding encoding = new OneHotEncoding(field, valueMap);
+        Map<String, Object> fieldValues = new HashMap<>() {{
+            put("categorical", new HashMap<>(){{
+                put("child", "farequote");
+            }});
+        }};
+
+        encoding.process(fieldValues);
+        assertThat(fieldValues.get("Column_farequote"), equalTo(1));
     }
 
 }

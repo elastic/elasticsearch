@@ -19,6 +19,13 @@
           }
         }
       ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "description":"True if the job should be forcefully deleted",
+        "default":false
+      }
     }
   }
 }

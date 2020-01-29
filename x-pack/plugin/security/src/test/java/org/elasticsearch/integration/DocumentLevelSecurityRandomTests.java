@@ -91,7 +91,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     public void testDuelWithAliasFilters() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>(numberOfRoles);

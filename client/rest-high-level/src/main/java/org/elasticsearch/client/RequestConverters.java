@@ -49,10 +49,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -80,13 +82,13 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -274,14 +276,30 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
         parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
-        // Version params are not currently supported by the source exists API so are not passed
+        parameters.withFetchSourceContext(getRequest.fetchSourceContext());
+        // Version params are not currently supported by the _source API so are not passed
+
+        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
+    static Request getSource(GetSourceRequest getSourceRequest) {
+        Params parameters = new Params();
+        parameters.withPreference(getSourceRequest.preference());
+        parameters.withRouting(getSourceRequest.routing());
+        parameters.withRefresh(getSourceRequest.refresh());
+        parameters.withRealtime(getSourceRequest.realtime());
+        parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
+
+        String endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(parameters.asMap());
         return request;
     }
@@ -1029,15 +1047,37 @@ final class RequestConverters {
         }
 
         Params withNodes(String[] nodes) {
-            if (nodes != null && nodes.length > 0) {
+           return withNodes(Arrays.asList(nodes));
+        }
+
+        Params withNodes(List<String> nodes) {
+            if (nodes != null && nodes.size() > 0) {
                 return putParam("nodes", String.join(",", nodes));
             }
             return this;
         }
 
         Params withActions(String[] actions) {
-            if (actions != null && actions.length > 0) {
+            return withActions(Arrays.asList(actions));
+        }
+
+        Params withActions(List<String> actions) {
+            if (actions != null && actions.size() > 0) {
                 return putParam("actions", String.join(",", actions));
+            }
+            return this;
+        }
+
+        Params withTaskId(org.elasticsearch.tasks.TaskId taskId) {
+            if (taskId != null && taskId.isSet()) {
+                return putParam("task_id", taskId.toString());
+            }
+            return this;
+        }
+
+        Params withParentTaskId(org.elasticsearch.tasks.TaskId parentTaskId) {
+            if (parentTaskId != null && parentTaskId.isSet()) {
+                return putParam("parent_task_id", parentTaskId.toString());
             }
             return this;
         }

@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -36,8 +37,11 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -128,15 +132,14 @@ class ClientTransformIndexer extends TransformIndexer {
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].", getJobId()));
             return;
         }
-        ClientHelper
-            .executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                SearchAction.INSTANCE,
-                request,
-                nextPhase
-            );
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            nextPhase
+        );
     }
 
     @Override
@@ -146,49 +149,78 @@ class ClientTransformIndexer extends TransformIndexer {
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a bulk index request for failed transform [{}].", getJobId()));
             return;
         }
-        ClientHelper
-            .executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                BulkAction.INSTANCE,
-                request,
-                ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures()) {
-                        int failureCount = 0;
-                        for (BulkItemResponse item : bulkResponse.getItems()) {
-                            if (item.isFailed()) {
-                                failureCount++;
-                            }
-                            // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            BulkAction.INSTANCE,
+            request,
+            ActionListener.wrap(bulkResponse -> {
+                if (bulkResponse.hasFailures()) {
+                    int failureCount = 0;
+                    // dedup the failures by the type of the exception, as they most likely have the same cause
+                    Map<String, BulkItemResponse> deduplicatedFailures = new LinkedHashMap<>();
+
+                    for (BulkItemResponse item : bulkResponse.getItems()) {
+                        if (item.isFailed()) {
+                            deduplicatedFailures.putIfAbsent(item.getFailure().getCause().getClass().getSimpleName(), item);
+                            failureCount++;
                         }
-                        if (auditBulkFailures) {
-                            String failureMessage = bulkResponse.buildFailureMessage();
-                            logger.debug("[{}] Bulk index failure encountered: {}", getJobId(), failureMessage);
-                            auditor
-                                .warning(
-                                    getJobId(),
-                                    "Experienced at least ["
-                                        + failureCount
-                                        + "] bulk index failures. See the logs of the node running the transform for details. "
-                                        + failureMessage
-                                );
-                            auditBulkFailures = false;
-                        }
-                        // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
-                        // It increments the indexing failure, and then calls the `onFailure` logic
-                        nextPhase
-                            .onFailure(
-                                new BulkIndexingException(
-                                    "Bulk index experienced failures. " + "See the logs of the node running the transform for details."
-                                )
-                            );
-                    } else {
-                        auditBulkFailures = true;
-                        nextPhase.onResponse(bulkResponse);
                     }
-                }, nextPhase::onFailure)
-            );
+
+                    // note: bulk failures are audited/logged in {@link TransformIndexer#handleFailure(Exception)}
+
+                    // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
+                    // Determine whether the failure is irrecoverable (transform should go into failed state) or not (transform increments
+                    // the indexing failure counter
+                    // and possibly retries)
+                    Exception irrecoverableException = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(
+                        deduplicatedFailures.values()
+                    );
+                    if (irrecoverableException == null) {
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Significant failures: ", deduplicatedFailures);
+                        logger.debug("[{}] Bulk index experienced [{}] failures.{}", getJobId(), failureCount, failureMessage);
+
+                        Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
+                        nextPhase.onFailure(
+                            new BulkIndexingException(
+                                "Bulk index experienced [{}] failures. Significant falures: {}",
+                                firstException,
+                                false,
+                                failureCount,
+                                failureMessage
+                            )
+                        );
+                    } else {
+                        deduplicatedFailures.remove(irrecoverableException.getClass().getSimpleName());
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Other failures: ", deduplicatedFailures);
+                        irrecoverableException = decorateBulkIndexException(irrecoverableException);
+
+                        logger.debug(
+                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}].{}",
+                            getJobId(),
+                            failureCount,
+                            ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
+                            failureMessage
+                        );
+
+                        nextPhase.onFailure(
+                            new BulkIndexingException(
+                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. Other failures: {}",
+                                irrecoverableException,
+                                true,
+                                failureCount,
+                                ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
+                                failureMessage
+                            )
+                        );
+                    }
+                } else {
+                    auditBulkFailures = true;
+                    nextPhase.onResponse(bulkResponse);
+                }
+            }, nextPhase::onFailure)
+        );
     }
 
     @Override
@@ -275,41 +307,40 @@ class ClientTransformIndexer extends TransformIndexer {
         // Persist the current state and stats in the internal index. The interval of this method being
         // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
         // often when doing bulk indexing calls or at the end of one indexing run.
-        transformsConfigManager
-            .putOrUpdateTransformStoredDoc(
-                new TransformStoredDoc(getJobId(), state, getStats()),
-                seqNoPrimaryTermAndIndex,
-                ActionListener.wrap(r -> {
-                    updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
-                    // for auto stop shutdown the task
-                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                        context.shutdown();
-                    }
-                    // Only do this clean up once, if it succeeded, no reason to do the query again.
-                    if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                        transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
-                            logger.trace("[{}] deleted old transform stats and state document", getJobId());
-                            listener.onResponse(null);
-                        }, e -> {
-                            String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", getJobId());
-                            logger.warn(msg, e);
-                            // If we have failed, we should attempt the clean up again later
-                            oldStatsCleanedUp.set(false);
-                            listener.onResponse(null);
-                        }));
-                    } else {
+        transformsConfigManager.putOrUpdateTransformStoredDoc(
+            new TransformStoredDoc(getJobId(), state, getStats()),
+            seqNoPrimaryTermAndIndex,
+            ActionListener.wrap(r -> {
+                updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                // for auto stop shutdown the task
+                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                    context.shutdown();
+                }
+                // Only do this clean up once, if it succeeded, no reason to do the query again.
+                if (oldStatsCleanedUp.compareAndSet(false, true)) {
+                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
+                        logger.trace("[{}] deleted old transform stats and state document", getJobId());
                         listener.onResponse(null);
-                    }
-                }, statsExc -> {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
-                    auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
-                    // for auto stop shutdown the task
-                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                        context.shutdown();
-                    }
-                    listener.onFailure(statsExc);
-                })
-            );
+                    }, e -> {
+                        String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", getJobId());
+                        logger.warn(msg, e);
+                        // If we have failed, we should attempt the clean up again later
+                        oldStatsCleanedUp.set(false);
+                        listener.onResponse(null);
+                    }));
+                } else {
+                    listener.onResponse(null);
+                }
+            }, statsExc -> {
+                logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                // for auto stop shutdown the task
+                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                    context.shutdown();
+                }
+                listener.onFailure(statsExc);
+            })
+        );
 
     }
 
@@ -325,11 +356,31 @@ class ClientTransformIndexer extends TransformIndexer {
         return seqNoPrimaryTermAndIndex.get();
     }
 
-    // Considered a recoverable indexing failure
-    private static class BulkIndexingException extends ElasticsearchException {
-        BulkIndexingException(String msg, Object... args) {
-            super(msg, args);
+    private static String getBulkIndexDetailedFailureMessage(String prefix, Map<String, BulkItemResponse> failures) {
+        if (failures.isEmpty()) {
+            return "";
         }
+
+        StringBuilder failureMessageBuilder = new StringBuilder(prefix);
+        for (Entry<String, BulkItemResponse> failure : failures.entrySet()) {
+            failureMessageBuilder.append("\n[")
+                .append(failure.getKey())
+                .append("] message [")
+                .append(failure.getValue().getFailureMessage())
+                .append("]");
+        }
+        String failureMessage = failureMessageBuilder.toString();
+        return failureMessage;
     }
 
+    private static Exception decorateBulkIndexException(Exception irrecoverableException) {
+        if (irrecoverableException instanceof MapperParsingException) {
+            return new TransformException(
+                "Destination index mappings are incompatible with the transform configuration.",
+                irrecoverableException
+            );
+        }
+
+        return irrecoverableException;
+    }
 }

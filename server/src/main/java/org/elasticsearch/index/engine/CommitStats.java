@@ -82,20 +82,6 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * A raw version of the commit id (see {@link SegmentInfos#getId()}
-     */
-    public Engine.CommitId getRawCommitId() {
-        return new Engine.CommitId(Base64.getDecoder().decode(id));
-    }
-
-    /**
-     * The synced-flush id of the commit if existed.
-     */
-    public String syncId() {
-        return userData.get(InternalEngine.SYNC_COMMIT_ID);
-    }
-
-    /**
      * Returns the number of documents in the in this commit
      */
     public int getNumDocs() {

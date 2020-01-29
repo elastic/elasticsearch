@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-transform]]
-=== Start {transforms} API
+=== Start {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Start {transforms}</titleabbrev>
+<titleabbrev>Start {transform}</titleabbrev>
 ++++
 
 Starts one or more {transforms}.
@@ -52,9 +52,8 @@ required privileges on the source and destination indices, the
 ==== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}. This identifier
-  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[start-transform-example]]
 ==== {api-examples-title}

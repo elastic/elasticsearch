@@ -60,8 +60,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
         ensureGreen();
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .endObject().endObject().endObject())
@@ -91,8 +91,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .startObject("baz").field("type", "text").field("analyzer", "standard").endObject()
@@ -177,7 +177,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainFilteredAlias() {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field", "type=text")
+                .setMapping("field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
         ensureGreen();
 
@@ -191,7 +191,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainWithRewriteValidateQuery() {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field", "type=text,analyzer=whitespace")
+                .setMapping("field", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
         client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
@@ -223,7 +223,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainWithRewriteValidateQueryAllShards() {
         client().admin().indices().prepareCreate("test")
-            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
@@ -299,7 +299,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainTermsQueryWithLookup() {
         client().admin().indices().prepareCreate("twitter")
-            .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
+            .setMapping("user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
         client().prepareIndex("twitter").setId("1")
             .setSource("followers", new int[] {1, 2, 3}).get();

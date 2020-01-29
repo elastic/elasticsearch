@@ -90,7 +90,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             .setSecureSettings(secureSettings)
             .build();
         try {
-            return new SSLService(settings1, TestEnvironment.newEnvironment(settings1));
+            return new SSLService(TestEnvironment.newEnvironment(settings1));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -136,6 +136,8 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
+        assumeFalse("BCTLS doesn't support renegotiation: https://github.com/bcgit/bc-java/issues/593#issuecomment-533518845",
+            inFipsJvm());
         // force TLSv1.2 since renegotiation is not supported by 1.3
         SSLService sslService =
             createSSLService(Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build());

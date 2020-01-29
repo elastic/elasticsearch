@@ -38,6 +38,7 @@ public class AnnotationIndex {
     public static final String WRITE_ALIAS_NAME = ".ml-annotations-write";
     // Exposed for testing, but always use the aliases in non-test code
     public static final String INDEX_NAME = ".ml-annotations-6";
+    public static final String INDEX_PATTERN = ".ml-annotations*";
 
     /**
      * Create the .ml-annotations index with correct mappings if it does not already
@@ -73,7 +74,7 @@ public class AnnotationIndex {
 
                 CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
                 try (XContentBuilder annotationsMapping = AnnotationIndex.annotationsMapping()) {
-                    createIndexRequest.mapping(SINGLE_MAPPING_NAME, annotationsMapping);
+                    createIndexRequest.mapping(annotationsMapping);
                     createIndexRequest.settings(Settings.builder()
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")

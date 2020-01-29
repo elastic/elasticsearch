@@ -538,12 +538,12 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testNumericDetectionEnabled() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .field("numeric_detection", true)
                 .endObject().endObject());
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper();
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
@@ -554,7 +554,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type")
+        client().admin().indices().preparePutMapping("test")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper();
@@ -566,11 +566,11 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testNumericDetectionDefault() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .endObject().endObject());
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper();
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
@@ -581,7 +581,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+        assertAcked(client().admin().indices().preparePutMapping("test")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper();
@@ -593,7 +593,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDateDetectionInheritsFormat() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startArray("dynamic_date_formats")
                     .value("yyyy-MM-dd")
                 .endArray()
@@ -619,7 +619,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper();
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
@@ -631,7 +631,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+        assertAcked(client().admin().indices().preparePutMapping("test")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper();
@@ -650,7 +650,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     public void testDynamicTemplateOrder() throws IOException {
         // https://github.com/elastic/elasticsearch/issues/18625
         // elasticsearch used to apply templates that do not have a match_mapping_type first
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startArray("dynamic_templates")
                     .startObject()
                         .startObject("type-based")
@@ -670,13 +670,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject().endObject();
-        IndexService index = createIndex("test", Settings.EMPTY, "type", mapping);
+        IndexService index = createIndex("test", Settings.EMPTY, mapping);
         client().prepareIndex("test").setId("1").setSource("foo", "abc").get();
         assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testMappingVersionAfterDynamicMappingUpdate() {
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        createIndex("test", client().admin().indices().prepareCreate("test"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
         client().prepareIndex("test").setId("1").setSource("field", "text").get();

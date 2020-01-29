@@ -42,10 +42,12 @@ Valid columns are:
 (Default) Used file descriptors percentage, such as `1`.
 
 `node.role`, `r`, `role`, `nodeRole`::
-(Default) Roles of the node. Returned values include `m` (master-eligible node),
-`d` (data node), `i` (ingest node), `v` (voting-only node), and `-` (coordinating node only).
+(Default) Roles of the node. Returned values include `d` (data node), `i`
+(ingest node), `m` (master-eligible node), `l` (machine learning node), `v`
+(voting-only node), and `-` (coordinating node only).
 +
-For example, `mdi` indicates a master-eligible data and ingest node.
+For example, `dim` indicates a master-eligible data and ingest node. See
+<<modules-node>>.
 
 `master`, `m`::
 (Default) Indicates whether the node is the elected master node. Returned values
@@ -282,8 +284,6 @@ Number of suggest operations, such as `0`.
 --
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

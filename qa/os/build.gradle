@@ -36,6 +36,10 @@ dependencies {
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
   compile project(':libs:elasticsearch-core')
+
+  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 forbiddenApisTest {
@@ -54,7 +58,7 @@ tasks.dependenciesInfo.enabled = false
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
+  dependsOn 'destructiveDistroTest' 
 }
 
 processTestResources {

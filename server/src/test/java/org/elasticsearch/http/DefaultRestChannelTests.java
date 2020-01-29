@@ -460,6 +460,15 @@ public class DefaultRestChannelTests extends ESTestCase {
         public HttpResponse createResponse(RestStatus status, BytesReference content) {
             return new TestResponse(status, content);
         }
+
+        @Override
+        public void release() {
+        }
+
+        @Override
+        public HttpRequest releaseAndCopy() {
+            return this;
+        }
     }
 
     private static class TestResponse implements HttpResponse {

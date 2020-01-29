@@ -36,15 +36,17 @@ To perform a rolling upgrade to {version}:
 include::disable-shard-alloc.asciidoc[]
 --
 
-. *Stop non-essential indexing and perform a synced flush.* (Optional)
+. *Stop non-essential indexing and perform a flush.* (Optional)
 +
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush-api, synced-flush>>.
+<<indices-flush, flush>>.
 
-include::synced-flush.asciidoc[]
-
+[source,console]
+--------------------------------------------------
+POST /_flush
+--------------------------------------------------
 --
 
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
@@ -68,7 +70,9 @@ include::set-paths-tip.asciidoc[]
 [[rolling-upgrades-bootstrapping]]
 NOTE: You should leave `cluster.initial_master_nodes` unset while performing a
 rolling upgrade. Each upgraded node is joining an existing cluster so there is
-no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>.
+no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>. You
+must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
+`discovery.seed_providers`>> on every node.
 --
 
 . *Upgrade any plugins.*
@@ -146,7 +150,7 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<indices-synced-flush-api,sync-flushed>> might take longer to
+Shards that were not <<indices-flush,flushed>> might take longer to
 recover.  You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
@@ -164,7 +168,20 @@ recovery completes.
 --
 
 When  the node has recovered and the cluster is stable, repeat these steps
-for each node that needs to be updated.
+for each node that needs to be updated. You can monitor the health of the cluster
+with a <<cat-health,`_cat/health`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
+
+And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/nodes?h=ip,name,version&v
+--------------------------------------------------
 
 --
 

@@ -160,7 +160,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
             if (nullValue != null) {
                 boolean ignoreZValue = builder.ignoreZValue == null ? Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
-                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreZValue;
+                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreMalformed;
                 GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
                 if (ignoreMalformed == false) {
                     if (point.lat() > 90.0 || point.lat() < -90.0) {

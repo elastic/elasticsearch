@@ -99,8 +99,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
-
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -132,8 +130,8 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
-      'mixed_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on mixed cluster',
-      'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster',
+      'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
+      'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
       'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster'
     ].join(',')
   }

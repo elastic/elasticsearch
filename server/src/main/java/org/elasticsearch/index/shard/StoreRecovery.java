@@ -56,7 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -99,8 +99,8 @@ final class StoreRecovery {
         }
     }
 
-    void recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, IndexShard indexShard,
-                                List<LocalShardSnapshot> shards, ActionListener<Boolean> listener) {
+    void recoverFromLocalShards(Consumer<MappingMetaData> mappingUpdateConsumer, final IndexShard indexShard,
+                                   final List<LocalShardSnapshot> shards, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.LOCAL_SHARDS: "expected local shards recovery type: " + recoveryType;
@@ -113,7 +113,7 @@ final class StoreRecovery {
             }
             IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
             if (sourceMetaData.mapping() != null) {
-                mappingUpdateConsumer.accept(sourceMetaData.mapping().type(), sourceMetaData.mapping());
+                mappingUpdateConsumer.accept(sourceMetaData.mapping());
             }
             indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.
@@ -472,15 +472,21 @@ final class StoreRecovery {
             translogState.totalOperations(0);
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
-            ShardId snapshotShardId = shardId;
+            final ShardId snapshotShardId;
             final String indexName = restoreSource.index();
             if (!shardId.getIndexName().equals(indexName)) {
                 snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
+            } else {
+                snapshotShardId = shardId;
             }
-            final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
-            assert indexShard.getEngineOrNull() == null;
-            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
-                indexShard.recoveryState(), restoreListener);
+            repository.getRepositoryData(ActionListener.wrap(
+                repositoryData -> {
+                    final IndexId indexId = repositoryData.resolveIndexId(indexName);
+                    assert indexShard.getEngineOrNull() == null;
+                    repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
+                        indexShard.recoveryState(), restoreListener);
+                }, restoreListener::onFailure
+            ));
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

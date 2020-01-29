@@ -534,6 +534,29 @@ SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY
 null           |10   
 ;
 
+histogramYearOnDateTimeWithScalars
+schema::year:i|c:l
+SELECT YEAR(CAST(birth_date + INTERVAL 5 YEARS AS DATE) + INTERVAL 20 MONTHS) AS year, COUNT(*) as c FROM test_emp GROUP BY 1;
+
+     year      |   c
+---------------+---------------
+null           |10
+1958           |2
+1959           |12
+1960           |7
+1961           |7
+1962           |4
+1963           |5
+1964           |5
+1965           |7
+1966           |9
+1967           |7
+1968           |7
+1969           |8
+1970           |6
+1971           |4
+;
+
 histogramNumericWithExpression
 schema::h:i|c:l
 SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
@@ -581,8 +604,30 @@ SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
 
    all_names   |       c
 ---------------+---------------
-90             |100
+90             |100 
 ;
+
+countDistinctAndLiteral
+schema::ln:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING ln>5 AND ccc>5;
+
+      ln       |     ccc     
+---------------+-------------
+10             |10           
+33             |33
+57             |57                
+;
+
+countSmallCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
 
 countAllCountTypesWithHaving
 schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
@@ -610,6 +655,29 @@ SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_nam
    areEqual    |      fn       |      dfn
 ---------------+---------------+---------------
 true           |90             |90
+;
+
+aggCountWithNull
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l|languages:bt
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages), languages FROM test_emp GROUP BY languages ORDER BY languages DESC;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)|   languages   
+---------------+---------------+-------------------------+---------------
+null           |21             |1                        |5              
+null           |18             |1                        |4              
+null           |17             |1                        |3              
+null           |19             |1                        |2              
+null           |15             |1                        |1              
+null           |10             |0                        |null          
+;
+
+aggCountZeroDocuments
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages) FROM test_emp WHERE languages > 100;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)
+---------------+---------------+-------------------------
+null           |0              |0
 ;
 
 aggCountAllEquality

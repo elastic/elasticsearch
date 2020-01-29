@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -93,7 +92,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
@@ -129,7 +127,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
@@ -165,23 +162,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
-    }
-
-    public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
-        client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
-        ensureGreen("test");
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
-        assertBusy(() -> {
-                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
-                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-                indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
-            }
-        );
-        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
     public void testDurableFlagHasEffect() throws Exception {
@@ -854,43 +834,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         }
-    }
-
-    public void testLimitNumberOfRetainedTranslogFiles() throws Exception {
-        String indexName = "test";
-        int translogRetentionTotalFiles = randomIntBetween(0, 50);
-        Settings.Builder settings = Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.getKey(), translogRetentionTotalFiles);
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1024 * 1024)));
-        }
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 10_000)));
-        }
-        IndexService indexService = createIndex(indexName, settings.build());
-        IndexShard shard = indexService.getShard(0);
-        shard.rollTranslogGeneration();
-        CheckedRunnable<IOException> checkTranslog = () -> {
-            try (Stream<Path> files = Files.list(getTranslog(shard).location()).sorted(Comparator.reverseOrder())) {
-                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
-                assertThat(totalFiles, either(lessThanOrEqualTo((long) translogRetentionTotalFiles)).or(equalTo(1L)));
-            }
-        };
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            if (randomInt(100) < 10) {
-                client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).get();
-                checkTranslog.run();
-            }
-            if (randomInt(100) < 10) {
-                shard.rollTranslogGeneration();
-            }
-        }
-        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        checkTranslog.run();
     }
 
     /**

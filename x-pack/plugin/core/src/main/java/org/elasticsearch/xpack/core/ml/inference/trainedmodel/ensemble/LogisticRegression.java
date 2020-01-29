@@ -6,16 +6,17 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
@@ -24,6 +25,7 @@ import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.sigmoid
 
 public class LogisticRegression implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LogisticRegression.class);
     public static final ParseField NAME = new ParseField("logistic_regression");
     public static final ParseField WEIGHTS = new ParseField("weights");
 
@@ -48,19 +50,23 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
         return LENIENT_PARSER.apply(parser, null);
     }
 
-    private final List<Double> weights;
+    private final double[] weights;
 
     LogisticRegression() {
         this((List<Double>) null);
     }
 
-    public LogisticRegression(List<Double> weights) {
-        this.weights = weights == null ? null : Collections.unmodifiableList(weights);
+    private LogisticRegression(List<Double> weights) {
+        this(weights == null ? null : weights.stream().mapToDouble(Double::valueOf).toArray());
+    }
+
+    public LogisticRegression(double[] weights) {
+        this.weights = weights;
     }
 
     public LogisticRegression(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            this.weights = Collections.unmodifiableList(in.readList(StreamInput::readDouble));
+            this.weights = in.readDoubleArray();
         } else {
             this.weights = null;
         }
@@ -68,18 +74,18 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
 
     @Override
     public Integer expectedValueSize() {
-        return this.weights == null ? null : this.weights.size();
+        return this.weights == null ? null : this.weights.length;
     }
 
     @Override
     public List<Double> processValues(List<Double> values) {
         Objects.requireNonNull(values, "values must not be null");
-        if (weights != null && values.size() != weights.size()) {
+        if (weights != null && values.size() != weights.length) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
         double summation = weights == null ?
             values.stream().mapToDouble(Double::valueOf).sum() :
-            IntStream.range(0, weights.size()).mapToDouble(i -> values.get(i) * weights.get(i)).sum();
+            IntStream.range(0, weights.length).mapToDouble(i -> values.get(i) * weights[i]).sum();
         double probOfClassOne = sigmoid(summation);
         assert 0.0 <= probOfClassOne && probOfClassOne <= 1.0;
         return Arrays.asList(1.0 - probOfClassOne, probOfClassOne);
@@ -109,6 +115,11 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
     }
 
     @Override
+    public boolean compatibleWith(TargetType targetType) {
+        return true;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
     }
@@ -117,7 +128,7 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(weights != null);
         if (weights != null) {
-            out.writeCollection(weights, StreamOutput::writeDouble);
+            out.writeDoubleArray(weights);
         }
     }
 
@@ -136,12 +147,17 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LogisticRegression that = (LogisticRegression) o;
-        return Objects.equals(weights, that.weights);
+        return Arrays.equals(weights, that.weights);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(weights);
+        return Arrays.hashCode(weights);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        long weightSize = weights == null ? 0L : RamUsageEstimator.sizeOf(weights);
+        return SHALLOW_SIZE + weightSize;
+    }
 }

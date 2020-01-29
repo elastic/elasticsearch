@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -39,7 +39,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         ClientTransformIndexer indexer = new ClientTransformIndexer(
             mock(Executor.class),
-            mock(TransformConfigManager.class),
+            mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
             new TransformProgressGatherer(mock(Client.class)),
             new AtomicReference<>(IndexerState.STOPPED),

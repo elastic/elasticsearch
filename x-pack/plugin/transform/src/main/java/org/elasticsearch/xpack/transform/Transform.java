@@ -27,11 +27,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.transform.action.compat.TransportStopTransformAct
 import org.elasticsearch.xpack.transform.action.compat.TransportUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
@@ -112,7 +114,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlugin {
+public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
     public static final String TASK_THREAD_POOL_NAME = "transform_indexing";
@@ -121,23 +123,19 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     private final boolean enabled;
     private final Settings settings;
-    private final SetOnce<TransformConfigManager> transformConfigManager = new SetOnce<>();
-    private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
-    private final SetOnce<TransformCheckpointService> transformCheckpointService = new SetOnce<>();
-    private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
+    private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
 
     // How many times the transform task can retry on an non-critical failure
-    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting
-        .intSetting(
-            "xpack.transform.num_transform_failure_retries",
-            DEFAULT_FAILURE_RETRIES,
-            0,
-            100,
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
-        );
+    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
+        "xpack.transform.num_transform_failure_retries",
+        DEFAULT_FAILURE_RETRIES,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public Transform(Settings settings) {
         this.settings = settings;
@@ -163,27 +161,26 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        return Arrays
-            .asList(
-                new RestPutTransformAction(restController),
-                new RestStartTransformAction(restController),
-                new RestStopTransformAction(restController),
-                new RestDeleteTransformAction(restController),
-                new RestGetTransformAction(restController),
-                new RestGetTransformStatsAction(restController),
-                new RestPreviewTransformAction(restController),
-                new RestUpdateTransformAction(restController),
+        return Arrays.asList(
+            new RestPutTransformAction(restController),
+            new RestStartTransformAction(restController),
+            new RestStopTransformAction(restController),
+            new RestDeleteTransformAction(restController),
+            new RestGetTransformAction(restController),
+            new RestGetTransformStatsAction(restController),
+            new RestPreviewTransformAction(restController),
+            new RestUpdateTransformAction(restController),
 
-                // deprecated endpoints, to be removed for 8.0.0
-                new RestPutTransformActionDeprecated(restController),
-                new RestStartTransformActionDeprecated(restController),
-                new RestStopTransformActionDeprecated(restController),
-                new RestDeleteTransformActionDeprecated(restController),
-                new RestGetTransformActionDeprecated(restController),
-                new RestGetTransformStatsActionDeprecated(restController),
-                new RestPreviewTransformActionDeprecated(restController),
-                new RestUpdateTransformActionDeprecated(restController)
-            );
+            // deprecated endpoints, to be removed for 8.0.0
+            new RestPutTransformActionDeprecated(restController),
+            new RestStartTransformActionDeprecated(restController),
+            new RestStopTransformActionDeprecated(restController),
+            new RestDeleteTransformActionDeprecated(restController),
+            new RestGetTransformActionDeprecated(restController),
+            new RestGetTransformStatsActionDeprecated(restController),
+            new RestPreviewTransformActionDeprecated(restController),
+            new RestUpdateTransformActionDeprecated(restController)
+        );
     }
 
     @Override
@@ -194,30 +191,29 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
             return Arrays.asList(usageAction, infoAction);
         }
 
-        return Arrays
-            .asList(
-                new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
-                new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
-                new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
-                new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
-                new ActionHandler<>(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
-                new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
-                new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
-                new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
+        return Arrays.asList(
+            new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
+            new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
+            new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
+            new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
+            new ActionHandler<>(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
+            new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
+            new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
+            new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
 
-                // deprecated actions, to be removed for 8.0.0
-                new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
-                new ActionHandler<>(StartTransformActionDeprecated.INSTANCE, TransportStartTransformActionDeprecated.class),
-                new ActionHandler<>(StopTransformActionDeprecated.INSTANCE, TransportStopTransformActionDeprecated.class),
-                new ActionHandler<>(DeleteTransformActionDeprecated.INSTANCE, TransportDeleteTransformActionDeprecated.class),
-                new ActionHandler<>(GetTransformActionDeprecated.INSTANCE, TransportGetTransformActionDeprecated.class),
-                new ActionHandler<>(GetTransformStatsActionDeprecated.INSTANCE, TransportGetTransformStatsActionDeprecated.class),
-                new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
-                new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
+            // deprecated actions, to be removed for 8.0.0
+            new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
+            new ActionHandler<>(StartTransformActionDeprecated.INSTANCE, TransportStartTransformActionDeprecated.class),
+            new ActionHandler<>(StopTransformActionDeprecated.INSTANCE, TransportStopTransformActionDeprecated.class),
+            new ActionHandler<>(DeleteTransformActionDeprecated.INSTANCE, TransportDeleteTransformActionDeprecated.class),
+            new ActionHandler<>(GetTransformActionDeprecated.INSTANCE, TransportGetTransformActionDeprecated.class),
+            new ActionHandler<>(GetTransformStatsActionDeprecated.INSTANCE, TransportGetTransformStatsActionDeprecated.class),
+            new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
+            new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
 
-                usageAction,
-                infoAction
-            );
+            usageAction,
+            infoAction
+        );
     }
 
     @Override
@@ -246,32 +242,38 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
         if (enabled == false) {
             return emptyList();
         }
-        transformAuditor.set(new TransformAuditor(client, clusterService.getNodeName()));
-        transformConfigManager.set(new TransformConfigManager(client, xContentRegistry));
-        transformCheckpointService.set(new TransformCheckpointService(client, transformConfigManager.get(), transformAuditor.get()));
 
-        return Arrays
-            .asList(
-                transformConfigManager.get(),
-                transformAuditor.get(),
-                transformCheckpointService.get(),
-                new TransformClusterStateListener(clusterService, client)
-            );
+        TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
+        TransformCheckpointService checkpointService = new TransformCheckpointService(
+            client,
+            settings,
+            clusterService,
+            configManager,
+            auditor
+        );
+        SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
+
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
+
+        return Arrays.asList(transformServices.get(), new TransformClusterStateListener(clusterService, client));
     }
 
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             try {
-                templates
-                    .put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetaData());
+                templates.put(
+                    TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
+                    TransformInternalIndex.getIndexTemplateMetaData()
+                );
             } catch (IOException e) {
-                logger.error("Error creating data frame index template", e);
+                logger.error("Error creating transform index template", e);
             }
             try {
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
             } catch (IOException e) {
-                logger.warn("Error creating data frame audit index", e);
+                logger.warn("Error creating transform audit index", e);
             }
             return templates;
         };
@@ -288,27 +290,12 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        schedulerEngine.set(new SchedulerEngine(settings, Clock.systemUTC()));
+        // the transform services should have been created
+        assert transformServices.get() != null;
 
-        // the transforms config manager should have been created
-        assert transformConfigManager.get() != null;
-        // the auditor should have been created
-        assert transformAuditor.get() != null;
-        assert transformCheckpointService.get() != null;
-
-        return Collections
-            .singletonList(
-                new TransformPersistentTasksExecutor(
-                    client,
-                    transformConfigManager.get(),
-                    transformCheckpointService.get(),
-                    schedulerEngine.get(),
-                    transformAuditor.get(),
-                    threadPool,
-                    clusterService,
-                    settingsModule.getSettings()
-                )
-            );
+        return Collections.singletonList(
+            new TransformPersistentTasksExecutor(client, transformServices.get(), threadPool, clusterService, settingsModule.getSettings())
+        );
     }
 
     @Override
@@ -318,13 +305,23 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public void close() {
-        if (schedulerEngine.get() != null) {
-            schedulerEngine.get().stop();
+        if (transformServices.get() != null) {
+            transformServices.get().getSchedulerEngine().stop();
         }
     }
 
     @Override
     public List<Entry> getNamedXContent() {
         return new TransformNamedXContentProvider().getNamedXContentParsers();
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.unmodifiableList(Arrays.asList(
+            // TODO: Verify that these should be system indices, rather than hidden indices
+            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED, this.getClass().getSimpleName())
+        ));
     }
 }

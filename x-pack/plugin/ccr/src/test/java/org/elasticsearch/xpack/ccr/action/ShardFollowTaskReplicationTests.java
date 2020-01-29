@@ -18,6 +18,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -67,6 +68,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -339,7 +341,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetaData indexMetaData = buildIndexMetaData(between(0, 1), settings, indexMapping);
@@ -425,7 +426,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ReplicationGroup createLeaderGroup(int replicas) throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
             .build();
         return createGroup(replicas, settings);
@@ -433,10 +433,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ReplicationGroup createFollowGroup(ReplicationGroup leaderGroup, int replicas) throws IOException {
         final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(
-                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                        new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                     new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
                 .build();
         IndexMetaData indexMetaData = buildIndexMetaData(replicas, settings, indexMapping);
         return new ReplicationGroup(indexMetaData) {
@@ -668,26 +666,32 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
-            ActionListener.completeWith(listener, () -> {
-                final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-                primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
-                final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
-                try (Releasable ignored = permitFuture.get()) {
-                    ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
-                        request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
-                }
-                return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
-                    @Override
-                    public void respond(ActionListener<BulkShardOperationsResponse> listener) {
-                        ccrResult.respond(listener);
-                    }
-                };
-            });
+            final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+            final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+            try (Releasable ignored = permitFuture.get()) {
+                ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
+                    request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+                TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
+            } catch (InterruptedException | ExecutionException | IOException e) {
+                throw new AssertionError(e);
+            }
+            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
+        }
+
+        @Override
+        protected void adaptResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+            TransportBulkShardOperationsAction.adaptBulkShardOperationsResponse(response, indexShard);
         }
 
         @Override
         protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
-            TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger);
+            try (Releasable ignored = PlainActionFuture.get(f -> replica.acquireReplicaOperationPermit(
+                getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getLastKnownGlobalCheckpoint(),
+                getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), f, ThreadPool.Names.SAME, request))) {
+                Translog.Location location = TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger).location;
+                TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
+            }
         }
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -44,9 +46,13 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DEFINITION = new ParseField("definition");
+    public static final ParseField COMPRESSED_DEFINITION = new ParseField("compressed_definition");
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField INPUT = new ParseField("input");
+    public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
+    public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -63,13 +69,17 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareObject(TrainedModelConfig.Builder::setDefinition,
             (p, c) -> TrainedModelDefinition.fromXContent(p),
             DEFINITION);
+        PARSER.declareString(TrainedModelConfig.Builder::setCompressedDefinition, COMPRESSED_DEFINITION);
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
+        PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
+        PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
     }
 
-    public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static TrainedModelConfig fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null).build();
     }
 
     private final String modelId;
@@ -78,9 +88,13 @@ public class TrainedModelConfig implements ToXContentObject {
     private final String description;
     private final Instant createTime;
     private final TrainedModelDefinition definition;
+    private final String compressedDefinition;
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
+    private final Long estimatedHeapMemory;
+    private final Long estimatedOperations;
+    private final String licenseLevel;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -88,18 +102,26 @@ public class TrainedModelConfig implements ToXContentObject {
                        String description,
                        Instant createTime,
                        TrainedModelDefinition definition,
+                       String compressedDefinition,
                        List<String> tags,
                        Map<String, Object> metadata,
-                       TrainedModelInput input) {
+                       TrainedModelInput input,
+                       Long estimatedHeapMemory,
+                       Long estimatedOperations,
+                       String licenseLevel) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
-        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.definition = definition;
+        this.compressedDefinition = compressedDefinition;
         this.description = description;
         this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
         this.input = input;
+        this.estimatedHeapMemory = estimatedHeapMemory;
+        this.estimatedOperations = estimatedOperations;
+        this.licenseLevel = licenseLevel;
     }
 
     public String getModelId() {
@@ -134,8 +156,28 @@ public class TrainedModelConfig implements ToXContentObject {
         return definition;
     }
 
+    public String getCompressedDefinition() {
+        return compressedDefinition;
+    }
+
     public TrainedModelInput getInput() {
         return input;
+    }
+
+    public ByteSizeValue getEstimatedHeapMemory() {
+        return estimatedHeapMemory == null ? null : new ByteSizeValue(estimatedHeapMemory);
+    }
+
+    public Long getEstimatedHeapMemoryBytes() {
+        return estimatedHeapMemory;
+    }
+
+    public Long getEstimatedOperations() {
+        return estimatedOperations;
+    }
+
+    public String getLicenseLevel() {
+        return licenseLevel;
     }
 
     public static Builder builder() {
@@ -172,6 +214,18 @@ public class TrainedModelConfig implements ToXContentObject {
         if (input != null) {
             builder.field(INPUT.getPreferredName(), input);
         }
+        if (estimatedHeapMemory != null) {
+            builder.field(ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(), estimatedHeapMemory);
+        }
+        if (estimatedOperations != null) {
+            builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
+        }
+        if (compressedDefinition != null) {
+            builder.field(COMPRESSED_DEFINITION.getPreferredName(), compressedDefinition);
+        }
+        if (licenseLevel != null) {
+            builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel);
+        }
         builder.endObject();
         return builder;
     }
@@ -192,8 +246,12 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(description, that.description) &&
             Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
+            Objects.equals(compressedDefinition, that.compressedDefinition) &&
             Objects.equals(tags, that.tags) &&
             Objects.equals(input, that.input) &&
+            Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
+            Objects.equals(estimatedOperations, that.estimatedOperations) &&
+            Objects.equals(licenseLevel, that.licenseLevel) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -204,9 +262,13 @@ public class TrainedModelConfig implements ToXContentObject {
             version,
             createTime,
             definition,
+            compressedDefinition,
             description,
             tags,
+            estimatedHeapMemory,
+            estimatedOperations,
             metadata,
+            licenseLevel,
             input);
     }
 
@@ -221,7 +283,11 @@ public class TrainedModelConfig implements ToXContentObject {
         private Map<String, Object> metadata;
         private List<String> tags;
         private TrainedModelDefinition definition;
+        private String compressedDefinition;
         private TrainedModelInput input;
+        private Long estimatedHeapMemory;
+        private Long estimatedOperations;
+        private String licenseLevel;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -257,6 +323,10 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setTags(String... tags) {
+            return setTags(Arrays.asList(tags));
+        }
+
         public Builder setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
             return this;
@@ -264,6 +334,11 @@ public class TrainedModelConfig implements ToXContentObject {
 
         public Builder setDefinition(TrainedModelDefinition.Builder definition) {
             this.definition = definition == null ? null : definition.build();
+            return this;
+        }
+
+        public Builder setCompressedDefinition(String compressedDefinition) {
+            this.compressedDefinition = compressedDefinition;
             return this;
         }
 
@@ -277,6 +352,21 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
+        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+            this.estimatedHeapMemory = estimatedHeapMemory;
+            return this;
+        }
+
+        private Builder setEstimatedOperations(Long estimatedOperations) {
+            this.estimatedOperations = estimatedOperations;
+            return this;
+        }
+
+        private Builder setLicenseLevel(String licenseLevel) {
+            this.licenseLevel = licenseLevel;
+            return this;
+        }
+
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
@@ -285,9 +375,13 @@ public class TrainedModelConfig implements ToXContentObject {
                 description,
                 createTime,
                 definition,
+                compressedDefinition,
                 tags,
                 metadata,
-                input);
+                input,
+                estimatedHeapMemory,
+                estimatedOperations,
+                licenseLevel);
         }
     }
 

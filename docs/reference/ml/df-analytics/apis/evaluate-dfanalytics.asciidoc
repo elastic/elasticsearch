@@ -12,6 +12,7 @@ Evaluates the {dfanalytics} for an annotated index.
 
 experimental[]
 
+
 [[ml-evaluate-dfanalytics-request]]
 ==== {api-request-title}
 
@@ -21,8 +22,12 @@ experimental[]
 [[ml-evaluate-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-* You must have `monitor_ml` privilege to use this API. For more 
-information, see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-evaluate-dfanalytics-desc]]
@@ -37,17 +42,9 @@ result field to be present.
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`index`::
-  (Required, object) Defines the `index` in which the evaluation will be
-  performed.
-
-`query`::
-  (Optional, object) A query clause that retrieves a subset of data from the 
-  source index. See <<query-dsl>>.
-
 `evaluation`::
-  (Required, object) Defines the type of evaluation you want to perform. See 
-  <<ml-evaluate-dfanalytics-resources>>.
+(Required, object) Defines the type of evaluation you want to perform.
+See <<ml-evaluate-dfanalytics-resources>>.
 +
 --
 Available evaluation types:
@@ -55,7 +52,120 @@ Available evaluation types:
 * `binary_soft_classification`
 * `regression`
 * `classification`
+
 --
+
+`index`::
+(Required, object) Defines the `index` in which the evaluation will be
+performed.
+
+`query`::
+(Optional, object) A query clause that retrieves a subset of data from the
+source index. See <<query-dsl>>.
+
+[[ml-evaluate-dfanalytics-resources]]
+==== {dfanalytics-cap} evaluation resources
+
+[[binary-sc-resources]]
+===== Binary soft classification evaluation objects
+
+Binary soft classification evaluates the results of an analysis which outputs 
+the probability that each document belongs to a certain class. For example, in 
+the context of {oldetection}, the analysis outputs the probability whether each 
+document is an outlier.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`. 
+  The data type of this field can be boolean or integer. If the data type is 
+  integer, the value has to be either `0` (false) or `1` (true).
+
+`predicted_probability_field`::
+  (Required, string) The field of the `index` that defines the probability of 
+  whether the item belongs to the class in question or not. It's the field that 
+  contains the results of the analysis.
+
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation. 
+  Available metrics:
+  
+  `auc_roc`:::
+    (Optional, object) The AUC ROC (area under the curve of the receiver 
+    operating characteristic) score and optionally the curve. Default value is 
+    {"includes_curve": false}.
+    
+  `confusion_matrix`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where
+    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true
+    negative, `fn` - false negative) are calculated. Default value is
+    {"at": [0.25, 0.50, 0.75]}.
+
+  `precision`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `recall`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+
+    
+[[regression-evaluation-resources]]
+===== {regression-cap} evaluation objects
+
+{regression-cap} evaluation evaluates the results of a {regression} analysis 
+which outputs a prediction of values.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`. 
+  The data type of this field must be numerical.
+  
+`predicted_field`::
+  (Required, string) The field in the `index` that contains the predicted value, 
+  in other words the results of the {regression} analysis.
+  
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation.
+  Available metrics:
+
+  `mean_squared_error`:::
+    (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
+    For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
+
+  `r_squared`:::
+    (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
+    For more information, read https://en.wikipedia.org/wiki/Coefficient_of_determination[this wiki article].
+
+
+  
+[[classification-evaluation-resources]]
+==== {classification-cap} evaluation objects
+
+{classification-cap} evaluation evaluates the results of a {classanalysis} which 
+outputs a prediction that identifies to which of the classes each document 
+belongs.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`.
+  The data type of this field must be categorical.
+  
+`predicted_field`::
+  (Required, string) The field in the `index` that contains the predicted value, 
+  in other words the results of the {classanalysis}.
+
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation.
+  Available metrics:
+
+  `accuracy`:::
+    (Optional, object) Accuracy of predictions (per-class and overall).
+
+  `multiclass_confusion_matrix`:::
+    (Optional, object) Multiclass confusion matrix.
+
+  `precision`:::
+    (Optional, object) Precision of predictions (per-class and average).
+
+  `recall`:::
+    (Optional, object) Recall of predictions (per-class and average).
 
 
 ////
@@ -75,9 +185,12 @@ Available evaluation types:
 `recall`::: TBD
 ////
 
+
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}
 
+
+[[ml-evaluate-binary-soft-class-example]]
 ===== Binary soft classification
 
 [source,console]
@@ -139,6 +252,7 @@ The API returns the following results:
 ----
 
 
+[[ml-evaluate-regression-example]]
 ===== {regression-cap}
 
 [source,console]
@@ -252,6 +366,7 @@ performance. This is required in order to evaluate results.
 calculated by the {reganalysis}.
 
 
+[[ml-evaluate-classification-example]]
 ===== {classification-cap}
 
 
@@ -263,7 +378,7 @@ POST _ml/data_frame/_evaluate
    "evaluation": {
       "classification": { <1>
          "actual_field": "animal_class", <2>
-         "predicted_field": "ml.animal_class_prediction.keyword", <3>
+         "predicted_field": "ml.animal_class_prediction", <3>
          "metrics": {  
            "multiclass_confusion_matrix" : {} <4>
          }
@@ -277,8 +392,7 @@ POST _ml/data_frame/_evaluate
 <2> The field that contains the ground truth value for the actual animal 
 classification. This is required in order to evaluate results.
 <3> The field that contains the predicted value for animal classification by 
-the {classanalysis}. Since the field storing predicted class is dynamically 
-mapped as text and keyword, you need to add the `.keyword` suffix to the name.
+the {classanalysis}.
 <4> Specifies the metric for the evaluation.
 
 
@@ -311,14 +425,14 @@ The API returns the following result:
             "predicted_classes" : [
               {
                 "predicted_class" : "dog",
-                "count" : 11
+                "count" : 7
               },
               {
                 "predicted_class" : "cat",
                 "count" : 4
               }
             ],
-            "other_predicted_class_doc_count" : 4
+            "other_predicted_class_doc_count" : 0
           }
         ],
         "other_actual_class_count" : 0

@@ -64,6 +64,7 @@ thirdPartyAudit {
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
     'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.asn1.x500.X500Name',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -154,12 +155,12 @@ thirdPartyAudit {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
 }
-rootProject.globalInfo.ready {
-  if (BuildParams.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.ignoreMissingClasses(
-      'org.bouncycastle.asn1.x500.X500Name'
-    )
-  }
+
+if (BuildParams.inFipsJvm == false) {
+  // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+  // a FIPS JVM with BouncyCastleFIPS Provider
+  thirdPartyAudit.ignoreMissingClasses(
+    'org.bouncycastle.asn1.x500.X500Name'
+  )
 }
+

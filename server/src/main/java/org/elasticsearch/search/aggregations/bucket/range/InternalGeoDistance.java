@@ -23,6 +23,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -56,7 +57,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
         public ValuesSourceType getValueSourceType() {
-            return ValuesSourceType.GEOPOINT;
+            return CoreValuesSourceType.GEOPOINT;
         }
 
         @Override

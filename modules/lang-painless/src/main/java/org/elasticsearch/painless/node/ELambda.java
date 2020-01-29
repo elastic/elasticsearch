@@ -19,19 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.LambdaNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,8 +64,6 @@ public final class ELambda extends AExpression implements ILambda {
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
 
-    private CompilerSettings settings;
-
     // extracted variables required to determine captures
     private final Set<String> extractedVariables;
     // desugared synthetic method (lambda body)
@@ -90,15 +84,6 @@ public final class ELambda extends AExpression implements ILambda {
         this.statements = Collections.unmodifiableList(statements);
 
         this.extractedVariables = new HashSet<>();
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
-            statement.storeSettings(settings);
-        }
-
-        this.settings = settings;
     }
 
     @Override
@@ -180,10 +165,9 @@ public final class ELambda extends AExpression implements ILambda {
         desugared = new SFunction(
                 location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames,
                 new SBlock(location, statements), true);
-        desugared.storeSettings(settings);
         desugared.generateSignature(scriptRoot.getPainlessLookup());
         desugared.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
-                                                desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
+                desugared.parameters, captures.size(), scriptRoot.getCompilerSettings().getMaxLoopCounter()));
         scriptRoot.getFunctionTable().addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
         scriptRoot.getClassNode().addFunction(desugared);
 
@@ -201,25 +185,18 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    LambdaNode write() {
+        LambdaNode lambdaNode = new LambdaNode();
 
-        if (ref != null) {
-            methodWriter.writeDebugInfo(location);
-            // load captures
-            for (Variable capture : captures) {
-                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
-            }
+        lambdaNode.setLocation(location);
+        lambdaNode.setExpressionType(actual);
+        lambdaNode.setFuncRef(ref);
 
-            methodWriter.invokeLambdaCall(ref);
-        } else {
-            // placeholder
-            methodWriter.push((String)null);
-            // load captures
-            for (Variable capture : captures) {
-                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
-            }
+        for (Variable capture : captures) {
+            lambdaNode.addCapture(capture.name);
         }
+
+        return lambdaNode;
     }
 
     @Override
@@ -228,10 +205,10 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    public org.objectweb.asm.Type[] getCaptures() {
-        org.objectweb.asm.Type[] types = new org.objectweb.asm.Type[captures.size()];
-        for (int i = 0; i < types.length; i++) {
-            types[i] = MethodWriter.getType(captures.get(i).clazz);
+    public List<Class<?>> getCaptures() {
+        List<Class<?>> types = new ArrayList<>();
+        for (Variable variable : captures) {
+            types.add(variable.clazz);
         }
         return types;
     }

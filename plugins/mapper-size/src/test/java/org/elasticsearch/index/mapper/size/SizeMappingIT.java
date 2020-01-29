@@ -49,11 +49,10 @@ public class SizeMappingIT extends ESIntegTestCase {
     // issue 5053
     public void testThatUpdatingMappingShouldNotRemoveSizeMappingConfiguration() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder =
             jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -63,7 +62,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text")
                 .endObject().endObject().endObject();
         AcknowledgedResponse putMappingResponse =
-            client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+            client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -72,11 +71,10 @@ public class SizeMappingIT extends ESIntegTestCase {
 
     public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder =
             jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -85,7 +83,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         XContentBuilder updateMappingBuilder =
             jsonBuilder().startObject().startObject("_size").field("enabled", false).endObject().endObject();
         AcknowledgedResponse putMappingResponse =
-            client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+            client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -105,7 +103,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     }
 
     public void testBasic() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
+        assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));

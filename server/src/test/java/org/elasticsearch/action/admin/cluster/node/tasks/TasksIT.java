@@ -294,7 +294,7 @@ public class TasksIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
+        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test").setId("test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
@@ -768,6 +768,13 @@ public class TasksIT extends ESIntegTestCase {
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
+
+        // run it again to check that the tasks index has been successfully created and can be re-used
+        client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
+
+        events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
+
+        assertEquals(2, events.size());
     }
 
     public void testTaskStoringFailureResult() throws Exception {

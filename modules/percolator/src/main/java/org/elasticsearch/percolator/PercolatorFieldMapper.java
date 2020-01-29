@@ -434,10 +434,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         ParseContext.Document doc = context.doc();
         FieldType pft = (FieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        try {
-            Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
-            result = QueryAnalyzer.analyze(query, indexVersion);
-        } catch (QueryAnalyzer.UnsupportedQueryException e) {
+        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        result = QueryAnalyzer.analyze(query, indexVersion);
+        if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             return;
         }

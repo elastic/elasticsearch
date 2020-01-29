@@ -124,6 +124,7 @@ public class ReplicationOperationTests extends ESTestCase {
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
         assertThat(replicasProxy.failedReplicas, equalTo(simulatedFailures.keySet()));
         assertThat(replicasProxy.markedAsStaleCopies, equalTo(staleAllocationIds));
+        assertThat("post replication operations not run on primary", request.runPostReplicationActionsOnPrimary.get(), equalTo(true));
         assertTrue("listener is not marked as done", listener.isDone());
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(reportedFailures.size()));
@@ -437,6 +438,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
     public static class Request extends ReplicationRequest<Request> {
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
+        public AtomicBoolean runPostReplicationActionsOnPrimary = new AtomicBoolean();
         public Set<ShardRouting> processedOnReplicas = ConcurrentCollections.newConcurrentSet();
 
         Request(ShardId shardId) {
@@ -503,6 +505,14 @@ public class ReplicationOperationTests extends ESTestCase {
             @Override
             public void setShardInfo(ShardInfo shardInfo) {
                 this.shardInfo = shardInfo;
+            }
+
+            @Override
+            public void runPostReplicationActions(ActionListener<Void> listener) {
+                if (request.runPostReplicationActionsOnPrimary.compareAndSet(false, true) == false) {
+                    fail("processed [" + request + "] twice");
+                }
+                listener.onResponse(null);
             }
 
             public ShardInfo getShardInfo() {
@@ -597,6 +607,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 final long maxSeqNoOfUpdatesOrDeletes,
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             assertTrue("replica request processed twice on [" + replica + "]", request.processedOnReplicas.add(replica));
+            assertFalse("primary post replication actions should run after replication", request.runPostReplicationActionsOnPrimary.get());
             if (opFailures.containsKey(replica)) {
                 listener.onFailure(opFailures.get(replica));
             } else {

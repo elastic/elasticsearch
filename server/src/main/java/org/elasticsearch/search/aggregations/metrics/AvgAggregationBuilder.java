@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,18 +42,17 @@ import java.util.Map;
 public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregationBuilder> {
     public static final String NAME = "avg";
 
-    private static final ObjectParser<AvgAggregationBuilder, Void> PARSER;
+    private static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(AvgAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new AvgAggregationBuilder(aggregationName), null);
+        return PARSER.parse(parser, aggregationName);
     }
 
     public AvgAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -64,7 +63,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      * Read from a stream.
      */
     public AvgAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override

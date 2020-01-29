@@ -171,7 +171,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         return ActionListener.wrap(response -> {
             jobResultsProvider.dataCounts(jobId, counts -> {
                 counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
+                jobDataCountsPersister.persistDataCountsAsync(jobId, counts, new ActionListener<Boolean>() {
                     @Override
                     public void onResponse(Boolean aBoolean) {
                         listener.onResponse(response);

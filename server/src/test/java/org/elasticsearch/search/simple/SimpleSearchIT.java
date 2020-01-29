@@ -89,8 +89,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleIp() throws Exception {
         createIndex("test");
 
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("from").field("type", "ip").endObject()
                         .startObject("to").field("type", "ip").endObject()
                         .endObject().endObject().endObject())
@@ -109,8 +109,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testIpCidr() throws Exception {
         createIndex("test");
 
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("ip").field("type", "ip").endObject()
                         .endObject().endObject().endObject())
                 .get();
@@ -260,7 +260,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.sort.field", "rank")
             )
-            .addMapping("type1", "rank", "type=integer")
+            .setMapping("rank", "type=integer")
             .get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
@@ -415,7 +415,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
+        assertAcked(prepareCreate("idx").setMapping("num", "type=integer"));
         ensureGreen("idx");
 
         try {

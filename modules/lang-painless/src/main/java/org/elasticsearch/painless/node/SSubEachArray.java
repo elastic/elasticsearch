@@ -20,18 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -58,11 +53,6 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
@@ -78,41 +68,24 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    ForEachSubArrayNode write() {
+        ForEachSubArrayNode forEachSubArrayNode = new ForEachSubArrayNode();
 
-        expression.write(classWriter, methodWriter, globals);
-        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
-        methodWriter.push(-1);
-        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
+        forEachSubArrayNode.setConditionNode(expression.write());
+        forEachSubArrayNode.setBlockNode(block.write());
 
-        Label begin = new Label();
-        Label end = new Label();
+        forEachSubArrayNode.setLocation(location);
+        forEachSubArrayNode.setVariableType(variable.clazz);
+        forEachSubArrayNode.setVariableName(variable.name);
+        forEachSubArrayNode.setCast(cast);
+        forEachSubArrayNode.setArrayType(array.clazz);
+        forEachSubArrayNode.setArrayName(array.name.substring(1));
+        forEachSubArrayNode.setIndexType(index.clazz);
+        forEachSubArrayNode.setIndexName(index.name.substring(1));
+        forEachSubArrayNode.setIndexedType(indexed);
+        forEachSubArrayNode.setContinuous(false);
 
-        methodWriter.mark(begin);
-
-        methodWriter.visitIincInsn(index.getSlot(), 1);
-        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.arrayLength();
-        methodWriter.ifICmp(MethodWriter.GE, end);
-
-        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.arrayLoad(MethodWriter.getType(indexed));
-        methodWriter.writeCast(cast);
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
-        }
-
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
-
-        methodWriter.goTo(begin);
-        methodWriter.mark(end);
+        return forEachSubArrayNode;
     }
 
     @Override

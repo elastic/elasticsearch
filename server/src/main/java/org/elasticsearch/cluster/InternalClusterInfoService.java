@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -258,6 +259,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.clear();
         indicesStatsRequest.store(true);
+        indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
 
         client.admin().indices().stats(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;

@@ -250,8 +250,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testPreconfiguredTokenFilters() throws IOException {
         Set<String> disallowedFilters = new HashSet<>(Arrays.asList(
-            "common_grams", "edge_ngram", "edgeNGram", "keyword_repeat", "ngram", "nGram",
-            "shingle", "word_delimiter", "word_delimiter_graph"
+            "common_grams", "edge_ngram", "keyword_repeat", "ngram", "shingle",
+            "word_delimiter", "word_delimiter_graph"
         ));
 
         Settings settings = Settings.builder()
@@ -260,23 +260,23 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        Set<String> disallowedFiltersTested = new HashSet<String>();
 
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-
-        for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
-            if (disallowedFilters.contains(tf.getName())) {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    "Expected exception for factory " + tf.getName(), () -> {
-                        tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
-                    });
-                assertEquals(tf.getName(), "Token filter [" + tf.getName()
-                        + "] cannot be used to parse synonyms",
-                    e.getMessage());
-            }
-            else {
-                tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+        try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
+            for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
+                if (disallowedFilters.contains(tf.getName())) {
+                    IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                            "Expected exception for factory " + tf.getName(), () -> {
+                                tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                            });
+                    assertEquals(tf.getName(), "Token filter [" + tf.getName() + "] cannot be used to parse synonyms", e.getMessage());
+                    disallowedFiltersTested.add(tf.getName());
+                } else {
+                    tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                }
             }
         }
+        assertEquals("Set of dissallowed filters contains more filters than tested", disallowedFiltersTested, disallowedFilters);
     }
 
     public void testDisallowedTokenFilters() throws IOException {

@@ -263,6 +263,10 @@ If you want to just run the precommit checks:
 
 Some of these checks will require `docker-compose` installed for bringing up
 test fixtures. If it's not present those checks will be skipped automatically.
+The host running Docker (or VM if you're using Docker Desktop) needs 4GB of
+memory or some of the containers will fail to start. You can tell that you
+are short of memory if containers are exiting quickly after starting with
+code 137 (128 + 9, where 9 means SIGKILL).
 
 == Testing the REST layer
 

@@ -84,7 +84,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
@@ -570,7 +569,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()
-                .startObject(TYPE)
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "text")
@@ -578,14 +577,14 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
         client().prepareIndex(INDEX).setId("1").setRefreshPolicy(IMMEDIATE)
                 .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE)
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX)
                 .setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "text")
                 .startObject("fields")
@@ -771,9 +770,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .get();
         ensureGreen();
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE)
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX)
                 .setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion").field("analyzer", "simple")
                 .endObject()
@@ -1009,7 +1008,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject("test_field")
                     .field("type", "keyword")
                 .endObject()
@@ -1051,7 +1050,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(TYPE, mapping)
+                .setMapping(mapping)
                 .get());
     }
 
@@ -1100,8 +1099,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3596
     public void testVeryLongInput() throws IOException {
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setMapping(jsonBuilder().startObject()
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
@@ -1119,8 +1118,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3648
     public void testReservedChars() throws IOException {
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setMapping(jsonBuilder().startObject()
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
@@ -1138,8 +1137,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #5930
     public void testIssue5930() throws IOException {
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setMapping(jsonBuilder().startObject()
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
@@ -1182,7 +1181,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testSuggestWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject(TYPE)
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject(FIELD)
                             .field("type", "completion")
@@ -1194,7 +1193,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(INDEX).setSource(FIELD, "apple"));

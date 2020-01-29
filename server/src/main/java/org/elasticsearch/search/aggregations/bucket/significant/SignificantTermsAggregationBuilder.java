@@ -23,30 +23,27 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -65,48 +62,36 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
             3, 0, 10, -1);
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
-    public static Aggregator.Parser getParser(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry) {
-        ObjectParser<SignificantTermsAggregationBuilder, Void> aggregationParser =
-                new ObjectParser<>(SignificantTermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(aggregationParser, true, true);
+    private static final ObjectParser<SignificantTermsAggregationBuilder, Void> PARSER = new ObjectParser<>(
+        SignificantTermsAggregationBuilder.NAME,
+        SignificanceHeuristic.class, SignificantTermsAggregationBuilder::significanceHeuristic, null);
+    static {
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
 
-        aggregationParser.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
+        PARSER.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
 
-        aggregationParser.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
+        PARSER.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
 
-        aggregationParser.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount,
+        PARSER.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount,
                 TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
 
-        aggregationParser.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
+        PARSER.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
-        aggregationParser.declareString(SignificantTermsAggregationBuilder::executionHint,
+        PARSER.declareString(SignificantTermsAggregationBuilder::executionHint,
                 TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
 
-        aggregationParser.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
+        PARSER.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
                 (p, context) -> parseInnerQueryBuilder(p),
                 SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
 
-        aggregationParser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
                 IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
-        aggregationParser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
-
-        for (String name : significanceHeuristicParserRegistry.getNames()) {
-            aggregationParser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
-                    (p, context) -> {
-                        SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                                .lookupReturningNullIfNotFound(name, p.getDeprecationHandler());
-                        return significanceHeuristicParser.parse(p);
-                    },
-                    new ParseField(name));
-        }
-        return new Aggregator.Parser() {
-            @Override
-            public AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-                return aggregationParser.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
-            }
-        };
+    }
+    public static SignificantTermsAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
     }
 
     private IncludeExclude includeExclude = null;
@@ -116,14 +101,14 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
     public SignificantTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, ValuesSourceType.ANY, valueType);
+        super(name, CoreValuesSourceType.ANY, valueType);
     }
 
     /**
      * Read from a Stream.
      */
     public SignificantTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY);
+        super(in, CoreValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);

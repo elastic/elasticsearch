@@ -32,11 +32,12 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     TimeBasedCheckpointProvider(
         final Client client,
+        final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig
     ) {
-        super(client, transformConfigManager, transformAuditor, transformConfig);
+        super(client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
     }
 
@@ -45,20 +46,16 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         final long timestamp = getTime();
 
-        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex())
-            .allowPartialSearchResults(false)
+        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .size(0)
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)
             // we only want to know if there is at least 1 new document
             .trackTotalHitsUpTo(1);
 
         QueryBuilder queryBuilder = transformConfig.getSource().getQueryConfig().getQuery();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-            .filter(queryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(
-                new RangeQueryBuilder(timeSyncConfig.getField())
-                    .gte(lastCheckpoint.getTimeUpperBound())
+                new RangeQueryBuilder(timeSyncConfig.getField()).gte(lastCheckpoint.getTimeUpperBound())
                     .lt(timestamp - timeSyncConfig.getDelay().millis())
                     .format("epoch_millis")
             );
@@ -68,15 +65,14 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
-        ClientHelper
-            .executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                SearchAction.INSTANCE,
-                searchRequest,
-                ActionListener.wrap(r -> { listener.onResponse(r.getHits().getTotalHits().value > 0L); }, listener::onFailure)
-            );
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequest,
+            ActionListener.wrap(r -> { listener.onResponse(r.getHits().getTotalHits().value > 0L); }, listener::onFailure)
+        );
     }
 
     @Override
@@ -88,16 +84,14 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
 
         getIndexCheckpoints(
-            ActionListener
-                .wrap(
-                    checkpointsByIndex -> {
-                        listener
-                            .onResponse(
-                                new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
-                            );
-                    },
-                    listener::onFailure
-                )
+            ActionListener.wrap(
+                checkpointsByIndex -> {
+                    listener.onResponse(
+                        new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
+                    );
+                },
+                listener::onFailure
+            )
         );
     }
 

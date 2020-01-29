@@ -10,18 +10,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
-import org.elasticsearch.xpack.vectors.query.VectorScriptDocValues.DenseVectorScriptDocValues;
 import org.junit.Before;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoderTests.mockEncodeDenseVector;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,7 +40,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
         invalidQueryVector = Arrays.asList(0.5, 111.3);
     }
 
-    public void testDenseVectorFunctions() {
+    public void testVectorFunctions() {
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BytesRef encodedDocVector = mockEncodeDenseVector(docVector, indexVersion);
             DenseVectorScriptDocValues docValues = mock(DenseVectorScriptDocValues.class);
@@ -95,5 +95,25 @@ public class DenseVectorFunctionTests extends ESTestCase {
         L2Norm invalidFunction = new L2Norm(scoreScript, invalidQueryVector, field);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::l2norm);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+    }
+
+    private static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
+            ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
+            : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
+        double dotProduct = 0f;
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        for (float value : values) {
+            byteBuffer.putFloat(value);
+            dotProduct += value * value;
+        }
+
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            // encode vector magnitude at the end
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            byteBuffer.putFloat(vectorMagnitude);
+        }
+        return new BytesRef(bytes);
     }
 }

@@ -19,15 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.ir.DoWhileLoopNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -47,15 +42,6 @@ public final class SDo extends AStatement {
 
         this.condition = Objects.requireNonNull(condition);
         this.block = block;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-
-        if (block != null) {
-            block.storeSettings(settings);
-        }
     }
 
     @Override
@@ -108,32 +94,16 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    DoWhileLoopNode write() {
+        DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
 
-        Label start = new Label();
-        Label begin = new Label();
-        Label end = new Label();
+        doWhileLoopNode.setConditionNode(condition.write());
+        doWhileLoopNode.setBlockNode(block.write());
 
-        methodWriter.mark(start);
+        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setContinuous(continuous);
 
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
-
-        methodWriter.mark(begin);
-
-        if (!continuous) {
-            condition.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-        }
-
-        methodWriter.goTo(start);
-        methodWriter.mark(end);
+        return doWhileLoopNode;
     }
 
     @Override

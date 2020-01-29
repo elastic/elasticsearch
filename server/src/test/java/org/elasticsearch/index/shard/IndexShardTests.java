@@ -156,7 +156,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -2114,8 +2113,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         IndexShardTestCase.updateRoutingEntry(primarySource,
             primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
-        final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard(), Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), primarySource.indexSettings().isSoftDeleteEnabled()).build());
+        final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetaData());
         recoverReplica(primaryTarget, primarySource, true);
 
@@ -2129,13 +2127,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /* This test just verifies that we fill up local checkpoint up to max seen seqID on primary recovery */
     public void testRecoverFromStoreWithNoOps() throws IOException {
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean()).build();
-        final IndexShard shard = newStartedShard(true, settings);
+        final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0");
         indexDoc(shard, "_doc", "1");
         // start a replica shard and index the second doc
-        final IndexShard otherShard = newStartedShard(false, settings);
+        final IndexShard otherShard = newStartedShard(false);
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "1",
             new BytesArray("{}"), XContentType.JSON);
@@ -2315,8 +2311,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
-        IndexShard target = newStartedShard(true, Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), source.indexSettings().isSoftDeleteEnabled()).build());
+        IndexShard target = newStartedShard(true);
 
         indexDoc(source, "_doc", "0");
         EngineTestCase.generateNewSeqNo(source.getEngine()); // create a gap in the history
@@ -2429,7 +2424,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\", \"fielddata\": true }}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"fielddata\": true }}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, wrapper);
@@ -2556,7 +2551,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2601,7 +2596,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE)).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2658,7 +2653,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2707,7 +2702,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2782,7 +2777,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("source")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
 
@@ -2804,8 +2799,8 @@ public class IndexShardTests extends IndexShardTestCase {
             targetShard = newShard(targetRouting);
             targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
 
-            BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
-                assertNull(requestedMappingUpdates.put(type, mapping));
+            Consumer<MappingMetaData> mappingConsumer = mapping -> {
+                assertNull(requestedMappingUpdates.put("_doc", mapping));
             };
 
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);
@@ -2912,25 +2907,23 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(indexShard, "_doc", id);
             }
             // Need to update and sync the global checkpoint and the retention leases for the soft-deletes retention MergePolicy.
-            if (indexShard.indexSettings.isSoftDeleteEnabled()) {
-                final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
-                if (indexShard.routingEntry().primary()) {
-                    indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint());
-                    indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
-                        indexShard.getLocalCheckpoint());
-                    indexShard.syncRetentionLeases();
-                } else {
-                    indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
+            final long newGlobalCheckpoint = indexShard.getLocalCheckpoint();
+            if (indexShard.routingEntry().primary()) {
+                indexShard.updateLocalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint());
+                indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                    indexShard.getLocalCheckpoint());
+                indexShard.syncRetentionLeases();
+            } else {
+                indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
 
-                    final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
-                    indexShard.updateRetentionLeasesOnReplica(new RetentionLeases(
-                        retentionLeases.primaryTerm(), retentionLeases.version() + 1,
-                        retentionLeases.leases().stream().map(lease -> new RetentionLease(lease.id(), newGlobalCheckpoint + 1,
-                            lease.timestamp(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE)).collect(Collectors.toList())));
-                }
-                indexShard.sync();
+                final RetentionLeases retentionLeases = indexShard.getRetentionLeases();
+                indexShard.updateRetentionLeasesOnReplica(new RetentionLeases(
+                    retentionLeases.primaryTerm(), retentionLeases.version() + 1,
+                    retentionLeases.leases().stream().map(lease -> new RetentionLease(lease.id(), newGlobalCheckpoint + 1,
+                        lease.timestamp(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE)).collect(Collectors.toList())));
             }
+            indexShard.sync();
             // flush the buffered deletes
             final FlushRequest flushRequest = new FlushRequest();
             flushRequest.force(false);
@@ -3321,7 +3314,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3365,7 +3358,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3420,7 +3413,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
-        primary.checkIdle(0);
+        primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
@@ -3434,7 +3427,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3470,7 +3463,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3514,14 +3507,12 @@ public class IndexShardTests extends IndexShardTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its memory usage is freed.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            primary.updateGlobalCheckpointForShard(
-                primary.routingEntry().allocationId().getId(),
-                primary.getLastSyncedGlobalCheckpoint());
-            primary.syncRetentionLeases();
-            primary.sync();
-            flushShard(primary);
-        }
+        primary.updateGlobalCheckpointForShard(
+            primary.routingEntry().allocationId().getId(),
+            primary.getLastSyncedGlobalCheckpoint());
+        primary.syncRetentionLeases();
+        primary.sync();
+        flushShard(primary);
         primary.refresh("force refresh");
 
         ss = primary.segmentStats(randomBoolean(), randomBoolean());
@@ -3540,7 +3531,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3630,38 +3621,13 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testFlushOnInactive() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1).build();
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting(new ShardId(metaData.getIndex(), 0), "n1", true,
-                ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
-        final ShardId shardId = shardRouting.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        AtomicBoolean markedInactive = new AtomicBoolean();
-        AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null, new InternalEngineFactory(), () -> { },
-            RetentionLeaseSyncer.EMPTY, new IndexEventListener() {
-                @Override
-                public void onShardInactive(IndexShard indexShard) {
-                    markedInactive.set(true);
-                    primaryRef.get().flush(new FlushRequest());
-                }
-            });
-        primaryRef.set(primary);
-        recoverShardFromStore(primary);
+    public void testFlushOnIdle() throws Exception {
+        IndexShard shard = newStartedShard();
         for (int i = 0; i < 3; i++) {
-            indexDoc(primary, "_doc", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
-            primary.refresh("test"); // produce segments
+            indexDoc(shard, "_doc", Integer.toString(i));
+            shard.refresh("test"); // produce segments
         }
-        List<Segment> segments = primary.segments(false);
+        List<Segment> segments = shard.segments(false);
         Set<String> names = new HashSet<>();
         for (Segment segment : segments) {
             assertFalse(segment.committed);
@@ -3669,10 +3635,10 @@ public class IndexShardTests extends IndexShardTestCase {
             names.add(segment.getName());
         }
         assertEquals(3, segments.size());
-        primary.flush(new FlushRequest());
-        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
-        primary.refresh("test");
-        segments = primary.segments(false);
+        shard.flush(new FlushRequest());
+        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
+        shard.refresh("test");
+        segments = shard.segments(false);
         for (Segment segment : segments) {
             if (names.contains(segment.getName())) {
                 assertTrue(segment.committed);
@@ -3684,20 +3650,18 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(4, segments.size());
 
-        assertFalse(markedInactive.get());
-        assertBusy(() -> {
-            primary.checkIdle(0);
-            assertFalse(primary.isActive());
-        });
+        shard.flushOnIdle(0);
+        assertFalse(shard.isActive());
 
-        assertTrue(markedInactive.get());
-        segments = primary.segments(false);
-        assertEquals(1, segments.size());
-        for (Segment segment : segments) {
-            assertTrue(segment.committed);
-            assertTrue(segment.search);
-        }
-        closeShards(primary);
+        assertBusy(() -> { // flush happens in the background using the flush threadpool
+            List<Segment> segmentsAfterFlush = shard.segments(false);
+            assertEquals(1, segmentsAfterFlush.size());
+            for (Segment segment : segmentsAfterFlush) {
+                assertTrue(segment.committed);
+                assertTrue(segment.search);
+            }
+        });
+        closeShards(shard);
     }
 
     public void testOnCloseStats() throws IOException {
@@ -3933,7 +3897,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testResetEngineWithBrokenTranslog() throws Exception {
         IndexShard shard = newStartedShard(false);
         updateMappings(shard, IndexMetaData.builder(shard.indexSettings.getIndexMetaData())
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}").build());
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}").build());
         final List<Translog.Operation> operations = Stream.concat(
             IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> new Translog.Index("1", 0, shard.getPendingPrimaryTerm(), 1,
                 "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1)),
@@ -4033,7 +3997,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder("index")
-                .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
                 .settings(settings)
                 .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);

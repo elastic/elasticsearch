@@ -32,7 +32,11 @@ testClusters.integTest {
 
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.3'
-  compile 'org.ow2.asm:asm-debug-all:5.1'
+  compile 'org.ow2.asm:asm-util:7.2'
+  compile 'org.ow2.asm:asm-tree:7.2'
+  compile 'org.ow2.asm:asm-commons:7.2'
+  compile 'org.ow2.asm:asm-analysis:7.2'
+  compile 'org.ow2.asm:asm:7.2'
   compile project('spi')
 }
 

@@ -19,16 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ConditionNode;
+import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -52,15 +50,6 @@ public class SEach extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.expression = Objects.requireNonNull(expression);
         this.block = block;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
-
-        if (block != null) {
-            block.storeSettings(settings);
-        }
     }
 
     @Override
@@ -121,8 +110,14 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.write(classWriter, methodWriter, globals);
+    ForEachLoopNode write() {
+        ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
+
+        forEachLoopNode.setConditionNode((ConditionNode)sub.write());
+
+        forEachLoopNode.setLocation(location);
+
+        return forEachLoopNode;
     }
 
     @Override

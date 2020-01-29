@@ -50,35 +50,24 @@ specifying `*` as the `<transform_id>`, or by omitting the
 ==== {api-path-parms-title}
 
 `<transform_id>`::
-  (Optional, string) Identifier for the {transform}. It can be a
-  {transform} identifier or a wildcard expression. If you do not
-  specify one of these options, the API returns information for all
-  {transforms}.
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
   
 
 [[get-transform-stats-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {transforms} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns an empty `transforms` array when
-there are no matches and the subset of results when there are partial matches.
-If this parameter is `false`, the request returns a `404` status code when there
-are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
-  (Optional, integer) Skips the specified number of {transforms}. The
-  default value is `0`.
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
-  (Optional, integer) Specifies the maximum number of {transforms} to obtain. The default value is `100`.
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 [[get-transform-stats-response]]
 ==== {api-response-body-title}

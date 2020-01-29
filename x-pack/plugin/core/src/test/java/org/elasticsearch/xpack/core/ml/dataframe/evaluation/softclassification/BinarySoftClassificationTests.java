@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
     }
 
     @Override
@@ -38,7 +39,7 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
     }
 
     public static BinarySoftClassification createRandom() {
-        List<SoftClassificationMetric> metrics = new ArrayList<>();
+        List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
             metrics.add(AucRocTests.createRandom());
         }

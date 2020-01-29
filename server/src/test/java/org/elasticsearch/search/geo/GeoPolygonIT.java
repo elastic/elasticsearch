@@ -52,7 +52,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "location",
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("location",
             "type=geo_point", "alias",
             "type=alias,path=location"));
         ensureGreen();

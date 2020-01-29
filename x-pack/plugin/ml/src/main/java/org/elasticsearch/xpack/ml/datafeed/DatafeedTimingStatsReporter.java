@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -20,6 +23,7 @@ import java.util.Objects;
  */
 public class DatafeedTimingStatsReporter {
 
+    private static final Logger LOGGER = LogManager.getLogger(DatafeedTimingStatsReporter.class);
     /** Interface used for persisting current timing stats to the results index. */
     @FunctionalInterface
     public interface DatafeedTimingStatsPersister {
@@ -96,7 +100,14 @@ public class DatafeedTimingStatsReporter {
     private void flush(WriteRequest.RefreshPolicy refreshPolicy) {
         persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
         if (allowedPersisting) {
-            persister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
+            try {
+                persister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
+            } catch (Exception ex) {
+                // Since persisting datafeed timing stats is not critical, we just log a warning here.
+                LOGGER.warn(
+                    () -> new ParameterizedMessage("[{}] failed to report datafeed timing stats", currentTimingStats.getJobId()),
+                    ex);
+            }
         }
     }
 

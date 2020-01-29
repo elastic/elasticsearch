@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -32,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -83,7 +83,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
     }
 
-    public void testNothingScheduledWhenNotRunning() {
+    public void testNothingScheduledWhenNotRunning() throws InterruptedException {
         ClockMock clock = new ClockMock();
         SnapshotLifecyclePolicyMetadata initialPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setPolicy(createPolicy("initial", "*/1 * * * * ?"))
@@ -94,8 +94,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         ClusterState initialState = createState(new SnapshotLifecycleMetadata(
             Collections.singletonMap(initialPolicy.getPolicy().getId(), initialPolicy),
             OperationMode.RUNNING, new SnapshotLifecycleStats()));
-        try (ThreadPool threadPool = new TestThreadPool("test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        ThreadPool threadPool = new TestThreadPool("test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
              SnapshotLifecycleService sls = new SnapshotLifecycleService(Settings.EMPTY,
                  () -> new FakeSnapshotTask(e -> logger.info("triggered")), clusterService, clock)) {
 
@@ -140,8 +140,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.onMaster();
             sls.clusterChanged(new ClusterChangedEvent("1", state, emptyState));
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
-
+        } finally {
             threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -149,13 +150,13 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
-    @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/44997")
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
         final AtomicReference<Consumer<SchedulerEngine.Event>> trigger = new AtomicReference<>(e -> triggerCount.incrementAndGet());
-        try (ThreadPool threadPool = new TestThreadPool("test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ThreadPool threadPool = new TestThreadPool("test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
              SnapshotLifecycleService sls = new SnapshotLifecycleService(Settings.EMPTY,
                  () -> new FakeSnapshotTask(e -> trigger.get().accept(e)), clusterService, clock)) {
 
@@ -250,8 +251,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             // Signify becoming non-master, the jobs should all be cancelled
             sls.offMaster();
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
-
+        } finally {
             threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -262,8 +264,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
         final AtomicReference<Consumer<SchedulerEngine.Event>> trigger = new AtomicReference<>(e -> triggerCount.incrementAndGet());
-        try (ThreadPool threadPool = new TestThreadPool("test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ThreadPool threadPool = new TestThreadPool("test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
              SnapshotLifecycleService sls = new SnapshotLifecycleService(Settings.EMPTY,
                  () -> new FakeSnapshotTask(e -> trigger.get().accept(e)), clusterService, clock)) {
             sls.onMaster();
@@ -304,8 +306,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             sls.offMaster();
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
-
+        } finally {
             threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 

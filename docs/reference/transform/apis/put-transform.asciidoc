@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-transform]]
-=== Create {transforms} API
+=== Create {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Create {transforms}</titleabbrev>
+<titleabbrev>Create {transform}</titleabbrev>
 ++++
 
 Instantiates a {transform}.
@@ -63,9 +63,8 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
 ==== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}. This identifier
-  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[put-transform-query-parms]]
 ==== {api-query-parms-title}
@@ -82,48 +81,64 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
   (Optional, string) Free text description of the {transform}.
 
 `dest`::
-  (Required, object) Required. The destination configuration, which has the
-  following properties:
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
   
-  `index`:::
-    (Required, string) The _destination index_ for the {transform}.
+`dest`.`index`:::
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
-  `pipeline`:::
-    (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
+`dest`.`pipeline`:::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 
 `frequency`::
-  (Optional, <<time-units, time units>>) The interval between checks for changes in the source
-  indices when the {transform} is running continuously. Also determines
-  the retry interval in the event of transient failures while the {transform} is
-  searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
-  default value is `1m`.
+(Optional, <<time-units, time units>>)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
 
 `pivot`::
-  (Required, object) Defines the pivot function `group by` fields and the aggregation to
-  reduce the data. See <<transform-pivot>>.
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
+
+`pivot`.`aggregations` or `aggs`:::
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
+
+`pivot`.`group_by`:::
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
+
+`pivot`.`max_page_search_size`:::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
 
 `source`::
-  (Required, object) The source configuration, which has the following
-  properties:
-  
-  `index`:::
-    (Required, string or array) The _source indices_ for the
-    {transform}. It can be a single index, an index pattern (for
-    example, `"myindex*"`), or an array of indices (for example,
-    `["index1", "index2"]`).
-    
-    `query`:::
-      (Optional, object) A query clause that retrieves a subset of data from the
-      source index. See <<query-dsl>>.
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
+
+`source`.`index`:::
+(Required, string or array)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`source`.`query`:::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
   
 `sync`::
-  (Optional, object) Defines the properties required to run continuously.
-  `time`:::
-    (Required, object) Specifies that the {transform} uses a time
-    field to synchronize the source and destination indices.
-    `field`::::
-      (Required, string) The date field that is used to identify new documents
-      in the source.
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
+  
+`sync`.`time`:::
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
+
+`sync`.`time`.`delay`::::
+(Optional, <<time-units, time units>>)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+    
+`sync`.`time`.`field`::::
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
@@ -132,9 +147,6 @@ you might need to set the `delay` such that it accounts for data transmission
 delays.
 
 --
-    `delay`::::
-      (Optional, <<time-units, time units>>) The time delay between the current time and the
-      latest input data time. The default value is `60s`.
 
 [[put-transform-example]]
 ==== {api-examples-title}
@@ -183,7 +195,7 @@ PUT _transform/ecommerce_transform
   }
 }
 --------------------------------------------------
-// TEST[setup:kibana_sample_data_ecommerce]
+// TEST[setup:kibana_sample_data_ecommerce,add_timestamp_pipeline]
 
 When the {transform} is created, you receive the following results:
 

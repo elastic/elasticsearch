@@ -1,9 +1,10 @@
 [[enrich-apis]]
 == Enrich APIs
 
-The following enrich APIs are available for managing enrich policies:
+The following enrich APIs are available for managing <<enrich-policy,enrich
+policies>>:
 
-* <<put-enrich-policy-api>> to add or update an enrich policy
+* <<put-enrich-policy-api>> to create or replace an enrich policy
 * <<delete-enrich-policy-api>> to delete an enrich policy
 * <<get-enrich-policy-api>> to return information about an enrich policy
 * <<execute-enrich-policy-api>> to execute an enrich policy

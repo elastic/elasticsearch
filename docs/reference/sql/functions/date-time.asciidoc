@@ -55,7 +55,7 @@ s|Description
 
 ==== Operators
 
-Basic arithmetic operators (`+`, `-`, etc) support date/time parameters as indicated below:
+Basic arithmetic operators (`+`, `-`, `*`) support date/time parameters as indicated below:
 
 [source, sql]
 --------------------------------------------------
@@ -393,6 +393,20 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeSeconds]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateQuarters]
+--------------------------------------------------
+
+[NOTE]
+For `hour` and `minute`, `DATEDIFF` doesn't do any rounding, but instead first truncates
+the more detailed time fields on the 2 dates to zero and then calculates the subtraction.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeHours]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 --------------------------------------------------
 
 [source, sql]

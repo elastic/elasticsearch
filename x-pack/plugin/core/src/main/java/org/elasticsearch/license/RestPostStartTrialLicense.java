@@ -29,7 +29,7 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
-        startTrialRequest.setType(request.param("type", "trial"));
+        startTrialRequest.setType(request.param("type", License.LicenseType.TRIAL.getTypeName()));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         return channel -> client.execute(PostStartTrialAction.INSTANCE, startTrialRequest,
                 new RestBuilderListener<>(channel) {

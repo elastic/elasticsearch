@@ -21,11 +21,17 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -71,9 +77,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -135,17 +144,16 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -155,6 +163,7 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -202,6 +211,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -232,6 +244,27 @@ public class SnapshotResiliencyTests extends ESTestCase {
     @After
     public void verifyReposThenStopServices() {
         try {
+            clearDisruptionsAndAwaitSync();
+
+            final StepListener<CleanupRepositoryResponse> cleanupResponse = new StepListener<>();
+            final StepListener<CreateSnapshotResponse> createSnapshotResponse = new StepListener<>();
+            // Create another snapshot and then clean up the repository to verify that the repository works correctly no matter the
+            // failures seen during the previous test.
+            client().admin().cluster().prepareCreateSnapshot("repo", "last-snapshot")
+                .setWaitForCompletion(true).execute(createSnapshotResponse);
+            continueOrDie(createSnapshotResponse, r -> {
+                final SnapshotInfo snapshotInfo = r.getSnapshotInfo();
+                // Snapshot can fail because some tests leave indices in a red state because data nodes were stopped
+                assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.FAILED)));
+                assertThat(snapshotInfo.shardFailures(), iterableWithSize(snapshotInfo.failedShards()));
+                assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards() - snapshotInfo.failedShards()));
+                client().admin().cluster().cleanupRepository(new CleanupRepositoryRequest("repo"), cleanupResponse);
+            });
+            final AtomicBoolean cleanedUp = new AtomicBoolean(false);
+            continueOrDie(cleanupResponse, r -> cleanedUp.set(true));
+
+            runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(1L));
+
             if (blobStoreContext != null) {
                 blobStoreContext.forceConsistent();
             }
@@ -257,8 +290,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseListener = new StepListener<>();
 
-        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards), createIndexResponse -> {
-            final Runnable afterIndexing = () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+        continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
+            final Runnable afterIndexing = () -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true).execute(createSnapshotResponseListener);
             if (documents == 0) {
                 afterIndexing.run();
@@ -268,7 +301,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
                 }
                 final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
-                masterNode.client.bulk(bulkRequest, bulkResponseStepListener);
+                client().bulk(bulkRequest, bulkResponseStepListener);
                 continueOrDie(bulkResponseStepListener, bulkResponse -> {
                     assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
                     assertEquals(documents, bulkResponse.getItems().length);
@@ -280,16 +313,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final StepListener<AcknowledgedResponse> deleteIndexListener = new StepListener<>();
 
         continueOrDie(createSnapshotResponseListener,
-            createSnapshotResponse -> masterNode.client.admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener));
+            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener));
 
         final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new StepListener<>();
-        continueOrDie(deleteIndexListener, ignored -> masterNode.client.admin().cluster().restoreSnapshot(
+        continueOrDie(deleteIndexListener, ignored -> client().admin().cluster().restoreSnapshot(
             new RestoreSnapshotRequest(repoName, snapshotName).waitForCompletion(true), restoreSnapshotResponseListener));
 
         final StepListener<SearchResponse> searchResponseListener = new StepListener<>();
         continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
-            masterNode.client.search(
+            client().search(
                 new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)), searchResponseListener);
         });
 
@@ -306,7 +339,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
         final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
@@ -318,33 +351,33 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     public void testSnapshotWithNodeDisconnects() {
         final int dataNodes = randomIntBetween(2, 10);
-        setupTestCluster(randomFrom(1, 3, 5), dataNodes);
+        final int masterNodes = randomFrom(1, 3, 5);
+        setupTestCluster(masterNodes, dataNodes);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        TestClusterNodes.TestClusterNode masterNode =
-            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
-
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards), createIndexResponse -> {
+        continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectRandomDataNode);
             }
             if (randomBoolean()) {
                 scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
             }
-            masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName).execute(createSnapshotResponseStepListener);
+            testClusterNodes.randomMasterNodeSafe().client.admin().cluster()
+                .prepareCreateSnapshot(repoName, snapshotName).execute(createSnapshotResponseStepListener);
         });
 
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
-            final boolean disconnectedMaster = randomBoolean();
+            // Only disconnect master if we have more than a single master and can simulate a failover
+            final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
             if (disconnectedMaster) {
                 scheduleNow(this::disconnectOrRestartMasterNode);
             }
@@ -367,7 +400,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
     }
 
@@ -384,19 +417,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards),
-            createIndexResponse -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+        continueOrDie(createRepoAndIndex(repoName, index, shards),
+            createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                 .execute(createSnapshotResponseStepListener));
 
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
-        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> masterNode.client.admin().cluster().deleteSnapshot(
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
             new DeleteSnapshotRequest(repoName, snapshotName), deleteSnapshotStepListener));
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(deleteSnapshotStepListener, acknowledgedResponse -> masterNode.client.admin().cluster()
-            .prepareCreateSnapshot(repoName, snapshotName).execute(createAnotherSnapshotResponseStepListener));
+        continueOrDie(deleteSnapshotStepListener, acknowledgedResponse -> client().admin().cluster()
+            .prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute(createAnotherSnapshotResponseStepListener));
         continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
             assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
 
@@ -406,13 +439,158 @@ public class SnapshotResiliencyTests extends ESTestCase {
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
         final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    public void testConcurrentSnapshotCreateAndDeleteOther() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNodes.TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createRepoAndIndex(repoName, index, shards),
+            createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
+
+        final StepListener<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createSnapshotResponseStepListener,
+            createSnapshotResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2")
+                .execute(createOtherSnapshotResponseStepListener));
+
+        final StepListener<Boolean> deleteSnapshotStepListener = new StepListener<>();
+
+        continueOrDie(createOtherSnapshotResponseStepListener,
+            createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
+                new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.wrap(
+                    resp -> deleteSnapshotStepListener.onResponse(true),
+                    e -> {
+                        final Throwable unwrapped =
+                            ExceptionsHelper.unwrap(e, ConcurrentSnapshotExecutionException.class);
+                        assertThat(unwrapped, instanceOf(ConcurrentSnapshotExecutionException.class));
+                        deleteSnapshotStepListener.onResponse(false);
+                    })));
+
+        final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(deleteSnapshotStepListener, deleted -> {
+            if (deleted) {
+                // The delete worked out, creating a third snapshot
+                client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                    .execute(createAnotherSnapshotResponseStepListener);
+                continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
+                    assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
+            } else {
+                createAnotherSnapshotResponseStepListener.onResponse(null);
+            }
+        });
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
+        // We end up with two snapshots no matter if the delete worked out or not
+        assertThat(snapshotIds, hasSize(2));
+
+        for (SnapshotId snapshotId : snapshotIds) {
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+            assertEquals(shards, snapshotInfo.successfulShards());
+            assertEquals(0, snapshotInfo.failedShards());
+        }
+    }
+
+    public void testConcurrentSnapshotDeleteAndDeleteIndex() throws IOException {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        TestClusterNodes.TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<Collection<CreateIndexResponse>> createIndicesListener = new StepListener<>();
+        final int indices = randomIntBetween(5, 20);
+
+        final SetOnce<Index> firstIndex = new SetOnce<>();
+        continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
+            firstIndex.set(masterNode.clusterService.state().metaData().index(index).getIndex());
+            // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
+            // finalization
+            final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(createIndicesListener, indices);
+            for (int i = 0; i < indices; ++i) {
+                client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
+            }
+        });
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        final boolean partialSnapshot = randomBoolean();
+
+        continueOrDie(createIndicesListener, createIndexResponses ->
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(false)
+                .setPartial(partialSnapshot).execute(createSnapshotResponseStepListener));
+
+        continueOrDie(createSnapshotResponseStepListener,
+            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    if (partialSnapshot) {
+                        // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
+                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (partialSnapshot) {
+                        throw new AssertionError("Delete index should always work during partial snapshots", e);
+                    }
+                }
+            }));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        if (partialSnapshot) {
+            // Single shard for each index so we either get all indices or all except for the deleted index
+            assertThat(snapshotInfo.successfulShards(), either(is(indices + 1)).or(is(indices)));
+            if (snapshotInfo.successfulShards() == indices + 1) {
+                final IndexMetaData indexMetaData =
+                    repository.getSnapshotIndexMetaData(snapshotInfo.snapshotId(), repositoryData.resolveIndexId(index));
+                // Make sure we snapshotted the metadata of this index and not the recreated version
+                assertEquals(indexMetaData.getIndex(), firstIndex.get());
+            }
+        } else {
+            // Index delete must be blocked for non-partial snapshots and we get a snapshot for every index
+            assertEquals(snapshotInfo.successfulShards(), indices + 1);
+        }
         assertEquals(0, snapshotInfo.failedShards());
     }
 
@@ -437,8 +615,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<ClusterStateResponse> clusterStateResponseStepListener = new StepListener<>();
 
-        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards),
-            createIndexResponse -> masterAdminClient.cluster().state(new ClusterStateRequest(), clusterStateResponseStepListener));
+        continueOrDie(createRepoAndIndex(repoName, index, shards),
+            createIndexResponse -> client().admin().cluster().state(new ClusterStateRequest(), clusterStateResponseStepListener));
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
             final ShardRouting shardToRelocate = clusterStateResponse.getState().routingTable().allShards(index).get(0);
@@ -489,8 +667,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNodeSafe()
             .clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        final Repository repository = testClusterNodes.randomMasterNodeSafe().repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
     }
 
@@ -508,19 +686,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards), createIndexResponse -> {
+        continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
             final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
             for (int i = 0; i < documents; ++i) {
                 // Index a few documents with different field names so we trigger a dynamic mapping update for each of them
-                masterNode.client.bulk(
-                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
+                client().bulk(new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                     assertNoFailureListener(
                         bulkResponse -> {
                             assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
                             if (initiatedSnapshot.compareAndSet(false, true)) {
-                                masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                    .setWaitForCompletion(true).execute(createSnapshotResponseStepListener);
+                                client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                                    .execute(createSnapshotResponseStepListener);
                             }
                         }));
             }
@@ -530,7 +707,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> masterNode.client.admin().cluster().restoreSnapshot(
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().restoreSnapshot(
             new RestoreSnapshotRequest(repoName, snapshotName)
                 .renamePattern(index).renameReplacement(restoredIndex).waitForCompletion(true), restoreSnapshotResponseStepListener));
 
@@ -538,8 +715,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(restoreSnapshotResponseStepListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
-            masterNode.client.search(
-                new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
+            client().search(new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
                 searchResponseStepListener);
         });
 
@@ -563,7 +739,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
         final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
@@ -573,18 +749,23 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    private StepListener<CreateIndexResponse> createRepoAndIndex(TestClusterNodes.TestClusterNode masterNode, String repoName,
-                                                                 String index, int shards) {
-        final AdminClient adminClient = masterNode.client.admin();
+    private RepositoryData getRepositoryData(Repository repository) {
+        final PlainActionFuture<RepositoryData> res = PlainActionFuture.newFuture();
+        repository.getRepositoryData(res);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(res.isDone());
+        return res.actionGet();
+    }
 
+    private StepListener<CreateIndexResponse> createRepoAndIndex(String repoName, String index, int shards) {
         final StepListener<AcknowledgedResponse> createRepositoryListener = new StepListener<>();
 
-        adminClient.cluster().preparePutRepository(repoName).setType(FsRepository.TYPE)
+        client().admin().cluster().preparePutRepository(repoName).setType(FsRepository.TYPE)
             .setSettings(Settings.builder().put("location", randomAlphaOfLength(10))).execute(createRepositoryListener);
 
         final StepListener<CreateIndexResponse> createIndexResponseStepListener = new StepListener<>();
 
-        continueOrDie(createRepositoryListener, acknowledgedResponse -> adminClient.indices().create(
+        continueOrDie(createRepositoryListener, acknowledgedResponse -> client().admin().indices().create(
             new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(defaultIndexSettings(shards)),
             createIndexResponseStepListener));
 
@@ -593,11 +774,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private void clearDisruptionsAndAwaitSync() {
         testClusterNodes.clearNetworkDisruptions();
-        runUntil(() -> {
-            final List<Long> versions = testClusterNodes.nodes.values().stream()
-                .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
-            return versions.size() == 1L;
-        }, TimeUnit.MINUTES.toMillis(1L));
+        stabilize();
     }
 
     private void disconnectOrRestartDataNode() {
@@ -634,15 +811,25 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode()).forEach(
             testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(votingConfiguration));
+        // Connect all nodes to each other
+        testClusterNodes.nodes.values().forEach(node -> testClusterNodes.nodes.values().forEach(
+            n -> n.transportService.connectToNode(node.node, null,
+                ActionTestUtils.assertNoFailureListener(c -> logger.info("--> Connected [{}] to [{}]", n.node, node.node)))));
+        stabilize();
+    }
 
+    private void stabilize() {
         runUntil(
             () -> {
-                List<String> masterNodeIds = testClusterNodes.nodes.values().stream()
-                    .map(node -> node.clusterService.state().nodes().getMasterNodeId())
-                    .distinct().collect(Collectors.toList());
-                return masterNodeIds.size() == 1 && masterNodeIds.contains(null) == false;
+                final Collection<ClusterState> clusterStates =
+                    testClusterNodes.nodes.values().stream().map(node -> node.clusterService.state()).collect(Collectors.toList());
+                final Set<String> masterNodeIds = clusterStates.stream()
+                    .map(clusterState -> clusterState.nodes().getMasterNodeId()).collect(Collectors.toSet());
+                final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
+                final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
+                return versions.size() == 1 && masterNodeIds.size() == 1 && masterNodeIds.contains(null) == false && terms.size() == 1;
             },
-            TimeUnit.SECONDS.toMillis(30L)
+            TimeUnit.MINUTES.toMillis(1L)
         );
     }
 
@@ -688,6 +875,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return ActionListener.wrap(() -> {});
     }
 
+    public NodeClient client() {
+        // Select from sorted list of nodes
+        final List<TestClusterNodes.TestClusterNode> nodes = testClusterNodes.nodes.values().stream()
+            .filter(n -> testClusterNodes.disconnectedNodes.contains(n.node.getName()) == false)
+            .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList());
+        if (nodes.isEmpty()) {
+            throw new AssertionError("No nodes available");
+        }
+        return randomFrom(nodes).client;
+    }
+
     /**
      * Create a {@link Environment} with random path.home and path.repo
      **/
@@ -698,6 +896,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
             .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY))
+            .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1000) // o.w. some tests might block
             .build());
     }
 
@@ -713,7 +912,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         private final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
 
         /**
-         * Node ids that are disconnected from all other nodes.
+         * Node names that are disconnected from all other nodes.
          */
         private final Set<String> disconnectedNodes = new HashSet<>();
 
@@ -763,7 +962,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         public Optional<TestClusterNode> randomMasterNode() {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
-            final List<TestClusterNode> masterNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
+            final List<TestClusterNode> masterNodes = testClusterNodes.nodes.values().stream()
+                .filter(n -> n.node.isMasterNode())
+                .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList());
             return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }
@@ -793,11 +994,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         public void disconnectNode(TestClusterNode node) {
-            if (disconnectedNodes.contains(node.node.getId())) {
+            if (disconnectedNodes.contains(node.node.getName())) {
                 return;
             }
             testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().disconnectFromNode(node.node));
-            disconnectedNodes.add(node.node.getId());
+            disconnectedNodes.add(node.node.getName());
         }
 
         public void clearNetworkDisruptions() {
@@ -807,7 +1008,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
                     testClusterNodes.nodes.values().forEach(
-                        n -> n.transportService.openConnection(node, null, ActionListener.wrap(() -> {})));
+                        n -> n.transportService.openConnection(node, null,
+                            ActionTestUtils.assertNoFailureListener(c -> logger.debug("--> Connected [{}] to [{}]", n.node, node))));
                 }
             });
         }
@@ -900,7 +1102,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         if (nodes.containsKey(node.getName()) == false || nodes.containsKey(destination.getName()) == false) {
                             return ConnectionStatus.DISCONNECTED;
                         }
-                        return disconnectedNodes.contains(node.getId()) || disconnectedNodes.contains(destination.getId())
+                        return disconnectedNodes.contains(node.getName()) || disconnectedNodes.contains(destination.getName())
                             ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                     }
 
@@ -999,13 +1201,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 actions.put(GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
-                        threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
-                actions.put(RetentionLeaseBackgroundSyncAction.TYPE,
-                    new RetentionLeaseBackgroundSyncAction(settings, transportService, clusterService, indicesService, threadPool,
-                        shardStateAction, actionFilters, indexNameExpressionResolver));
-                actions.put(RetentionLeaseSyncAction.TYPE,
-                    new RetentionLeaseSyncAction(settings, transportService, clusterService, indicesService, threadPool,
-                        shardStateAction, actionFilters, indexNameExpressionResolver));
+                        threadPool, shardStateAction, actionFilters));
                 final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -1017,7 +1213,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NodeMappingRefreshAction(transportService, metaDataMappingService),
                     repositoriesService,
                     mock(SearchService.class),
-                    new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
                     new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
@@ -1029,13 +1224,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver)),
+                            actionFilters)),
+                    RetentionLeaseSyncer.EMPTY,
                     client);
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                     indicesService,
                     allocationService, new AliasValidator(), environment, indexScopedSettings,
-                    threadPool, namedXContentRegistry, false);
+                    threadPool, namedXContentRegistry, Collections.emptyList(), false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,
@@ -1055,7 +1250,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                    actionFilters, indexNameExpressionResolver);
+                    actionFilters);
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
@@ -1091,6 +1286,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService, clusterService, repositoriesService, threadPool,
                         actionFilters, indexNameExpressionResolver
                     ));
+                actions.put(CleanupRepositoryAction.INSTANCE, new TransportCleanupRepositoryAction(transportService, clusterService,
+                    repositoriesService, snapshotsService, threadPool, actionFilters, indexNameExpressionResolver));
                 actions.put(CreateSnapshotAction.INSTANCE,
                     new TransportCreateSnapshotAction(
                         transportService, clusterService, threadPool,
@@ -1120,23 +1317,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metaData -> {
-                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        };
-                        repository.start();
-                        return repository;
+                    return metaData -> new FsRepository(metaData, environment, xContentRegistry(), clusterService) {
+                        @Override
+                        protected void assertSnapshotOrGenericThread() {
+                            // eliminate thread name check as we create repo in the test thread
+                        }
                     };
                 } else {
-                    return metaData -> {
-                        final Repository repository = new MockEventuallyConsistentRepository(
-                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
-                        repository.start();
-                        return repository;
-                    };
+                    return metaData ->
+                        new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random());
                 }
             }
             public void restart() {

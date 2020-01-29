@@ -54,6 +54,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
@@ -90,7 +91,8 @@ public class FsRepositoryTests extends ESTestCase {
 
             int numDocs = indexDocs(directory);
             RepositoryMetaData metaData = new RepositoryMetaData("test", "fs", settings);
-            FsRepository repository = new FsRepository(metaData, new Environment(settings, null), NamedXContentRegistry.EMPTY, threadPool);
+            FsRepository repository = new FsRepository(metaData, new Environment(settings, null), NamedXContentRegistry.EMPTY,
+                BlobStoreTestUtil.mockClusterService());
             repository.start();
             final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
@@ -103,7 +105,8 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true, future1);
+                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true,
+                    Collections.emptyMap(), future1);
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -131,7 +134,8 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, true, future2);
+                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, true,
+                    Collections.emptyMap(), future2);
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());

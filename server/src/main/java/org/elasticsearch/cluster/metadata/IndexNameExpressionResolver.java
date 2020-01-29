@@ -158,7 +158,7 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
         }
-        
+
         if (expressions.isEmpty()) {
             if (!options.allowNoIndices()) {
                 IndexNotFoundException infe;
@@ -187,7 +187,7 @@ public class IndexNameExpressionResolver {
                     if (expression.equals(MetaData.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
                     } else {
-                        infe = new IndexNotFoundException(expression);  
+                        infe = new IndexNotFoundException(expression);
                     }
                     infe.setResources("index_expression", expression);
                     throw infe;
@@ -296,10 +296,27 @@ public class IndexNameExpressionResolver {
         if (request.indices() == null || (request.indices() != null && request.indices().length != 1)) {
             throw new IllegalArgumentException("indices request must specify a single index expression");
         }
-        Context context = new Context(state, request.indicesOptions(), false, true);
-        Index[] indices = concreteIndices(context, request.indices()[0]);
+        return concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false);
+    }
+
+    /**
+     * Utility method that allows to resolve an index expression to its corresponding single write index.
+     *
+     * @param state             the cluster state containing all the data to resolve to expression to a concrete index
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param index             index that can be resolved to alias or index name.
+     * @param allowNoIndices    whether to allow resolve to no index
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
+     * @return the write index obtained as a result of the index resolution or null if no index
+     */
+    public Index concreteWriteIndex(ClusterState state, IndicesOptions options, String index, boolean allowNoIndices) {
+        Context context = new Context(state, options, false, true);
+        Index[] indices = concreteIndices(context, index);
+        if (allowNoIndices && indices.length == 0) {
+            return null;
+        }
         if (indices.length != 1) {
-            throw new IllegalArgumentException("The index expression [" + request.indices()[0] +
+            throw new IllegalArgumentException("The index expression [" + index +
                 "] and options provided did not point to a single write-index");
         }
         return indices[0];
@@ -653,6 +670,8 @@ public class IndexNameExpressionResolver {
         public List<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
             MetaData metaData = context.getState().metaData();
+            // only check open/closed since if we do not expand to open or closed it doesn't make sense to
+            // expand to hidden
             if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
                 return expressions;
             }
@@ -722,7 +741,7 @@ public class IndexNameExpressionResolver {
 
                 final IndexMetaData.State excludeState = excludeState(options);
                 final Map<String, AliasOrIndex> matches = matches(context, metaData, expression);
-                Set<String> expand = expand(context, excludeState, matches);
+                Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
                 if (add) {
                     result.addAll(expand);
                 } else {
@@ -817,7 +836,8 @@ public class IndexNameExpressionResolver {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches) {
+        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches,
+                                          String expression, boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
                 AliasOrIndex aliasOrIndex = entry.getValue();
@@ -826,7 +846,14 @@ public class IndexNameExpressionResolver {
                 } else {
                     for (IndexMetaData meta : aliasOrIndex.getIndices()) {
                         if (excludeState == null || meta.getState() != excludeState) {
-                            expand.add(meta.getIndex().getName());
+                            if (includeHidden) {
+                                expand.add(meta.getIndex().getName());
+                            } else if (IndexMetaData.INDEX_HIDDEN_SETTING.get(meta.getSettings()) == false) {
+                                expand.add(meta.getIndex().getName());
+                            } else if (meta.getIndex().getName().startsWith(".") &&
+                                expression.startsWith(".") && Regex.isSimpleMatchPattern(expression)) {
+                                expand.add(meta.getIndex().getName());
+                            }
                         }
                     }
                 }
@@ -840,12 +867,18 @@ public class IndexNameExpressionResolver {
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
-            if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+            if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
                 return Arrays.asList(metaData.getConcreteAllIndices());
-            } else if (options.expandWildcardsOpen()) {
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+                return Arrays.asList(metaData.getConcreteVisibleIndices());
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
                 return Arrays.asList(metaData.getConcreteAllOpenIndices());
-            } else if (options.expandWildcardsClosed()) {
+            } else if (options.expandWildcardsOpen()) {
+                return Arrays.asList(metaData.getConcreteVisibleOpenIndices());
+            } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
                 return Arrays.asList(metaData.getConcreteAllClosedIndices());
+            } else if (options.expandWildcardsClosed()) {
+                return Arrays.asList(metaData.getConcreteVisibleClosedIndices());
             } else {
                 return Collections.emptyList();
             }

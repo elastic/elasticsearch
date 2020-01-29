@@ -38,7 +38,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46262")
     public void testMappingsUpgrade() throws Exception {
 
         switch (CLUSTER_TYPE) {

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -16,10 +18,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -36,16 +41,21 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -146,6 +156,11 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return stats.get(0);
     }
 
+    protected ExplainDataFrameAnalyticsAction.Response explainDataFrame(DataFrameAnalyticsConfig config) {
+        PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
+        return client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, request).actionGet();
+    }
+
     protected EvaluateDataFrameAction.Response evaluateDataFrame(String index, Evaluation evaluation) {
         EvaluateDataFrameAction.Request request =
             new EvaluateDataFrameAction.Request()
@@ -155,20 +170,26 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
-                                                             @Nullable String resultsField, DataFrameAnalysis analysis) {
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
-        configBuilder.setId(id);
-        configBuilder.setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null));
-        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
-        configBuilder.setAnalysis(analysis);
-        return configBuilder.build();
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
+        return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
+    }
+
+    protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis,
+                                                             QueryBuilder queryBuilder) throws Exception {
+        return new DataFrameAnalyticsConfig.Builder()
+            .setId(id)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
+            .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
+            .setAnalysis(analysis)
+            .build();
     }
 
     protected void assertIsStopped(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         assertThat(stats.getFailureReason(), is(nullValue()));
-        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
@@ -187,7 +208,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected SearchResponse searchStoredProgress(String jobId) {
-        String docId = DataFrameAnalyticsTask.progressDocId(jobId);
+        String docId = StoredProgress.documentId(jobId);
         return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(QueryBuilders.idsQuery().addIds(docId))
             .get();
@@ -237,5 +258,61 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return Arrays.stream(searchResponse.getHits().getHits())
             .map(hit -> (String) hit.getSourceAsMap().get("message"))
             .collect(Collectors.toList());
+    }
+
+    protected static Set<String> getTrainingRowsIds(String index) {
+        Set<String> trainingRowsIds = new HashSet<>();
+        SearchResponse hits = client().prepareSearch(index).setSize(10000).get();
+        for (SearchHit hit : hits.getHits()) {
+            Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+            assertThat(sourceAsMap.containsKey("ml"), is(true));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultsObject = (Map<String, Object>) sourceAsMap.get("ml");
+
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+            if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
+                trainingRowsIds.add(hit.getId());
+            }
+        }
+        assertThat(trainingRowsIds.isEmpty(), is(false));
+        return trainingRowsIds;
+    }
+
+    protected static void assertModelStatePersisted(String stateDocId) {
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+            .get();
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+    }
+
+    protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
+        Map<String, Object> mappings =
+            client()
+                .execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(index))
+                .actionGet()
+                .mappings()
+                .get(index)
+                .sourceAsMap();
+        assertThat(
+            mappings.toString(),
+            getFieldValue(
+                mappings,
+                "properties", "ml", "properties", String.join(".properties.", predictedClassField.split("\\.")), "type"),
+            equalTo(expectedType));
+        if (getFieldValue(mappings, "properties", "ml", "properties", "top_classes") != null) {
+            assertThat(
+                mappings.toString(),
+                getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
+                equalTo(expectedType));
+        }
+    }
+
+    /**
+     * Wrapper around extractValue that:
+     * - allows dots (".") in the path elements provided as arguments
+     * - supports implicit casting to the appropriate type
+     */
+    protected static <T> T getFieldValue(Map<String, Object> doc, String... path) {
+        return (T)extractValue(String.join(".", path), doc);
     }
 }

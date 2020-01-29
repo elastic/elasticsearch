@@ -350,7 +350,8 @@ The API returns the following response:
                      "foo": "bar"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.674Z"
+                     "timestamp": "2017-05-04T22:46:09.674Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             },
@@ -364,7 +365,8 @@ The API returns the following response:
                      "foo": "bar"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.675Z"
+                     "timestamp": "2017-05-04T22:46:09.675Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             }
@@ -381,7 +383,8 @@ The API returns the following response:
                      "foo": "rab"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.676Z"
+                     "timestamp": "2017-05-04T22:46:09.676Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             },
@@ -395,7 +398,8 @@ The API returns the following response:
                      "foo": "rab"
                   },
                   "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.677Z"
+                     "timestamp": "2017-05-04T22:46:09.677Z",
+                     "pipeline": "_simulate_pipeline"
                   }
                }
             }

@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,25 +32,19 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<TrainedModelDefinition> {
 
-    private boolean lenient;
-
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
-    }
-
     @Override
     protected TrainedModelDefinition doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelDefinition.fromXContent(parser, lenient).build();
+        return TrainedModelDefinition.fromXContent(parser, true).build();
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return lenient;
+        return true;
     }
 
     @Override
@@ -58,10 +52,14 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return field -> !field.isEmpty();
     }
 
-    public static TrainedModelDefinition.Builder createRandomBuilder(String modelId) {
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
+    public static TrainedModelDefinition.Builder createRandomBuilder() {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()
-            .setModelId(modelId)
             .setPreProcessors(
                 randomBoolean() ? null :
                     Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
@@ -69,7 +67,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.createRandom()));
+            .setTrainedModel(randomFrom(TreeTests.createRandom(), EnsembleTests.createRandom()));
     }
 
     private static final String ENSEMBLE_MODEL = "" +
@@ -191,6 +189,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         "    }\n" +
         "  }\n" +
         "}";
+
     private static final String TREE_MODEL = "" +
         "{\n" +
         "  \"preprocessors\": [\n" +
@@ -275,7 +274,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
 
     @Override
     protected TrainedModelDefinition createTestInstance() {
-        return createRandomBuilder(null).build();
+        return createRandomBuilder().build();
     }
 
     @Override
@@ -296,6 +295,11 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    public void testRamUsageEstimation() {
+        TrainedModelDefinition test = createTestInstance();
+        assertThat(test.ramBytesUsed(), greaterThan(0L));
     }
 
 }

@@ -4,6 +4,22 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 Project xpackRootProject = project
 
 subprojects {
+
+  // We define a specific repository for opensaml since the shibboleth project doesn't publish to maven central and the
+  // artifacts that are located there are not curated/updated by the project
+  // see: https://wiki.shibboleth.net/confluence/display/DEV/Use+of+Maven+Central
+  repositories {
+    maven {
+      name "opensaml"
+      url "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
+      content {
+        includeGroup "org.opensaml"
+        includeGroup "net.shibboleth.utilities"
+        includeGroup "net.shibboleth"
+      }
+    }
+  }
+
   group = 'org.elasticsearch.plugin'
   ext.xpackRootProject = xpackRootProject
   ext.xpackProject = { String projectName -> xpackRootProject.project(projectName) }

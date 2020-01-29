@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
 
 plugins {
@@ -28,7 +29,7 @@ group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
 if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
+   throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
 if (project == rootProject) {
@@ -168,6 +169,9 @@ if (project != rootProject) {
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){
+    test.enabled = false
+  }
 
   configurations {
     distribution
@@ -200,6 +204,7 @@ if (project != rootProject) {
     exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
+    exclude '**/*.bcfks'
   }
 
   testingConventions {
@@ -222,8 +227,13 @@ if (project != rootProject) {
   }
   check.dependsOn(integTest)
 
+  // for now we hardcode the tests for our build to use the gradle jvm.
+  tasks.withType(Test).configureEach {
+    it.executable = Jvm.current().getJavaExecutable()
+  }
+
   /*
-   * We alread configure publication and we don't need or want this one that
+   * We already configure publication and we don't need or want this one that
    * comes from the java-gradle-plugin.
    */
   afterEvaluate {
@@ -263,8 +273,17 @@ class VersionPropertiesLoader {
       }
       elasticsearch += "-" + qualifier
     }
-    if ("true".equals(systemProperties.getProperty("build.snapshot", "true"))) {
-      elasticsearch += "-SNAPSHOT"
+    final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+    switch (buildSnapshotSystemProperty) {
+      case "true":
+        elasticsearch += "-SNAPSHOT"
+        break;
+      case "false":
+        // do nothing
+        break;
+      default:
+        throw new IllegalArgumentException(
+          "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
     }
     loadedProps.put("elasticsearch", elasticsearch)
   }

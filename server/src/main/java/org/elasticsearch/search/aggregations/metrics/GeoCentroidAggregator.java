@@ -68,6 +68,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final BigArrays bigArrays = context.bigArrays();
         final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -88,8 +91,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     double sumLon = lonSum.get(bucket);
                     double compensationLon = lonCompensations.get(bucket);
 
-                    CompensatedSum compensatedSumLat = new CompensatedSum(sumLat, compensationLat);
-                    CompensatedSum compensatedSumLon = new CompensatedSum(sumLon, compensationLon);
+                    compensatedSumLat.reset(sumLat, compensationLat);
+                    compensatedSumLon.reset(sumLon, compensationLon);
 
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {

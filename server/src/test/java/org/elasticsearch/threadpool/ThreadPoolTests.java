@@ -62,8 +62,7 @@ public class ThreadPoolTests extends ESTestCase {
             // the delta can be large, we just care it is the same order of magnitude
             assertTrue("thread pool cached absolute time " + gotTime + " is too far from real current time " + currentTime, delta < 10000);
         } finally {
-            threadPool.shutdown();
-            threadPool.close();
+            terminate(threadPool);
         }
     }
 

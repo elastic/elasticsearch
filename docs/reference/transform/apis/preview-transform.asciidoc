@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[preview-transform]]
-=== Preview {transforms} API
+=== Preview {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Preview {transforms}</titleabbrev>
+<titleabbrev>Preview {transform}</titleabbrev>
 ++++
 
 Previews a {transform}.
@@ -37,24 +37,71 @@ on all the current data in the source index.
 [[preview-transform-request-body]]
 ==== {api-request-body-title}
 
-`source`::
-  (Required, object) The source configuration, which has the following
-  properties:
-  
-  `index`:::
-    (Required, string or array) The _source indices_ for the
-    {transform}. It can be a single index, an index pattern (for
-    example, `"myindex*"`), or an array of indices (for example,
-    `["index1", "index2"]`).
 
-  `query`:::
-    (Optional, object) A query clause that retrieves a subset of data from the
-    source index. See <<query-dsl>>.
+`description`::
+(Optional, string) Free text description of the {transform}.
+
+`dest`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
+  
+`dest`.`index`:::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`dest`.`pipeline`:::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
 
 `pivot`::
-  (Required, object) Defines the pivot function `group by` fields and the
-  aggregation to reduce the data. See <<transform-pivot>>.
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
+
+`pivot`.`aggregations` or `aggs`:::
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
+
+`pivot`.`group_by`:::
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
+
+`pivot`.`max_page_search_size`:::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
+
+`source`::
+(Required, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
+
+`source`.`index`:::
+(Required, string or array)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`source`.`query`:::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`sync`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
   
+`sync`.`time`:::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
+
+`sync`.`time`.`delay`::::
+(Optional, <<time-units, time units>>)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+    
+`sync`.`time`.`field`::::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+
+
 [[preview-transform-response]]
 ==== {api-response-body-title}
 

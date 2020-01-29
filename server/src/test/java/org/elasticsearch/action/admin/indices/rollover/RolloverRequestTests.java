@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -48,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
@@ -107,7 +107,7 @@ public class RolloverRequestTests extends ESTestCase {
         request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
-        assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
+        assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().settings().getAsInt("number_of_shards", 0), equalTo(10));
     }
@@ -128,7 +128,7 @@ public class RolloverRequestTests extends ESTestCase {
         request.fromXContent(createParser(builder));
 
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
-        String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
+        String mapping = createIndexRequest.mappings();
         assertNotNull(mapping);
 
         Map<String, Object> parsedMapping = XContentHelper.convertToMap(
@@ -200,23 +200,4 @@ public class RolloverRequestTests extends ESTestCase {
         conditionsGenerator.add((request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())));
     }
 
-    private static RolloverRequest createTestItem() throws IOException {
-        RolloverRequest rolloverRequest = new RolloverRequest();
-        if (randomBoolean()) {
-            String type = randomAlphaOfLengthBetween(3, 10);
-            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
-        }
-        if (randomBoolean()) {
-            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
-        }
-        if (randomBoolean()) {
-            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
-        }
-        int numConditions = randomIntBetween(0, 3);
-        List<Consumer<RolloverRequest>> conditions = randomSubsetOf(numConditions, conditionsGenerator);
-        for (Consumer<RolloverRequest> consumer : conditions) {
-            consumer.accept(rolloverRequest);
-        }
-        return rolloverRequest;
-    }
 }

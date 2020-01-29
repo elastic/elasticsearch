@@ -127,11 +127,6 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void onShardInactive(IndexShard indexShard) {
-            delegate.onShardInactive(indexShard);
-        }
-
-        @Override
         public void beforeIndexCreated(Index index, Settings indexSettings) {
             delegate.beforeIndexCreated(index, indexSettings);
         }

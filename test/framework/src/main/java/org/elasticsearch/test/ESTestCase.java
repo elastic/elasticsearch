@@ -118,7 +118,6 @@ import org.junit.rules.RuleChain;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.security.Security;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -191,6 +190,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
+
+    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -369,7 +370,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            assert threadContext == null;
+            DeprecationLogger.removeThreadContext(threadContext);
+            threadContext = null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -392,7 +394,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             assertNull("unexpected warning headers", warnings);
         } finally {
-            resetDeprecationLogger(false);
+            resetDeprecationLogger();
         }
     }
 
@@ -433,26 +435,16 @@ public abstract class ESTestCase extends LuceneTestCase {
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
                 expectedWarnings.length, actualWarnings.size());
         } finally {
-            resetDeprecationLogger(true);
+            resetDeprecationLogger();
         }
     }
 
     /**
-     * Reset the deprecation logger by removing the current thread context, and setting a new thread context if {@code setNewThreadContext}
-     * is set to {@code true} and otherwise clearing the current thread context.
-     *
-     * @param setNewThreadContext whether or not to attach a new thread context to the deprecation logger
+     * Reset the deprecation logger by clearing the current thread context.
      */
-    private void resetDeprecationLogger(final boolean setNewThreadContext) {
-        // "clear" current warning headers by setting a new ThreadContext
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
-        if (setNewThreadContext) {
-            this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(this.threadContext);
-        } else {
-            this.threadContext = null;
-        }
+    private void resetDeprecationLogger() {
+        // "clear" context by stashing current values and dropping the returned StoredContext
+        threadContext.stashContext();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -761,6 +753,19 @@ public abstract class ESTestCase extends LuceneTestCase {
             array[i] = valueConstructor.get();
         }
         return array;
+    }
+
+    public static <T> List<T> randomList(int maxListSize, Supplier<T> valueConstructor) {
+        return randomList(0, maxListSize, valueConstructor);
+    }
+
+    public static <T> List<T> randomList(int minListSize, int maxListSize, Supplier<T> valueConstructor) {
+        final int size = randomIntBetween(minListSize, maxListSize);
+        List<T> list = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            list.add(valueConstructor.get());
+        }
+        return list;
     }
 
 
@@ -1341,7 +1346,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
     /**

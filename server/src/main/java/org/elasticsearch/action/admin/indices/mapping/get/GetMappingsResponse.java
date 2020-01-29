@@ -99,13 +99,13 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (final ObjectObjectCursor<String, MappingMetaData> indexEntry : getMappings()) {
+            builder.startObject(indexEntry.key);
             if (indexEntry.value != null) {
-                builder.startObject(indexEntry.key);
                 builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
-                builder.endObject();
             } else {
                 builder.startObject(MAPPINGS.getPreferredName()).endObject();
             }
+            builder.endObject();
         }
         return builder;
     }

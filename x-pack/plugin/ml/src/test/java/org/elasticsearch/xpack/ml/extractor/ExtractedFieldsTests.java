@@ -101,7 +101,7 @@ public class ExtractedFieldsTests extends ESTestCase {
     public void testApplyBooleanMapping() {
         DocValueField aBool = new DocValueField("a_bool", Collections.singleton("boolean"));
 
-        ExtractedField mapped = ExtractedFields.applyBooleanMapping(aBool, 1, 0);
+        ExtractedField mapped = ExtractedFields.applyBooleanMapping(aBool);
 
         SearchHit hitTrue = new SearchHitBuilder(42).addField("a_bool", true).build();
         SearchHit hitFalse = new SearchHitBuilder(42).addField("a_bool", false).build();

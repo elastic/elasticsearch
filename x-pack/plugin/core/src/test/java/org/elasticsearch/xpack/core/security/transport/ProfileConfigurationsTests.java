@@ -30,7 +30,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("transport.profiles.cert.xpack.security.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        SSLService sslService = new SSLService(settings, env);
+        SSLService sslService = new SSLService(env);
         final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(3));
@@ -48,7 +48,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("transport.profiles.none.xpack.security.ssl.verification_mode", VerificationMode.NONE.name())
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        SSLService sslService = new SSLService(settings, env);
+        SSLService sslService = new SSLService(env);
         final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));

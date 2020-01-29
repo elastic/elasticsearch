@@ -611,6 +611,11 @@ public class XPackLicenseState {
         return status.active;
     }
 
+    public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
+        // any license (basic and upwards)
+        return operationMode != License.OperationMode.MISSING;
+    }
+
     /**
      * Rollup is always available as long as there is a valid license
      *

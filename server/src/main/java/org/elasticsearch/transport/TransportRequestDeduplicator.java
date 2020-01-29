@@ -53,6 +53,14 @@ public final class TransportRequestDeduplicator<T extends TransportRequest> {
         }
     }
 
+    /**
+     * Remove all tracked requests from this instance so that the first time {@link #executeOnce} is invoked with any request it triggers
+     * an actual request execution. Use this e.g. for requests to master that need to be sent again on master failover.
+     */
+    public void clear() {
+        requests.clear();
+    }
+
     public int size() {
         return requests.size();
     }

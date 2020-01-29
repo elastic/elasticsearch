@@ -368,7 +368,7 @@ PUT my_index
   }
 }
 
-GET _search <3>
+GET /my_index/_search <3>
 {
   "query": {
     "match": {

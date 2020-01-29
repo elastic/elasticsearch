@@ -7,7 +7,7 @@ filter.
 
 Example:
 
-[source,console]
+[source,console,id=filters-aggregation-example]
 --------------------------------------------------
 PUT /logs/_bulk?refresh
 { "index" : { "_id" : 1 } }
@@ -69,7 +69,7 @@ Response:
 The filters field can also be provided as an array of filters, as in the
 following request:
 
-[source,console]
+[source,console,id=filters-aggregation-anonymous-example]
 --------------------------------------------------
 GET logs/_search
 {
@@ -131,7 +131,7 @@ this parameter will implicitly set the `other_bucket` parameter to `true`.
 
 The following snippet shows a response where the `other` bucket is requested to be named `other_messages`.
 
-[source,console]
+[source,console,id=filters-aggregation-other-bucket-example]
 --------------------------------------------------
 PUT logs/_doc/4?refresh
 {

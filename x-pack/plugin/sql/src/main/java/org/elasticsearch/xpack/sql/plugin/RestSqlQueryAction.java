@@ -49,15 +49,15 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
          * like everything else. We want to stick as closely as possible to
          * Elasticsearch's defaults though, while still layering in ways to
-         * control the output more easilly.
+         * control the output more easily.
          *
          * First we find the string that the user used to specify the response
-         * format. If there is a {@code format} paramter we use that. If there
+         * format. If there is a {@code format} parameter we use that. If there
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
         String accept = null;
-        
+
         if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
                 && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication() == true)) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)

@@ -301,6 +301,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         return transport.getStats();
     }
 
+    public boolean isTransportSecure() {
+        return transport.isSecure();
+    }
+
     public BoundTransportAddress boundAddress() {
         return transport.boundAddress();
     }
@@ -608,7 +612,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
         Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         ContextRestoreResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
-        // TODO we can probably fold this entire request ID dance into connection.sendReqeust but it will be a bigger refactoring
+        // TODO we can probably fold this entire request ID dance into connection.sendRequest but it will be a bigger refactoring
         final long requestId = responseHandlers.add(new Transport.ResponseContext<>(responseHandler, connection, action));
         final TimeoutHandler timeoutHandler;
         if (options.timeout() != null) {

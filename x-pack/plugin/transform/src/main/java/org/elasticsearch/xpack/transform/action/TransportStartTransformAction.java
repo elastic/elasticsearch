@@ -24,28 +24,35 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
-import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -57,8 +64,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 
-public class TransportStartTransformAction extends
-    TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
+public class TransportStartTransformAction extends TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTransformAction.class);
     private final XPackLicenseState licenseState;
@@ -66,31 +72,77 @@ public class TransportStartTransformAction extends
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
+    private final SourceDestValidator sourceDestValidator;
+    private final IngestService ingestService;
 
     @Inject
-    public TransportStartTransformAction(TransportService transportService, ActionFilters actionFilters,
-                                         ClusterService clusterService, XPackLicenseState licenseState,
-                                         ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         TransformConfigManager transformConfigManager,
-                                         PersistentTasksService persistentTasksService, Client client,
-                                         TransformAuditor auditor) {
-        this(StartTransformAction.NAME, transportService, actionFilters, clusterService, licenseState, threadPool,
-             indexNameExpressionResolver, transformConfigManager, persistentTasksService, client, auditor);
+    public TransportStartTransformAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
+        PersistentTasksService persistentTasksService,
+        Client client,
+        Settings settings,
+        IngestService ingestService
+    ) {
+        this(
+            StartTransformAction.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            licenseState,
+            threadPool,
+            indexNameExpressionResolver,
+            transformServices,
+            persistentTasksService,
+            client,
+            settings,
+            ingestService
+        );
     }
 
-    protected TransportStartTransformAction(String name, TransportService transportService, ActionFilters actionFilters,
-                                            ClusterService clusterService, XPackLicenseState licenseState,
-                                            ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            TransformConfigManager transformConfigManager,
-                                            PersistentTasksService persistentTasksService, Client client,
-                                            TransformAuditor auditor) {
-        super(name, transportService, clusterService, threadPool, actionFilters, StartTransformAction.Request::new,
-              indexNameExpressionResolver);
+    protected TransportStartTransformAction(
+        String name,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
+        PersistentTasksService persistentTasksService,
+        Client client,
+        Settings settings,
+        IngestService ingestService
+    ) {
+        super(
+            name,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StartTransformAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.licenseState = licenseState;
-        this.transformConfigManager = transformConfigManager;
+        this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.auditor = auditor;
+        this.auditor = transformServices.getAuditor();
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -104,138 +156,151 @@ public class TransportStartTransformAction extends
     }
 
     @Override
-    protected void masterOperation(Task ignoredTask, StartTransformAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<StartTransformAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        Task ignoredTask,
+        StartTransformAction.Request request,
+        ClusterState state,
+        ActionListener<StartTransformAction.Response> listener
+    ) throws Exception {
         if (!licenseState.isTransformAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
         final AtomicReference<TransformTaskParams> transformTaskHolder = new AtomicReference<>();
+        final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 
-        // <4> Wait for the allocated task's state to STARTED
-        ActionListener<PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener =
-            ActionListener.wrap(
-                task -> {
-                    TransformTaskParams transformTask = transformTaskHolder.get();
-                    assert transformTask != null;
-                    waitForTransformTaskStarted(task.getId(),
-                        transformTask,
-                        request.timeout(),
-                        ActionListener.wrap(
-                            taskStarted -> listener.onResponse(new StartTransformAction.Response(true)),
-                            listener::onFailure));
-            },
-            listener::onFailure
-        );
-
-        // <3> Create the task in cluster state so that it will start executing on the node
-        ActionListener<Void> createOrGetIndexListener = ActionListener.wrap(
-            unused -> {
+        // <5> Wait for the allocated task's state to STARTED
+        ActionListener<PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
+            .wrap(task -> {
                 TransformTaskParams transformTask = transformTaskHolder.get();
                 assert transformTask != null;
-                PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> existingTask =
-                    getExistingTask(transformTask.getId(), state);
-                if (existingTask == null) {
-                    // Create the allocated task and wait for it to be started
-                    persistentTasksService.sendStartRequest(transformTask.getId(),
-                        TransformTaskParams.NAME,
-                        transformTask,
-                        newPersistentTaskActionListener);
+                waitForTransformTaskStarted(
+                    task.getId(),
+                    transformTask,
+                    request.timeout(),
+                    ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
+                );
+            }, listener::onFailure);
+
+        // <4> Create the task in cluster state so that it will start executing on the node
+        ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
+            TransformTaskParams transformTask = transformTaskHolder.get();
+            assert transformTask != null;
+            PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> existingTask = getExistingTask(transformTask.getId(), state);
+            if (existingTask == null) {
+                // Create the allocated task and wait for it to be started
+                persistentTasksService.sendStartRequest(
+                    transformTask.getId(),
+                    TransformTaskParams.NAME,
+                    transformTask,
+                    newPersistentTaskActionListener
+                );
+            } else {
+                TransformState transformState = (TransformState) existingTask.getState();
+                if (transformState.getTaskState() == TransformTaskState.FAILED) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, request.getId(), transformState.getReason()),
+                            RestStatus.CONFLICT
+                        )
+                    );
                 } else {
-                    TransformState transformState = (TransformState)existingTask.getState();
-                    if(transformState.getTaskState() == TransformTaskState.FAILED) {
-                        listener.onFailure(new ElasticsearchStatusException(
-                            TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM,
-                                request.getId(),
-                                transformState.getReason()),
-                            RestStatus.CONFLICT));
-                    } else {
-                        // If the task already exists that means that it is either running or failed
-                        // Since it is not failed, that means it is running, we return a conflict.
-                        listener.onFailure(new ElasticsearchStatusException(
+                    // If the task already exists that means that it is either running or failed
+                    // Since it is not failed, that means it is running, we return a conflict.
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
                             "Cannot start transform [{}] as it is already started.",
                             RestStatus.CONFLICT,
                             request.getId()
-                        ));
-                    }
+                        )
+                    );
                 }
-            },
-            listener::onFailure
-        );
+            }
+        }, listener::onFailure);
 
         // <2> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
-        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(
-            config -> {
-                if (config.isValid() == false) {
-                    listener.onFailure(new ElasticsearchStatusException(
+        ActionListener<Boolean> validationListener = ActionListener.wrap(validationResponse -> {
+            final String destinationIndex = transformConfigHolder.get().getDestination().getIndex();
+            String[] dest = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), destinationIndex);
+
+            if (dest.length == 0) {
+                createDestinationIndex(transformConfigHolder.get(), ActionListener.wrap(r -> {
+                    auditor.info(request.getId(), "Created destination index [" + destinationIndex + "] with deduced mappings.");
+                    createOrGetIndexListener.onResponse(r);
+                }, createOrGetIndexListener::onFailure));
+            } else {
+                auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
+                ClientHelper.executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    ClientHelper.TRANSFORM_ORIGIN,
+                    client.admin().indices().prepareStats(dest).clear().setDocs(true).request(),
+                    ActionListener.<IndicesStatsResponse>wrap(r -> {
+                        long docTotal = r.getTotal().docs.getCount();
+                        if (docTotal > 0L) {
+                            auditor.warning(
+                                request.getId(),
+                                "Non-empty destination index [" + destinationIndex + "]. " + "Contains [" + docTotal + "] total documents."
+                            );
+                        }
+                        createOrGetIndexListener.onResponse(true);
+                    }, e -> {
+                        String msg = "Unable to determine destination index stats, error: " + e.getMessage();
+                        logger.warn(msg, e);
+                        auditor.warning(request.getId(), msg);
+                        createOrGetIndexListener.onResponse(true);
+                    }),
+                    client.admin().indices()::stats
+                );
+            }
+        }, listener::onFailure);
+
+        // <2> run transform validations
+        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
+            if (config.isValid() == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
                         TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIG_INVALID, request.getId()),
                         RestStatus.BAD_REQUEST
-                    ));
+                    )
+                );
+                return;
+            }
+            transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
+            transformConfigHolder.set(config);
+            if (config.getDestination().getPipeline() != null) {
+                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
                     return;
                 }
-                // Validate source and destination indices
-                SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
+            }
 
-                transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
-                final String destinationIndex = config.getDestination().getIndex();
-                String[] dest = indexNameExpressionResolver.concreteIndexNames(state,
-                    IndicesOptions.lenientExpandOpen(),
-                    destinationIndex);
-
-                if(dest.length == 0) {
-                    auditor.info(request.getId(),
-                        "Creating destination index [" +  destinationIndex + "] with deduced mappings.");
-                    createDestinationIndex(config, createOrGetIndexListener);
-                } else {
-                    auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
-                    ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-                        ClientHelper.TRANSFORM_ORIGIN,
-                        client.admin()
-                            .indices()
-                            .prepareStats(dest)
-                            .clear()
-                            .setDocs(true)
-                            .request(),
-                        ActionListener.<IndicesStatsResponse>wrap(
-                            r -> {
-                                long docTotal = r.getTotal().docs.getCount();
-                                if (docTotal > 0L) {
-                                    auditor.warning(request.getId(), "Non-empty destination index [" + destinationIndex + "]. " +
-                                        "Contains [" + docTotal + "] total documents.");
-                                }
-                                createOrGetIndexListener.onResponse(null);
-                            },
-                            e -> {
-                                String msg = "Unable to determine destination index stats, error: " + e.getMessage();
-                                logger.error(msg, e);
-                                auditor.warning(request.getId(), msg);
-                                createOrGetIndexListener.onResponse(null);
-                            }),
-                        client.admin().indices()::stats);
-                }
-            },
-            listener::onFailure
-        );
+            sourceDestValidator.validate(
+                clusterService.state(),
+                config.getSource().getIndex(),
+                config.getDestination().getIndex(),
+                SourceDestValidations.ALL_VALIDATIONS,
+                validationListener
+            );
+        }, listener::onFailure);
 
         // <1> Get the config to verify it exists and is valid
         transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 
-    private void createDestinationIndex(final TransformConfig config, final ActionListener<Void> listener) {
+    private void createDestinationIndex(final TransformConfig config, final ActionListener<Boolean> listener) {
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(
-                client,
-                Clock.systemUTC(),
-                config,
-                mappings,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),
+            mappings -> TransformIndex.createDestinationIndex(client, Clock.systemUTC(), config, mappings, listener),
             deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS,
-                    deduceTargetMappingsException))
+                new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
+            )
         );
 
         pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);
@@ -256,51 +321,64 @@ public class TransportStartTransformAction extends
         if (pTasksMeta == null) {
             return null;
         }
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> existingTask = pTasksMeta.findTasks(TransformTaskParams.NAME,
-            t -> t.getId().equals(id));
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> existingTask = pTasksMeta.findTasks(
+            TransformTaskParams.NAME,
+            t -> t.getId().equals(id)
+        );
         if (existingTask.isEmpty()) {
             return null;
         } else {
-            assert(existingTask.size() == 1);
+            assert (existingTask.size() == 1);
             PersistentTasksCustomMetaData.PersistentTask<?> pTask = existingTask.iterator().next();
             if (pTask.getParams() instanceof TransformTaskParams) {
-                return (PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>)pTask;
+                return (PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>) pTask;
             }
-            throw new ElasticsearchStatusException("Found transform persistent task [" + id + "] with incorrect params",
-                RestStatus.INTERNAL_SERVER_ERROR);
+            throw new ElasticsearchStatusException(
+                "Found transform persistent task [" + id + "] with incorrect params",
+                RestStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId,
-            new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-                    // We succeeded in canceling the persistent task, but the
-                    // problem that caused us to cancel it is the overall result
-                    onFailure.accept(exception);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("[" + transformId + "] Failed to cancel persistent task that could " +
-                        "not be assigned due to [" + exception.getMessage() + "]", e);
-                    onFailure.accept(exception);
-                }
+        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                // We succeeded in canceling the persistent task, but the
+                // problem that caused us to cancel it is the overall result
+                onFailure.accept(exception);
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    "["
+                        + transformId
+                        + "] Failed to cancel persistent task that could "
+                        + "not be assigned due to ["
+                        + exception.getMessage()
+                        + "]",
+                    e
+                );
+                onFailure.accept(exception);
+            }
+        });
     }
 
-    private void waitForTransformTaskStarted(String taskId,
-                                             TransformTaskParams params,
-                                             TimeValue timeout,
-                                             ActionListener<Boolean> listener) {
+    private void waitForTransformTaskStarted(
+        String taskId,
+        TransformTaskParams params,
+        TimeValue timeout,
+        ActionListener<Boolean> listener
+    ) {
         TransformPredicate predicate = new TransformPredicate();
-        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, timeout,
+        persistentTasksService.waitForPersistentTaskCondition(
+            taskId,
+            predicate,
+            timeout,
             new PersistentTasksService.WaitForPersistentTaskListener<TransformTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>
-                                           persistentTask) {
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task
                         cancelTransformTask(taskId, params.getId(), predicate.exception, listener::onFailure);
@@ -316,10 +394,12 @@ public class TransportStartTransformAction extends
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException("Starting transform ["
-                        + params.getId() + "] timed out after [" + timeout + "]"));
+                    listener.onFailure(
+                        new ElasticsearchException("Starting transform [" + params.getId() + "] timed out after [" + timeout + "]")
+                    );
                 }
-            });
+            }
+        );
     }
 
     /**
@@ -336,13 +416,15 @@ public class TransportStartTransformAction extends
                 return false;
             }
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
-            if (assignment != null &&
-                assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                assignment.isAssigned() == false) {
+            if (assignment != null
+                && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false
+                && assignment.isAssigned() == false) {
                 // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
                 // Consider this a failure.
-                exception = new ElasticsearchStatusException("Could not start transform, allocation explanation [" +
-                    assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                exception = new ElasticsearchStatusException(
+                    "Could not start transform, allocation explanation [" + assignment.getExplanation() + "]",
+                    RestStatus.TOO_MANY_REQUESTS
+                );
                 return true;
             }
             // We just want it assigned so we can tell it to start working
@@ -353,7 +435,7 @@ public class TransportStartTransformAction extends
         // But if it is in a failed state, _stats will show as much and give good reason to the user.
         // If it is not able to be assigned to a node all together, we should just close the task completely
         private boolean isNotStopped(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-            TransformState state = (TransformState)task.getState();
+            TransformState state = (TransformState) task.getState();
             return state != null && state.getTaskState().equals(TransformTaskState.STOPPED) == false;
         }
     }

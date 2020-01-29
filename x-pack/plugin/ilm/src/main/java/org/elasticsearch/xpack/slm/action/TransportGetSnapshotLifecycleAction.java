@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 public class TransportGetSnapshotLifecycleAction extends
     TransportMasterNodeAction<GetSnapshotLifecycleAction.Request, GetSnapshotLifecycleAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetSnapshotLifecycleAction.class);
 
     @Inject
     public TransportGetSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,

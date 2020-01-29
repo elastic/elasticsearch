@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -228,7 +228,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             parser.nextToken();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-            assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
+            assertEquals("[1:15] [_script] unknown field [bad_field]", e.getMessage());
         }
     }
 
@@ -241,7 +241,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             parser.nextToken();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-            assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
+            assertEquals("[1:15] [_script] unknown field [bad_field]", e.getMessage());
         }
     }
 
@@ -332,7 +332,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(TypeFieldMapper.NAME, "__path")), nested.getInnerQuery());
+        assertEquals(new TermQuery(new Term(NestedPathFieldMapper.NAME, "path")), nested.getInnerQuery());
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
             .setNestedSort(new NestedSortBuilder("path")

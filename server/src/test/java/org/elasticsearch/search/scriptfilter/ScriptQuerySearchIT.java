@@ -111,7 +111,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
-                        .addMapping("my-type", createMappingSource("binary"))
+                        .setMapping(createMappingSource("binary"))
                         .setSettings(indexSettings())
         );
         client().prepareIndex("my-index").setId("1")
@@ -146,7 +146,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("binaryData")
                 .field("type", fieldType)

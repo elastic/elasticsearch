@@ -53,7 +53,9 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -72,6 +74,7 @@ public abstract class MappedFieldType extends FieldType {
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
     private boolean eagerGlobalOrdinals;
+    private Map<String, String> meta;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
@@ -85,6 +88,7 @@ public abstract class MappedFieldType extends FieldType {
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
+        this.meta = ref.meta;
     }
 
     public MappedFieldType() {
@@ -94,6 +98,7 @@ public abstract class MappedFieldType extends FieldType {
         setOmitNorms(false);
         setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         setBoost(1.0f);
+        meta = Collections.emptyMap();
     }
 
     @Override
@@ -126,13 +131,14 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
-            Objects.equals(similarity, fieldType.similarity);
+            Objects.equals(similarity, fieldType.similarity) &&
+            Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
+            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
@@ -490,4 +496,18 @@ public abstract class MappedFieldType extends FieldType {
         return ((TermQuery) termQuery).getTerm();
     }
 
+    /**
+     * Get the metadata associated with this field.
+     */
+    public Map<String, String> meta() {
+        return meta;
+    }
+
+    /**
+     * Associate metadata with this field.
+     */
+    public void setMeta(Map<String, String> meta) {
+        checkIfFrozen();
+        this.meta = Map.copyOf(Objects.requireNonNull(meta));
+    }
 }

@@ -1,3 +1,7 @@
+plugins {
+  id "com.gradle.enterprise" version "3.1.1"
+}
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 
@@ -32,10 +36,6 @@ List projects = [
   'distribution:docker:docker-export',
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-docker-export',
-  'distribution:docker:oss-ubi-docker-build-context',
-  'distribution:docker:oss-ubi-docker-export',
-  'distribution:docker:ubi-docker-build-context',
-  'distribution:docker:ubi-docker-export',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-no-jdk-deb',
@@ -61,6 +61,7 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
+  'test:fixtures:s3-fixture',
   'test:logger-usage'
 ]
 

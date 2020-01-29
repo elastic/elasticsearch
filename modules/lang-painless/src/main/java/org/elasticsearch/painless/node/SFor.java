@@ -19,15 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.ir.ForLoopNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Arrays;
 import java.util.Set;
@@ -53,25 +48,6 @@ public final class SFor extends AStatement {
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        if (initializer != null) {
-            initializer.storeSettings(settings);
-        }
-
-        if (condition != null) {
-            condition.storeSettings(settings);
-        }
-
-        if (afterthought != null) {
-            afterthought.storeSettings(settings);
-        }
-
-        if (block != null) {
-            block.storeSettings(settings);
-        }
     }
 
     @Override
@@ -175,64 +151,18 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    ForLoopNode write() {
+        ForLoopNode forLoopNode = new ForLoopNode();
 
-        Label start = new Label();
-        Label begin = afterthought == null ? start : new Label();
-        Label end = new Label();
+        forLoopNode.setInitialzerNode(initializer == null ? null : initializer.write());
+        forLoopNode.setConditionNode(condition == null ? null : condition.write());
+        forLoopNode.setAfterthoughtNode(afterthought == null ? null : afterthought.write());
+        forLoopNode.setBlockNode(block == null ? null : block.write());
 
-        if (initializer instanceof SDeclBlock) {
-            initializer.write(classWriter, methodWriter, globals);
-        } else if (initializer instanceof AExpression) {
-            AExpression initializer = (AExpression)this.initializer;
+        forLoopNode.setLocation(location);
+        forLoopNode.setContinuous(continuous);
 
-            initializer.write(classWriter, methodWriter, globals);
-            methodWriter.writePop(MethodWriter.getType(initializer.expected).getSize());
-        }
-
-        methodWriter.mark(start);
-
-        if (condition != null && !continuous) {
-            condition.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        boolean allEscape = false;
-
-        if (block != null) {
-            allEscape = block.allEscape;
-
-            int statementCount = Math.max(1, block.statementCount);
-
-            if (afterthought != null) {
-                ++statementCount;
-            }
-
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
-            }
-
-            block.continu = begin;
-            block.brake = end;
-            block.write(classWriter, methodWriter, globals);
-        } else {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
-            }
-        }
-
-        if (afterthought != null) {
-            methodWriter.mark(begin);
-            afterthought.write(classWriter, methodWriter, globals);
-            methodWriter.writePop(MethodWriter.getType(afterthought.expected).getSize());
-        }
-
-        if (afterthought != null || !allEscape) {
-            methodWriter.goTo(start);
-        }
-
-        methodWriter.mark(end);
+        return forLoopNode;
     }
 
     @Override

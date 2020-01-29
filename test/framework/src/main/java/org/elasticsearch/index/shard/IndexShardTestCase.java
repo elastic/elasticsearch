@@ -79,6 +79,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -248,7 +249,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                 .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
                     randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
                 .put(settings)
@@ -256,7 +256,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("_doc", "{ \"properties\": {} }");
+            .putMapping("{ \"properties\": {} }");
         return newShard(shardRouting, metaData.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
@@ -727,10 +727,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, type, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, source, XContentType.JSON, null);
     }
 
-    protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType,
+    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType,
                                           String routing)
         throws IOException {
         SourceToParse sourceToParse = new SourceToParse(
@@ -741,7 +741,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 updateMappings(shard, IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
-                    .putMapping(type, result.getRequiredMappingUpdate().toString()).build());
+                    .putMapping(result.getRequiredMappingUpdate().toString()).build());
                 result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }
@@ -833,12 +833,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Index index = shard.shardId().getIndex();
         final IndexId indexId = new IndexId(index.getName(), index.getUUID());
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
-            repository.getRepositoryData().shardGenerations().getShardGen(indexId, shard.shardId().getId()));
+            ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
+                indexId, shard.shardId().getId()));
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), snapshotStatus, true, future);
+                indexCommitRef.getIndexCommit(), snapshotStatus, true, Collections.emptyMap(), future);
             shardGen = future.actionGet();
         }
 

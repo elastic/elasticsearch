@@ -72,7 +72,7 @@ dependencies {
   compile "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  compile project(':client:rest-high-level')
+  compile project(path: ':client:rest-high-level', configuration: 'shadow')
   wildfly "org.jboss:wildfly:${wildflyVersion}@zip"
   testCompile project(':test:framework')
 }
@@ -163,8 +163,10 @@ task startWildfly {
         }
       }
 
-      assert httpPort > 0
-      assert managementPort > 0
+      if (httpPort == 0 || managementPort == 0) {
+        String portType = httpPort == 0 ? "http" : "management"
+        throw new GradleException("Failed to find ${portType} port in wildfly log")
+      }
     }
   }
 }
@@ -188,6 +190,10 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
   final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
     @Override
     void afterExecute(final Task task, final TaskState state) {
+      if (task != startWildfly && task != integTestRunner) {
+        // we might have been called from a parallel, unrelated task
+        return
+      }
       if (state.failure != null) {
         final File logFile = new File(wildflyInstall, "standalone/log/server.log")
         println("\nWildfly server log (from ${logFile}):")
@@ -204,10 +210,16 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
   }
+  startWildfly.doFirst {
+    project.gradle.addListener(logDumpListener)
+  }
   integTestRunner.doFirst {
     project.gradle.addListener(logDumpListener)
   }
   integTestRunner.doLast {
+    project.gradle.removeListener(logDumpListener)
+  }
+  startWildfly.doLast {
     project.gradle.removeListener(logDumpListener)
   }
   integTestRunner.finalizedBy(stopWildfly)

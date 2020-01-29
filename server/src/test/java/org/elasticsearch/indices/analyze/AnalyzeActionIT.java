@@ -85,7 +85,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testAnalyzeNumericField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
         expectThrows(IllegalArgumentException.class,
@@ -130,7 +130,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-                .setType("document").setSource("simple", "type=text,analyzer=simple").get();
+                .setSource("simple", "type=text,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
@@ -174,7 +174,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
 
@@ -256,7 +256,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
@@ -358,7 +358,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testAnalyzeKeywordField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "keyword", "type=keyword"));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("keyword", "type=keyword"));
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
@@ -376,7 +376,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(indexSettings())
                 .put("index.analysis.normalizer.my_normalizer.type", "custom")
                 .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
-            .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer"));
+            .setMapping("keyword", "type=keyword,normalizer=my_normalizer"));
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();

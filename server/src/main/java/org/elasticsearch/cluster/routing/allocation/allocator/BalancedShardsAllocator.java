@@ -899,8 +899,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     continue;
                 }
 
-                // simulate weight if we would add shard to node
-                float currentWeight = weight.weight(this, node, shard.getIndexName()) + 1;
+                // weight of this index currently on the node
+                float currentWeight = weight.weight(this, node, shard.getIndexName());
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;

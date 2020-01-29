@@ -86,10 +86,38 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         userObject.put("metadata", user.metadata());
                     }
                     break;
-                case API_KEY_NAME:
+                case API_KEY:
+                    final HashMap<String, Object> apiKey = new HashMap<>();
                     Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
                     if (apiKeyName != null) {
-                        userObject.put("api_key_name", apiKeyName);
+                        apiKey.put("name", apiKeyName);
+                    }
+                    Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    if (apiKeyId != null) {
+                        apiKey.put("id", apiKeyId);
+                    }
+                    if (false == apiKey.isEmpty()) {
+                        userObject.put("api_key", apiKey);
+                    }
+                    break;
+                case REALM:
+                    if (Authentication.AuthenticationType.API_KEY.equals(authentication.getAuthenticationType())) {
+                        userObject.put("realm", Map.of(
+                            "name", authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME),
+                            "type", authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE)
+                        ));
+                    } else if (Authentication.AuthenticationType.TOKEN.equals(authentication.getAuthenticationType())) {
+
+                    } else {
+                        userObject.put("realm", Map.of(
+                            "name", authentication.getAuthenticatedBy().getName(),
+                            "type", authentication.getAuthenticatedBy().getType())
+                        );
+                    }
+                    break;
+                case AUTHENTICATION_TYPE:
+                    if (authentication.getAuthenticationType() != null) {
+                        userObject.put("authentication_type", authentication.getAuthenticationType());
                     }
                     break;
                 default:
@@ -146,7 +174,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         EMAIL,
         ROLES,
         METADATA,
-        API_KEY_NAME;
+        API_KEY,
+        REALM,
+        AUTHENTICATION_TYPE;
 
         static Property parse(String tag, String value) {
             try {

@@ -109,7 +109,8 @@ public class ApiKeyService {
     public static final String API_KEY_NAME_KEY = "_security_api_key_name";
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
-    public static final String API_KEY_CREATOR_REALM = "_security_api_key_creator_realm";
+    public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
+    public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 
@@ -272,8 +273,12 @@ public class ApiKeyService {
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getLookedUpBy() == null ?
-                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+            .startObject("realm")
+            .field("name", authentication.getLookedUpBy() == null
+                ? authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+            .field("type", authentication.getLookedUpBy() == null
+                ? authentication.getAuthenticatedBy().getType() : authentication.getLookedUpBy().getType())
+            .endObject()
             .endObject()
             .endObject();
 
@@ -502,7 +507,10 @@ public class ApiKeyService {
                 : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
             final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
-            authResultMetadata.put(API_KEY_CREATOR_REALM, creator.get("realm"));
+
+            final Map<String, String> realm = Objects.requireNonNull((Map<String, String>) creator.get("realm"));
+            authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, realm.get("name"));
+            authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, realm.get("type"));
             authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
             authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
             authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
@@ -880,9 +888,24 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmName(final Authentication authentication) {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
-            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM);
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getAuthenticatedBy().getName();
+        }
+    }
+
+    /**
+     * Returns realm type for the authenticated user.
+     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * then it will return the realm type of user who created this API key.
+     * @param authentication {@link Authentication}
+     * @return realm type
+     */
+    public static String getCreatorRealmType(final Authentication authentication) {
+        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
+        } else {
+            return authentication.getAuthenticatedBy().getType();
         }
     }
 

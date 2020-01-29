@@ -193,7 +193,15 @@
               "dynamic" : false
             },
             "realm" : {
-              "type" : "keyword"
+              "type" : "object",
+              "properties" : {
+                "name" : {
+                  "type" : "keyword"
+                },
+                "type" : {
+                  "type": "keyword"
+                }
+              }
             }
           }
         },

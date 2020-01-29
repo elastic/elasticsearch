@@ -15,7 +15,7 @@ import javax.xml.namespace.QName;
 import java.security.SecureRandom;
 
 /**
- * Utility object for contructing new objects and values in a SAML2.0 / OpenSAML context
+ * Utility object for constructing new objects and values in a SAML 2.0 / OpenSAML context
  */
 public class SamlFactory {
 

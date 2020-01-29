@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.idp.saml.authn;
 
+import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
+import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 
 import java.util.Set;
@@ -18,4 +20,7 @@ public interface UserServiceAuthentication {
     String getPrincipal();
     Set<String> getGroups();
     SamlServiceProvider getServiceProvider();
+
+    Set<AuthenticationMethod> getAuthenticationMethods();
+    Set<NetworkControl> getNetworkControls();
 }

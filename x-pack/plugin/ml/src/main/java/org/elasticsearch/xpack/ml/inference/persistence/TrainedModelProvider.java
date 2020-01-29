@@ -384,11 +384,13 @@ public class TrainedModelProvider {
                           Set<String> tags,
                           ActionListener<Tuple<Long, Set<String>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
-        Set<String> foundResourceIds = new HashSet<>();
+        Set<String> matchedResourceIds = matchedResourceIds(tokens);
+        Set<String> foundResourceIds;
         if (tags.isEmpty()) {
-            foundResourceIds.addAll(matchedResourceIds(tokens));
+            foundResourceIds = matchedResourceIds;
         } else {
-            for(String resourceId : matchedResourceIds(tokens)) {
+            foundResourceIds = new HashSet<>();
+            for(String resourceId : matchedResourceIds) {
                 // Does the model as a resource have all the tags?
                 if (Sets.newHashSet(loadModelFromResource(resourceId, true).getTags()).containsAll(tags)) {
                     foundResourceIds.add(resourceId);
@@ -452,6 +454,12 @@ public class TrainedModelProvider {
     }
 
     static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs, long totalMatchedIds) {
+        // If there are no matching resource models, there was no buffering and the models from the docs
+        // are paginated correctly.
+        if (foundFromResources.isEmpty()) {
+            return foundFromDocs;
+        }
+
         TreeSet<String> allFoundIds = new TreeSet<>(foundFromDocs);
         allFoundIds.addAll(foundFromResources);
         int from = pageParams.getFrom();
@@ -554,7 +562,7 @@ public class TrainedModelProvider {
 
     private Set<String> matchedResourceIds(String[] tokens) {
         if (Strings.isAllOrWildcard(tokens)) {
-            return new HashSet<>(MODELS_STORED_AS_RESOURCE);
+            return MODELS_STORED_AS_RESOURCE;
         }
 
         Set<String> matchedModels = new HashSet<>();
@@ -572,7 +580,7 @@ public class TrainedModelProvider {
                 }
             }
         }
-        return matchedModels;
+        return Collections.unmodifiableSet(matchedModels);
     }
 
     private static <T> T handleSearchItem(MultiSearchResponse.Item item,

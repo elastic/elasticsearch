@@ -224,33 +224,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         float weight(Balancer balancer, ModelNode node, String index) {
-            return weight(balancer, node, index, 0);
+            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            return theta0 * weightShard + theta1 * weightIndex;
         }
 
         float weightShardAdded(Balancer balancer, ModelNode node, String index) {
-            return weight(balancer, node, index, 1);
+            return weight(balancer, node, index) + 1;
         }
 
         float weightShardRemoved(Balancer balancer, ModelNode node, String index) {
-            return weight(balancer, node, index, -1);
-        }
-
-        private float weight(Balancer balancer, ModelNode node, String index, int numAdditionalShards) {
-            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
-            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            final float weight = theta0 * weightShard + theta1 * weightIndex + numAdditionalShards;
-            assert Math.abs(weight - legacyWeight(balancer, node, index, numAdditionalShards)) < 5.0e-5f
-                : node.numShards() + " vs " + balancer.avgShardsPerNode + " * " + theta0 + " and "
-                + node.numShards(index) + " vs " + balancer.avgShardsPerNode(index) + " * " + theta1 + " gives "
-                + weight + " vs legacy " + legacyWeight(balancer, node, index, numAdditionalShards) + " with delta "
-                + Math.abs(weight - legacyWeight(balancer, node, index, numAdditionalShards));
-            return weight;
-        }
-
-        private float legacyWeight(Balancer balancer, ModelNode node, String index, int numAdditionalShards) {
-            final float weightShard = node.numShards() + numAdditionalShards - balancer.avgShardsPerNode();
-            final float weightIndex = node.numShards(index) + numAdditionalShards - balancer.avgShardsPerNode(index);
-            return theta0 * weightShard + theta1 * weightIndex;
+            return weight(balancer, node, index) - 1;
         }
     }
 
@@ -1020,8 +1004,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             if (maxNode.containsShard(shard)) {
                                 // simulate moving shard from maxNode to minNode
-                                final float delta = weight.weightShardAdded(
-                                    this, minNode, idx) - weight.weightShardRemoved(this, maxNode, idx);
+                                final float delta = weight.weightShardAdded(this, minNode, idx) - weight.weightShardRemoved(this, maxNode, idx);
                                 if (delta < minCost ||
                                         (candidate != null && Float.compare(delta, minCost) == 0 && candidate.id() > shard.id())) {
                                     /* this last line is a tie-breaker to make the shard allocation alg deterministic

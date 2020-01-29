@@ -26,11 +26,15 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
 
 //TODO: This is a *temporary* workaround to ensure a timeout does not mask other problems
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
+    @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("We run with DEFAULT distribution in FIPS mode and default to security4 instead of netty4", inFipsJvm());
+    }
     public Netty4ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

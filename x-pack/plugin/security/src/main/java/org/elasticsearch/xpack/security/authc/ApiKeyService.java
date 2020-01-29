@@ -273,10 +273,10 @@ public class ApiKeyService {
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getLookedUpBy() == null
-                ? authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
-            .field("realm_type", authentication.getLookedUpBy() == null
-                ? authentication.getAuthenticatedBy().getType() : authentication.getLookedUpBy().getType())
+            .field("realm", authentication.getLookedUpBy() == null ?
+                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+            .field("realm_type", authentication.getLookedUpBy() == null ?
+                authentication.getAuthenticatedBy().getType() : authentication.getLookedUpBy().getType())
             .endObject()
             .endObject();
 
@@ -505,7 +505,6 @@ public class ApiKeyService {
                 : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
             final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
-
             authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, creator.get("realm"));
             authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, creator.get("realm_type"));
             authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);

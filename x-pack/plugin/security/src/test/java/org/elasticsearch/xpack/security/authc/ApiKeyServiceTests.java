@@ -148,6 +148,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(auth.getUser(), notNullValue());
         assertThat(auth.getUser().principal(), is("hulk"));
+        assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
+        assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE), is("native"));
+        assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_ID_KEY), is(id));
+        assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY), is("test"));
     }
 
     public void testAuthenticationIsSkippedIfLicenseDoesNotAllowIt() throws Exception {
@@ -284,6 +288,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
         creatorMap.put("realm", "realm1");
+        creatorMap.put("realm_type", "realm_type1");
         creatorMap.put("metadata", Collections.emptyMap());
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);

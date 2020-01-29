@@ -30,7 +30,6 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
                 Map.of("key", "value"), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null, Version.CURRENT));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());

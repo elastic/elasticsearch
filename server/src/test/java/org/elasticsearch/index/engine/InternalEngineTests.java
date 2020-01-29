@@ -2954,6 +2954,7 @@ public class InternalEngineTests extends EngineTestCase {
                 directory.setFailOnOpenInput(false);
                 directory.setAllowRandomFileNotFoundException(false);
                 if (started) {
+                    engine.refresh("warm_up");
                     assertVisibleCount(engine, numDocs, false);
                     engine.close();
                 }

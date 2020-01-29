@@ -37,7 +37,7 @@ buildScan {
     // Parse job name in the case of matrix builds
     // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
     def splitJobName = jobName.split('/')
-    if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-]+,?)+$/) {
+    if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-&\.]+,?)+$/) {
       def baseJobName = splitJobName.dropRight(1).join('/')
       tag baseJobName
       tag splitJobName.last()

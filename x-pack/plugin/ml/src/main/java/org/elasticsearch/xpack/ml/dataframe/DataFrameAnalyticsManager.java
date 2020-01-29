@@ -15,6 +15,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +45,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 
 public class DataFrameAnalyticsManager {
 
@@ -158,7 +162,7 @@ public class DataFrameAnalyticsManager {
 
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            refreshResponse -> {
+            reindexResponse -> {
                 if (task.isStopping()) {
                     LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
                     return;
@@ -177,11 +181,12 @@ public class DataFrameAnalyticsManager {
         ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(
             createIndexResponse -> {
                 ReindexRequest reindexRequest = new ReindexRequest();
+                reindexRequest.setRefresh(true);
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
                 reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
                 reindexRequest.setDestIndex(config.getDest().getIndex());
-                reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsIndex.ID_COPY + " = ctx._id"));
+                reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
 
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
@@ -201,7 +206,7 @@ public class DataFrameAnalyticsManager {
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));
                 LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
-                DataFrameAnalyticsIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
+                DestinationIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
                     acknowledgedResponse -> copyIndexCreatedListener.onResponse(null),
                     copyIndexCreatedListener::onFailure
                 ));
@@ -212,7 +217,7 @@ public class DataFrameAnalyticsManager {
                         config.getId(),
                         Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex()));
                     LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
-                    DataFrameAnalyticsIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
+                    DestinationIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
                 } else {
                     copyIndexCreatedListener.onFailure(e);
                 }
@@ -224,9 +229,6 @@ public class DataFrameAnalyticsManager {
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
-        // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
-        task.setReindexingFinished();
-
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
@@ -246,10 +248,23 @@ public class DataFrameAnalyticsManager {
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
-        // TODO This could fail with errors. In that case we get stuck with the copied index.
-        // We could delete the index in case of failure or we could try building the factory before reindexing
-        // to catch the error early on.
-        DataFrameDataExtractorFactory.createForDestinationIndex(client, config, dataExtractorFactoryListener);
+        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
+            refreshResponse -> {
+                // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
+                task.setReindexingFinished();
+
+                // TODO This could fail with errors. In that case we get stuck with the copied index.
+                // We could delete the index in case of failure or we could try building the factory before reindexing
+                // to catch the error early on.
+                DataFrameDataExtractorFactory.createForDestinationIndex(client, config, dataExtractorFactoryListener);
+            },
+            dataExtractorFactoryListener::onFailure
+        );
+
+        // First we need to refresh the dest index to ensure data is searchable in case the job
+        // was stopped after reindexing was complete but before the index was refreshed.
+        executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, RefreshAction.INSTANCE,
+            new RefreshRequest(config.getDest().getIndex()), refreshListener);
     }
 
     public void stop(DataFrameAnalyticsTask task) {

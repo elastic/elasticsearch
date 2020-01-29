@@ -141,14 +141,16 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         Set<String> taskIds = new HashSet<>();
         Set<String> executorNodes = new HashSet<>();
 
-        Predicate<PersistentTask<?>> taskMatcher = Strings.isAllOrWildcard(new String[] { transformId }) ? t -> true : t -> {
-            TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
-            return Regex.simpleMatch(transformId, transformParams.getId());
-        };
+        if (tasks != null) {
+            Predicate<PersistentTask<?>> taskMatcher = Strings.isAllOrWildcard(new String[] { transformId }) ? t -> true : t -> {
+                TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
+                return Regex.simpleMatch(transformId, transformParams.getId());
+            };
 
-        for (PersistentTasksCustomMetaData.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
-            executorNodes.add(pTask.getExecutorNode());
-            taskIds.add(pTask.getId());
+            for (PersistentTasksCustomMetaData.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
+                executorNodes.add(pTask.getExecutorNode());
+                taskIds.add(pTask.getId());
+            }
         }
 
         return new Tuple<>(taskIds, executorNodes);

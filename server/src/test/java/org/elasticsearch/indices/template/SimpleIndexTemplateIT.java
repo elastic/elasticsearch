@@ -93,7 +93,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("te*"))
                 .setSettings(indexSettings())
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
@@ -103,7 +103,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("test*"))
                 .setSettings(indexSettings())
                 .setOrder(1)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field2").field("type", "text").field("store", false).endObject()
                         .endObject().endObject().endObject())
                 .get();
@@ -114,7 +114,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setCreate(true)
                 .setOrder(1)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field2").field("type", "text").field("store", false).endObject()
                         .endObject().endObject().endObject())
                 , IllegalArgumentException.class
@@ -164,9 +164,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("field1")
                                     .field("type", "text")
@@ -184,9 +184,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("test*"))
                 .setOrder(1)
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("field2")
                                     .field("type", "text")
@@ -211,7 +211,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
@@ -234,7 +234,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .setVersion(123)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
@@ -259,7 +259,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
@@ -269,7 +269,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
@@ -279,7 +279,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template3")
                 .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
                         .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
@@ -345,7 +345,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         MapperParsingException e = expectThrows( MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "{\"foo\": \"abcde\"}", XContentType.JSON)
+                .setMapping("{\"foo\": \"abcde\"}", XContentType.JSON)
                 .get());
         assertThat(e.getMessage(), containsString("Failed to parse mapping"));
 
@@ -531,7 +531,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             () -> createIndex("test"));
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
         assertThat(e.getCause(), instanceOf(ParsingException.class));
-        assertThat(e.getCause().getMessage(), equalTo("no [query] registered for [invalid]"));
+        assertThat(e.getCause().getMessage(), equalTo("unknown query [invalid]"));
     }
 
     public void testAliasInvalidFilterInvalidJson() throws Exception {
@@ -687,7 +687,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .setPatterns(Collections.singletonList("test*"))
                     .setCreate(true)
                     .setOrder(1)
-                    .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                    .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
                         .endObject().endObject().endObject())
                 .get());
@@ -719,7 +719,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().preparePutTemplate("template_1")
             .setPatterns(Arrays.asList("a*", "b*"))
             .setSettings(indexSettings())
-            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("field1").field("type", "text").field("store", true).endObject()
             .startObject("field2").field("type", "keyword").field("store", false).endObject()
             .endObject().endObject().endObject())
@@ -781,7 +781,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         IllegalArgumentException eBadMapping = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":false}}}", XContentType.JSON)
+                .setMapping("{\"_doc\":{\"_routing\":{\"required\":false}}}", XContentType.JSON)
                 .setSettings(Settings.builder()
                     .put("index.number_of_shards", "6")
                     .put("index.routing_partition_size", "3"))

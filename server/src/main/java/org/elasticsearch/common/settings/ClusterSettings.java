@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
@@ -466,7 +467,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
             ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
-            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING);
+            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

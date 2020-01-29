@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.ir.RegexNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.Set;
@@ -88,11 +87,16 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    RegexNode write() {
+        RegexNode regexNode = new RegexNode();
+        regexNode.setLocation(location);
 
-        methodWriter.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
-        globals.addConstantInitializer(constant);
+        regexNode.setExpressionType(actual);
+        regexNode.setFlags(flags);
+        regexNode.setPattern(pattern);
+        regexNode.setConstant(constant);
+
+        return regexNode;
     }
 
     private void initializeConstant(MethodWriter writer) {

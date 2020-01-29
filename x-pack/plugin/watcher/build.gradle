@@ -32,8 +32,9 @@ dependencies {
   testCompile project(xpackModule('ilm'))
 
   // watcher deps
-  compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
-  compile 'com.google.guava:guava:16.0.1' // needed by watcher for the html sanitizer
+  compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
+  compile 'com.google.guava:guava:27.1-jre' // needed by watcher for the html sanitizer
+  compile 'com.google.guava:failureaccess:1.0.1'
   compile 'com.sun.mail:jakarta.mail:1.6.4'
   compile 'com.sun.activation:jakarta.activation:1.2.1'
   compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -51,8 +52,17 @@ thirdPartyAudit {
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 
   ignoreViolations(

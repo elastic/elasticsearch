@@ -48,11 +48,11 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreCidr() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", "ip_range")
             .field("store", true);
         mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(Strings.toString(mapping)));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
         final Map<String, String> cases = new HashMap<>();
         cases.put("192.168.0.0/15", "192.169.255.255");

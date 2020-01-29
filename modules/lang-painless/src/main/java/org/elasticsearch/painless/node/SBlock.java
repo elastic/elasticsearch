@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
@@ -82,12 +80,18 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    BlockNode write() {
+        BlockNode blockNode = new BlockNode();
+
         for (AStatement statement : statements) {
-            statement.continu = continu;
-            statement.brake = brake;
-            statement.write(classWriter, methodWriter, globals);
+            blockNode.addStatementNode(statement.write());
         }
+
+        blockNode.setLocation(location);
+        blockNode.setAllEscape(allEscape);
+        blockNode.setStatementCount(statementCount);
+
+        return blockNode;
     }
 
     @Override

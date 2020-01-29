@@ -33,6 +33,7 @@ public class BuildParams {
     private static Boolean isCi;
     private static Boolean isInternal;
     private static Integer defaultParallel;
+    private static Boolean isSnapshotBuild;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -110,6 +111,10 @@ public class BuildParams {
 
     public static Integer getDefaultParallel() {
         return value(defaultParallel);
+    }
+
+    public static boolean isSnapshotBuild() {
+        return value(BuildParams.isSnapshotBuild);
     }
 
     private static <T> T value(T object) {
@@ -225,6 +230,11 @@ public class BuildParams {
         public void setDefaultParallel(int defaultParallel) {
             BuildParams.defaultParallel = defaultParallel;
         }
+
+        public void setIsSnapshotBuild(final boolean isSnapshotBuild) {
+            BuildParams.isSnapshotBuild = isSnapshotBuild;
+        }
+
     }
 
     /**

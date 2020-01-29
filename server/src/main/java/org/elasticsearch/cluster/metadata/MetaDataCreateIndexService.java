@@ -71,6 +71,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -79,6 +80,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -90,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
@@ -104,7 +107,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -117,19 +120,21 @@ public class MetaDataCreateIndexService {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
+    private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
     private final boolean forbidPrivateIndexSettings;
 
     public MetaDataCreateIndexService(
-            final Settings settings,
-            final ClusterService clusterService,
-            final IndicesService indicesService,
-            final AllocationService allocationService,
-            final AliasValidator aliasValidator,
-            final Environment env,
-            final IndexScopedSettings indexScopedSettings,
-            final ThreadPool threadPool,
-            final NamedXContentRegistry xContentRegistry,
-            final boolean forbidPrivateIndexSettings) {
+        final Settings settings,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final AllocationService allocationService,
+        final AliasValidator aliasValidator,
+        final Environment env,
+        final IndexScopedSettings indexScopedSettings,
+        final ThreadPool threadPool,
+        final NamedXContentRegistry xContentRegistry,
+        final Collection<SystemIndexDescriptor> systemIndexDescriptors,
+        final boolean forbidPrivateIndexSettings) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -139,16 +144,39 @@ public class MetaDataCreateIndexService {
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
+        this.systemIndexDescriptors = systemIndexDescriptors;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
 
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
-    public static void validateIndexName(String index, ClusterState state) {
+    public void validateIndexName(String index, ClusterState state, @Nullable Boolean isHidden) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
+        }
+
+        if (index.charAt(0) == '.') {
+            List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
+                .filter(descriptor -> descriptor.matchesIndexPattern(index))
+                .collect(toList());
+            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
+                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
+                    "starting with a dot are reserved for hidden indices and system indices", index);
+            } else if (matchingDescriptors.size() > 1) {
+                // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
+                StringBuilder errorMessage = new StringBuilder()
+                    .append("index name [")
+                    .append(index)
+                    .append("] is claimed as a system index by multiple system index patterns: [")
+                    .append(matchingDescriptors.stream()
+                        .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
+                            "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+                // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
+                assert false : errorMessage.toString();
+                throw new IllegalStateException(errorMessage.toString());
+            }
         }
         if (state.routingTable().hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
@@ -278,8 +306,10 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
+        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+            IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index())) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHidden)) :
             List.of();
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));
@@ -437,11 +467,12 @@ public class MetaDataCreateIndexService {
          * that will be used to create this index.
          */
         MetaDataCreateIndexService.checkShardLimit(indexSettings, currentState);
-        if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("soft_deletes_disabled",
-                "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
-                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_8_0_0)) {
+            throw new IllegalArgumentException("Creating indices with soft-deletes disabled is no longer supported. " +
+                "Please do not specify a value for setting [index.soft_deletes.enabled].");
         }
+        validateTranslogRetentionSettings(indexSettings);
         return indexSettings;
     }
 
@@ -653,7 +684,8 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        validateIndexName(request.index(), state);
+        boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings());
+        validateIndexName(request.index(), state, isHidden);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
@@ -896,6 +928,15 @@ public class MetaDataCreateIndexService {
             return numShards * 1 << numSplits;
         } else {
             return numShards;
+        }
+    }
+
+    public static void validateTranslogRetentionSettings(Settings indexSettings) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
+            (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
+            deprecationLogger.deprecatedAndMaybeLog("translog_retention", "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         }
     }
 }

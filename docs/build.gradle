@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
@@ -42,6 +44,10 @@ buildRestTests.expectedUnconvertedCandidates = [
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    if (BuildParams.isSnapshotBuild()) {
+      setting 'xpack.autoscaling.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
+    }
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.oss;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -110,28 +111,28 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
      * Return the set of used built-in char filters in the cluster.
      */
     public Set<String> getUsedBuiltInCharFilters() {
-        return usedCharFilters;
+        return usedBuiltInCharFilters;
     }
 
     /**
      * Return the set of used built-in tokenizers in the cluster.
      */
     public Set<String> getUsedBuiltInTokenizers() {
-        return usedTokenizers;
+        return usedBuiltInTokenizers;
     }
 
     /**
      * Return the set of used built-in token filters in the cluster.
      */
     public Set<String> getUsedBuiltInTokenFilters() {
-        return usedTokenFilters;
+        return usedBuiltInTokenFilters;
     }
 
     /**
      * Return the set of used built-in analyzers in the cluster.
      */
     public Set<String> getUsedBuiltInAnalyzers() {
-        return usedAnalyzers;
+        return usedBuiltInAnalyzers;
     }
 
     @Override
@@ -181,5 +182,10 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
         return Objects.hash(available, enabled, usedFieldTypes, usedCharFilters, usedTokenizers, usedTokenFilters,
                 usedAnalyzers, usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters,
                 usedBuiltInAnalyzers);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

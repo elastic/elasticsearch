@@ -74,6 +74,9 @@ public class AutodetectResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
+    static final long EARLY_BUCKET_THRESHOLD = 100;
+    static final int EXCESSIVE_EARLY_CATEGORY_COUNT = 1000;
+
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
     private final String jobId;
@@ -87,7 +90,9 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
-    private int bucketCount; // only used from the process() thread, so doesn't need to be volatile
+    private long priorRunsBucketCount;
+    private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
+    private boolean excessiveCategoryWarningIssued; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
 
@@ -122,6 +127,7 @@ public class AutodetectResultProcessor {
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.deleteInterimRequired = true;
+        this.priorRunsBucketCount = timingStats.getBucketCount();
     }
 
     public void process() {
@@ -140,7 +146,7 @@ public class AutodetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
+            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, currentRunBucketCount);
 
         } catch (Exception e) {
             failed = true;
@@ -166,7 +172,7 @@ public class AutodetectResultProcessor {
     }
 
     private void readResults() {
-        bucketCount = 0;
+        currentRunBucketCount = 0;
         try {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
@@ -174,7 +180,7 @@ public class AutodetectResultProcessor {
                     AutodetectResult result = iterator.next();
                     processResult(result);
                     if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
                     }
                 } catch (Exception e) {
                     if (isAlive() == false) {
@@ -212,7 +218,7 @@ public class AutodetectResultProcessor {
             // results are also interim
             timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
-            ++bucketCount;
+            ++currentRunBucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
@@ -224,7 +230,7 @@ public class AutodetectResultProcessor {
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
+            processCategoryDefinition(categoryDefinition);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
@@ -305,6 +311,22 @@ public class AutodetectResultProcessor {
             // which need to be
             // deleted when the next finalized results come through
             deleteInterimRequired = true;
+        }
+    }
+
+    private void processCategoryDefinition(CategoryDefinition categoryDefinition) {
+        persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
+        if (categoryDefinition.getCategoryId() == EXCESSIVE_EARLY_CATEGORY_COUNT &&
+            priorRunsBucketCount + currentRunBucketCount < EARLY_BUCKET_THRESHOLD &&
+            excessiveCategoryWarningIssued == false) {
+            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES, EXCESSIVE_EARLY_CATEGORY_COUNT,
+                // Add 1 because category definitions are written before buckets
+                1L + priorRunsBucketCount + currentRunBucketCount));
+            // This flag won't be retained if the job is closed and reopened, or if the job migrates to another node.
+            // This means it's possible the audit message is generated multiple times.  However, that's not a
+            // disaster, and is also very unlikely in the the (best practice) cases where initial lookback covers
+            // more than 100 buckets.
+            excessiveCategoryWarningIssued = true;
         }
     }
 

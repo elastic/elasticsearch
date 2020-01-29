@@ -18,7 +18,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -60,7 +59,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollow() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -94,7 +92,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -133,7 +130,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -215,7 +211,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowParameterAreDelegated() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -318,7 +313,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testConflictingPatterns() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -358,44 +352,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
     }
 
-    public void testAutoFollowSoftDeletesDisabled() throws Exception {
-        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
-
-        // Soft deletes are disabled:
-        Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
-        createLeaderIndex("logs-20200101", leaderIndexSettings);
-        assertBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
-            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(1L));
-            assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(1));
-            ElasticsearchException failure  = autoFollowStats.getRecentAutoFollowErrors().firstEntry().getValue().v2();
-            assertThat(failure.getMessage(), equalTo("index [logs-20200101] cannot be followed, " +
-                "because soft deletes are not enabled"));
-            assertFalse(ESIntegTestCase.indexExists("copy-logs-20200101", followerClient()));
-        });
-
-        // Soft deletes are enabled:
-        leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
-        createLeaderIndex("logs-20200102", leaderIndexSettings);
-        assertBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertTrue(ESIntegTestCase.indexExists("copy-logs-20200102", followerClient()));
-        });
-    }
-
     public void testPauseAndResumeAutoFollowPattern() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -465,7 +423,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeWithMultipleAutoFollowPatterns() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();

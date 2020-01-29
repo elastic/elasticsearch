@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -59,6 +60,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class IndexResolver {
 
@@ -154,11 +160,13 @@ public class IndexResolver {
 
     private final Client client;
     private final String clusterName;
+    private final DataTypeRegistry typeRegistry;
 
 
-    public IndexResolver(Client client, String clusterName) {
+    public IndexResolver(Client client, String clusterName, DataTypeRegistry typeRegistry) {
         this.client = client;
         this.clusterName = clusterName;
+        this.typeRegistry = typeRegistry;
     }
 
     public String clusterName() {
@@ -274,11 +282,11 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(mergedMappings(indexWildcard, response.getIndices(), response.get())),
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
                         listener::onFailure));
     }
 
-    public static IndexResolution mergedMappings(String indexPattern, String[] indexNames, 
+    public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
 
         if (fieldCaps == null || fieldCaps.isEmpty()) {
@@ -286,7 +294,7 @@ public class IndexResolver {
         }
 
         // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(indexNames, null, fieldCaps, i -> indexPattern, (n, types) -> {
+        List<EsIndex> indices = buildIndices(typeRegistry, indexNames, null, fieldCaps, i -> indexPattern, (n, types) -> {
             StringBuilder errorMessage = new StringBuilder();
 
             boolean hasUnmapped = types.containsKey(UNMAPPED);
@@ -349,7 +357,8 @@ public class IndexResolver {
         return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexNames[0], emptyMap()) : indices.get(0));
     }
 
-    private static EsField createField(String fieldName, Map<String, Map<String, FieldCapabilities>> globalCaps,
+    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName,
+            Map<String, Map<String, FieldCapabilities>> globalCaps,
             Map<String, EsField> hierarchicalMapping,
             Map<String, EsField> flattedMapping,
             Function<String, EsField> field) {
@@ -358,11 +367,12 @@ public class IndexResolver {
 
         int dot = fieldName.lastIndexOf('.');
         String fullFieldName = fieldName;
+        EsField parent = null;
 
         if (dot >= 0) {
             String parentName = fieldName.substring(0, dot);
             fieldName = fieldName.substring(dot + 1);
-            EsField parent = flattedMapping.get(parentName);
+            parent = flattedMapping.get(parentName);
             if (parent == null) {
                 Map<String, FieldCapabilities> map = globalCaps.get(parentName);
                 Function<String, EsField> fieldFunction;
@@ -370,7 +380,7 @@ public class IndexResolver {
                 // lack of parent implies the field is an alias
                 if (map == null) {
                     // as such, create the field manually, marking the field to also be an alias
-                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false, true);
+                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true);
                 } else {
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
@@ -378,40 +388,58 @@ public class IndexResolver {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
-                    fieldFunction = s -> createField(s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
+                    fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
                 }
 
-                parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
+                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
             }
             parentProps = parent.getProperties();
         }
 
         EsField esField = field.apply(fieldName);
-        
+
+        if (parent != null && parent instanceof UnsupportedEsField) {
+            UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
+            String inherited = unsupportedParent.getInherited();
+            String type = unsupportedParent.getOriginalType();
+            
+            if (inherited == null) {
+                // mark the sub-field as unsupported, just like its parent, setting the first unsupported parent as the current one
+                esField = new UnsupportedEsField(esField.getName(), type, unsupportedParent.getName(), esField.getProperties());
+            } else {
+                // mark the sub-field as unsupported, just like its parent, but setting the first unsupported parent
+                // as the parent's first unsupported grandparent
+                esField = new UnsupportedEsField(esField.getName(), type, inherited, esField.getProperties());
+            }
+        }
+
         parentProps.put(fieldName, esField);
         flattedMapping.put(fullFieldName, esField);
 
         return esField;
     }
 
-    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props,
+    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName, String typeName, Map<String, EsField> props,
             boolean isAggregateable, boolean isAlias) {
-        DataType esType = DataType.fromTypeName(typeName);
-        switch (esType) {
-            case TEXT:
-                return new TextEsField(fieldName, props, false, isAlias);
-            case KEYWORD:
-                int length = DataType.KEYWORD.defaultPrecision;
-                // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
-                boolean normalized = false;
-                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
-            case DATETIME:
-                return new DateEsField(fieldName, props, isAggregateable);
-            case UNSUPPORTED:
-                return new UnsupportedEsField(fieldName, typeName);
-            default:
-                return new EsField(fieldName, esType, props, isAggregateable, isAlias);
+        DataType esType = typeRegistry.fromEs(typeName);
+
+        if (esType == TEXT) {
+            return new TextEsField(fieldName, props, false, isAlias);
         }
+        if (esType == KEYWORD) {
+            int length = Short.MAX_VALUE;
+            // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
+            boolean normalized = false;
+            return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
+        }
+        if (esType == DATETIME) {
+            return new DateEsField(fieldName, props, isAggregateable);
+        }
+        if (esType == UNSUPPORTED) {
+            return new UnsupportedEsField(fieldName, typeName, null, props);
+        }
+
+        return new EsField(fieldName, esType, props, isAggregateable, isAlias);
     }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {
@@ -432,14 +460,15 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(separateMappings(indexWildcard, javaRegex, response.getIndices(), response.get())),
+                        response -> listener.onResponse(
+                                separateMappings(typeRegistry, indexWildcard, javaRegex, response.getIndices(), response.get())),
                         listener::onFailure));
 
     }
     
-    public static List<EsIndex> separateMappings(String indexPattern, String javaRegex, String[] indexNames,
+    public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry, String indexPattern, String javaRegex, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
-        return buildIndices(indexNames, javaRegex, fieldCaps, Function.identity(), (s, cap) -> null);
+        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, Function.identity(), (s, cap) -> null);
     }
     
     private static class Fields {
@@ -451,7 +480,8 @@ public class IndexResolver {
      * Assemble an index-based mapping from the field caps (which is field based) by looking at the indices associated with
      * each field.
      */
-    private static List<EsIndex> buildIndices(String[] indexNames, String javaRegex, Map<String, Map<String, FieldCapabilities>> fieldCaps,
+    private static List<EsIndex> buildIndices(DataTypeRegistry typeRegistry, String[] indexNames, String javaRegex,
+            Map<String, Map<String, FieldCapabilities>> fieldCaps,
             Function<String, String> indexNameProcessor,
             BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier) {
 
@@ -542,9 +572,10 @@ public class IndexResolver {
                                 }
                             }
                             
-                            createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
-                                    s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
-                                            typeCap.isAggregatable(), isAlias.get()));
+                            createField(typeRegistry, fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
+                                    s -> invalidField != null ? invalidField :
+                                        createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(),
+                                                isAlias.get()));
                         }
                     }
                 }

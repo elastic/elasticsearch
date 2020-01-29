@@ -956,7 +956,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         request.settings(settings.build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Collections.emptyList(), Collections.emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");

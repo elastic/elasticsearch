@@ -19,14 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -36,7 +33,7 @@ import java.util.Set;
  */
 public final class SDeclaration extends AStatement {
 
-    private final DType type;
+    private DType type;
     private final String name;
     private AExpression expression;
 
@@ -62,6 +59,7 @@ public final class SDeclaration extends AStatement {
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
+        type = resolvedType;
 
         if (expression != null) {
             expression.expected = resolvedType.getType();
@@ -73,29 +71,16 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    DeclarationNode write() {
+        DeclarationNode declarationNode = new DeclarationNode();
 
-        if (expression == null) {
-            Class<?> sort = variable.clazz;
+        declarationNode.setExpressionNode(expression == null ? null : expression.write());
 
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expression.write(classWriter, methodWriter, globals);
-        }
+        declarationNode.setLocation(location);
+        declarationNode.setDeclarationType(((DResolvedType)type).getType());
+        declarationNode.setName(name);
 
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        return declarationNode;
     }
 
     @Override

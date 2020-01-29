@@ -1,6 +1,6 @@
 tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
-limited and should only be used with low cardinality data. For more information,
+limited and should be used only with low cardinality data. For more information,
 see
 {ml-docs}/ml-configuring-aggregation.html[Aggregating data for faster performance].
 end::aggregations[]
@@ -93,7 +93,10 @@ end::analysis-limits[]
 
 tag::analyzed-fields[]
 Specify `includes` and/or `excludes` patterns to select which fields will be 
-included in the analysis.
+included in the analysis. The patterns specified in `excludes` are applied last, 
+therefore `excludes` takes precedence. In other words, if the same field is 
+specified in both `includes` and `excludes`, then the field will not be included 
+in the analysis.
 +
 --
 The supported fields for each type of analysis are as follows:
@@ -149,8 +152,10 @@ end::background-persist-interval[]
 
 tag::bucket-span[]
 The size of the interval that the analysis is aggregated into, typically between
-`5m` and `1h`. The default value is `5m`. For more information about time units,
-see <<time-units>>.
+`5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
+with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
+divisible by the interval of the date histogram aggregation. For more
+information, see {ml-docs}/ml-buckets.html[Buckets]. 
 end::bucket-span[]
 
 tag::bucket-span-results[]
@@ -605,7 +610,10 @@ tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
 time. The default value is either the bucket span for short bucket spans, or,
 for longer bucket spans, a sensible fraction of the bucket span. For example:
-`150s`.
+`150s`. When `frequency` is shorter than the bucket span, interim results for
+the last (partial) bucket are written then eventually overwritten by the full
+bucket results. If the {dfeed} uses aggregations, this value must be divisible
+by the interval of the date histogram aggregation.
 end::frequency[]
 
 tag::from[]
@@ -635,6 +643,12 @@ Specifies if the model definition should be returned in the response. Defaults
 to `false`. When `true`, only a single model must match the ID patterns 
 provided, otherwise a bad request is returned.
 end::include-model-definition[]
+
+tag::tags[]
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+When supplied, only {infer} models that contain all the supplied tags are
+returned.
+end::tags[]
 
 tag::indices[]
 An array of index names. Wildcards are supported. For example:
@@ -863,9 +877,10 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-The time in days that model snapshots are retained for the job. Older snapshots
-are deleted. The default value is `1`, which means snapshots are retained for
-one day (twenty-four hours).
+Advanced configuration option. The period of time (in days) that model snapshots are retained.
+Age is calculated relative to the timestamp of the newest model snapshot.
+The default value is `1`, which means snapshots that are one day (twenty-four hours)
+older than the newest snapshot are deleted.
 end::model-snapshot-retention-days[]
 
 tag::multivariate-by-fields[]
@@ -948,7 +963,8 @@ The number of seconds behind real time that data is queried. For example, if
 data from 10:04 a.m. might not be searchable in {es} until 10:06 a.m., set this
 property to 120 seconds. The default value is randomly selected between `60s`
 and `120s`. This randomness improves the query performance when there are
-multiple jobs running on the same node.
+multiple jobs running on the same node. For more information, see
+{ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
 end::query-delay[]
 
 tag::renormalization-window-days[]
@@ -963,10 +979,12 @@ is `shared`, which generates an index named `.ml-anomalies-shared`.
 end::results-index-name[]
 
 tag::results-retention-days[]
-Advanced configuration option. The number of days for which job results are 
-retained. Once per day at 00:30 (server time), results older than this period
-are deleted from {es}. The default value is null, which means results are
-retained.
+Advanced configuration option. The period of time (in days) that results are retained.
+Age is calculated relative to the timestamp of the latest bucket result.
+If this property has a non-null value, once per day at 00:30 (server time),
+results that are the specified number of days older than the latest
+bucket result are deleted from {es}. The default value is null, which means all
+results are retained.
 end::results-retention-days[]
 
 tag::retain[]

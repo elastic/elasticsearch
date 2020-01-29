@@ -7,8 +7,12 @@
 package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.index.mapper.MapperParsingException;
+
+import java.util.Collection;
 
 /**
  * Set of static utils to find the cause of a search exception.
@@ -51,6 +55,22 @@ public final class ExceptionRootCauseFinder {
         }
 
         return t.getMessage();
+    }
+
+    /**
+     * Return the first irrecoverableException from a collection of bulk responses if there are any.
+     *
+     * @param failures a collection of bulk item responses
+     * @return The first exception considered irrecoverable if there are any, null if no irrecoverable exception found
+     */
+    public static Exception getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
+        for (BulkItemResponse failure : failures) {
+            if (failure.getFailure().getCause() instanceof MapperParsingException) {
+                return failure.getFailure().getCause();
+            }
+        }
+
+        return null;
     }
 
     private ExceptionRootCauseFinder() {}

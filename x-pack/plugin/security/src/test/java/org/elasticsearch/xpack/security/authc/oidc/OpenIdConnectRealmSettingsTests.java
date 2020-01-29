@@ -14,6 +14,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -271,10 +272,13 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
     }
 
     private RealmConfig buildConfig(Settings realmSettings) {
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put(realmSettings).build();
+            .put(realmSettings)
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
+        return new RealmConfig(realmIdentifier, settings, env, threadContext);
     }
 }

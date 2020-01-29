@@ -93,7 +93,18 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         // null to allow GC before timestamp search
         sampleLines = null;
 
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+
+        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
+
+        List<String> columnNamesList = Arrays.asList(columnNames);
         char delimiter = (char) csvPreference.getDelimiterChar();
+        char quoteChar = csvPreference.getQuoteChar();
+
+        Map<String, Object> csvProcessorSettings = makeCsvProcessorSettings("message", columnNamesList, delimiter, quoteChar,
+            trimFields);
+
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.DELIMITED)
             .setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
@@ -102,8 +113,19 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setHasHeaderRow(isHeaderInFile)
             .setDelimiter(delimiter)
-            .setQuote(csvPreference.getQuoteChar())
-            .setColumnNames(Arrays.stream(columnNames).collect(Collectors.toList()));
+            .setQuote(quoteChar)
+            .setColumnNames(columnNamesList);
+
+        if (isHeaderInFile) {
+            String quote = String.valueOf(quoteChar);
+            String twoQuotes = quote + quote;
+            String optQuote = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + "?";
+            String delimiterMatcher =
+                (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+            structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
+                .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuote)
+                .collect(Collectors.joining(delimiterMatcher)));
+        }
 
         if (trimFields) {
             structureBuilder.setShouldTrimFields(true);
@@ -135,32 +157,20 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 }
             }
 
-            if (isHeaderInFile) {
-                String quote = String.valueOf(csvPreference.getQuoteChar());
-                String twoQuotes = quote + quote;
-                String optQuote = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + "?";
-                String delimiterMatcher =
-                    (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
-                structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
-                    .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuote)
-                    .collect(Collectors.joining(delimiterMatcher)));
-            }
-
             boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
 
             structureBuilder.setTimestampField(timeField.v1())
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timeField.v1(),
-                    timeField.v2().getJavaTimestampFormats(), needClientTimeZone))
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+                    mappings, timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone))
                 .setMultilineStartPattern(timeLineRegex);
+        } else {
+            structureBuilder.setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(),
+                csvProcessorSettings, mappings, null, null, false));
         }
 
-        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
-
-        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
             mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
         }
@@ -578,5 +588,25 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
 
     private static boolean notUnexpectedEndOfFile(SuperCsvException e) {
         return e.getMessage().startsWith("unexpected end of file while reading quoted column") == false;
+    }
+
+    static Map<String, Object> makeCsvProcessorSettings(String field, List<String> targetFields, char separator, char quote, boolean trim) {
+
+        Map<String, Object> csvProcessorSettings = new LinkedHashMap<>();
+        csvProcessorSettings.put("field", field);
+        csvProcessorSettings.put("target_fields", Collections.unmodifiableList(targetFields));
+        if (separator != ',') {
+            // The value must be String, not Character, as XContent only works with String
+            csvProcessorSettings.put("separator", String.valueOf(separator));
+        }
+        if (quote != '"') {
+            // The value must be String, not Character, as XContent only works with String
+            csvProcessorSettings.put("quote", String.valueOf(quote));
+        }
+        csvProcessorSettings.put("ignore_missing", false);
+        if (trim) {
+            csvProcessorSettings.put("trim", true);
+        }
+        return Collections.unmodifiableMap(csvProcessorSettings);
     }
 }

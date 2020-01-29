@@ -1,7 +1,7 @@
 {
   "slm.put_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-put.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-put-policy.html"
     },
     "stability":"stable",
     "url":{

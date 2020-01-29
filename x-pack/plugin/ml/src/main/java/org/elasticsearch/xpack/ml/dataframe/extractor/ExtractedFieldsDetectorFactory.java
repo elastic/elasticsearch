@@ -28,11 +28,13 @@ import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,11 +74,11 @@ public class ExtractedFieldsDetectorFactory {
             listener::onFailure
         );
 
-        // Step 3. Get cardinalities for fields with limits
+        // Step 3. Get cardinalities for fields with constraints
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
             fieldCapabilitiesResponse -> {
                 fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
-                getCardinalitiesForFieldsWithLimit(index, config, fieldCardinalitiesHandler);
+                getCardinalitiesForFieldsWithConstraints(index, config, fieldCardinalitiesHandler);
             },
             listener::onFailure
         );
@@ -94,10 +96,10 @@ public class ExtractedFieldsDetectorFactory {
         getDocValueFieldsLimit(index, docValueFieldsLimitListener);
     }
 
-    private void getCardinalitiesForFieldsWithLimit(String[] index, DataFrameAnalyticsConfig config,
-                                                    ActionListener<Map<String, Long>> listener) {
-        Map<String, Long> fieldCardinalityLimits = config.getAnalysis().getFieldCardinalityLimits();
-        if (fieldCardinalityLimits.isEmpty()) {
+    private void getCardinalitiesForFieldsWithConstraints(String[] index, DataFrameAnalyticsConfig config,
+                                                          ActionListener<Map<String, Long>> listener) {
+        List<FieldCardinalityConstraint> fieldCardinalityConstraints = config.getAnalysis().getFieldCardinalityConstraints();
+        if (fieldCardinalityConstraints.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;
         }
@@ -108,13 +110,11 @@ public class ExtractedFieldsDetectorFactory {
         );
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
-        for (Map.Entry<String, Long> entry : fieldCardinalityLimits.entrySet()) {
-            String fieldName = entry.getKey();
-            Long limit = entry.getValue();
+        for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
             searchSourceBuilder.aggregation(
-                AggregationBuilders.cardinality(fieldName)
-                    .field(fieldName)
-                    .precisionThreshold(limit + 1));
+                AggregationBuilders.cardinality(constraint.getField())
+                    .field(constraint.getField())
+                    .precisionThreshold(constraint.getUpperBound() + 1));
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
         ClientHelper.executeWithHeadersAsync(
@@ -129,14 +129,14 @@ public class ExtractedFieldsDetectorFactory {
             return;
         }
 
-        Map<String, Long> fieldCardinalities = new HashMap<>(config.getAnalysis().getFieldCardinalityLimits().size());
-        for (String field : config.getAnalysis().getFieldCardinalityLimits().keySet()) {
-            Cardinality cardinality = aggs.get(field);
+        Map<String, Long> fieldCardinalities = new HashMap<>(config.getAnalysis().getFieldCardinalityConstraints().size());
+        for (FieldCardinalityConstraint constraint : config.getAnalysis().getFieldCardinalityConstraints()) {
+            Cardinality cardinality = aggs.get(constraint.getField());
             if (cardinality == null) {
                 listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
                 return;
             }
-            fieldCardinalities.put(field, cardinality.getValue());
+            fieldCardinalities.put(constraint.getField(), cardinality.getValue());
         }
         listener.onResponse(fieldCardinalities);
     }

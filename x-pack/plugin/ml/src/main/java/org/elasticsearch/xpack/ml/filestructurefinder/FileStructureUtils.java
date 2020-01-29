@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
@@ -31,6 +32,8 @@ public final class FileStructureUtils {
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
     public static final Map<String, String> DATE_MAPPING_WITHOUT_FORMAT =
         Collections.singletonMap(MAPPING_TYPE_SETTING, "date");
+    public static final Set<String> CONVERTIBLE_TYPES =
+        Collections.unmodifiableSet(Sets.newHashSet("integer", "long", "float", "double", "boolean"));
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
@@ -352,6 +355,9 @@ public final class FileStructureUtils {
      * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
      *                    fully structured formats.
      * @param customGrokPatternDefinitions The definitions for any custom patterns that {@code grokPattern} uses.
+     * @param csvProcessorSettings The CSV processor settings for delimited formats.  <code>null</code> for
+     *                             non-delimited formats.
+     * @param mappingsForConversions Mappings (or partial mappings) that will be considered for field type conversions.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
@@ -360,10 +366,12 @@ public final class FileStructureUtils {
      * @return The ingest pipeline definition, or <code>null</code> if none is required.
      */
     public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, Map<String, String> customGrokPatternDefinitions,
+                                                                   Map<String, Object> csvProcessorSettings,
+                                                                   Map<String, Object> mappingsForConversions,
                                                                    String timestampField, List<String> timestampFormats,
                                                                    boolean needClientTimezone) {
 
-        if (grokPattern == null && timestampField == null) {
+        if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
             return null;
         }
 
@@ -384,6 +392,10 @@ public final class FileStructureUtils {
             assert customGrokPatternDefinitions.isEmpty();
         }
 
+        if (csvProcessorSettings != null) {
+            processors.add(Collections.singletonMap("csv", csvProcessorSettings));
+        }
+
         if (timestampField != null) {
             Map<String, Object> dateProcessorSettings = new LinkedHashMap<>();
             dateProcessorSettings.put("field", timestampField);
@@ -392,6 +404,32 @@ public final class FileStructureUtils {
             }
             dateProcessorSettings.put("formats", timestampFormats);
             processors.add(Collections.singletonMap("date", dateProcessorSettings));
+        }
+
+        for (Map.Entry<String, Object> mapping : mappingsForConversions.entrySet()) {
+            String fieldName = mapping.getKey();
+            Object values = mapping.getValue();
+            if (values instanceof Map) {
+                Object type = ((Map<?, ?>) values).get(MAPPING_TYPE_SETTING);
+                if (CONVERTIBLE_TYPES.contains(type)) {
+                    Map<String, Object> convertProcessorSettings = new LinkedHashMap<>();
+                    convertProcessorSettings.put("field", fieldName);
+                    convertProcessorSettings.put("type", type);
+                    convertProcessorSettings.put("ignore_missing", true);
+                    processors.add(Collections.singletonMap("convert", convertProcessorSettings));
+                }
+            }
+        }
+
+        // This removes the unparsed message field for delimited formats (unless the same field name is used for one of the columns)
+        if (csvProcessorSettings != null) {
+            Object field = csvProcessorSettings.get("field");
+            assert field != null;
+            Object targetFields = csvProcessorSettings.get("target_fields");
+            assert targetFields instanceof List;
+            if (((List<?>) targetFields).contains(field) == false) {
+                processors.add(Collections.singletonMap("remove", Collections.singletonMap("field", field)));
+            }
         }
 
         // This removes the interim timestamp field used for semi-structured text formats

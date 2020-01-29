@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
@@ -33,7 +35,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  testDistribution = 'oss'
+  testDistribution = BuildParams.inFipsJvm ? 'DEFAULT' : 'OSS'
 }
 
 test.enabled = false

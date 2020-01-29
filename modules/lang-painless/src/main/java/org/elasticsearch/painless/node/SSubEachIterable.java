@@ -20,28 +20,20 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ForEachSubIterableNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
-import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
-import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
@@ -91,45 +83,22 @@ final class SSubEachIterable extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    ForEachSubIterableNode write() {
+        ForEachSubIterableNode forEachSubIterableNode = new ForEachSubIterableNode();
 
-        expression.write(classWriter, methodWriter, globals);
+        forEachSubIterableNode.setConditionNode(expression.write());
+        forEachSubIterableNode.setBlockNode(block.write());
 
-        if (method == null) {
-            org.objectweb.asm.Type methodType = org.objectweb.asm.Type
-                    .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
-            methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
-        } else {
-            methodWriter.invokeMethodCall(method);
-        }
+        forEachSubIterableNode.setLocation(location);
+        forEachSubIterableNode.setVariableType(variable.clazz);
+        forEachSubIterableNode.setVariableName(variable.name);
+        forEachSubIterableNode.setCast(cast);
+        forEachSubIterableNode.setIteratorType(iterator.clazz);
+        forEachSubIterableNode.setIteratorName(iterator.name.substring(1));
+        forEachSubIterableNode.setMethod(method);
+        forEachSubIterableNode.setContinuous(false);
 
-        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
-        methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
-        methodWriter.ifZCmp(MethodWriter.EQ, end);
-
-        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
-        methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
-        methodWriter.writeCast(cast);
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
-        }
-
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
-
-        methodWriter.goTo(begin);
-        methodWriter.mark(end);
+        return forEachSubIterableNode;
     }
 
     @Override

@@ -50,10 +50,6 @@ The modules in this section are:
 
     Using plugins to extend Elasticsearch.
 
-<<modules-snapshots,Snapshot/Restore>>::
-
-    Backup your data with snapshot/restore.
-
 <<modules-threadpool,Thread pools>>::
 
     Information about the dedicated thread pools used in Elasticsearch.

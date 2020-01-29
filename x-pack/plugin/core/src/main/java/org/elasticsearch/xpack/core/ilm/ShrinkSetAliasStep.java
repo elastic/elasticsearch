@@ -38,6 +38,7 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
         // get target shrink index
         String targetIndexName = shrunkIndexPrefix + index;
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
+            .masterNodeTimeout(getMasterTimeout(currentState))
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(index))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndexName).alias(index));
         // copy over other aliases from original index

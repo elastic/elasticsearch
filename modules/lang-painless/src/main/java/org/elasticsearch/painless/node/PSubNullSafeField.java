@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
 
@@ -58,12 +55,6 @@ public class PSubNullSafeField extends AStoreable {
         }
     }
 
-
-    @Override
-    int accessElementCount() {
-        return guarded.accessElementCount();
-    }
-
     @Override
     boolean isDefOptimized() {
         return guarded.isDefOptimized();
@@ -75,27 +66,15 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        Label end = new Label();
-        methodWriter.dup();
-        methodWriter.ifNull(end);
-        guarded.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
-    }
+    NullSafeSubNode write() {
+        NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
 
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalArgumentException("Can't write to null safe field"));
-    }
+        nullSafeSubNode.setChildNode(guarded.write());
 
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalArgumentException("Can't write to null safe field"));
-    }
+        nullSafeSubNode.setLocation(location);
+        nullSafeSubNode.setExpressionType(actual);
 
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalArgumentException("Can't write to null safe field"));
+        return nullSafeSubNode;
     }
 
     @Override

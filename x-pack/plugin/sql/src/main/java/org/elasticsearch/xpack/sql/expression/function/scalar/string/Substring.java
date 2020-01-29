@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
@@ -115,7 +116,7 @@ public class Substring extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 
     @Override

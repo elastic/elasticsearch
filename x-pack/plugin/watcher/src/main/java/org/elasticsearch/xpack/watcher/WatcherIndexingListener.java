@@ -153,6 +153,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         if (isWatchDocument(shardId.getIndexName())) {
             logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
             triggerService.remove(index.id());
+        } else {
+            logger.debug(
+                () -> new ParameterizedMessage("not removing watch [{}] from trigger, because [{}] != [{}] configuration.active=[{}]",
+                index.id(), shardId.getIndexName(), configuration.index, configuration.active), ex);
         }
     }
 
@@ -167,9 +171,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
+            logger.debug("removing watch [{}] to trigger service via delete", delete.id());
             triggerService.remove(delete.id());
         }
-
         return delete;
     }
 

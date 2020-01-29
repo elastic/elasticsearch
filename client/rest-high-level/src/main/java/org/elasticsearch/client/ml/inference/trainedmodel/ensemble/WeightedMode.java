@@ -34,13 +34,15 @@ public class WeightedMode implements OutputAggregator {
 
     public static final String NAME = "weighted_mode";
     public static final ParseField WEIGHTS = new ParseField("weights");
+    public static final ParseField MAX_CLASS_VALUE = new ParseField("max_class_value");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<WeightedMode, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new WeightedMode((List<Double>)a[0]));
+        a -> new WeightedMode((Integer)a[0], (List<Double>)a[1]));
     static {
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CLASS_VALUE);
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }
 
@@ -49,9 +51,11 @@ public class WeightedMode implements OutputAggregator {
     }
 
     private final List<Double> weights;
+    private final int maxClassValue;
 
-    public WeightedMode(List<Double> weights) {
+    public WeightedMode(int maxClassValue, List<Double> weights) {
         this.weights = weights;
+        this.maxClassValue = maxClassValue;
     }
 
     @Override
@@ -65,6 +69,7 @@ public class WeightedMode implements OutputAggregator {
         if (weights != null) {
             builder.field(WEIGHTS.getPreferredName(), weights);
         }
+        builder.field(MAX_CLASS_VALUE.getPreferredName(), maxClassValue);
         builder.endObject();
         return builder;
     }
@@ -74,11 +79,11 @@ public class WeightedMode implements OutputAggregator {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WeightedMode that = (WeightedMode) o;
-        return Objects.equals(weights, that.weights);
+        return Objects.equals(weights, that.weights) && maxClassValue == that.maxClassValue;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(weights);
+        return Objects.hash(weights, maxClassValue);
     }
 }

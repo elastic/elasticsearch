@@ -69,17 +69,17 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6, targetType))
             .limit(numberOfModels)
             .collect(Collectors.toList());
-        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-        List<OutputAggregator> possibleAggregators = new ArrayList<>(Arrays.asList(new WeightedMode(weights),
-            new LogisticRegression(weights)));
-        if (targetType.equals(TargetType.REGRESSION)) {
-            possibleAggregators.add(new WeightedSum(weights));
-        }
-        OutputAggregator outputAggregator = randomFrom(possibleAggregators.toArray(new OutputAggregator[0]));
         List<String> categoryLabels = null;
         if (randomBoolean() && targetType.equals(TargetType.CLASSIFICATION)) {
-            categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
+            categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));
         }
+        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
+        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ? new WeightedSum(weights) :
+            randomFrom(
+                new WeightedMode(
+                    categoryLabels != null ? categoryLabels.size() - 1 : randomIntBetween(1, 10),
+                    weights),
+                new LogisticRegression(weights));
         double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION  ?
             Stream.generate(ESTestCase::randomDouble)
                 .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())

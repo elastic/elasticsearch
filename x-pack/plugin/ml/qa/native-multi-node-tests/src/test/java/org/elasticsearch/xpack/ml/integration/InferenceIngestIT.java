@@ -424,6 +424,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "      ],\n" +
         "      \"aggregate_output\": {\n" +
         "        \"weighted_mode\": {\n" +
+        "          \"max_class_value\": \"1\"\n" +
         "          \"weights\": [\n" +
         "            0.5,\n" +
         "            0.5\n" +

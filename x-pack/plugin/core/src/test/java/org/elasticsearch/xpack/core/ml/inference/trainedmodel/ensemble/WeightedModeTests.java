@@ -23,7 +23,7 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
     @Override
     WeightedMode createTestInstance(int numberOfWeights) {
         double[] weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).mapToDouble(Double::valueOf).toArray();
-        return new WeightedMode(weights);
+        return new WeightedMode(weights, randomIntBetween(1, 10));
     }
 
     @Override
@@ -33,7 +33,7 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
 
     @Override
     protected WeightedMode createTestInstance() {
-        return randomBoolean() ? new WeightedMode() : createTestInstance(randomIntBetween(1, 100));
+        return randomBoolean() ? new WeightedMode(randomIntBetween(1, 10)) : createTestInstance(randomIntBetween(1, 100));
     }
 
     @Override
@@ -45,21 +45,21 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
         double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
         List<Double> values = Arrays.asList(1.0, 2.0, 2.0, 3.0, 5.0);
 
-        WeightedMode weightedMode = new WeightedMode(ones);
+        WeightedMode weightedMode = new WeightedMode(ones, 5);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(2.0));
 
         double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
 
-        weightedMode = new WeightedMode(variedWeights);
+        weightedMode = new WeightedMode(variedWeights, 5);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(5.0));
 
-        weightedMode = new WeightedMode();
+        weightedMode = new WeightedMode(5);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(2.0));
     }
 
     public void testCompatibleWith() {
         WeightedMode weightedMode = createTestInstance();
         assertThat(weightedMode.compatibleWith(TargetType.CLASSIFICATION), is(true));
-        assertThat(weightedMode.compatibleWith(TargetType.REGRESSION), is(true));
+        assertThat(weightedMode.compatibleWith(TargetType.REGRESSION), is(false));
     }
 }

@@ -18,6 +18,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
@@ -26,7 +28,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -300,6 +304,69 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
     public void testRamUsageEstimation() {
         TrainedModelDefinition test = createTestInstance();
         assertThat(test.ramBytesUsed(), greaterThan(0L));
+    }
+
+    public void testMultiClassIrisInference() throws IOException {
+        // Fairly simple, random forest classification model built to fit in our format
+        // Trained on the well known Iris dataset
+        String compressedDef = "H4sIAMHqMV4C/+1b7Y6bOhB9lVV+b5HHX9h9g/sMVYVo4iRIbBIBaXtV9d0vJr23uzGKJwwsu" +
+            "73kx0qwgI+xZ+bMmeHHqqny4uA22dNx48rVx4cfK3eo3dOX0nUHTV7tXJM1f5/88Wpd5nVdbIt13hTHw+rxYbV1eXOuX" +
+            "HbIn1zdXvJpVbtTXmalO+yavb/icvyt2FwOT6558e/L8eXfnx+vh8jK/IsrLw/+qyrqD7VrjnXub+wOv7qqLtbH8lj9P" +
+            "lVUu+LQ3t897sX8uue0k6rcXLPzQ2d1U53X/rkXOIcWWlYcNu57e8zaizZuXdR+8v8CKxvnH1a6bZOt90W5aU9Ce6Iqd" +
+            "vvfZ7iHcyqLJvsFuz0n/Jj7ytX7Y3cNSwzrfgCWM8vtz8eHKwRwE0G+zb7m5dmfZOG9HIteBOiB9cDnV/BlYpRHLwxIb" +
+            "VOehhAEFoIMICgUglSFg0rsO4PwXoUFrAPAKWLFIVG2+zGpBVfayBCCJsBPsfBNAN/2wGdX8FVipUdv2s2qFYieFTcE9" +
+            "BZ7L+8xFLythsYKHDF5fb12PSCAMgO0vUKPwUrU7uszFxCEJQOJn/HNgMKS9n2D/8MT9vlnN9ISGt5gaNCojaa7yMCsE" +
+            "jqVAvQMoSHqqqaLE7cNXS8mc6/JGFRwkrEVBywCHiAQiD3HEdGdE6yWYDIp4gWSTWb70kTjfgOCFygvfkOm2oi0z20og" +
+            "tFqgtGmhHEN9q1ZXFwf4Oss2vZYiAFQez/u8iMc7fbmB7TxQmi9IHD0iD3ffcrcTdIiZElQ6CHa9iA0Ps4RS6gS6LaRB" +
+            "qME46noAYHOjyBMkDgM56gaPW4ajstw7L5nWHQ+BWFCBRaXEHbv3Cremgw3sm/lDWXbWMKG5YxyMyUZ4nwhSWPkFUMoy" +
+            "lyak0QxBBtjCASWZMdRvQgsyYzD00aWsQbwtOlUrNuOYzr9KUKSxDhEbXwdC4YwNaDQHE6JV7NxJNBjcURKjgKLOnB34" +
+            "NModUB1ux4sS4U0WsygDkSd5kzigMJJepeNz4WRbYJg3ouetn0Z2hAOE5eSEEotqIRaJSy2YSm6AkOJ0H0Tt5QknpJQT" +
+            "FldWfzqYL/62qrrgFLJ4ldf26+ywdX7kUvYQxJgQ9guFLmFxv3NcHWNJK2mIxUEafVvjdL4oiEV0OYOob2DGieu31NUn" +
+            "y/7uFctjYxslvg8jeAXzTrm0vuGc29CTO7l3teOIk1YrNVnZI2Pz67xDXHZb1Pkoyc+mKrMhM1q86VBIwRZRI/g9EG2N" +
+            "R/2fPNySpAFSpDli8S3hLr30zMXs5qlZ24xmfm+QJicHVpUAifkdORQvwY5pLTJ3dR9zDjF47dZAJ7yAwQ5TufB+E1y1" +
+            "6snrlMjOVsBePkc4Q/urX4/Kv/bbK0OQ6VQkTrD/621mg+uUbxCNzWiTW/CbmpSg09ERDBTfak2QDcY1Bs1oTp/u4EaU" +
+            "px2Ga0vUHQ7oJAzQNsrWFwT+xD5CW2+nOGa2AcQ9D+wtdpfnO92ldvljcuO5+Z0bjq+9M35V/jru/9nZ7qnwH9Pwf3xozzl37MO1jOo/vcP8wTvX0JBAAA=";
+
+        TrainedModelDefinition definition = InferenceToXContentCompressor.inflate(compressedDef,
+            parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
+            xContentRegistry());
+
+        Map<String, Object> fields = new HashMap<>(){{
+            put("sepal_length", 5.1);
+            put("sepal_width", 3.5);
+            put("petal_length", 1.4);
+            put("petal_width", 0.2);
+        }};
+
+        assertThat(
+            ((ClassificationInferenceResults)definition.getTrainedModel()
+                .infer(fields, ClassificationConfig.EMPTY_PARAMS))
+                .getClassificationLabel(),
+            equalTo("Iris-setosa"));
+
+        fields = new HashMap<>(){{
+            put("sepal_length", 7.0);
+            put("sepal_width", 3.2);
+            put("petal_length", 4.7);
+            put("petal_width", 1.4);
+        }};
+        assertThat(
+            ((ClassificationInferenceResults)definition.getTrainedModel()
+                .infer(fields, ClassificationConfig.EMPTY_PARAMS))
+                .getClassificationLabel(),
+            equalTo("Iris-versicolor"));
+
+        fields = new HashMap<>(){{
+            put("sepal_length", 6.5);
+            put("sepal_width", 3.0);
+            put("petal_length", 5.2);
+            put("petal_width", 2.0);
+        }};
+        assertThat(
+            ((ClassificationInferenceResults)definition.getTrainedModel()
+                .infer(fields, ClassificationConfig.EMPTY_PARAMS))
+                .getClassificationLabel(),
+            equalTo("Iris-virginica"));
     }
 
 }

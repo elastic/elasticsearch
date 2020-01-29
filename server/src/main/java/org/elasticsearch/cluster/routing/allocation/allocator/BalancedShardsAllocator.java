@@ -1005,14 +1005,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // look for a relocation candidate, in descending order of shard id so that the decision is deterministic
                 shardRoutings.sort(Comparator.comparing(ShardRouting::id).reversed());
                 for (ShardRouting shard : shardRoutings) {
-                    Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
-                    Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
-                    if (((allocationDecision.type() == Type.YES) || (allocationDecision.type() == Type.THROTTLE))
-                        && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
-                        candidate = shard;
-                        decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
-                        break;
+                    final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
+                    if ((rebalanceDecision.type() != Type.YES) && (rebalanceDecision.type() != Type.THROTTLE)) {
+                        continue;
                     }
+                    final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
+                    if ((allocationDecision.type() != Type.YES) && (allocationDecision.type() != Type.THROTTLE)) {
+                        continue;
+                    }
+                    candidate = shard;
+                    decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
+                    break;
                 }
 
                 if (candidate != null) {

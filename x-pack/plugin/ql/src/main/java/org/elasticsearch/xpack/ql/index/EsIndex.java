@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.Map;

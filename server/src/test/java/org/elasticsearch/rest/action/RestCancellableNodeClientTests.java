@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.search;
+package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -45,7 +45,6 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
@@ -56,13 +55,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class HttpChannelTaskHandlerTests extends ESTestCase {
+public class RestCancellableNodeClientTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
     @Before
     public void createThreadPool() {
-        threadPool = new TestThreadPool(HttpChannelTaskHandlerTests.class.getName());
+        threadPool = new TestThreadPool(RestCancellableNodeClientTests.class.getName());
     }
 
     @After
@@ -77,8 +76,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
      */
     public void testCompletedTasks() throws Exception {
         try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, false)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.INSTANCE;
-            int initialHttpChannels = httpChannelTaskHandler.getNumChannels();
+            int initialHttpChannels = RestCancellableNodeClient.getNumChannels();
             int totalSearches = 0;
             List<Future<?>> futures = new ArrayList<>();
             int numChannels = randomIntBetween(1, 30);
@@ -88,8 +86,8 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
                     PlainListenableActionFuture<SearchResponse> actionFuture = PlainListenableActionFuture.newListenableFuture();
-                    threadPool.generic().submit(() -> httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(),
-                        SearchAction.INSTANCE, actionFuture));
+                    RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
+                    threadPool.generic().submit(() -> client.execute(SearchAction.INSTANCE, new SearchRequest(), actionFuture));
                     futures.add(actionFuture);
                 }
             }
@@ -97,10 +95,8 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 future.get();
             }
             //no channels get closed in this test, hence we expect as many channels as we created in the map
-            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.getNumChannels());
-            for (Map.Entry<HttpChannel, HttpChannelTaskHandler.CloseListener> entry : httpChannelTaskHandler.httpChannels.entrySet()) {
-                assertEquals(0, entry.getValue().getNumTasks());
-            }
+            assertEquals(initialHttpChannels + numChannels, RestCancellableNodeClient.getNumChannels());
+            assertEquals(0, RestCancellableNodeClient.getNumTasks());
             assertEquals(totalSearches, testClient.searchRequests.get());
         }
     }
@@ -110,9 +106,8 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
      * removed and all of its corresponding tasks get cancelled.
      */
     public void testCancelledTasks() throws Exception {
-        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.INSTANCE;
-            int initialHttpChannels = httpChannelTaskHandler.getNumChannels();
+        try (TestClient nodeClient = new TestClient(Settings.EMPTY, threadPool, true)) {
+            int initialHttpChannels = RestCancellableNodeClient.getNumChannels();
             int numChannels = randomIntBetween(1, 30);
             int totalSearches = 0;
             List<TestHttpChannel> channels = new ArrayList<>(numChannels);
@@ -121,18 +116,19 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 channels.add(channel);
                 int numTasks = randomIntBetween(1, 30);
                 totalSearches += numTasks;
+                RestCancellableNodeClient client = new RestCancellableNodeClient(nodeClient, channel);
                 for (int j = 0; j < numTasks; j++) {
-                    httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
+                    client.execute(SearchAction.INSTANCE, new SearchRequest(), null);
                 }
-                assertEquals(numTasks, httpChannelTaskHandler.httpChannels.get(channel).getNumTasks());
+                assertEquals(numTasks, RestCancellableNodeClient.getNumTasks(channel));
             }
-            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.getNumChannels());
+            assertEquals(initialHttpChannels + numChannels, RestCancellableNodeClient.getNumChannels());
             for (TestHttpChannel channel : channels) {
                 channel.awaitClose();
             }
-            assertEquals(initialHttpChannels, httpChannelTaskHandler.getNumChannels());
-            assertEquals(totalSearches, testClient.searchRequests.get());
-            assertEquals(totalSearches, testClient.cancelledTasks.size());
+            assertEquals(initialHttpChannels, RestCancellableNodeClient.getNumChannels());
+            assertEquals(totalSearches, nodeClient.searchRequests.get());
+            assertEquals(totalSearches, nodeClient.cancelledTasks.size());
         }
     }
 
@@ -144,8 +140,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
      */
     public void testChannelAlreadyClosed() {
         try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.INSTANCE;
-            int initialHttpChannels = httpChannelTaskHandler.getNumChannels();
+            int initialHttpChannels = RestCancellableNodeClient.getNumChannels();
             int numChannels = randomIntBetween(1, 30);
             int totalSearches = 0;
             for (int i = 0; i < numChannels; i++) {
@@ -154,12 +149,13 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 channel.close();
                 int numTasks = randomIntBetween(1, 5);
                 totalSearches += numTasks;
+                RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                 for (int j = 0; j < numTasks; j++) {
                     //here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
-                    httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
+                    client.execute(SearchAction.INSTANCE, new SearchRequest(), null);
                 }
             }
-            assertEquals(initialHttpChannels, httpChannelTaskHandler.getNumChannels());
+            assertEquals(initialHttpChannels, RestCancellableNodeClient.getNumChannels());
             assertEquals(totalSearches, testClient.searchRequests.get());
             assertEquals(totalSearches, testClient.cancelledTasks.size());
         }

@@ -51,7 +51,7 @@ public final class EVariable extends AStoreable {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         Variable variable = scope.getVariable(location, name);
 
-        if (write && variable.isReadOnly()) {
+        if (write && variable.isFinal()) {
             throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
         }
 

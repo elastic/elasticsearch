@@ -29,26 +29,42 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Tracks user defined variables across compilation phases.
+ * Tracks information within a scope required for compilation during the
+ * semantic phase in the user tree. There are three types of scopes -
+ * {@link FunctionScope}, {@link LambdaScope}, and {@link BlockScope}.
+ *
+ * Scopes are stacked as they are created during the user tree's semantic
+ * phase with each scope beyond the top-level containing a reference to
+ * its parent. As a scope is no longer necessary, it's dropped automatically
+ * since parent scopes contain no references to child scopes.
  */
 public abstract class Scope {
 
+    /**
+     * Tracks information about both user-defined and internally-defined
+     * variables. Each {@link Scope} tracks its own set of defined
+     * variables available for use.
+     */
     public static class Variable {
 
         protected final Class<?> type;
         protected final String name;
-        protected final boolean isReadOnly;
+        protected final boolean isFinal;
 
-        public Variable(Class<?> type, String name, boolean isReadOnly) {
+        public Variable(Class<?> type, String name, boolean isFinal) {
             this.type = Objects.requireNonNull(type);
             this.name = Objects.requireNonNull(name);
-            this.isReadOnly = isReadOnly;
+            this.isFinal = isFinal;
         }
 
         public Class<?> getType() {
             return type;
         }
 
+        /**
+         * Shortcut method to return this variable's canonical type name
+         * often used in error messages.
+         */
         public String getCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(type);
         }
@@ -57,15 +73,21 @@ public abstract class Scope {
             return name;
         }
 
-        public boolean isReadOnly() {
-            return isReadOnly;
+        public boolean isFinal() {
+            return isFinal;
         }
     }
 
+    /**
+     * Created whenever a new user-defined or internally-defined function
+     * is generated. This is considered a top-level scope and has no parent.
+     * This scope stores the return type for semantic validation of all
+     * return statements within this function.
+     */
     public static class FunctionScope extends Scope {
 
         protected final Class<?> returnType;
-        protected final Set<String> areReadFrom = new HashSet<>();
+        protected final Set<String> usedVariables = new HashSet<>();
 
         public FunctionScope(Class<?> returnType) {
             this.returnType = Objects.requireNonNull(returnType);
@@ -76,6 +98,11 @@ public abstract class Scope {
             return variables.containsKey(name);
         }
 
+        /**
+         * Returns the requested variable by name if found within this scope. Throws
+         * an {@link IllegalArgumentException} if the variable is not found as this
+         * is the top-level scope.
+         */
         @Override
         public Variable getVariable(Location location, String name) {
             Objects.requireNonNull(location);
@@ -87,7 +114,7 @@ public abstract class Scope {
                 throw location.createError(new IllegalArgumentException("variable [" + name + "] is not defined"));
             }
 
-            areReadFrom.add(name);
+            usedVariables.add(name);
 
             return variable;
         }
@@ -102,11 +129,20 @@ public abstract class Scope {
             return PainlessLookupUtility.typeToCanonicalTypeName(returnType);
         }
 
-        public Set<String> getReadFrom() {
-            return Collections.unmodifiableSet(areReadFrom);
+        public Set<String> getUsedVariables() {
+            return Collections.unmodifiableSet(usedVariables);
         }
     }
 
+    /**
+     * Created whenever a new user-defined lambda is generated. This scope
+     * always has a parent scope used to search for possible captured variables
+     * defined outside of this lambda's scope. Whenever a captured variable is
+     * found, that variable is saved within this scope for signature generation
+     * of the internally generated method for this lambda. This scope also
+     * stores the return type for semantic validation of all return statements
+     * within this lambda.
+     */
     public static class LambdaScope extends Scope {
 
         protected final Scope parent;
@@ -127,6 +163,12 @@ public abstract class Scope {
             return parent.isVariableDefined(name);
         }
 
+        /**
+         * Returns the requested variable by name if found within this scope.
+         * Otherwise, requests the variable from the parent scope. Any variable
+         * found within a parent scope is saved as a captured variable and returned
+         * as final since captured variables cannot be modified within a lambda.
+         */
         @Override
         public Variable getVariable(Location location, String name) {
             Objects.requireNonNull(location);
@@ -158,11 +200,19 @@ public abstract class Scope {
         }
     }
 
-    public static class LocalScope extends Scope {
+    /**
+     * Created whenever a new code block is generated such as an if statement or
+     * a while loop. Stores information about variables defined within this scope.
+     * Has a parent scope to search for variables defined in an outer scope as
+     * necessary. Has no return type of its own as that is defined by either
+     * a function or lambda, thus uses its parents return type when semantically
+     * validating a return statement.
+     */
+    public static class BlockScope extends Scope {
 
         protected final Scope parent;
 
-        protected LocalScope(Scope parent) {
+        protected BlockScope(Scope parent) {
             this.parent = parent;
         }
 
@@ -175,6 +225,10 @@ public abstract class Scope {
             return parent.isVariableDefined(name);
         }
 
+        /**
+         * Returns the requested variable by name if found within this scope.
+         * Otherwise, requests the variable from the parent scope.
+         */
         @Override
         public Variable getVariable(Location location, String name) {
             Objects.requireNonNull(location);
@@ -200,6 +254,10 @@ public abstract class Scope {
         }
     }
 
+    /**
+     * Returns a new function scope as the top-level scope with the
+     * specified return type.
+     */
     public static FunctionScope newFunctionScope(Class<?> returnType) {
         return new FunctionScope(returnType);
     }
@@ -210,12 +268,20 @@ public abstract class Scope {
         // do nothing
     }
 
+    /**
+     * Returns a new lambda scope with the current scope as
+     * its parent and the specified return type.
+     */
     public LambdaScope newLambdaScope(Class<?> returnType) {
         return new LambdaScope(this, returnType);
     }
 
-    public LocalScope newLocalScope() {
-        return new LocalScope(this);
+    /**
+     * Returns a new block scope with the current scope as
+     * its parent.
+     */
+    public BlockScope newLocalScope() {
+        return new BlockScope(this);
     }
 
     public abstract Class<?> getReturnType();
@@ -237,6 +303,10 @@ public abstract class Scope {
 
     public Variable defineInternalVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
         return defineVariable(location, type, "#" + name, isReadOnly);
+    }
+
+    public boolean isInternalVariableDefined(String name) {
+        return isVariableDefined("#" + name);
     }
 
     public Variable getInternalVariable(Location location, String name) {

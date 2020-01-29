@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope.FunctionScope;
-import org.elasticsearch.painless.Scope.LocalScope;
+import org.elasticsearch.painless.Scope.BlockScope;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -141,7 +141,7 @@ public final class SClass extends ANode {
             functionScope.defineVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
         }
 
-        LocalScope localScope = functionScope.newLocalScope();
+        BlockScope blockScope = functionScope.newLocalScope();
 
         AStatement last = statements.get(statements.size() - 1);
 
@@ -153,7 +153,7 @@ public final class SClass extends ANode {
             }
 
             statement.lastSource = statement == last;
-            statement.analyze(scriptRoot, localScope);
+            statement.analyze(scriptRoot, blockScope);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;

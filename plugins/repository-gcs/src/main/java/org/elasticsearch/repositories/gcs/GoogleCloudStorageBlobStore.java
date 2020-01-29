@@ -46,7 +46,6 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.internal.io.Streams;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -298,14 +297,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
-        Streams.copy(inputStream, baos);
+        final byte[] buffer = new byte[Math.toIntExact(blobSize)];
+        org.elasticsearch.common.io.Streams.readFully(inputStream, buffer);
         try {
             final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
                 new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :
                 new Storage.BlobTargetOption[0];
             SocketAccess.doPrivilegedVoidIOException(
-                    () -> client().create(blobInfo, baos.toByteArray(), targetOptions));
+                    () -> client().create(blobInfo, buffer, targetOptions));
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());

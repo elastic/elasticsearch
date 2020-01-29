@@ -997,10 +997,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         if (((allocationDecision.type() == Type.YES) || (allocationDecision.type() == Type.THROTTLE))
                                 && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             if (maxNode.containsShard(shard)) {
-                                // simulate moving shard from maxNode to minNode
-                                if (delta < minCost ||
-                                        (candidate != null && Float.compare(delta, minCost) == 0 && candidate.id() > shard.id())) {
-                                    /* this last line is a tie-breaker to make the shard allocation alg deterministic
+                                if (candidate == null || candidate.id() > shard.id()) {
+                                    /* this last condition is a tie-breaker to make the shard allocation alg deterministic
                                      * otherwise we rely on the iteration order of the index.getAllShards() which is a set.*/
                                     minCost = delta;
                                     candidate = shard;

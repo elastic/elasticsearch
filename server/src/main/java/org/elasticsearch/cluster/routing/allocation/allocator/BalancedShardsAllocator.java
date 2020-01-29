@@ -978,6 +978,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             );
         }
 
+        private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = Comparator.comparing(ShardRouting::shardId).reversed();
+
         /**
          * Tries to find a relocation from the max node to the minimal node for an arbitrary shard of the given index on the
          * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
@@ -1002,8 +1004,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                     }
                 }
+
                 // look for a relocation candidate, in descending order of shard id so that the decision is deterministic
-                shardRoutings.sort(Comparator.comparing(ShardRouting::id).reversed());
+                shardRoutings.sort(BY_DESCENDING_SHARD_ID);
                 for (ShardRouting shard : shardRoutings) {
                     final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
                     if ((rebalanceDecision.type() != Type.YES) && (rebalanceDecision.type() != Type.THROTTLE)) {

@@ -205,15 +205,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
      */
-    public static class WeightFunction {
+    private static class WeightFunction {
 
         private final float indexBalance;
         private final float shardBalance;
         private final float theta0;
         private final float theta1;
 
-
-        public WeightFunction(float indexBalance, float shardBalance) {
+        WeightFunction(float indexBalance, float shardBalance) {
             float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -224,19 +223,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.shardBalance = shardBalance;
         }
 
-        public float weight(Balancer balancer, ModelNode node, String index) {
+        float weight(Balancer balancer, ModelNode node, String index) {
             return weight(balancer, node, index, 0);
         }
 
-        public float weightShardAdded(Balancer balancer, ModelNode node, String index) {
+        float weightShardAdded(Balancer balancer, ModelNode node, String index) {
             return weight(balancer, node, index, 1);
         }
 
-        public float weightShardRemoved(Balancer balancer, ModelNode node, String index) {
+        float weightShardRemoved(Balancer balancer, ModelNode node, String index) {
             return weight(balancer, node, index, -1);
         }
 
         private float weight(Balancer balancer, ModelNode node, String index, int numAdditionalShards) {
+            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            final float weight = theta0 * weightShard + theta1 * weightIndex + numAdditionalShards;
+            assert Math.abs(weight - legacyWeight(balancer, node, index, numAdditionalShards)) < 5.0e-5f
+                : node.numShards() + " vs " + balancer.avgShardsPerNode + " * " + theta0 + " and "
+                + node.numShards(index) + " vs " + balancer.avgShardsPerNode(index) + " * " + theta1 + " gives "
+                + weight + " vs legacy " + legacyWeight(balancer, node, index, numAdditionalShards) + " with delta "
+                + Math.abs(weight - legacyWeight(balancer, node, index, numAdditionalShards));
+            return weight;
+        }
+
+        private float legacyWeight(Balancer balancer, ModelNode node, String index, int numAdditionalShards) {
             final float weightShard = node.numShards() + numAdditionalShards - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) + numAdditionalShards - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;

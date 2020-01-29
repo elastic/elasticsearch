@@ -45,7 +45,7 @@ class NodeDeprecationChecks {
         final String orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
                 .filter(e -> Objects.isNull(e.getValue().get(RealmSettings.ORDER_SETTING_KEY)))
-                .map(e -> e.getKey().getName())
+                .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
                 .collect(Collectors.joining("; "));
 
         if (false == Strings.hasText(orderNotConfiguredRealms)) {

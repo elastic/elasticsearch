@@ -575,20 +575,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         if (isCloseConnectionException(e)) {
-            logger.trace(() -> new ParameterizedMessage(
+            logger.debug(() -> new ParameterizedMessage(
                 "close connection exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         } else if (isConnectException(e)) {
-            logger.trace(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+            logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof BindException) {
-            logger.trace(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+            logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof CancelledKeyException) {
-            logger.trace(() -> new ParameterizedMessage(
+            logger.debug(() -> new ParameterizedMessage(
                 "cancelled key exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
@@ -610,7 +610,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
-            logger.trace(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+            logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
         } else {
             logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
         }
@@ -808,7 +808,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static class HttpRequestOnTransportException extends ElasticsearchException {
 
-        private HttpRequestOnTransportException(String msg) {
+        HttpRequestOnTransportException(String msg) {
             super(msg);
         }
 

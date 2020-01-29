@@ -117,6 +117,10 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration.getSingleFile().toString();
     }
 
+    public String getConfigurationName() {
+        return configuration.getName();
+    }
+
     @Override
     public String toString() {
         return getPath();

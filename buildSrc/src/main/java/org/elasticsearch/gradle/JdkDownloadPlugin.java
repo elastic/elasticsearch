@@ -73,7 +73,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 Map<String, Object> depConfig = new HashMap<>();
                 depConfig.put("path", ":"); // root project
                 depConfig.put("configuration", configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform()));
-                project.getDependencies().add("jdk_" + jdk.getName(), dependencies.project(depConfig));
+                project.getDependencies().add(jdk.getConfigurationName(), dependencies.project(depConfig));
 
                 // ensure a root level jdk download task exists
                 setupRootJdkDownload(project.getRootProject(), jdk);

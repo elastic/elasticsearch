@@ -493,6 +493,7 @@ public class MetaDataCreateIndexService {
                 "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
                 "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
+        validateTranslogRetentionSettings(indexSettings);
         return indexSettings;
     }
 
@@ -973,6 +974,15 @@ public class MetaDataCreateIndexService {
             return numShards * 1 << numSplits;
         } else {
             return numShards;
+        }
+    }
+
+    public static void validateTranslogRetentionSettings(Settings indexSettings) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
+            (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
+            deprecationLogger.deprecatedAndMaybeLog("translog_retention", "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         }
     }
 }

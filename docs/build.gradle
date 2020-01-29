@@ -46,6 +46,7 @@ testClusters.integTest {
     setting 'xpack.license.self_generated.type', 'trial'
     if (BuildParams.isSnapshotBuild()) {
       setting 'xpack.autoscaling.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
     }
   }
 

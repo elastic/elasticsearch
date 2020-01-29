@@ -336,7 +336,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 applyOperations(engine, generateHistoryOnReplica(between(10, 1000), false, randomBoolean(), randomBoolean()));
                 globalCheckpoint.set(engine.getLocalCheckpoint());
                 engine.syncTranslog();
-                engine.flush();
+                engine.flush(true, true);
                 engine.refresh("test");
                 try (Engine.Searcher engineSearcher = engine.acquireSearcher("test")) {
                     final IndexSearcher searcher = new IndexSearcher(engineSearcher.getDirectoryReader());

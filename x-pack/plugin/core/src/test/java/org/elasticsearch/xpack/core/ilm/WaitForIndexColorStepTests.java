@@ -130,7 +130,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         assertThat(result.isComplete(), is(false));
         WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
         assertThat(info, notNullValue());
-        assertThat(info.getMessage(), equalTo("index is red; no IndexRoutingTable"));
+        assertThat(info.getMessage(), equalTo("index is red; no indexRoutingTable"));
     }
 
     public void testConditionMetForYellow() {
@@ -198,7 +198,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         assertThat(result.isComplete(), is(false));
         WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
         assertThat(info, notNullValue());
-        assertThat(info.getMessage(), equalTo("index is red; no IndexRoutingTable"));
+        assertThat(info.getMessage(), equalTo("index is red; no indexRoutingTable"));
     }
 }
 

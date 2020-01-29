@@ -54,7 +54,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             return false;
         }
         WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
-        return super.equals(obj) && Objects.equals(this.color, other.color);
+        return super.equals(obj) && Objects.equals(this.color.value(), other.color.value());
     }
 
     @Override

@@ -150,7 +150,7 @@ public class ForceMergeAction implements LifecycleAction {
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(readOnlyStep);
 
-        if (codec.getName().equals(CodecService.BEST_COMPRESSION_CODEC)) {
+        if (codec != null && codec.getName().equals(CodecService.BEST_COMPRESSION_CODEC)) {
             mergeSteps.add(closeIndexStep);
             mergeSteps.add(updateBestCompressionSettings);
             mergeSteps.add(openIndexStep);

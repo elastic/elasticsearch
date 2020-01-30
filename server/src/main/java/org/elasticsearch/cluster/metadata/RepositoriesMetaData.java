@@ -53,6 +53,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
 
+    public static final String TYPE_SETTING_NAME = "type";
+
     private final List<RepositoryMetaData> repositories;
 
     /**
@@ -202,7 +204,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
-                        if ("type".equals(currentFieldName)) {
+                        if (TYPE_SETTING_NAME.equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                                 throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
                             }
@@ -266,7 +268,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      */
     public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name());
-        builder.field("type", repository.type());
+        builder.field(TYPE_SETTING_NAME, repository.type());
         builder.startObject("settings");
         repository.settings().toXContent(builder, params);
         builder.endObject();

@@ -327,7 +327,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                            ClusterService clusterService) {
-        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
+        return Collections.singletonMap(SourceOnlySnapshotRepository.REPOSITORY_TYPE, SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 
     @Override

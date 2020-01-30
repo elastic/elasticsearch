@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -18,9 +19,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -67,10 +70,15 @@ import java.util.function.Supplier;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
+    public static final String REPOSITORY_TYPE = "source";
+
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(SourceOnlySnapshotRepository.class));
+
     private static final Setting<Boolean> SOURCE_ONLY_REPO_SETTING = Setting.boolSetting("source_only", false, Setting.Property.NodeScope);
 
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
-        .NodeScope);
+    private static final Setting<String> DELEGATE_TYPE
+        = new Setting<>("delegate_type", "", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
         .Property.IndexScope, Setting.Property.Final, Setting.Property.PrivateIndex);
 
@@ -205,6 +213,12 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
+                DEPRECATION_LOGGER.deprecated("source-only repositories defined using [{}] are deprecated; in the repository definition " +
+                        "you should remove [{}], change [{}] from [{}] to [{}] and set [{}] to [true]",
+                    DELEGATE_TYPE.getKey(), DELEGATE_TYPE.getKey(),
+                    RepositoriesMetaData.TYPE_SETTING_NAME, REPOSITORY_TYPE, delegateType,
+                    SOURCE_ONLY_REPO_SETTING.getKey());
+
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetaData(metaData.name(),
                     delegateType, metaData.settings()), typeLookup));

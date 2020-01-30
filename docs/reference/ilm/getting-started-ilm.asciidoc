@@ -2,13 +2,12 @@
 [testenv="basic"]
 
 [[getting-started-index-lifecycle-management]]
-== Roll over indices automatically with {ilm-init} 
+== Get started: Automate roll over with {ilm-init}
 
 ++++
-<titleabbrev>Roll over automatically</titleabbrev>
+<titleabbrev>Automate roll over</titleabbrev>
 ++++
 
-[[ilm-roll-over-automatically]]
 This tutorial demonstrates how to use {ilm} ({ilm-init}) 
 to manage indices that contain time-series data. 
 
@@ -18,8 +17,6 @@ you typically use an index alias so you can periodically roll over to a new inde
 This enables you to implement a hot-warm-cold architecture to meet your performance
 requirements for your newest data, control costs over time, enforce retention policies,
 and still get the most out of your data.
-
-This is a <<ilm-roll-over-automatically, test>>.
 
 To automate roll over and management of time-series indices with {ilm-init}, you:
 

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
 import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensaml.saml.saml2.core.Response;
 import org.w3c.dom.Element;
 

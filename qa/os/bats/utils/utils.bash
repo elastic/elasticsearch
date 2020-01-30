@@ -111,21 +111,6 @@ skip_not_systemd() {
     fi
 }
 
-# Returns 0 if the system supports SysV
-is_sysvinit() {
-    [ -x "`which service 2>/dev/null`" ]
-}
-
-# Skip test if SysV is not supported
-skip_not_sysvinit() {
-    if [ -x "`which service 2>/dev/null`" ] && is_systemd; then
-        skip "sysvinit is supported, but systemd too"
-    fi
-    if [ ! -x "`which service 2>/dev/null`" ]; then
-        skip "sysvinit is not supported"
-    fi
-}
-
 # Skip if tar is not supported
 skip_not_tar_gz() {
     if [ ! -x "`which tar 2>/dev/null`" ]; then
@@ -321,9 +306,6 @@ start_elasticsearch_service() {
         run systemctl status elasticsearch.service
         [ "$status" -eq 0 ]
 
-    elif is_sysvinit; then
-        run service elasticsearch status
-        [ "$status" -eq 0 ]
     fi
 }
 
@@ -378,9 +360,6 @@ BASH
         run systemctl start elasticsearch.service
         [ "$status" -eq "$expectedStatus" ]
 
-    elif is_sysvinit; then
-        run service elasticsearch start
-        [ "$status" -eq "$expectedStatus" ]
     fi
 }
 
@@ -399,12 +378,6 @@ stop_elasticsearch_service() {
 
         echo "$output" | grep -E 'inactive|failed'
 
-    elif is_sysvinit; then
-        run service elasticsearch stop
-        [ "$status" -eq 0 ]
-
-        run service elasticsearch status
-        [ "$status" -ne 0 ]
     fi
 }
 

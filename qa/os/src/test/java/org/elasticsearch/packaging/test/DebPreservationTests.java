@@ -27,7 +27,6 @@ import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
-import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -88,9 +87,6 @@ public class DebPreservationTests extends PackagingTestCase {
             Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
         );
 
-        // sysvinit service file was not removed
-        assertTrue(Files.exists(SYSVINIT_SCRIPT));
-
         // defaults file was not removed
         assertTrue(Files.exists(installation.envFile));
     }
@@ -102,8 +98,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         assertPathsDontExist(
             installation.config,
-            installation.envFile,
-            SYSVINIT_SCRIPT
+            installation.envFile
         );
 
         assertThat(packageStatus(distribution()).exitCode, is(1));

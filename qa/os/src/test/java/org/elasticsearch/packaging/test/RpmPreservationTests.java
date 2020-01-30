@@ -30,7 +30,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
-import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -60,9 +59,6 @@ public class RpmPreservationTests extends PackagingTestCase {
 
         // config was removed
         assertFalse(Files.exists(installation.config));
-
-        // sysvinit service file was removed
-        assertFalse(Files.exists(SYSVINIT_SCRIPT));
 
         // defaults file was removed
         assertFalse(Files.exists(installation.envFile));
@@ -109,7 +105,6 @@ public class RpmPreservationTests extends PackagingTestCase {
             installation.logs,
             installation.pidDir,
             installation.envFile,
-            SYSVINIT_SCRIPT,
             SYSTEMD_SERVICE
         );
 

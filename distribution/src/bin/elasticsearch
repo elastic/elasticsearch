@@ -78,9 +78,6 @@ else
   retval=$?
   pid=$!
   [ $retval -eq 0 ] || exit $retval
-  if [ ! -z "$ES_STARTUP_SLEEP_TIME" ]; then
-    sleep $ES_STARTUP_SLEEP_TIME
-  fi
   if ! ps -p $pid > /dev/null ; then
     exit 1
   fi

@@ -236,14 +236,6 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       fileMode 0755
     }
 
-    // ========= sysV init =========
-    configurationFile '/etc/init.d/elasticsearch'
-    into('/etc/init.d') {
-      fileMode 0750
-      fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/init.d/elasticsearch"
-    }
-
     // ========= empty dirs =========
     // NOTE: these are created under packagingFiles as empty, but the permissions are set here
     Closure copyEmptyDir = { path, u, g, mode ->

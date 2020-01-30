@@ -241,7 +241,7 @@ Start Elasticsearch:
 
 [source,sh]
 --------------------------------------------------
-sudo /etc/init.d/elasticsearch start
+sudo systemctl start elasticsearch
 --------------------------------------------------
 
 If anything goes wrong, you should check logs:

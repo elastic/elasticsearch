@@ -438,7 +438,7 @@ public class TrainedModelProvider {
                             foundFromDocs.add(idValue.toString());
                         }
                     }
-                    Set<String> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs, totalHitCount);
+                    Set<String> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs);
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                     requiredMatches.filterMatchedIds(allFoundIds);
                     if (requiredMatches.hasUnmatchedIds()) {
@@ -453,7 +453,7 @@ public class TrainedModelProvider {
             client::search);
     }
 
-    static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs, long totalMatchedIds) {
+    static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs) {
         // If there are no matching resource models, there was no buffering and the models from the docs
         // are paginated correctly.
         if (foundFromResources.isEmpty()) {
@@ -462,33 +462,20 @@ public class TrainedModelProvider {
 
         TreeSet<String> allFoundIds = new TreeSet<>(foundFromDocs);
         allFoundIds.addAll(foundFromResources);
-        int from = pageParams.getFrom();
-        int bufferedFrom = Math.min(foundFromResources.size(), from);
 
-        // If size = 10_000 but there aren't that many total IDs, reduce the size here to make following logic simpler
-        int sizeLimit = (int)Math.min(pageParams.getSize(), totalMatchedIds - from);
-
-        // Last page this means that if we "buffered" the from pagination due to resources we should clear that out
-        // We only clear from the front as that would include buffered IDs that fall on the previous page
-        if (from + sizeLimit >= totalMatchedIds) {
-            while (bufferedFrom > 0 || allFoundIds.size() > sizeLimit) {
+        if (pageParams.getFrom() > 0) {
+            // not the first page so there will be extra results at the front to remove
+            int numToTrimFromFront = Math.min(foundFromResources.size(), pageParams.getFrom());
+            for (int i = 0; i < numToTrimFromFront; i++) {
                 allFoundIds.remove(allFoundIds.first());
-                bufferedFrom--;
             }
         }
 
-        // Systematically remove items while we are above the limit
-        while (allFoundIds.size() > sizeLimit) {
-            // If we are still over limit, and have buffered items, that means the first ids belong on the previous page
-            if (bufferedFrom > 0) {
-                allFoundIds.remove(allFoundIds.first());
-                bufferedFrom--;
-            } else {
-                // If we have removed all items belonging on the previous page, but are still over sized, this means we should
-                // remove items that belong on the next page.
-                allFoundIds.remove(allFoundIds.last());
-            }
+        // trim down to size removing from the rear
+        while (allFoundIds.size() > pageParams.getSize()) {
+            allFoundIds.remove(allFoundIds.last());
         }
+
         return allFoundIds;
     }
 

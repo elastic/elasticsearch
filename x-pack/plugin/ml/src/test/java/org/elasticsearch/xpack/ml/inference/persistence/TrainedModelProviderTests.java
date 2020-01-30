@@ -95,55 +95,42 @@ public class TrainedModelProviderTests extends ESTestCase {
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
             Collections.emptySet(),
-            new HashSet<>(Arrays.asList("a", "b", "c")),
-            5),
+            new HashSet<>(Arrays.asList("a", "b", "c"))),
             equalTo(new TreeSet<>(Arrays.asList("a", "b", "c"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
             Collections.singleton("a"),
-            new HashSet<>(Arrays.asList("b", "c", "d")),
-            5),
+            new HashSet<>(Arrays.asList("b", "c", "d"))),
             equalTo(new TreeSet<>(Arrays.asList("a", "b", "c"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(1, 3),
             Collections.singleton("a"),
-            new HashSet<>(Arrays.asList("b", "c", "d")),
-            5),
+            new HashSet<>(Arrays.asList("b", "c", "d"))),
             equalTo(new TreeSet<>(Arrays.asList("b", "c", "d"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(1, 1),
             Collections.singleton("c"),
-            new HashSet<>(Arrays.asList("a", "b")), 5),
+            new HashSet<>(Arrays.asList("a", "b"))),
             equalTo(new TreeSet<>(Arrays.asList("b"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(1, 1),
             Collections.singleton("b"),
-            new HashSet<>(Arrays.asList("a", "c")), 5),
+            new HashSet<>(Arrays.asList("a", "c"))),
             equalTo(new TreeSet<>(Arrays.asList("b"))));
-
-        assertThat(TrainedModelProvider.collectIds(new PageParams(4, 1),
-            Collections.singleton("d"),
-            new HashSet<>(Arrays.asList("c", "e")), 5),
-            equalTo(new TreeSet<>(Arrays.asList("e"))));
-
-        assertThat(TrainedModelProvider.collectIds(new PageParams(4, 100),
-            Collections.singleton("d"),
-            new HashSet<>(Arrays.asList("c", "e")), 5),
-            equalTo(new TreeSet<>(Arrays.asList("e"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(1, 2),
             new HashSet<>(Arrays.asList("a", "b")),
-            new HashSet<>(Arrays.asList("c", "d", "e")), 5),
+            new HashSet<>(Arrays.asList("c", "d", "e"))),
             equalTo(new TreeSet<>(Arrays.asList("b", "c"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(1, 3),
             new HashSet<>(Arrays.asList("a", "b")),
-            new HashSet<>(Arrays.asList("c", "d", "e")), 5),
+            new HashSet<>(Arrays.asList("c", "d", "e"))),
             equalTo(new TreeSet<>(Arrays.asList("b", "c", "d"))));
 
         assertThat(TrainedModelProvider.collectIds(new PageParams(2, 3),
             new HashSet<>(Arrays.asList("a", "b")),
-            new HashSet<>(Arrays.asList("c", "d", "e")), 5),
+            new HashSet<>(Arrays.asList("c", "d", "e"))),
             equalTo(new TreeSet<>(Arrays.asList("c", "d", "e"))));
     }
 

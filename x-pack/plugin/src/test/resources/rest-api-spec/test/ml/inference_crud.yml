@@ -229,19 +229,30 @@ setup:
 
   - do:
       ml.get_trained_models:
-        model_id: "*"
-        from: 5
+        model_id: "a-*,lang*,zzz*"
+        allow_no_match: true
+        from: 3
         size: 1
-  - match: { count: 6 }
+  - match: { count: 5 }
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "a-*,lang*,zzz*"
+        allow_no_match: true
+        from: 4
+        size: 1
+  - match: { count: 5 }
   - length: { trained_model_configs: 1 }
   - match: { trained_model_configs.0.model_id: "zzz-classification-model" }
 
   - do:
       ml.get_trained_models:
-        model_id: "*"
-        from: 5
-        size: 2
-  - match: { count: 6 }
+        model_id: "a-*,lang*,zzz*"
+        from: 4
+        size: 100
+  - match: { count: 5 }
   - length: { trained_model_configs: 1 }
   - match: { trained_model_configs.0.model_id: "zzz-classification-model" }
 

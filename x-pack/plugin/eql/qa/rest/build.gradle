@@ -17,11 +17,3 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
 }
-
-/****************************************************************
- *  Enable rest integration tests for snapshot builds only   *
- *  TODO: Enable for all builds upon this feature release       *
- ****************************************************************/
-if (!BuildParams.isSnapshotBuild()) {
-  integTest.enabled = false
-}

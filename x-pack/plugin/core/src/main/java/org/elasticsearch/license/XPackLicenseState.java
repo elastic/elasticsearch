@@ -529,7 +529,7 @@ public class XPackLicenseState {
 
     /**
      * Determines if creating an encrypted snapshot is allowed. Note that restoring an encrypted snapshot is not conditioned upon the
-     * license operation mode (it's free for all).
+     * license operation mode (i.e. it's free for all).
      */
     public synchronized boolean isEncryptedSnapshotAllowed() {
         final Status currentStatus = status;

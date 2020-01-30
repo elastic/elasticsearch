@@ -7,22 +7,19 @@
 package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
+import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -44,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code SecureRandom} instance. The "salt" is not a secret, like the password is, and it is used to generate different
  * keys starting from the same password.
  * <p>
- * A new encryption key is generated for every {@link PasswordBasedEncryptor} instance (using a newly generated random
+ * A new encryption key is generated for every {@link PasswordBasedEncryption} instance (using a newly generated random
  * "salt"). The key is then reused for as many as {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} encryption invocations;
  * when the limit is exceeded, a new key is computed from a newly generated "salt". In order to support the decryption
  * operation, the "salt" is prepended to the returned ciphertext. Decryption reads-in the "salt" and uses the secret
@@ -52,12 +49,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * cached for possible reuses because generating the key from the password is an expensive operation (by design).
  * <p>
  * The reason why there is an encryption invocation limit for the same key is because the AES/GCM/NoPadding encryption mode
- * must not be used with the same key and the same Initialization Vector. During encryption, the {@link PasswordBasedEncryptor}
+ * must not be used with the same key and the same Initialization Vector. During encryption, the {@link PasswordBasedEncryption}
  * randomly generates a new 12-byte wide IV, and so in order to limit the risk of a collision, the key must be changed
  * after at most {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} IVs have been generated and used with that same key. For more
  * details, see Section 8.2 of https://csrc.nist.gov/publications/detail/sp/800-38d/final .
  */
-public final class PasswordBasedEncryptor {
+public final class PasswordBasedEncryption {
 
     // the count of keys stored so as to avoid re-computation
     static final int ENCRYPTION_KEY_CACHE_SIZE = 512;
@@ -94,7 +91,7 @@ public final class PasswordBasedEncryptor {
     // the salt of the secret key which is used for encryption
     private final AtomicReference<LimitedSupplier<String>> currentEncryptionKeySalt;
 
-    public PasswordBasedEncryptor(char[] password, SecureRandom secureRandom) {
+    public PasswordBasedEncryption(char[] password, SecureRandom secureRandom) {
         this.password = password;
         this.secureRandom = secureRandom;
         this.keyBySaltCache = CacheBuilder.<String, Tuple<byte[], SecretKey>>builder()
@@ -108,8 +105,7 @@ public final class PasswordBasedEncryptor {
                 ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY));
     }
 
-    public byte[] encrypt(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException,
-            IllegalBlockSizeException, ExecutionException, InvalidAlgorithmParameterException, InvalidKeyException {
+    public byte[] encrypt(byte[] data, @Nullable byte[] associatedData) throws ExecutionException, GeneralSecurityException {
         Objects.requireNonNull(data);
         // retrieve the encryption key
         Tuple<byte[], SecretKey> saltAndEncryptionKey = useEncryptionKey();
@@ -120,7 +116,11 @@ public final class PasswordBasedEncryptor {
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(TAG_LENGTH_IN_BYTES * Byte.SIZE, iv);
         Cipher cipher = Cipher.getInstance(CIPHER_ALGO + "/" + CIPHER_MODE + "/" + CIPHER_PADDING);
         cipher.init(Cipher.ENCRYPT_MODE, saltAndEncryptionKey.v2(), gcmParameterSpec);
-        // encrypt
+        // update the cipher with the associated data
+        if (associatedData != null && associatedData.length > 0) {
+            cipher.updateAAD(associatedData);
+        }
+        // encrypt the data
         byte[] encryptedData = cipher.doFinal(data);
         // concatenate key salt, iv and metadata cipher text
         byte[] resultCiphertext = new byte[saltAndEncryptionKey.v1().length + iv.length + encryptedData.length];
@@ -131,8 +131,7 @@ public final class PasswordBasedEncryptor {
         return resultCiphertext;
     }
 
-    public byte[] decrypt(byte[] encryptedData) throws ExecutionException, NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    public byte[] decrypt(byte[] encryptedData, @Nullable byte[] associatedData) throws ExecutionException, GeneralSecurityException {
         if (Objects.requireNonNull(encryptedData).length < SALT_LENGTH_IN_BYTES + IV_LENGTH_IN_BYTES + TAG_LENGTH_IN_BYTES) {
             throw new IllegalArgumentException("Ciphertext too short");
         }
@@ -145,7 +144,11 @@ public final class PasswordBasedEncryptor {
                 IV_LENGTH_IN_BYTES);
         Cipher cipher = Cipher.getInstance(CIPHER_ALGO + "/" + CIPHER_MODE + "/" + CIPHER_PADDING);
         cipher.init(Cipher.DECRYPT_MODE, decryptionKey, gcmParameterSpec);
-        // decrypt metadata (use cipher)
+        // update the cipher with the associated data
+        if (associatedData != null && associatedData.length > 0) {
+            cipher.updateAAD(associatedData);
+        }
+        // decrypt data
         return cipher.doFinal(encryptedData, SALT_LENGTH_IN_BYTES + IV_LENGTH_IN_BYTES,
                 encryptedData.length - SALT_LENGTH_IN_BYTES - IV_LENGTH_IN_BYTES);
     }

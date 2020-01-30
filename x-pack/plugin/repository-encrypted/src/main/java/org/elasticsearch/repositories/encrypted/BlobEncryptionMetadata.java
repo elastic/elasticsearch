@@ -7,59 +7,64 @@
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
-public final class BlobEncryptionMetadata implements Writeable {
 
-    private final byte[] dataEncryptionKeyMaterial;
+/**
+ * Holds the necessary, and sufficient, metadata required to decrypt the associated encrypted blob.
+ * The data encryption key (DEK {@link #dataEncryptionKey}) is the most important part of the metadata;
+ * it must be kept secret (i.e. MUST be stored encrypted).
+ * The metadata does not hold an explicit link to the associated encrypted blob. It's the responsibility of the creator
+ * ({@link EncryptedRepository}) to maintain this association.
+ */
+public final class BlobEncryptionMetadata {
+
+    // this is part of the Initialization Vectors of the encrypted data blobs
+    // although the IVs of the encrypted data blobs are stored in plain in the ciphertext,
+    // storing it in the metadata as well, is a simpler way to verify the association without
+    // attempting the decryption (without using this software even, because the {@link #nonce} is the
+    // first 4-byte integer (little endian) of both the metadata and the associated encrypted blob)
     private final int nonce;
+    // the packet length from {@link EncryptionPacketsInputStream}
     private final int packetLengthInBytes;
+    // the key used to encrypt and decrypt the associated blob
+    private final SecretKey dataEncryptionKey;
 
-    public BlobEncryptionMetadata(byte[] dataEncryptionKeyMaterial, int nonce, int packetLengthInBytes) {
-        this.dataEncryptionKeyMaterial = Objects.requireNonNull(dataEncryptionKeyMaterial);
+    public BlobEncryptionMetadata(int nonce, int packetLengthInBytes, SecretKey dataEncryptionKey) {
         this.nonce = nonce;
         this.packetLengthInBytes = packetLengthInBytes;
-    }
-
-    public byte[] getDataEncryptionKeyMaterial() {
-        return dataEncryptionKeyMaterial;
-    }
-
-    public int getPacketLengthInBytes() {
-        return packetLengthInBytes;
+        this.dataEncryptionKey = Objects.requireNonNull(dataEncryptionKey);
     }
 
     public int getNonce() {
         return nonce;
     }
 
-    public BlobEncryptionMetadata(InputStream inputStream) throws IOException {
-        try (StreamInput in = new InputStreamStreamInput(inputStream)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
-            this.dataEncryptionKeyMaterial = in.readByteArray();
-            this.nonce = in.readInt();
-            this.packetLengthInBytes = in.readInt();
-        }
+    public int getPacketLengthInBytes() {
+        return packetLengthInBytes;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Version.writeVersion(Version.CURRENT, out);
-        out.writeByteArray(this.dataEncryptionKeyMaterial);
-        out.writeInt(this.nonce);
-        out.writeInt(this.packetLengthInBytes);
+    public SecretKey getDataEncryptionKey() {
+        return dataEncryptionKey;
     }
 
     @Override
@@ -69,28 +74,48 @@ public final class BlobEncryptionMetadata implements Writeable {
         BlobEncryptionMetadata metadata = (BlobEncryptionMetadata) o;
         return nonce == metadata.nonce &&
                 packetLengthInBytes == metadata.packetLengthInBytes &&
-                Arrays.equals(dataEncryptionKeyMaterial, metadata.dataEncryptionKeyMaterial);
+                Objects.equals(dataEncryptionKey, metadata.dataEncryptionKey);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(nonce, packetLengthInBytes);
-        result = 31 * result + Arrays.hashCode(dataEncryptionKeyMaterial);
+        result = 31 * result + Objects.hashCode(dataEncryptionKey);
         return result;
     }
 
-    static byte[] serializeMetadataToByteArray(BlobEncryptionMetadata metadata) throws IOException {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            try (StreamOutput out = new OutputStreamStreamOutput(baos)) {
-                metadata.writeTo(out);
-            }
-            return baos.toByteArray();
+    static byte[] serializeMetadata(BlobEncryptionMetadata metadata, CheckedBiFunction<byte[], byte[], byte[], Exception> encryptor)
+            throws IOException {
+        ByteBuffer byteBuffer = ByteBuffer.allocate(2 * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        byteBuffer.putInt(0, metadata.getNonce());
+        byteBuffer.putInt(Integer.BYTES, metadata.getPacketLengthInBytes());
+        byte[] authenticatedData = byteBuffer.array();
+        final byte[] encryptedData;
+        try {
+            encryptedData = encryptor.apply(metadata.getDataEncryptionKey().getEncoded(), authenticatedData);
+        } catch (Exception e) {
+            throw new IOException("Failure to encrypt metadata", e);
         }
+        byte[] result = new byte[authenticatedData.length + encryptedData.length];
+        System.arraycopy(authenticatedData, 0, result, 0, authenticatedData.length);
+        System.arraycopy(encryptedData, 0, result, authenticatedData.length, encryptedData.length);
+        return result;
     }
 
-    static BlobEncryptionMetadata deserializeMetadataFromByteArray(byte[] metadata) throws IOException {
-        try (ByteArrayInputStream decryptedMetadataInputStream = new ByteArrayInputStream(metadata)) {
-            return new BlobEncryptionMetadata(decryptedMetadataInputStream);
+    static BlobEncryptionMetadata deserializeMetadata(byte[] metadata, CheckedBiFunction<byte[], byte[], byte[], Exception> decryptor)
+            throws IOException {
+        byte[] authenticatedData = Arrays.copyOf(metadata, 2 * Integer.BYTES);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(authenticatedData).order(ByteOrder.LITTLE_ENDIAN);
+        int nonce = byteBuffer.get(0);
+        int packetLengthInBytes = byteBuffer.get(Integer.BYTES);
+        byte[] encryptedData = Arrays.copyOfRange(metadata, 2 * Integer.BYTES, metadata.length);
+        final byte[] decryptedData;
+        try {
+            decryptedData = decryptor.apply(encryptedData, authenticatedData);
+        } catch (Exception e) {
+            throw new IOException("Failure to decrypt metadata", e);
         }
+        SecretKey dataDecryptionKey = new SecretKeySpec(decryptedData, 0, decryptedData.length, "AES");
+        return new BlobEncryptionMetadata(nonce, packetLengthInBytes, dataDecryptionKey);
     }
 }

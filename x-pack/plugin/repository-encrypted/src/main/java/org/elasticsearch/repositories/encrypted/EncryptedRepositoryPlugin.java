@@ -105,7 +105,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
                 char[] repositoryPassword = cachedRepositoryPasswords.get(metaData.name());
-                PasswordBasedEncryptor metadataEncryptor = new PasswordBasedEncryptor(repositoryPassword,
+                PasswordBasedEncryption metadataEncryptor = new PasswordBasedEncryption(repositoryPassword,
                         SecureRandom.getInstance(RAND_ALGO));
                 return new EncryptedRepository(metaData, registry, clusterService, (BlobStoreRepository) delegatedRepository,
                         metadataEncryptor, consistentSettingsService);

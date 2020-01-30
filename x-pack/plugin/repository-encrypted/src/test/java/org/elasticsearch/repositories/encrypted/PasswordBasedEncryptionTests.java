@@ -11,10 +11,10 @@ import org.hamcrest.Matchers;
 
 import java.security.SecureRandom;
 
-public class PasswordBasedEncryptorTests extends ESTestCase {
+public class PasswordBasedEncryptionTests extends ESTestCase {
 
     public void testEncryptAndDecryptEmpty() throws Exception {
-        PasswordBasedEncryptor encryptor = new PasswordBasedEncryptor(new char[] {'p', 'a', 's', 's'},
+        PasswordBasedEncryption encryptor = new PasswordBasedEncryption(new char[] {'p', 'a', 's', 's'},
                 SecureRandom.getInstance("SHA1PRNG"));
         byte[] emptyEncrypted = encryptor.encrypt(new byte[0]);
         byte[] ans = encryptor.decrypt(emptyEncrypted);

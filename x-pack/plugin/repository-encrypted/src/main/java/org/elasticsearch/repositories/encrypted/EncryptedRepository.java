@@ -54,28 +54,42 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public final class EncryptedRepository extends BlobStoreRepository {
-
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
+
+    // the following constants are fixed by definition
     static final int GCM_TAG_LENGTH_IN_BYTES = 16;
     static final int GCM_IV_LENGTH_IN_BYTES = 12;
     static final int AES_BLOCK_SIZE_IN_BYTES = 128;
+    // changing the following constants implies breaking compatibility with previous versions
+    // in this case the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER} MUST be incremented
     static final String DATA_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
     static final int DATA_KEY_SIZE_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
-    static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 20; // 1MB
+    static final int MAX_PACKET_LENGTH_IN_BYTES = 8 << 20; // 8MB
+    // this can be changed freely (can be made a repository parameter) without adjusting
+    // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
+    // of {@link #MAX_PACKET_LENGTH_IN_BYTES}
     static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
 
-    private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata";
+    // The encryption scheme version number to which the current implementation conforms to.
+    // The version number MUST be incremented whenever the format of the metadata, or
+    // the way the metadata is used for the actual decryption are changed.
+    // Incrementing the version number signals that previous implementations cannot make sense
+    // of the new scheme.
+    private static final int CURRENT_ENCRYPTION_VERSION_NUMBER = 2; // nobody trusts v1 of anything
+    // the path of the blob container holding the encryption metadata
+    // this is relative to the root path holding the encrypted blobs (i.e. the repository root path)
+    private static final String ENCRYPTION_METADATA_ROOT = "encryption-metadata-v" + CURRENT_ENCRYPTION_VERSION_NUMBER;
 
     private final BlobStoreRepository delegatedRepository;
     private final KeyGenerator dataEncryptionKeyGenerator;
-    private final PasswordBasedEncryptor metadataEncryptor;
+    private final PasswordBasedEncryption metadataEncryptor;
     private final ConsistentSettingsService consistentSettingsService;
     private final SecureRandom secureRandom;
     private final SecureSetting<?> passwordSettingForThisRepo;
 
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
-                                  BlobStoreRepository delegatedRepository, PasswordBasedEncryptor metadataEncryptor,
+                                  BlobStoreRepository delegatedRepository, PasswordBasedEncryption metadataEncryptor,
                                   ConsistentSettingsService consistentSettingsService) throws NoSuchAlgorithmException {
         super(metadata, namedXContentRegistry, clusterService, delegatedRepository.basePath());
         this.delegatedRepository = delegatedRepository;
@@ -182,11 +196,11 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
-        private final PasswordBasedEncryptor metadataEncryptor;
+        private final PasswordBasedEncryption metadataEncryptor;
         private final SecureRandom secureRandom;
 
         EncryptedBlobStore(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
-                           PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom) {
+                           PasswordBasedEncryption metadataEncryptor, SecureRandom secureRandom) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
@@ -208,19 +222,19 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
-        private final PasswordBasedEncryptor metadataEncryptor;
+        private final PasswordBasedEncryption metadataEncryption;
         private final SecureRandom nonceGenerator;
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
 
         EncryptedBlobContainer(BlobStore delegatedBlobStore, BlobPath path, KeyGenerator dataEncryptionKeyGenerator,
-                               PasswordBasedEncryptor metadataEncryptor, SecureRandom nonceGenerator) {
+                               PasswordBasedEncryption metadataEncryption, SecureRandom nonceGenerator) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
-            this.metadataEncryptor = metadataEncryptor;
+            this.metadataEncryption = metadataEncryption;
             this.nonceGenerator = nonceGenerator;
             this.delegatedBlobContainer = delegatedBlobStore.blobContainer(path);
-            this.encryptionMetadataBlobContainer = delegatedBlobStore.blobContainer(path.prepend(ENCRYPTION_METADATA_PREFIX));
+            this.encryptionMetadataBlobContainer = delegatedBlobStore.blobContainer(path.prepend(ENCRYPTION_METADATA_ROOT));
         }
 
         @Override
@@ -232,22 +246,21 @@ public final class EncryptedRepository extends BlobStoreRepository {
         public InputStream readBlob(String blobName) throws IOException {
             // read metadata
             BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(blobName));
-            final byte[] decryptedMetadata;
+            final BlobEncryptionMetadata metadata;
             try {
-                decryptedMetadata = metadataEncryptor.decrypt(BytesReference.toBytes(encryptedMetadataBytes));
-            } catch (ExecutionException | GeneralSecurityException e) {
+                // decrypt and parse metadata
+                metadata = BlobEncryptionMetadata.deserializeMetadata(BytesReference.toBytes(encryptedMetadataBytes),
+                        metadataEncryption::decrypt);
+            } catch (IOException e) {
+                // friendlier exception message
                 String failureMessage = "Failure to decrypt metadata for blob [" + blobName + "]";
                 if (e.getCause() instanceof AEADBadTagException) {
                     failureMessage = failureMessage + ". The repository password is probably wrong.";
                 }
                 throw new IOException(failureMessage, e);
             }
-            final BlobEncryptionMetadata metadata = BlobEncryptionMetadata.deserializeMetadataFromByteArray(decryptedMetadata);
-            // decrypt metadata
-            SecretKey dataDecryptionKey = new SecretKeySpec(metadata.getDataEncryptionKeyMaterial(), 0,
-                    metadata.getDataEncryptionKeyMaterial().length, "AES");
             // read and decrypt blob
-            return new DecryptionPacketsInputStream(delegatedBlobContainer.readBlob(blobName), dataDecryptionKey,
+            return new DecryptionPacketsInputStream(delegatedBlobContainer.readBlob(blobName), metadata.getDataEncryptionKey(),
                     metadata.getNonce(), metadata.getPacketLengthInBytes());
         }
 
@@ -256,12 +269,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
             SecretKey dataEncryptionKey = dataEncryptionKeyGenerator.generateKey();
             int nonce = nonceGenerator.nextInt();
             // this is the metadata required to decrypt back the encrypted blob
-            BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(dataEncryptionKey.getEncoded(), nonce, PACKET_LENGTH_IN_BYTES);
+            BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(nonce, PACKET_LENGTH_IN_BYTES, dataEncryptionKey);
             // encrypt metadata
             final byte[] encryptedMetadata;
             try {
-                encryptedMetadata = metadataEncryptor.encrypt(BlobEncryptionMetadata.serializeMetadataToByteArray(metadata));
-            } catch (ExecutionException | GeneralSecurityException e) {
+                encryptedMetadata = BlobEncryptionMetadata.serializeMetadata(metadata, metadataEncryption::encrypt);
+            } catch (IOException e) {
                 throw new IOException("Failure to encrypt metadata for blob [" + blobName + "]", e);
             }
             // first write the encrypted metadata
@@ -321,7 +334,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             for (Map.Entry<String, BlobContainer> encryptedBlobContainer : childEncryptedBlobContainers.entrySet()) {
                 // get an encrypted blob container for each
                 result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainer(delegatedBlobStore,
-                        encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryptor, nonceGenerator));
+                        encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryption, nonceGenerator));
             }
             return result;
         }

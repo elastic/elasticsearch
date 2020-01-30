@@ -66,8 +66,6 @@ PUT _ilm/policy/datastream_policy
   }
 }
 ------------------------
-
-
 <1> The `min_age` defaults to `0ms`, so new indices enter the hot phase immediately. 
 <2> Trigger the `rollover` action when either of the conditions are met.
 <3> Move the index into the delete phase 90 days after rollover.
@@ -110,6 +108,16 @@ PUT _template/datastream_template
 <2> The name of the lifecycle policy to apply to each new index.
 <3> The name of the alias used to reference these indices. 
 Required for policies that use the rollover action.
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/datastream_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 [float]
 [[ilm-gs-bootstrap]]
@@ -171,6 +179,7 @@ The response below shows that the bootstrap index is waiting in the `hot` phase'
 It will remain in this state and {ilm-init} will continue to call `attempt-rollover` 
 until the rollover conditions are met. 
 
+[[36818c6d9f434d387819c30bd9addb14]]
 [source,console-result]
 --------------------------------------------------
 {

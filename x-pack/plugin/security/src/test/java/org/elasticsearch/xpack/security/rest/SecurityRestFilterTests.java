@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -48,7 +49,9 @@ import static org.mockito.Mockito.when;
 
 public class SecurityRestFilterTests extends ESTestCase {
 
+    private ThreadContext threadContext;
     private AuthenticationService authcService;
+    private SecondaryAuthenticator secondaryAuthenticator;
     private RestChannel channel;
     private SecurityRestFilter filter;
     private XPackLicenseState licenseState;
@@ -61,8 +64,9 @@ public class SecurityRestFilterTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         restHandler = mock(RestHandler.class);
-        filter = new SecurityRestFilter(licenseState,
-                new ThreadContext(Settings.EMPTY), authcService, restHandler, false);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
+        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
     }
 
     public void testProcess() throws Exception {
@@ -140,7 +144,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
-        filter = new SecurityRestFilter(licenseState, new ThreadContext(Settings.EMPTY), authcService, restHandler, false);
+        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
 
         filter.handleRequest(restRequest, channel, null);
 

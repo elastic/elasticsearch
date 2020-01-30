@@ -231,7 +231,6 @@ import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
-import org.elasticsearch.xpack.ml.inference.search.InferenceFetchSubPhase;
 import org.elasticsearch.xpack.ml.inference.search.InferenceQueryBuilder;
 import org.elasticsearch.xpack.ml.inference.search.InferenceRescorerBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;

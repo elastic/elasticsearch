@@ -163,24 +163,6 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
 
         transformsToClean = new ArrayList<>();
         waitForPendingTasks(adminClient());
-
-        // using '*' to make this lenient and do not fail if the audit index does not exist
-        SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
-        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
-
-        for (SearchHit hit : searchAll(searchRequest)) {
-            Map<String, Object> source = hit.getSourceAsMap();
-            String level = (String) source.getOrDefault("level", "info");
-            logger.log(
-                Level.getLevel(level.toUpperCase(Locale.ROOT)),
-                "Transform audit: [{}] [{}] [{}] [{}]",
-                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
-                source.getOrDefault("transform_id", "n/a"),
-                source.getOrDefault("message", "n/a"),
-                source.getOrDefault("node_name", "n/a")
-            );
-        }
-
     }
 
     public void testCreateDelete() throws IOException {

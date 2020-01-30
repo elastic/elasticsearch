@@ -28,6 +28,11 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -254,7 +259,7 @@ public final class Verifier {
                 }
 
                 checkForScoreInsideFunctions(p, localFailures);
-                checkNestedUsedInGroupByOrHaving(p, localFailures);
+                checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(p, localFailures, attributeRefs);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
 
@@ -734,17 +739,21 @@ public final class Verifier {
                 Function.class));
     }
 
-    private static void checkNestedUsedInGroupByOrHaving(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(LogicalPlan p, Set<Failure> localFailures,
+                                                                         AttributeMap<Expression> attributeRefs) {
         List<FieldAttribute> nested = new ArrayList<>();
-        Consumer<FieldAttribute> match = fa -> {
+        Consumer<FieldAttribute> matchNested = fa -> {
             if (fa.isNested()) {
                 nested.add(fa);
             }
         };
+        Consumer<Expression> checkForNested = e ->
+                attributeRefs.getOrDefault(e, e).forEachUp(matchNested, FieldAttribute.class);
+        Consumer<ScalarFunction> checkForNestedInFunction =  f -> f.arguments().forEach(
+                arg -> arg.forEachUp(matchNested, FieldAttribute.class));
 
         // nested fields shouldn't be used in aggregates or having (yet)
-        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(match, FieldAttribute.class)), Aggregate.class);
-
+        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(checkForNested)), Aggregate.class);
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
@@ -752,15 +761,39 @@ public final class Verifier {
         }
 
         // check in having
-        p.forEachDown(f -> {
-            if (f.child() instanceof Aggregate) {
-                f.condition().forEachUp(match, FieldAttribute.class);
-            }
-        }, Filter.class);
-
+        p.forEachDown(f -> f.forEachDown(a -> f.condition().forEachUp(checkForNested), Aggregate.class), Filter.class);
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+            nested.clear();
+        }
+
+        // check in where (scalars not allowed)
+        p.forEachDown(f -> f.condition().forEachUp(e ->
+                attributeRefs.getOrDefault(e, e).forEachUp(sf -> {
+                    if (sf instanceof BinaryComparison== false &&
+                            sf instanceof IsNull == false &&
+                            sf instanceof IsNotNull == false &&
+                            sf instanceof Not== false &&
+                            sf instanceof BinaryLogic== false) {
+                        checkForNestedInFunction.accept(sf);
+                    }}, ScalarFunction.class)
+        ), Filter.class);
+        if (!nested.isEmpty()) {
+            localFailures.add(
+                    fail(nested.get(0), "WHERE isn't (yet) compatible with scalar functions on nested fields " +
+                            new AttributeSet(nested).names()));
+            nested.clear();
+        }
+
+        // check in order by (scalars not allowed)
+        p.forEachDown(ob -> ob.order().forEach(o -> o.forEachUp(e ->
+                attributeRefs.getOrDefault(e, e).forEachUp(checkForNestedInFunction, ScalarFunction.class)
+        )), OrderBy.class);
+        if (!nested.isEmpty()) {
+            localFailures.add(
+                    fail(nested.get(0), "ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                            new AttributeSet(nested).names()));
         }
     }
 

@@ -694,21 +694,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // scalar functions typically require script ordering
                         if (orderExpression instanceof ScalarFunction) {
                             ScalarFunction sf = (ScalarFunction) orderExpression;
-                            // is there an expression to order by?
-                            if (sf.orderBy() != null) {
-                                Expression orderBy = sf.orderBy();
-                                if (orderBy instanceof NamedExpression) {
-                                    orderBy = qContainer.aliases().getOrDefault(orderBy, orderBy);
-                                    qContainer = qContainer
-                                            .addSort(new AttributeSort(((NamedExpression) orderBy).toAttribute(), direction, missing));
-                                } else if (orderBy.foldable() == false) {
-                                    // ignore constant
-                                    throw new PlanningException("does not know how to order by expression {}", orderBy);
-                                }
-                            } else {
-                                // nope, use scripted sorting
-                                qContainer = qContainer.addSort(new ScriptSort(sf.asScript(), direction, missing));
-                            }
+                            // nope, use scripted sorting
+                            qContainer = qContainer.addSort(new ScriptSort(sf.asScript(), direction, missing));
                         }
                         // score
                         else if (orderExpression instanceof Score) {

@@ -1,0 +1,170 @@
+---
+"sort by field":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3] }
+
+  - do:
+      search:
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1] }
+
+---
+"sort by score":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "big cat", "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": "cat", "v": 1}'
+          - '{"index": {}}'
+          - '{"s": "the small dog", "v": 2.71828}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          query:
+            match:
+              s: big cat
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort: _score
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1.450832724571228] }
+
+---
+"sort by geo_distance":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"location": {"lat" : 40.7128, "lon" : -74.0060}, "name": "New York", "population": 8623000}'
+          - '{"index": {}}'
+          - '{"location": {"lat" : 34.0522, "lon" : 118.2437}, "name": "Los Angeles", "population": 4000000}'
+          - '{"index": {}}'
+          - '{"location": {"lat" : 41.8781, "lon" : 87.6298}, "name": "Chicago", "population": 2716000}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            pop:
+              top_metrics:
+                metric:
+                  field: population
+                sort:
+                  _geo_distance:
+                    location: "35.7796, 78.6382"
+                    unit: km
+  - match: { aggregations.pop.top.0.metrics.v: 8623000 }
+  - match: { aggregations.pop.top.0.sort: [809.2] }
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1] }
+
+
+---
+"inside terms":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+              date:
+                type: date
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.1", "date": "2020-01-01T01:01:01", "v": 1}'
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.1", "date": "2020-01-01T02:01:01", "v": 2}'
+          - '{"index": {}}'
+          - '{"ip": "192.168.0.2", "date": "2020-01-01T02:01:01", "v": 3}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+              aggs:
+                tm:
+                  top_metrics:
+                    metric:
+                      field: v
+                    sort:
+                      date: desc
+  - length: { aggregations.ip.buckets: 2 }
+  - match: { aggregations.ip.buckets.0.key: 192.168.0.1 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.metrics.v: 2 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+  - match: { aggregations.ip.buckets.1.key: 192.168.0.2 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 3 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }

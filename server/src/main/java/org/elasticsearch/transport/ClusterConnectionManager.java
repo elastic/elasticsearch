@@ -39,9 +39,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * This class manages node connections. The connection is opened by the underlying transport. Once the
- * connection is opened, this class manages the connection. This includes keep-alive pings and closing
- * the connection when the connection manager is closed.
+ * This class manages node connections within a cluster. The connection is opened by the underlying transport.
+ * Once the connection is opened, this class manages the connection. This includes closing the connection when
+ * the connection manager is closed.
  */
 public class ClusterConnectionManager implements ConnectionManager {
 

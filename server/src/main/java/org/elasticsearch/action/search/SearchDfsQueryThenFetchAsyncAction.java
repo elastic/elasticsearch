@@ -37,14 +37,12 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private final SearchPhaseController searchPhaseController;
 
     SearchDfsQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                       final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                       final Map<String, AliasFilter> aliasFilter,
-                                       final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
-                                       final SearchPhaseController searchPhaseController, final Executor executor,
-                                       final SearchRequest request, final ActionListener<SearchResponse> listener,
-                                       final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                       final TransportSearchAction.SearchTimeProvider timeProvider,
-                                       final long clusterStateVersion, final SearchTask task, SearchResponse.Clusters clusters) {
+            final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
+            final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
+            final SearchPhaseController searchPhaseController, final Executor executor,
+            final SearchRequest request, final ActionListener<SearchResponse> listener,
+            final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
+            final long clusterStateVersion, final SearchTask task, SearchResponse.Clusters clusters) {
         super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener,
                 shardsIts, timeProvider, clusterStateVersion, task, new ArraySearchPhaseResults<>(shardsIts.size()),

@@ -39,14 +39,12 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
     private final SearchProgressListener progressListener;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                    final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                    final Map<String, AliasFilter> aliasFilter,
-                                    final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
-                                    final SearchPhaseController searchPhaseController, final Executor executor,
-                                    final SearchRequest request, final ActionListener<SearchResponse> listener,
-                                    final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                    final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    long clusterStateVersion, SearchTask task, SearchResponse.Clusters clusters) {
+            final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
+            final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
+            final SearchPhaseController searchPhaseController, final Executor executor,
+            final SearchRequest request, final ActionListener<SearchResponse> listener,
+            final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
+            long clusterStateVersion, SearchTask task, SearchResponse.Clusters clusters) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
                 searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),

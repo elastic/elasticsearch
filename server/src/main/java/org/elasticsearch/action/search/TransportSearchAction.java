@@ -516,9 +516,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static BiFunction<String, String, Transport.Connection> buildConnectionLookup(String requestClusterAlias,
-                                                                                  Function<String, DiscoveryNode> localNodes,
-                                                                                  BiFunction<String, String, DiscoveryNode> remoteNodes,
-                                                                                  BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
+                                                              Function<String, DiscoveryNode> localNodes,
+                                                              BiFunction<String, String, DiscoveryNode> remoteNodes,
+                                                              BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
         return (clusterAlias, nodeId) -> {
             final DiscoveryNode discoveryNode;
             final boolean remoteCluster;

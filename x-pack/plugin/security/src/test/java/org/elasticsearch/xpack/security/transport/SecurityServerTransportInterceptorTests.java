@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
@@ -102,7 +103,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         sender.sendRequest(connection, MainAction.NAME, null, null, null);
         assertTrue(calledWrappedSender.get());
@@ -130,7 +131,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
@@ -165,7 +166,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
@@ -234,7 +235,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());

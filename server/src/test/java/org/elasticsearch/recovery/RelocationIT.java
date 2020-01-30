@@ -666,7 +666,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         @Override
         public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException {
+                TransportRequestOptions options) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {

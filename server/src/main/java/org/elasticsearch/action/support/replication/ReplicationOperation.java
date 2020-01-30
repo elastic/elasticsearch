@@ -133,6 +133,8 @@ public class ReplicationOperation<
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
             performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
         }
+
+        // TODO: Implement some way to kick-off replication before fsyncing / refreshing
         primaryResult.runPostReplicationActions(new ActionListener<>() {
 
             @Override

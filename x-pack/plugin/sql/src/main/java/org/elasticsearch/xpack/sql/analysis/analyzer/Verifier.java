@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -214,7 +215,10 @@ public final class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
+            Set<Failure> localFailures = new LinkedHashSet<>();
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+
+            checkFullTextSearchInSelect(plan, localFailures);
 
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
@@ -240,8 +244,6 @@ public final class Verifier {
                 if (!p.childrenResolved()) {
                     return;
                 }
-
-                Set<Failure> localFailures = new LinkedHashSet<>();
 
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
@@ -294,6 +296,17 @@ public final class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
+        plan.forEachUp(p -> {
+            for (NamedExpression ne : p.projections()) {
+                ne.forEachUp((e) ->
+                        localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
+                                "functions in the SELECT clause")),
+                        FullTextPredicate.class);
+            }
+        }, Project.class);
     }
 
     /**

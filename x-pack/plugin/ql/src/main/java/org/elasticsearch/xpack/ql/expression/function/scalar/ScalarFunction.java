@@ -39,12 +39,6 @@ public abstract class ScalarFunction extends Function {
         super(source, fields);
     }
 
-    // Every function needs to be translated to a script
-    // which will be used for the ordering
-    public Expression orderBy() {
-        return null;
-    }
-
     //
     // Script generation
     //

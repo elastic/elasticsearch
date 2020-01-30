@@ -6,8 +6,8 @@ A collection of connected nodes is called a <<modules-cluster,cluster>>. If you
 are running a single node of {es}, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
-<<modules-transport,Transport>> traffic by default. The transport layer is used 
-exclusively for communication between nodes; the HTTP layer is used by REST 
+<<modules-transport,Transport>> traffic by default. The transport layer is used
+exclusively for communication between nodes; the HTTP layer is used by REST
 clients.
 
 All nodes know about all the other nodes in the cluster and can forward client
@@ -16,14 +16,14 @@ requests to the appropriate node.
 By default, a node is all of the following types: master-eligible, data, ingest,
 and machine learning (if available).
 
-TIP: As the cluster grows and in particular if you have large {ml} jobs, 
+TIP: As the cluster grows and in particular if you have large {ml} jobs,
 consider separating dedicated master-eligible nodes from dedicated data nodes
 and dedicated {ml} nodes.
 
 <<master-node,Master-eligible node>>::
 
 A node that has `node.master` set to `true` (default), which makes it eligible
-to be <<modules-discovery,elected as the _master_ node>>, which controls the 
+to be <<modules-discovery,elected as the _master_ node>>, which controls the
 cluster.
 
 <<data-node,Data node>>::
@@ -164,9 +164,9 @@ node.voting_only: true <1>
 -------------------
 <1> The default for `node.voting_only` is `false`.
 
-IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not 
-supported in the {oss-dist}. If you use the {oss-dist} and set 
-`node.voting_only` then the node will fail to start.  Also note that only 
+IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not
+supported in the {oss-dist}. If you use the {oss-dist} and set
+`node.voting_only` then the node will fail to start.  Also note that only
 master-eligible nodes can be marked as voting-only.
 
 High availability (HA) clusters require at least three master-eligible nodes, at
@@ -213,7 +213,7 @@ nodes handle data related operations like CRUD, search, and aggregations.
 These operations are I/O-, memory-, and CPU-intensive. It is important to
 monitor these resources and to add more data nodes if they are overloaded.
 
-The main benefit of having dedicated data nodes is the separation of the master 
+The main benefit of having dedicated data nodes is the separation of the master
 and data roles.
 
 To create a dedicated data node in the {default-dist}, set:
@@ -250,7 +250,7 @@ cluster.remote.connect: false <4>
 [[node-ingest-node]]
 === Ingest Node
 
-Ingest nodes can execute pre-processing pipelines, composed of one or more 
+Ingest nodes can execute pre-processing pipelines, composed of one or more
 ingest processors. Depending on the type of operations performed by the ingest
 processors and the required resources, it may make sense to have dedicated
 ingest nodes, that will only perform this specific task.
@@ -344,7 +344,7 @@ cluster.remote.connect: false <4>
 [[ml-node]]
 === [xpack]#Machine learning node#
 
-The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API 
+The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
 requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
 the node can service API requests but it cannot run jobs.
 
@@ -442,8 +442,8 @@ Like all node settings, it can also be specified on the command line as:
 -----------------------
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
-should be configured to locate the data directory outside the {es} home 
-directory, so that the home directory can be deleted without deleting your data! 
+should be configured to locate the data directory outside the {es} home
+directory, so that the home directory can be deleted without deleting your data!
 The RPM and Debian distributions do this for you already.
 
 

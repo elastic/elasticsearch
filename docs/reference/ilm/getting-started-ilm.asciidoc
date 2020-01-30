@@ -12,7 +12,8 @@
 This tutorial demonstrates how to use {ilm} ({ilm-init}) 
 to manage indices that contain time-series data. 
 
-When you use a mechanism like Filebeat to continuously index timestamped documents into {es},
+When you continuously index timestamped documents into {es} using 
+Filebeat, Logstash, or some other mechanism, 
 you typically use an index alias so you can periodically roll over to a new index.
 This enables you to implement a hot-warm-cold architecture to meet your performance
 requirements for your newest data, control costs over time, enforce retention policies,
@@ -41,7 +42,7 @@ For example, the following request creates a `data_stream` policy with two phase
  
 * The `hot` phase defines a `rollover` action to specify that an index rolls over when it 
 reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
-* The `delete` phase uses `min_age` to determine when the index should be removed.
+* The `delete` phase uses `min_age` to remove the index 90 days after rollover.
 Note that this value is relative to the rollover time, not the index creation time. 
 
 [source,console]
@@ -73,7 +74,7 @@ PUT _ilm/policy/datastream_policy
 <1> The `min_age` defaults to `0ms`, so new indices enter the hot phase immediately. 
 <2> Trigger the `rollover` action when either of the conditions are met.
 <3> Move the index into the delete phase 90 days after rollover.
-<4> Trigger the `delete` action when the index enters the delete phase. No other conditions need to be met.
+<4> Trigger the `delete` action when the index enters the delete phase.
 
 See <<ilm-policy-actions>> for the complete list of actions available in each phase.
 
@@ -110,7 +111,7 @@ PUT _template/datastream_template
 
 <1> Apply the template to a new index if its name starts with "datastream-". 
 <2> The name of the lifecycle policy to apply to each new index.
-<3> The name of the index alias used to reference these indices. 
+<3> The name of the alias used to reference these indices. 
 Required for policies that use the rollover action.
 
 [float]

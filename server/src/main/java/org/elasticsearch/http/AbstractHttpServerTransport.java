@@ -325,6 +325,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        logger.trace(() -> new ParameterizedMessage(
+            "Incoming request [{}][{}] on [{}]", httpRequest.method(), httpRequest.uri(), httpChannel), exception);
         Exception badRequestCause = exception;
 
         /*

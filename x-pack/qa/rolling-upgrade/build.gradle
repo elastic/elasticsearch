@@ -101,7 +101,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
 
-      javaHome = BuildParams.runtimeJavaHome
       setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     }
   }

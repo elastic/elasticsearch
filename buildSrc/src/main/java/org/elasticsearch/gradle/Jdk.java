@@ -137,11 +137,23 @@ public class Jdk implements Buildable, Iterable<File> {
         return new Object() {
             @Override
             public String toString() {
-                final String platform = getPlatform();
-                final boolean isOSX = "mac".equals(platform) || "darwin".equals(platform);
-                return getPath() + (isOSX ? "/Contents/Home" : "") + "/bin/java";
+                return getHomeRoot() + "/bin/java";
             }
         };
+    }
+
+    public Object getJavaHomePath() {
+        return new Object() {
+            @Override
+            public String toString() {
+                return getHomeRoot();
+            }
+        };
+    }
+
+    private String getHomeRoot() {
+        boolean isOSX = "mac".equals(getPlatform()) || "darwin".equals(getPlatform());
+        return getPath() + (isOSX ? "/Contents/Home" : "");
     }
 
     // internal, make this jdks configuration unmodifiable

@@ -19,6 +19,9 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
+import org.elasticsearch.gradle.Jdk;
+import org.elasticsearch.gradle.JdkDownloadPlugin;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.tool.Boilerplate;
@@ -43,17 +46,27 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
+    private static final String LEGACY_JAVA_VENDOR = "adoptopenjdk";
+    private static final String LEGACY_JAVA_VERSION = "8u242+b08";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
 
     @Override
     public void apply(Project project) {
-        project.getPlugins().apply(DistributionDownloadPlugin.class);
+        project.getPluginManager().apply(DistributionDownloadPlugin.class);
+        project.getPluginManager().apply(JdkDownloadPlugin.class);
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
         ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
 
+        // register legacy jdk distribution for testing pre-7.0 BWC clusters
+        Jdk bwcJdk = JdkDownloadPlugin.getContainer(project).create("bwc_jdk", jdk -> {
+            jdk.setVendor(LEGACY_JAVA_VENDOR);
+            jdk.setVersion(LEGACY_JAVA_VERSION);
+            jdk.setPlatform(OS.current().name().toLowerCase());
+        });
+
         // enable the DSL to describe clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaper);
+        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaper, bwcJdk);
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -74,11 +87,15 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
     }
 
-    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project, ReaperService reaper) {
+    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
+        Project project,
+        ReaperService reaper,
+        Jdk bwcJdk
+    ) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,
-            name -> new ElasticsearchCluster(project.getPath(), name, project, reaper, new File(project.getBuildDir(), "testclusters"))
+            name -> new ElasticsearchCluster(name, project, reaper, new File(project.getBuildDir(), "testclusters"), bwcJdk)
         );
         project.getExtensions().add(EXTENSION_NAME, container);
         return container;

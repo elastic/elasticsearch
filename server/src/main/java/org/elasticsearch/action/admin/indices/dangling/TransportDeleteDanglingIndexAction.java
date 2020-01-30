@@ -117,7 +117,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("Failed to delete dangling index [{}]" + indexName, e);
+                        logger.debug("Failed to delete dangling index [{}]" + indexName, e);
                         deleteListener.onFailure(e);
                     }
                 };

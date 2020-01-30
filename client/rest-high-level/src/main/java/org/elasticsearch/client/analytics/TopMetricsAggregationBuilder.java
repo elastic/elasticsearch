@@ -20,12 +20,15 @@
 package org.elasticsearch.client.analytics;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -33,6 +36,13 @@ import java.util.Map;
 
 /**
  * Builds the Top Metrics aggregation request.
+ * 
+ * NOTE: This extends {@linkplain AbstractAggregationBuilder} for compatibility
+ * with {@link SearchSourceBuilder#aggregation(AggregationBuilder)} but it
+ * doesn't support any "server" side things like
+ * {@linkplain Writeable#writeTo(StreamOutput)},
+ * {@linkplain AggregationBuilder#rewrite(QueryRewriteContext)}, or
+ * {@linkplain AbstractAggregationBuilder#build(QueryShardContext, AggregatorFactory)}.
  */
 public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<TopMetricsAggregationBuilder> {
     public static final String NAME = "top_metrics";

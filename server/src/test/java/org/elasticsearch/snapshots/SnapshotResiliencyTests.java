@@ -531,16 +531,20 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(createRepoAndIndex(repoName, index, shards),
-            createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
+        final int documentsFirstSnapshot = randomIntBetween(0, 100);
+
+        continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> indexNDocuments(
+            documentsFirstSnapshot, index, () -> client().admin().cluster()
+                .prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute(createSnapshotResponseStepListener)));
+
+        final int documentsSecondSnapshot = randomIntBetween(0, 100);
 
         final StepListener<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(createSnapshotResponseStepListener,
-            createSnapshotResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2")
-                .setWaitForCompletion(true)
-                .execute(createOtherSnapshotResponseStepListener));
+        final String secondSnapshotName = "snapshot-2";
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> indexNDocuments(
+            documentsSecondSnapshot, index, () -> client().admin().cluster().prepareCreateSnapshot(repoName, secondSnapshotName)
+                .setWaitForCompletion(true).execute(createOtherSnapshotResponseStepListener)));
 
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
         final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new StepListener<>();
@@ -550,13 +554,22 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleNow(
                     () -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener));
                 scheduleNow(() -> client().admin().cluster().restoreSnapshot(
-                    new RestoreSnapshotRequest(repoName, "snapshot-2").waitForCompletion(true)
+                    new RestoreSnapshotRequest(repoName, secondSnapshotName).waitForCompletion(true)
                         .renamePattern("(.+)").renameReplacement("restored_$1"),
                     restoreSnapshotResponseListener));
             });
 
+        final StepListener<SearchResponse> searchResponseListener = new StepListener<>();
+        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
+            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+            client().search(new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
+                searchResponseListener);
+        });
+
         deterministicTaskQueue.runAllRunnableTasks();
 
+        assertEquals(documentsFirstSnapshot + documentsSecondSnapshot,
+            Objects.requireNonNull(searchResponseListener.result().getHits().getTotalHits()).value);
         assertThat(deleteSnapshotStepListener.result().isAcknowledged(), is(true));
         assertThat(restoreSnapshotResponseListener.result().getRestoreInfo().failedShards(), is(0));
 
@@ -571,6 +584,24 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertEquals(shards, snapshotInfo.successfulShards());
             assertEquals(0, snapshotInfo.failedShards());
         }
+    }
+
+    private void indexNDocuments(int documents, String index, Runnable afterIndexing) {
+        if (documents == 0) {
+            afterIndexing.run();
+            return;
+        }
+        final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < documents; ++i) {
+            bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+        }
+        final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+        client().bulk(bulkRequest, bulkResponseStepListener);
+        continueOrDie(bulkResponseStepListener, bulkResponse -> {
+            assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            assertEquals(documents, bulkResponse.getItems().length);
+            afterIndexing.run();
+        });
     }
 
     public void testConcurrentSnapshotDeleteAndDeleteIndex() throws IOException {

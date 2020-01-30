@@ -127,6 +127,12 @@ groupByCurrentTimestamp
 SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
 
 //
+// ORDER BY
+//
+orderByYear
+SELECT YEAR(birth_date) as year, emp_no FROM test_emp ORDER BY year NULLS FIRST, emp_no ASC;
+
+//
 // H2 uses the local timezone instead of the specified one
 //
 currentTimestampMonth-Ignore

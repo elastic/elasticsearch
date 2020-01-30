@@ -21,21 +21,19 @@ import java.util.Objects;
 public class ScalarFunctionAttribute extends FunctionAttribute {
 
     private final ScriptTemplate script;
-    private final Expression orderBy;
     private final Pipe pipe;
 
     ScalarFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id,
-            String functionId, ScriptTemplate script, Expression orderBy, Pipe processorDef) {
-        this(source, name, dataType, null, Nullability.TRUE, id, false, functionId, script, orderBy, processorDef);
+            String functionId, ScriptTemplate script, Pipe processorDef) {
+        this(source, name, dataType, null, Nullability.TRUE, id, false, functionId, script, processorDef);
     }
 
     public ScalarFunctionAttribute(Source source, String name, DataType dataType, String qualifier,
             Nullability nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
-            Expression orderBy, Pipe pipe) {
+            Pipe pipe) {
         super(source, name, dataType, qualifier, nullable, id, synthetic, functionId);
 
         this.script = script;
-        this.orderBy = orderBy;
         this.pipe = pipe;
     }
 
@@ -43,15 +41,11 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     protected NodeInfo<ScalarFunctionAttribute> info() {
         return NodeInfo.create(this, ScalarFunctionAttribute::new,
             name(), dataType(), qualifier(), nullable(), id(), synthetic(),
-            functionId(), script, orderBy, pipe);
+            functionId(), script, pipe);
     }
 
     public ScriptTemplate script() {
         return script;
-    }
-
-    public Expression orderBy() {
-        return orderBy;
     }
 
     @Override
@@ -62,18 +56,18 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     @Override
     protected Expression canonicalize() {
         return new ScalarFunctionAttribute(source(), "<none>", dataType(), null, Nullability.TRUE, id(), false,
-                functionId(), script, orderBy, pipe);
+                functionId(), script, pipe);
     }
 
     @Override
     protected Attribute clone(Source source, String name, String qualifier, Nullability nullable, ExpressionId id, boolean synthetic) {
         return new ScalarFunctionAttribute(source, name, dataType(), qualifier, nullable, id, synthetic,
-                functionId(), script, orderBy, pipe);
+                functionId(), script, pipe);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), script(), pipe, orderBy);
+        return Objects.hash(super.hashCode(), script(), pipe);
     }
 
     @Override
@@ -81,8 +75,7 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
         if (super.equals(obj)) {
             ScalarFunctionAttribute other = (ScalarFunctionAttribute) obj;
             return Objects.equals(script, other.script())
-                    && Objects.equals(pipe, other.asPipe())
-                    && Objects.equals(orderBy, other.orderBy());
+                    && Objects.equals(pipe, other.asPipe());
         }
         return false;
     }

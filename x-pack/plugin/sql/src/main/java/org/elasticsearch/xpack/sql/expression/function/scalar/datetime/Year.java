@@ -40,11 +40,6 @@ public class Year extends DateTimeHistogramFunction {
     }
 
     @Override
-    public Expression orderBy() {
-        return field();
-    }
-
-    @Override
     public long interval() {
         return YEAR_IN_MILLIS;
     }

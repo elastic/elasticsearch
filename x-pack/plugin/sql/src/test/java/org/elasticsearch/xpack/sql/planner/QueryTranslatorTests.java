@@ -657,6 +657,20 @@ public class QueryTranslatorTests extends ESTestCase {
                         "\"interval\":31536000000,\"time_zone\":\"UTC\"}}}]}}}"));
     }
 
+    public void testOrderByYear() {
+        PhysicalPlan p = optimizeAndPlan("SELECT YEAR(date) FROM test ORDER BY 1");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("YEAR(date)", eqe.output().get(0).qualifiedName());
+        assertEquals(DataType.INTEGER, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""),
+                endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeSortNumeric(" +
+                        "InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                        "params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"Z\"," +
+                        "\"v2\":\"YEAR\"}},\"type\":\"number\",\"order\":\"asc\"}}]}"));
+    }
+
     public void testGroupByHistogramWithDate() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(CAST(date AS DATE), INTERVAL 2 MONTHS)");
         assertTrue(p instanceof Aggregate);

@@ -30,24 +30,31 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -61,6 +68,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController implements HttpServerTransport.Dispatcher {
 
+    public static final Setting<List<String>> SETTING_REST_TRACE_LOG_INCLUDE =
+        Setting.listSetting("rest.tracer.include", Collections.emptyList(),
+            Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<List<String>> SETTING_REST_TRACE_LOG_EXCLUDE =
+        Setting.listSetting("rest.tracer.exclude",
+            Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(RestController.class);
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -75,8 +88,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
 
-    public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+    private final Logger tracerLog = Loggers.getLogger(logger, ".tracer");
+
+    private volatile String[] tracerLogInclude;
+    private volatile String[] tracerLogExclude;
+
+    public RestController(Settings settings, Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
+                          @Nullable ClusterSettings clusterSettings) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -85,6 +104,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        setTracerLogInclude(SETTING_REST_TRACE_LOG_INCLUDE.get(settings));
+        setTracerLogExclude(SETTING_REST_TRACE_LOG_EXCLUDE.get(settings));
+
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(SETTING_REST_TRACE_LOG_INCLUDE, this::setTracerLogInclude);
+            clusterSettings.addSettingsUpdateConsumer(SETTING_REST_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
+        }
+    }
+
+    private void setTracerLogInclude(List<String> tracerLogInclude) {
+        this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    private void setTracerLogExclude(List<String> tracerLogExclude) {
+        this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
 
     /**
@@ -157,6 +191,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+        if (tracerLog.isTraceEnabled() && shouldTraceRequest(request.uri())) {
+            tracerLog.trace(new ParameterizedMessage(
+                "Incoming request [{}][{}] on [{}]", request.method(), request.uri(), request.getHttpChannel()));
+        }
         if (request.rawPath().equals("/favicon.ico")) {
             handleFavicon(request.method(), request.uri(), channel);
             return;
@@ -176,6 +214,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+        if (tracerLog.isTraceEnabled() && shouldTraceRequest(channel.request().uri())) {
+            final RestRequest request = channel.request();
+            tracerLog.trace(new ParameterizedMessage(
+                "Incoming bad request [{}][{}] on [{}]", request.method(), request.uri(), request.getHttpChannel()), cause);
+        }
         try {
             final Exception e;
             if (cause == null) {
@@ -193,6 +236,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             logger.warn("failed to send bad request response", e);
             channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
+    }
+
+    private boolean shouldTraceRequest(String uri) {
+        return TransportService.shouldTraceAction(uri, tracerLogInclude, tracerLogExclude);
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {

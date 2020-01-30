@@ -44,10 +44,11 @@ public abstract class RestActionTestCase extends ESTestCase {
     @Before
     public void setUpController() {
         nodeClient = mock(NodeClient.class);
-        controller = new RestController(Collections.emptySet(), null,
+        controller = new RestController(Settings.EMPTY, Collections.emptySet(), null,
             nodeClient,
             new NoneCircuitBreakerService(),
-            new UsageService());
+            new UsageService(),
+            null);
     }
 
     /**

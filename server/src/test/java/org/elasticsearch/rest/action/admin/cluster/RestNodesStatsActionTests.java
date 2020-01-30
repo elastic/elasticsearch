@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +46,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         super.setUp();
         UsageService usageService = new UsageService();
         action = new RestNodesStatsAction(
-            new RestController(Collections.emptySet(), null, null, null, usageService));
+            new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService, null));
     }
 
     public void testUnrecognizedMetric() throws IOException {

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CatchNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Label;
 
 import java.util.Objects;
 import java.util.Set;
@@ -37,10 +37,6 @@ public final class SCatch extends AStatement {
     private final DType baseException;
     private final SDeclaration declaration;
     private final SBlock block;
-
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
 
     public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
         super(location);
@@ -60,11 +56,11 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        declaration.analyze(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        declaration.analyze(scriptRoot, scope);
 
         Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = declaration.variable.clazz;
+        Class<?> type = scope.getVariable(location, declaration.name).getType();
 
         if (baseType.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
@@ -76,7 +72,7 @@ public final class SCatch extends AStatement {
             block.lastSource = lastSource;
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
-            block.analyze(scriptRoot, locals);
+            block.analyze(scriptRoot, scope);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -88,11 +84,11 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    CatchNode write() {
+    CatchNode write(ClassNode classNode) {
         CatchNode catchNode = new CatchNode();
 
-        catchNode.setDeclarationNode(declaration.write());
-        catchNode.setBlockNode(block == null ? null : block.write());
+        catchNode.setDeclarationNode(declaration.write(classNode));
+        catchNode.setBlockNode(block == null ? null : block.write(classNode));
 
         catchNode.setLocation(location);
 

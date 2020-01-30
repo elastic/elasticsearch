@@ -136,15 +136,15 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey waitForGreenIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
 
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, forceMergeKey, client, readOnlySettings);
-        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
-        SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
+        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, closeKey, client, readOnlySettings);
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
             openKey, client, bestCompressionSettings);
         OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
         WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
             forceMergeKey, ClusterHealthStatus.GREEN);
+        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
+        SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
 
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(readOnlyStep);

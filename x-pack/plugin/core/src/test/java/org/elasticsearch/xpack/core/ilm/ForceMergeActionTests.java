@@ -89,7 +89,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         ForceMergeStep sixthStep = (ForceMergeStep) steps.get(5);
         SegmentCountStep seventhStep = (SegmentCountStep) steps.get(6);
         assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
-        assertThat(firstStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME)));
+        assertThat(firstStep.getNextStepKey(), equalTo(secondStep));
         assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME)));
         assertThat(secondStep.getNextStepKey(), equalTo(thirdStep.getKey()));

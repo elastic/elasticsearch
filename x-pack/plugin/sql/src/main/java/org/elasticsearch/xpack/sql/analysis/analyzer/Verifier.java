@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
@@ -231,6 +233,8 @@ public final class Verifier {
                 validateInExpression(p, localFailures);
                 validateConditional(p, localFailures);
 
+                checkFullTextSearchInSelect(plan, localFailures);
+
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures);
                 checkFilterOnGrouping(p, localFailures);
@@ -280,6 +284,17 @@ public final class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
+        plan.forEachUp(p -> {
+            for (NamedExpression ne : p.projections()) {
+                ne.forEachUp((e) ->
+                        localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
+                                "functions in the SELECT clause")),
+                        FullTextPredicate.class);
+            }
+        }, Project.class);
     }
 
     /**

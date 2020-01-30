@@ -83,6 +83,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
@@ -95,6 +96,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.first_round', 'true'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
@@ -107,6 +109,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.first_round', 'false'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -118,6 +121,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 
   if (project.bwc_tests_enabled) {

@@ -52,6 +52,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     }
 
     systemProperty 'tests.is_old_cluster', 'true'
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -61,6 +62,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
       testClusters."${baseName}".goToNextVersion()
     }
     systemProperty 'tests.is_old_cluster', 'false'
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {

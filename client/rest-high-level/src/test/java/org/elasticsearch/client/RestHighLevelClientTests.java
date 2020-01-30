@@ -83,6 +83,7 @@ import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -813,7 +814,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
 
-        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
+        ClientYamlSuiteRestSpec restSpec =
+            ClientYamlSuiteRestSpec.load(PathUtils.get(RestHighLevelClientTests.class.getResource("/rest-api-spec/api").toURI()));
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
         Set<String> apiUnsupported = new HashSet<>(apiSpec);
         Set<String> apiNotFound = new HashSet<>();

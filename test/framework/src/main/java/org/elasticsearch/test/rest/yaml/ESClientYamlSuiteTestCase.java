@@ -32,6 +32,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -49,6 +50,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -57,6 +59,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -66,8 +69,8 @@ import java.util.Set;
  * The suite timeout is extended to account for projects with a large number of tests.
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@SuppressForbidden(reason = "reads the REST spec from the real filesystem, not the mock one used for testing")
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
-
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
      * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
@@ -88,8 +91,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
-    private static final String TESTS_PATH = "/rest-api-spec/test";
-    private static final String SPEC_PATH = "/rest-api-spec/api";
+    /**
+     * Property that allows to set the root for the rest API spec. This value plus SPEC_PATH is the location of the REST API spec can be
+     * found.
+     */
+    public static final String REST_SPEC_ROOT = "tests.rest.spec_root";
+    public static final Path SPEC_PATH = Paths.get("rest-api-spec/api");
+
+    private static final String TESTS_CLASSPATH = "/rest-api-spec/test";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -125,7 +134,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
+            final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(getSpecPath());
             validateSpec(restSpec);
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
@@ -164,6 +173,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
+    private Path getSpecPath() {
+        Path restSpec = Paths.get(
+            Objects.requireNonNull(
+                System.getProperty(REST_SPEC_ROOT), "System property [" + REST_SPEC_ROOT + "] must not be null"))
+            .resolve(SPEC_PATH);
+        logger.info("Reading REST spec from [{}]", restSpec);
+        return restSpec;
+    }
+
     @AfterClass
     public static void closeClient() throws IOException {
         try {
@@ -184,7 +202,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public static Iterable<Object[]> createParameters() throws Exception {
         return createParameters(ExecutableSection.XCONTENT_REGISTRY);
     }
-
     /**
      * Create parameters for this parameterized test.
      */
@@ -233,11 +250,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return tests;
     }
 
+
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
+        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_CLASSPATH).toURI());
         for (String strPath : paths) {
             Path path = root.resolve(strPath);
             if (Files.isDirectory(path)) {

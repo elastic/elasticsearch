@@ -78,6 +78,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 
       nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
       nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+      nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
     }
     systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     onlyIf { project.bwc_tests_enabled }

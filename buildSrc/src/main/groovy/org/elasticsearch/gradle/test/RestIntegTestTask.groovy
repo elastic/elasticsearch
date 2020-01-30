@@ -69,9 +69,21 @@ class RestIntegTestTask extends DefaultTask {
             runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
         }
 
-        // copy the rest spec/tests onto the test classpath
-        Copy copyRestSpec = createCopyRestSpecTask()
+        // copy the full rest spec (including modules, plugins, and x-pack) to a common location
+        // optionally copy the core rest tests to project resource dir
+        File currentCopyTo = new File(project.rootProject.buildDir, "rest-spec-api-current")
+        runner.nonInputProperties.systemProperty('tests.rest.spec_root', currentCopyTo)
+        Copy copyRestSpec = createCopyRestSpecTask(currentCopyTo)
+        Copy copyModuleRestSpec = createCopyModulesRestSpecTask(currentCopyTo)
+        Copy copyPluginRestSpec = createCopyPluginsRestSpecTask(currentCopyTo)
+        Copy copyXpackPluginRestSpec = createCopyXpackPluginsRestSpecTask(currentCopyTo)
+        copyModuleRestSpec.dependsOn(copyRestSpec)
+        copyPluginRestSpec.dependsOn(copyRestSpec)
+        copyXpackPluginRestSpec.dependsOn(copyRestSpec)
         project.sourceSets.test.output.builtBy(copyRestSpec)
+        project.sourceSets.test.output.builtBy(copyModuleRestSpec)
+        project.sourceSets.test.output.builtBy(copyPluginRestSpec)
+        project.sourceSets.test.output.builtBy(copyXpackPluginRestSpec)
 
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
@@ -87,7 +99,6 @@ class RestIntegTestTask extends DefaultTask {
     public void includePackaged(boolean include) {
         includePackaged = include
     }
-
 
     @Override
     public Task dependsOn(Object... dependencies) {
@@ -114,7 +125,7 @@ class RestIntegTestTask extends DefaultTask {
         project.tasks.getByName("${name}Runner").configure(configure)
     }
 
-    Copy createCopyRestSpecTask() {
+    Copy createCopyRestSpecTask(File copyTo) {
         Boilerplate.maybeCreate(project.configurations, 'restSpec') {
             project.dependencies.add(
                     'restSpec',
@@ -125,12 +136,14 @@ class RestIntegTestTask extends DefaultTask {
 
         return Boilerplate.maybeCreate(project.tasks, 'copyRestSpec', Copy) { Copy copy ->
             copy.dependsOn project.configurations.restSpec
-            copy.into(project.sourceSets.test.output.resourcesDir)
+            copy.into(copyTo)
             copy.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
                 includeEmptyDirs = false
                 include 'rest-api-spec/**'
                 filesMatching('rest-api-spec/test/**') { FileCopyDetails details ->
-                    if (includePackaged == false) {
+                    if (includePackaged) {
+                        details.copyTo(new File(new File(project.sourceSets.test.output.resourcesDir, "rest-api-spec/test"), details.name))
+                    }else{
                         details.exclude()
                     }
                 }
@@ -144,6 +157,48 @@ class RestIntegTestTask extends DefaultTask {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    Copy createCopyModulesRestSpecTask(File copyTo) {
+        return Boilerplate.maybeCreate(project.tasks, 'copyModulesRestSpecs', Copy) { Copy copy ->
+            copy.into(new File(copyTo, "rest-api-spec/api"))
+            copy.eachFile {
+                path = name
+            }
+            copy.from({ project.findProject(':modules').projectDir }) {
+                includeEmptyDirs = false
+                include '**/src/**/rest-api-spec/api/**'
+                exclude '**/examples/**'
+            }
+        }
+    }
+
+    Copy createCopyPluginsRestSpecTask(File copyTo) {
+        return Boilerplate.maybeCreate(project.tasks, 'copyPluginsRestSpecs', Copy) { Copy copy ->
+            copy.into(new File(copyTo, "rest-api-spec/api"))
+            copy.eachFile {
+                path = name
+            }
+            copy.from({ project.findProject(':plugins').projectDir }) {
+                includeEmptyDirs = false
+                include '**/src/**/rest-api-spec/api/**'
+                exclude '**/examples/**'
+            }
+        }
+    }
+
+    Copy createCopyXpackPluginsRestSpecTask(File copyTo) {
+        return Boilerplate.maybeCreate(project.tasks, 'copyXpackPluginsRestSpecs', Copy) { Copy copy ->
+            copy.into(new File(copyTo, "rest-api-spec/api"))
+            copy.eachFile {
+                path = name
+            }
+            copy.from({ project.findProject(':x-pack:plugin').projectDir }) {
+                includeEmptyDirs = false
+                include '**/src/**/rest-api-spec/api/**'
+                exclude '**/examples/**'
             }
         }
     }

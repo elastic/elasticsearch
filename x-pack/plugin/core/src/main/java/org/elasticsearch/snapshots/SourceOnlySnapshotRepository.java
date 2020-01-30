@@ -217,11 +217,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         if (SOURCE_ONLY_REPO_SETTING.get(repositoryMetaData.settings())) {
             return new RepositoryPlugin.RepositoryDecorator() {
                 @Override
-                public List<Setting> getConsumedSettings() {
-                    return Collections.singletonList(SOURCE_ONLY_REPO_SETTING);
-                }
-
-                @Override
                 public Repository decorateRepository(Repository repository) {
                     return new SourceOnlySnapshotRepository(repository);
                 }

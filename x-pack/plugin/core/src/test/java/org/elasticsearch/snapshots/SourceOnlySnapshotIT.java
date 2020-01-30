@@ -91,9 +91,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators(Environment env,
-                                                                                               NamedXContentRegistry namedXContentRegistry,
-                                                                                               ClusterService clusterService) {
+        public List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators() {
             return Collections.singletonList(SourceOnlySnapshotRepository::getRepositoryDecorator);
         }
     }

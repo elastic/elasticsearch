@@ -72,8 +72,7 @@ public final class RepositoriesModule {
         }
 
         final List<Function<RepositoryMetaData, RepositoryPlugin.RepositoryDecorator>> repositoryDecorators =
-            repoPlugins.stream().flatMap(rp -> rp.getRepositoryDecorators(env, namedXContentRegistry, clusterService).stream())
-                .collect(Collectors.toList());
+            repoPlugins.stream().flatMap(rp -> rp.getRepositoryDecorators().stream()).collect(Collectors.toList());
 
         Settings settings = env.settings();
         Map<String, Repository.Factory> repositoryTypes = Collections.unmodifiableMap(factories);

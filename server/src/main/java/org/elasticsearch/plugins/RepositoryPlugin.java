@@ -68,11 +68,6 @@ public interface RepositoryPlugin {
      */
     interface RepositoryDecorator {
         /**
-         * @return the settings from the {@link org.elasticsearch.cluster.metadata.RepositoryMetaData that this decorator consumes}.
-         */
-        List<Setting> getConsumedSettings();
-
-        /**
          * Decorate the given repository.
          */
         Repository decorateRepository(Repository repository);
@@ -82,9 +77,7 @@ public interface RepositoryPlugin {
      * Returns a collection of functions for creating repository decorators. For any given repository metadata, at most one such function
      * (amongst all plugins) may return a non-null {@link RepositoryDecorator}.
      */
-    default List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators(Environment env,
-                                                                                            NamedXContentRegistry namedXContentRegistry,
-                                                                                            ClusterService clusterService) {
+    default List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators() {
         return Collections.emptyList();
     }
 }

@@ -331,9 +331,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
 
     @Override
-    public List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators(Environment env,
-                                                                                           NamedXContentRegistry namedXContentRegistry,
-                                                                                           ClusterService clusterService) {
+    public List<Function<RepositoryMetaData, RepositoryDecorator>> getRepositoryDecorators() {
         return Collections.singletonList(SourceOnlySnapshotRepository::getRepositoryDecorator);
     }
 

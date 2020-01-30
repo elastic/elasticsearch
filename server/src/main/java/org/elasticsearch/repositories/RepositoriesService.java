@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -434,24 +433,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             throw new RepositoryException(repositoryMetaData.name(),
                 "multiple plugins attempted to decorate repository but this is forbidden: " + decorators);
         }
-        final RepositoryMetaData repositoryMetaDataAfterDecoration;
         final Function<Repository, Repository> repositoryWrapper;
         if (decorators.size() == 1) {
-            Settings.Builder settings = Settings.builder().put(repositoryMetaData.settings());
-            for (final Setting consumedSetting : decorators.get(0).getConsumedSettings()) {
-                settings.remove(consumedSetting.getKey());
-            }
-            repositoryMetaDataAfterDecoration = new RepositoryMetaData(repositoryMetaData.name(), repositoryMetaData.type(),
-                settings.build(), repositoryMetaData.generation(), repositoryMetaData.pendingGeneration());
             repositoryWrapper = decorators.get(0)::decorateRepository;
         } else {
-            repositoryMetaDataAfterDecoration = repositoryMetaData;
             repositoryWrapper = Function.identity();
         }
 
         Repository repository = null;
         try {
-            repository = repositoryWrapper.apply(factory.create(repositoryMetaDataAfterDecoration, factories::get));
+            repository = repositoryWrapper.apply(factory.create(repositoryMetaData, factories::get));
             repository.start();
             return repository;
         } catch (Exception e) {

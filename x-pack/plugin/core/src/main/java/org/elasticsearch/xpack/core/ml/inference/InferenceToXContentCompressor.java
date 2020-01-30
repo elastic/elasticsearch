@@ -68,7 +68,8 @@ public final class InferenceToXContentCompressor {
     static InputStream inflate(String compressedString, long streamSize) throws IOException {
         byte[] compressedBytes = Base64.getDecoder().decode(compressedString.getBytes(StandardCharsets.UTF_8));
         // If the compressed length is already too large, it make sense that the inflated length would be as well
-        if (compressedBytes.length > streamSize) {
+        // In the extremely small string case, the compressed data could actually be longer than the compressed stream
+        if (compressedBytes.length > Math.max(100L, streamSize)) {
             throw new IOException("compressed stream is longer than maximum allowed bytes [" + streamSize + "]");
         }
         InputStream gzipStream = new GZIPInputStream(new BytesArray(compressedBytes).streamInput(), BUFFER_SIZE);

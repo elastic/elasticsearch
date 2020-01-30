@@ -34,19 +34,6 @@ public class GrammarTests extends ESTestCase {
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             parser.createStatement(q);
-
-            /*
-            try {
-                parser.createStatement(q);
-            } catch (ParsingException pe) {
-                if (pe.getErrorMessage().startsWith("Does not know how to handle")) {
-                    // ignore for now
-                } else {
-                    throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
-                        pe.getErrorMessage() + " inside statement <{}>", q);
-                }
-            }
-            */
         }
     }
     public void testUnsupportedQueries() throws Exception {

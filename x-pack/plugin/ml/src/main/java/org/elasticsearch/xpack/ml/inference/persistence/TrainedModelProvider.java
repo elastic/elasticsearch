@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -64,8 +67,11 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -77,6 +83,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FAILED_TO_DESERIALIZE;
 
 public class TrainedModelProvider {
+
+    public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
+    private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
+    private static final String MODEL_RESOURCE_FILE_EXT = ".json";
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -91,6 +101,12 @@ public class TrainedModelProvider {
 
     public void storeTrainedModel(TrainedModelConfig trainedModelConfig,
                                   ActionListener<Boolean> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
+            return;
+        }
+
         try {
             trainedModelConfig.ensureParsedDefinition(xContentRegistry);
         } catch (IOException ex) {
@@ -159,10 +175,12 @@ public class TrainedModelProvider {
             r -> {
                 assert r.getItems().length == 2;
                 if (r.getItems()[0].isFailed()) {
+
                     logger.error(new ParameterizedMessage(
                             "[{}] failed to store trained model config for inference",
                             trainedModelConfig.getModelId()),
                         r.getItems()[0].getFailure().getCause());
+
                     wrappedListener.onFailure(r.getItems()[0].getFailure().getCause());
                     return;
                 }
@@ -183,6 +201,16 @@ public class TrainedModelProvider {
     }
 
     public void getTrainedModel(final String modelId, final boolean includeDefinition, final ActionListener<TrainedModelConfig> listener) {
+
+        if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
+            try {
+                listener.onResponse(loadModelFromResource(modelId, includeDefinition == false));
+                return;
+            } catch (ElasticsearchException ex) {
+                listener.onFailure(ex);
+                return;
+            }
+        }
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders
             .idsQuery()
@@ -267,11 +295,29 @@ public class TrainedModelProvider {
             .addSort("_index", SortOrder.DESC)
             .setQuery(queryBuilder)
             .request();
+        List<TrainedModelConfig> configs = new ArrayList<>(modelIds.size());
+        Set<String> modelsInIndex = Sets.difference(modelIds, MODELS_STORED_AS_RESOURCE);
+        Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds);
+        for(String modelId : modelsAsResource) {
+            try {
+                configs.add(loadModelFromResource(modelId, true));
+            } catch (ElasticsearchException ex) {
+                listener.onFailure(ex);
+                return;
+            }
+        }
+        if (modelsInIndex.isEmpty()) {
+            configs.sort(Comparator.comparing(TrainedModelConfig::getModelId));
+            listener.onResponse(configs);
+            return;
+        }
 
         ActionListener<SearchResponse> configSearchHandler = ActionListener.wrap(
             searchResponse -> {
-                Set<String> observedIds = new HashSet<>(searchResponse.getHits().getHits().length, 1.0f);
-                List<TrainedModelConfig> configs = new ArrayList<>(searchResponse.getHits().getHits().length);
+                Set<String> observedIds = new HashSet<>(
+                    searchResponse.getHits().getHits().length + modelsAsResource.size(),
+                    1.0f);
+                observedIds.addAll(modelsAsResource);
                 for(SearchHit searchHit : searchResponse.getHits().getHits()) {
                     try {
                         if (observedIds.contains(searchHit.getId()) == false) {
@@ -294,6 +340,8 @@ public class TrainedModelProvider {
                     listener.onFailure(new ResourceNotFoundException(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs));
                     return;
                 }
+                // Ensure sorted even with the injection of locally resourced models
+                configs.sort(Comparator.comparing(TrainedModelConfig::getModelId));
                 listener.onResponse(configs);
             },
             listener::onFailure
@@ -303,6 +351,10 @@ public class TrainedModelProvider {
     }
 
     public void deleteTrainedModel(String modelId, ActionListener<Boolean> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, modelId)));
+            return;
+        }
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
 
         request.indices(InferenceIndexConstants.INDEX_PATTERN);
@@ -330,6 +382,7 @@ public class TrainedModelProvider {
     public void expandIds(String idExpression,
                           boolean allowNoResources,
                           @Nullable PageParams pageParams,
+                          Set<String> tags,
                           ActionListener<Tuple<Long, Set<String>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
@@ -337,7 +390,7 @@ public class TrainedModelProvider {
                 // If there are no resources, there might be no mapping for the id field.
                 // This makes sure we don't get an error if that happens.
                 .unmappedType("long"))
-            .query(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName()));
+            .query(buildExpandIdsQuery(tokens, tags));
         if (pageParams != null) {
             sourceBuilder.from(pageParams.getFrom()).size(pageParams.getSize());
         }
@@ -353,14 +406,24 @@ public class TrainedModelProvider {
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
             .source(sourceBuilder);
+        Set<String> foundResourceIds = new LinkedHashSet<>();
+        if (tags.isEmpty()) {
+            foundResourceIds.addAll(matchedResourceIds(tokens));
+        } else {
+            for(String resourceId : matchedResourceIds(tokens)) {
+                // Does the model as a resource have all the tags?
+                if (Sets.newHashSet(loadModelFromResource(resourceId, true).getTags()).containsAll(tags)) {
+                    foundResourceIds.add(resourceId);
+                }
+            }
+        }
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(
                 response -> {
-                    Set<String> foundResourceIds = new LinkedHashSet<>();
-                    long totalHitCount = response.getHits().getTotalHits().value;
+                    long totalHitCount = response.getHits().getTotalHits().value + foundResourceIds.size();
                     for (SearchHit hit : response.getHits().getHits()) {
                         Map<String, Object> docSource = hit.getSourceAsMap();
                         if (docSource == null) {
@@ -382,10 +445,49 @@ public class TrainedModelProvider {
                 idsListener::onFailure
             ),
             client::search);
-
     }
 
-    private QueryBuilder buildQueryIdExpressionQuery(String[] tokens, String resourceIdField) {
+    static QueryBuilder buildExpandIdsQuery(String[] tokens, Collection<String> tags) {
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName()));
+        for(String tag : tags) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), tag));
+        }
+        return QueryBuilders.constantScoreQuery(boolQueryBuilder);
+    }
+
+    TrainedModelConfig loadModelFromResource(String modelId, boolean nullOutDefinition) {
+        URL resource = getClass().getResource(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT);
+        if (resource == null) {
+            logger.error("[{}] presumed stored as a resource but not found", modelId);
+            throw new ResourceNotFoundException(
+                Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
+        }
+        try {
+            BytesReference bytes = Streams.readFully(getClass()
+                .getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT));
+            try (XContentParser parser =
+                     XContentHelper.createParser(xContentRegistry,
+                         LoggingDeprecationHandler.INSTANCE,
+                         bytes,
+                         XContentType.JSON)) {
+                TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+                if (nullOutDefinition) {
+                    builder.clearDefinition();
+                }
+                return builder.build();
+            } catch (IOException ioEx) {
+                logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), ioEx);
+                throw ExceptionsHelper.serverError(INFERENCE_FAILED_TO_DESERIALIZE, ioEx, modelId);
+            }
+        } catch (IOException ex) {
+            String msg = new ParameterizedMessage("[{}] failed to read model as resource", modelId).getFormattedMessage();
+            logger.error(msg, ex);
+            throw ExceptionsHelper.serverError(msg, ex);
+        }
+    }
+
+    private static QueryBuilder buildQueryIdExpressionQuery(String[] tokens, String resourceIdField) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME));
 
@@ -411,6 +513,29 @@ public class TrainedModelProvider {
             boolQuery.filter(shouldQueries);
         }
         return boolQuery;
+    }
+
+    private Set<String> matchedResourceIds(String[] tokens) {
+        if (Strings.isAllOrWildcard(tokens)) {
+            return new HashSet<>(MODELS_STORED_AS_RESOURCE);
+        }
+
+        Set<String> matchedModels = new HashSet<>();
+
+        for (String token : tokens) {
+            if (Regex.isSimpleMatchPattern(token)) {
+                for (String modelId : MODELS_STORED_AS_RESOURCE) {
+                    if(Regex.simpleMatch(token, modelId)) {
+                        matchedModels.add(modelId);
+                    }
+                }
+            } else {
+                if (MODELS_STORED_AS_RESOURCE.contains(token)) {
+                    matchedModels.add(token);
+                }
+            }
+        }
+        return matchedModels;
     }
 
     private static <T> T handleSearchItem(MultiSearchResponse.Item item,

@@ -89,7 +89,7 @@ public class SecurityTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
+        public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
             return Collections.singletonMap(realmType, config -> null);
         }
     }

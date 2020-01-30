@@ -48,6 +48,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -90,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -324,6 +327,29 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    // method is synchronized so that IndexService can't be closed while we're writing out dangling indices information
+    public synchronized void writeDanglingIndicesInfo() {
+        if (closed.get()) {
+            return;
+        }
+        try {
+            IndexMetaData.FORMAT.writeAndCleanup(getMetaData(), nodeEnv.indexPaths(index()));
+        } catch (WriteStateException e) {
+            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+        }
+    }
+
+    // method is synchronized so that IndexService can't be closed while we're deleting dangling indices information
+    public synchronized void deleteDanglingIndicesInfo() {
+        if (closed.get()) {
+            return;
+        }
+        try {
+            MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
+        } catch (IOException e) {
+            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+        }
+    }
 
     public String indexUUID() {
         return indexSettings.getUUID();
@@ -669,24 +695,30 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexSettings.getIndexMetaData();
     }
 
+    private final CopyOnWriteArrayList<Consumer<IndexMetaData>> metaDataListeners = new CopyOnWriteArrayList<>();
+
+    public void addMetaDataListener(Consumer<IndexMetaData> listener) {
+        metaDataListeners.add(listener);
+    }
+
     @Override
     public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
-        final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
+        final boolean updateIndexSettings = indexSettings.updateIndexMetaData(newIndexMetaData);
 
         if (Assertions.ENABLED && currentIndexMetaData != null) {
             final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
             final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
-                assert updateIndexMetaData == false;
+                assert updateIndexSettings == false;
             } else {
-                assert updateIndexMetaData;
+                assert updateIndexSettings;
                 assert currentSettingsVersion < newSettingsVersion :
                         "expected current settings version [" + currentSettingsVersion + "] "
                                 + "to be less than new settings version [" + newSettingsVersion + "]";
             }
         }
 
-        if (updateIndexMetaData) {
+        if (updateIndexSettings) {
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();
@@ -722,6 +754,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             updateFsyncTaskIfNecessary();
         }
+
+        metaDataListeners.forEach(c -> c.accept(newIndexMetaData));
     }
 
     private void updateFsyncTaskIfNecessary() {

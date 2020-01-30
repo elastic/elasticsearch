@@ -55,7 +55,6 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopEngine() throws IOException {
         engine.close();
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
         engine.close();
@@ -211,8 +210,6 @@ public class NoOpEngineTests extends EngineTestCase {
     private void flushAndTrimTranslog(final InternalEngine engine) {
         engine.flush(true, true);
         final TranslogDeletionPolicy deletionPolicy = engine.getTranslog().getDeletionPolicy();
-        deletionPolicy.setRetentionSizeInBytes(-1);
-        deletionPolicy.setRetentionAgeInMillis(-1);
         deletionPolicy.setMinTranslogGenerationForRecovery(engine.getTranslog().getGeneration().translogFileGeneration);
         engine.flush(true, true);
     }

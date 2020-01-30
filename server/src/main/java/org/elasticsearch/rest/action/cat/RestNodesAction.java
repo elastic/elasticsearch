@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -69,10 +68,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestNodesAction.class));
-    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
-            "locally, and should not be used. It will be unsupported in version 8.0.";
 
     public RestNodesAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/nodes", this);
@@ -92,10 +87,9 @@ public class RestNodesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
-        if (request.hasParam("local")) {
-            deprecationLogger.deprecated(LOCAL_DEPRECATED_MESSAGE);
+        if (request.hasParam("local") && Version.CURRENT.major == Version.V_7_0_0.major + 1) { // only needed in v8 to catch breaking usages
+            throw new IllegalArgumentException("parameter [local] is not supported");
         }
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {

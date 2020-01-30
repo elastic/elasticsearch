@@ -22,31 +22,29 @@ dependencies {
   restSpec project(':rest-api-spec')
 }
 
-ext.expansions = { oss, ubi, local ->
+ext.expansions = { oss, local ->
   final String classifier = 'linux-x86_64'
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
-    'base_image'          : ubi ? 'registry.access.redhat.com/ubi7/ubi-minimal:7.7' : 'centos:7',
     'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
-    'package_manager'     : ubi ? 'microdnf' : 'yum',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
 }
 
-private static String buildPath(final boolean oss, final boolean ubi) {
-  return "build/${oss ? 'oss-' : ''}${ubi ? 'ubi-' : ''}docker"
+private static String buildPath(final boolean oss) {
+  return "build/${oss ? 'oss-' : ''}docker"
 }
 
-private static String taskName(final String prefix, final boolean oss, final boolean ubi, final String suffix) {
-  return "${prefix}${oss ? 'Oss' : ''}${ubi ? 'Ubi' : ''}${suffix}"
+private static String taskName(final String prefix, final boolean oss, final String suffix) {
+  return "${prefix}${oss ? 'Oss' : ''}${suffix}"
 }
 
 project.ext {
-  dockerBuildContext = { boolean oss, boolean ubi, boolean local ->
+  dockerBuildContext = { boolean oss, boolean local ->
     copySpec {
       into('bin') {
         from project.projectDir.toPath().resolve("src/docker/bin")
@@ -64,20 +62,20 @@ project.ext {
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        expand(expansions(oss, ubi, local))
+        expand(expansions(oss, local))
       }
     }
   }
 }
 
-void addCopyDockerContextTask(final boolean oss, final boolean ubi) {
-  task(taskName("copy", oss, ubi, "DockerContext"), type: Sync) {
-    expansions(oss, ubi, true).findAll { it.key != 'build_date' }.each { k, v ->
+void addCopyDockerContextTask(final boolean oss) {
+  task(taskName("copy", oss, "DockerContext"), type: Sync) {
+    expansions(oss, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
-    into buildPath(oss, ubi)
+    into buildPath(oss)
 
-    with dockerBuildContext(oss, ubi, true)
+    with dockerBuildContext(oss, true)
 
     if (oss) {
       from configurations.ossDockerSource
@@ -149,25 +147,25 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
-void addBuildDockerImage(final boolean oss, final boolean ubi) {
-  final Task buildDockerImageTask = task(taskName("build", oss, ubi, "DockerImage"), type: LoggedExec) {
-    inputs.files(tasks.named(taskName("copy", oss, ubi, "DockerContext")))
+void addBuildDockerImage(final boolean oss) {
+  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
+    inputs.files(tasks.named(taskName("copy", oss, "DockerContext")))
     List<String> tags
     if (oss) {
       tags = [
-        "docker.elastic.co/elasticsearch/elasticsearch-oss${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
-        "elasticsearch-oss${ubi ? '-ubi7' : ''}:test"
+        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss:test"
       ]
     } else {
       tags = [
-        "elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}-full:${VersionProperties.elasticsearch}",
-        "elasticsearch${ubi ? '-ubi7' : ''}:test",
+        "elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
+        "elasticsearch:test",
       ]
     }
     executable 'docker'
-    final List<String> dockerArgs = ['build', buildPath(oss, ubi), '--pull', '--no-cache']
+    final List<String> dockerArgs = ['build', buildPath(oss), '--pull', '--no-cache']
     for (final String tag : tags) {
       dockerArgs.add('--tag')
       dockerArgs.add(tag)
@@ -184,10 +182,8 @@ void addBuildDockerImage(final boolean oss, final boolean ubi) {
 }
 
 for (final boolean oss : [false, true]) {
-  for (final boolean ubi : [false, true]) {
-    addCopyDockerContextTask(oss, ubi)
-    addBuildDockerImage(oss, ubi)
-  }
+  addCopyDockerContextTask(oss)
+  addBuildDockerImage(oss)
 }
 
 // We build the images used in compose locally, but the pull command insists on using a repository
@@ -206,26 +202,26 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final boolean oss = subProject.name.contains('oss-')
-    final boolean ubi = subProject.name.contains('ubi-')
 
-    def exportTaskName = taskName("export", oss, ubi, "DockerImage")
-    def buildTaskName = taskName("build", oss, ubi, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+    def exportTaskName = taskName("export", oss, "DockerImage")
+    def buildTaskName = taskName("build", oss, "DockerImage")
+    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable 'docker'
       outputs.file(tarFile)
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}:test"
+        "elasticsearch${oss ? '-oss' : ''}:test"
     }
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'
-      name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
+      name "elasticsearch${oss ? '-oss' : ''}"
       builtBy exportTaskName
     }
 

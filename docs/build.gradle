@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
@@ -36,11 +38,16 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/post-data.asciidoc',
   'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
   'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    if (BuildParams.isSnapshotBuild()) {
+      setting 'xpack.autoscaling.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
+    }
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
@@ -1235,7 +1242,23 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
-buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + '''
+buildRestTests.setups['add_timestamp_pipeline'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+'''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
   - do:
       raw:
         method: PUT

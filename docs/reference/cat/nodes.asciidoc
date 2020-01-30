@@ -285,18 +285,6 @@ Number of suggest operations, such as `0`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-+
---
-`local`::
-(Optional, boolean) If `true`, the request computes the list of selected nodes
-from the local cluster state. Defaults to `false`, which means the list of
-selected nodes is computed from the cluster state on the master node. In either
-case the coordinating node sends a request for further information to each
-selected node. deprecated::[8.0,This parameter does not cause this API to act
-locally. It will be removed in version 8.0.]
---
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]

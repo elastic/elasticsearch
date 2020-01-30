@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequ
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -51,7 +52,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectTestCase;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -88,9 +89,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
 
     @Before
     public void setup() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
         final Settings settings = getBasicRealmSettings()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
         final Settings sslSettings = Settings.builder()
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate")
@@ -178,8 +181,6 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         action = new TransportOpenIdConnectLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-
-        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
         oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(TestEnvironment.newEnvironment(sslSettings)),

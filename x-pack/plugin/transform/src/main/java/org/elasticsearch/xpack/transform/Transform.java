@@ -27,11 +27,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -113,7 +114,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlugin {
+public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
     public static final String TASK_THREAD_POOL_NAME = "transform_indexing";
@@ -244,7 +245,13 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
-        TransformCheckpointService checkpointService = new TransformCheckpointService(client, configManager, auditor);
+        TransformCheckpointService checkpointService = new TransformCheckpointService(
+            client,
+            settings,
+            clusterService,
+            configManager,
+            auditor
+        );
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
@@ -261,12 +268,12 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
                     TransformInternalIndex.getIndexTemplateMetaData()
                 );
             } catch (IOException e) {
-                logger.error("Error creating data frame index template", e);
+                logger.error("Error creating transform index template", e);
             }
             try {
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
             } catch (IOException e) {
-                logger.warn("Error creating data frame audit index", e);
+                logger.warn("Error creating transform audit index", e);
             }
             return templates;
         };
@@ -306,5 +313,12 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     @Override
     public List<Entry> getNamedXContent() {
         return new TransformNamedXContentProvider().getNamedXContentParsers();
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.singletonList(
+            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
+        );
     }
 }

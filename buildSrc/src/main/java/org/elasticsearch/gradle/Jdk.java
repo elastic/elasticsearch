@@ -35,8 +35,7 @@ import java.util.regex.Pattern;
 public class Jdk implements Buildable, Iterable<File> {
 
     private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
-    static final Pattern VERSION_PATTERN =
-        Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows", "mac"));
 
     private final String name;
@@ -87,7 +86,8 @@ public class Jdk implements Buildable, Iterable<File> {
     public void setPlatform(String platform) {
         if (ALLOWED_PLATFORMS.contains(platform) == false) {
             throw new IllegalArgumentException(
-                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
+                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS
+            );
         }
         this.platform.set(platform);
     }
@@ -135,7 +135,7 @@ public class Jdk implements Buildable, Iterable<File> {
         }
         version.finalizeValue();
         platform.finalizeValue();
-        vendor.finalizeValue();;
+        vendor.finalizeValue();
     }
 
     @Override

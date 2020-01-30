@@ -110,20 +110,28 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public static class TopClassEntry implements Writeable {
 
-        public final ParseField CLASSIFICATION = new ParseField("classification");
-        public final ParseField PROBABILITY = new ParseField("probability");
+        public final ParseField CLASS_NAME = new ParseField("class_name");
+        public final ParseField CLASS_PROBABILITY = new ParseField("class_probability");
+        public final ParseField CLASS_SCORE = new ParseField("class_score");
 
         private final String classification;
         private final double probability;
+        private final double score;
 
-        public TopClassEntry(String classification, Double probability) {
-            this.classification = ExceptionsHelper.requireNonNull(classification, CLASSIFICATION);
-            this.probability = ExceptionsHelper.requireNonNull(probability, PROBABILITY);
+        public TopClassEntry(String classification, double probability) {
+            this(classification, probability, probability);
+        }
+
+        public TopClassEntry(String classification, double probability, double score) {
+            this.classification = ExceptionsHelper.requireNonNull(classification, CLASS_NAME);
+            this.probability = probability;
+            this.score = score;
         }
 
         public TopClassEntry(StreamInput in) throws IOException {
             this.classification = in.readString();
             this.probability = in.readDouble();
+            this.score = in.readDouble();
         }
 
         public String getClassification() {
@@ -134,10 +142,15 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             return probability;
         }
 
+        public double getScore() {
+            return score;
+        }
+
         public Map<String, Object> asValueMap() {
-            Map<String, Object> map = new HashMap<>(2);
-            map.put(CLASSIFICATION.getPreferredName(), classification);
-            map.put(PROBABILITY.getPreferredName(), probability);
+            Map<String, Object> map = new HashMap<>(3, 1.0f);
+            map.put(CLASS_NAME.getPreferredName(), classification);
+            map.put(CLASS_PROBABILITY.getPreferredName(), probability);
+            map.put(CLASS_SCORE.getPreferredName(), score);
             return map;
         }
 
@@ -145,6 +158,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(classification);
             out.writeDouble(probability);
+            out.writeDouble(score);
         }
 
         @Override
@@ -152,13 +166,12 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             if (object == this) { return true; }
             if (object == null || getClass() != object.getClass()) { return false; }
             TopClassEntry that = (TopClassEntry) object;
-            return Objects.equals(classification, that.classification) &&
-                Objects.equals(probability, that.probability);
+            return Objects.equals(classification, that.classification) && probability == that.probability && score == that.score;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classification, probability);
+            return Objects.hash(classification, probability, score);
         }
     }
 }

@@ -166,7 +166,7 @@ setup:
 ---
 "Test preview with non-existing source index":
   - do:
-      catch: /.*reason=Validation Failed.* no such index \[does_not_exist\]/
+      catch: /.*Validation Failed.* no such index \[does_not_exist\]/
       transform.preview_transform:
         body: >
           {

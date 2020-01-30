@@ -560,8 +560,13 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_integer", "integer")
             .build();
 
+        Map<String, Long> fieldCardinalities = new HashMap<>(2);
+        fieldCardinalities.put("some_boolean", 2L);
+        fieldCardinalities.put("some_integer", 2L);
+
+
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, config, 100, fieldCapabilities, config.getAnalysis().getFieldCardinalityLimits());
+            SOURCE_INDEX, config, 100, fieldCapabilities, fieldCardinalities);
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
@@ -859,6 +864,49 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertFieldSelectionContains(fieldExtraction.v2(),
             FieldSelection.included("field_21", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
             FieldSelection.included("field_22", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL));
+    }
+
+    public void testDetect_GivenObjectFields() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("object_field_1", "object")
+            .addNonAggregatableField("object_field_2", "object").build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("float_field"));
+    }
+
+    public void testDetect_GivenAnalyzedFieldIncludesObjectField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("object_field", "object").build();
+
+        analyzedFields = new FetchSourceContext(true, new String[] { "float_field", "object_field" }, null);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
+    }
+
+    public void testDetect_GivenAnalyzedFieldExcludesObjectField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("object_field", "object").build();
+
+        analyzedFields = new FetchSourceContext(true, null, new String[] { "object_field" });
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
     }
 
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {

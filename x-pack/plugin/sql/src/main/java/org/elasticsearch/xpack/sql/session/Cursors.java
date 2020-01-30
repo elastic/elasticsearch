@@ -9,18 +9,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.CompositeAggCursor;
 import org.elasticsearch.xpack.sql.execution.search.PivotCursor;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
+import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractors;
+import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -53,8 +53,8 @@ public final class Cursors {
 
         // plus all their dependencies
         entries.addAll(Processors.getNamedWriteables());
-        entries.addAll(HitExtractors.getNamedWriteables());
-        entries.addAll(BucketExtractors.getNamedWriteables());
+        entries.addAll(SqlHitExtractors.getNamedWriteables());
+        entries.addAll(SqlBucketExtractors.getNamedWriteables());
 
         // and custom types
         entries.addAll(Literals.getNamedWriteables());

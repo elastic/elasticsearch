@@ -72,8 +72,10 @@ public final class IndexLifecycleTransition {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-        if (currentStepKey != null && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(lifecycleState)) == false) {
-            throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
+        Step.StepKey realKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        if (currentStepKey != null && currentStepKey.equals(realKey) == false) {
+            throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey +
+                "], currently: [" + realKey + "]");
         }
 
         if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false) {
@@ -251,8 +253,8 @@ public final class IndexLifecycleTransition {
     /**
      * Given a cluster state and lifecycle state, return a new state using the new lifecycle state for the given index.
      */
-    private static ClusterState.Builder newClusterStateWithLifecycleState(Index index, ClusterState clusterState,
-                                                                          LifecycleExecutionState lifecycleState) {
+    public static ClusterState.Builder newClusterStateWithLifecycleState(Index index, ClusterState clusterState,
+                                                                         LifecycleExecutionState lifecycleState) {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData())
             .put(IndexMetaData.builder(clusterState.getMetaData().index(index))

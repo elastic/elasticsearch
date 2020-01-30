@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -138,7 +139,7 @@ public class TransportPreviewTransformAction extends
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
-            SourceDestValidator.PREVIEW_VALIDATIONS,
+            SourceDestValidations.PREVIEW_VALIDATIONS,
             ActionListener.wrap(r -> {
 
                 Pivot pivot = new Pivot(config.getPivotConfig());

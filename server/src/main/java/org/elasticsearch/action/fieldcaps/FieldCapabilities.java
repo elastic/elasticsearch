@@ -125,7 +125,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
         } else {
             meta = Collections.emptyMap();
@@ -141,7 +141,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
         }
     }

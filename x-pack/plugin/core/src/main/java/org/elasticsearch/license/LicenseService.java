@@ -121,6 +121,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * Max number of nodes licensed by generated trial license
      */
     static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
+    static final int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
 
     public static final String LICENSE_JOB = "licenseJob";
 
@@ -291,11 +292,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
-        if (License.LicenseType.ENTERPRISE.getTypeName().equalsIgnoreCase(license.type())) {
-            return version.onOrAfter(Version.V_7_6_0);
-        } else {
-            return true;
-        }
+        final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
+        return license.version() <= maxVersion;
     }
 
     private boolean isAllowedLicenseType(License.LicenseType type) {

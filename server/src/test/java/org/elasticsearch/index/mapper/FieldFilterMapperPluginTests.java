@@ -86,7 +86,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         //as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
         MappingMetaData filtered = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filtered.getSourceAsMap()));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
@@ -113,7 +113,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         //as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
         MappingMetaData filteredMapping = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filteredMapping.getSourceAsMap()));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
         // properties.value is an object field in the new mapping
         filteredFields.add("properties.value");
@@ -159,7 +159,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
         //check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", sourceAsMap));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(sourceAsMap));
         GetMappingsResponse testMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
         //the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered

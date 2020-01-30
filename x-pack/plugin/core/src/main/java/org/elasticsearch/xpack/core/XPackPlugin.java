@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.oss.IndexUsageTransportAction;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -255,6 +257,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.addAll(licensing.getActions());
         actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.INDEX, IndexUsageTransportAction.class));
         return actions;
     }
 

@@ -491,7 +491,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("test", "no_field", "type=keyword", "some_field", "type=keyword"));
+                .setMapping("no_field", "type=keyword", "some_field", "type=keyword"));
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
 

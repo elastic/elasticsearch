@@ -148,8 +148,9 @@ expected number of data points. If your data contains many sparse buckets,
 consider using a longer `bucket_span`.
 
 [[forecastsstats]]`forecasts_stats`::
-(object) An object that provides statistical information about forecasts
-of this job. It has the following properties:
+(object) An object that provides statistical information about forecasts 
+belonging to this job. Some statistics are omitted if no forecasts have been 
+made. It has the following properties:
 +
 --
 NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
@@ -158,24 +159,28 @@ NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
 --
 
 `forecasts_stats`.`forecasted_jobs`:::
-(long) The number of jobs that have at least one forecast.
+(long) A value of `0` indicates that forecasts do not exist for this job. A 
+value of `1` indicates that at least one forecast exists.
 
 `forecasts_stats`.`memory_bytes`:::
-(object) Statistics about the memory usage: minimum, maximum, average and total.
+(object) The `avg`, `min`, `max` and `total` memory usage in bytes for forecasts 
+related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`records`:::
-(object) Statistics about the number of forecast records: minimum, maximum,
-average and total.
+(object) The `avg`, `min`, `max` and `total` number of model_forecast documents 
+written for forecasts related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`processing_time_ms`:::
-(object) Statistics about the forecast runtime in milliseconds: minimum, maximum,
-average and total.
+(object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 
+forecasts related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`status`:::
-(object) Counts per forecast status. For example: `{"finished" : 2}`. 
+(object) The count of forecasts by their status. For example: 
+{"finished" : 2, "started" : 1}. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`total`:::
-(long) The number of forecasts currently available for this model.
+(long) The number of individual forecasts currently available for this job. A 
+value of `1` or more indicates that forecasts exist.
 
 `job_id`::
 (string)
@@ -225,25 +230,16 @@ this value indicates the latest size.
 (string) For internal use. The type of result.
 
 `model_size_stats`.`total_by_field_count`:::
-(long) The number of `by` field values that were analyzed by the models.
-+
---
-NOTE: The `by` field values are counted separately for each detector and
-partition.
-
---
+(long) The number of `by` field values that were analyzed by the models. This 
+value is cumulative for all detectors.
 
 `model_size_stats`.`total_over_field_count`:::
-(long) The number of `over` field values that were analyzed by the models.
-+
---
-NOTE: The `over` field values are counted separately for each detector and
-partition.
-
---
+(long) The number of `over` field values that were analyzed by the models. This 
+value is cumulative for all detectors.
 
 `model_size_stats`.`total_partition_field_count`:::
-(long) The number of `partition` field values that were analyzed by the models.
+(long) The number of `partition` field values that were analyzed by the models. 
+This value is cumulative for all detectors.
 
 `model_size_stats`.`timestamp`:::
 (date) The timestamp of the `model_size_stats` according to the timestamp of the

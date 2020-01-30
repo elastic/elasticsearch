@@ -20,10 +20,18 @@ experimental[]
 [[ml-put-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-* You must have `machine_learning_admin` built-in role to use this API. You must 
-also have `read` and `view_index_metadata` privileges on the source index and 
-`read`, `create_index`, and `index` privileges on the destination index. For 
-more information, see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+
+
+* source index: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
+* cluster: `monitor` (UI only)
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-put-dfanalytics-desc]]
@@ -46,41 +54,24 @@ If the destination index already exists, then it will be use as is. This makes
 it possible to set up the destination index in advance with custom settings 
 and mappings.
 
-[[ml-put-dfanalytics-supported-fields]]
-===== Supported fields
+[discrete]
+[[ml-hyperparam-optimization]]
+===== Hyperparameter optimization
 
-====== {oldetection-cap}
+If you don't supply {regression} or {classification} parameters, _hyperparameter 
+optimization_ occurs, which sets a value for the undefined parameters. The
+starting point is calculated for data dependent parameters by examining the loss
+on the training data. Subject to the size constraint, this operation provides an
+upper bound on the improvement in validation loss.
 
-{oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
-don't support missing values therefore fields that have data types other than 
-numeric or boolean are ignored. Documents where included fields contain missing 
-values, null values, or an array are also ignored. Therefore the `dest` index 
-may contain documents that don't have an {olscore}.
-
-
-====== {regression-cap}
-
-{regression-cap} supports fields that are numeric, `boolean`, `text`, `keyword`, 
-and `ip`. It is also tolerant of missing values. Fields that are supported are 
-included in the analysis, other fields are ignored. Documents where included
-fields contain  an array with two or more values are also ignored. Documents in
-the `dest` index  that don’t contain a results field are not included in the
- {reganalysis}.
-
-
-====== {classification-cap}
-
-{classification-cap} supports fields that are numeric, `boolean`, `text`,
-`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
-supported are included in the analysis, other fields are ignored. Documents
-where included fields contain an array with two or more values are also ignored. 
-Documents in the `dest` index that don’t contain a results field are not
-included in the {classanalysis}.
-
-{classanalysis-cap} can be improved by mapping ordinal variable values to a 
-single number. For example, in case of age ranges, you can model the values as 
-"0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
-
+A fixed number of rounds is used for optimization which depends on the number of 
+parameters being optimized. The optimization starts with random search, then 
+Bayesian optimization is performed that is targeting maximum expected 
+improvement. If you override any parameters by explicitely setting it, the 
+optimization calculates the value of the remaining parameters accordingly and 
+uses the value you provided for the overridden parameter. The number of rounds 
+are reduced respectively. The validation error is estimated in each round by 
+using 4-fold cross validation.
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -92,36 +83,177 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
+`allow_lazy_start`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
+
 `analysis`::
 (Required, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
+The analysis configuration, which contains the information necessary to perform
+one of the following types of analysis: {classification}, {oldetection}, or
+{regression}.
+//include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
+
+`analysis`.`classification`:::
+(Required^*^, object)
+The configuration information necessary to perform
+{ml-docs}/dfa-classification.html[{classification}].
++
+--
+TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters.
+--
+
+`analysis`.`classification`.`dependent_variable`::::
+(Required, string)
++
+--
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+
+The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
+categorical (`ip`, `keyword`, `text`), or boolean.
+--
+
+`analysis`.`classification`.`eta`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`analysis`.`classification`.`feature_bag_fraction`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`analysis`.`classification`.`maximum_number_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+
+`analysis`.`classification`.`gamma`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`analysis`.`classification`.`lambda`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`analysis`.`classification`.`num_top_classes`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-classes]
+
+`analysis`.`classification`.`prediction_field_name`::::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`analysis`.`classification`.`randomize_seed`::::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`analysis`.`classification`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+
+`analysis`.`classification`.`training_percent`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`analysis`.`outlier_detection`:::
+(Required^*^, object)
+The configuration information necessary to perform
+{ml-docs}/dfa-outlier-detection.html[{oldetection}]:
+
+`analysis`.`outlier_detection`.`compute_feature_influence`::::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+  
+`analysis`.`outlier_detection`.`feature_influence_threshold`:::: 
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+
+`analysis`.`outlier_detection`.`method`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=method]
+  
+`analysis`.`outlier_detection`.`n_neighbors`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+  
+`analysis`.`outlier_detection`.`outlier_fraction`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+  
+`analysis`.`outlier_detection`.`standardization_enabled`::::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+
+`analysis`.`regression`:::
+(Required^*^, object)
+The configuration information necessary to perform
+{ml-docs}/dfa-regression.html[{regression}].
++
+--
+TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters.
+
+--
+
+`analysis`.`regression`.`dependent_variable`::::
+(Required, string)
++
+--
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+
+The data type of the field must be numeric.
+--
+
+`analysis`.`regression`.`eta`::::
+(Optional, double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`analysis`.`regression`.`feature_bag_fraction`::::
+(Optional, double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`analysis`.`regression`.`maximum_number_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+
+`analysis`.`regression`.`gamma`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`analysis`.`regression`.`lambda`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`analysis`.`regression`.`prediction_field_name`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`analysis`.`regression`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+
+`analysis`.`regression`.`training_percent`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`analysis`.`regression`.`randomize_seed`::::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
   
 `analyzed_fields`::
 (Optional, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields]
 
-[source,console]
---------------------------------------------------
-PUT _ml/data_frame/analytics/loganalytics
-{
-  "source": {
-    "index": "logdata"
-  },
-  "dest": {
-    "index": "logdata_out"
-  },
-  "analysis": {
-    "outlier_detection": {
-    }
-  },
-  "analyzed_fields": {
-        "includes": [ "request.bytes", "response.counts.error" ],
-        "excludes": [ "source.geo" ]
-  }
-}
---------------------------------------------------
-// TEST[setup:setup_logdata]
+`analyzed_fields`.`excludes`:::
+(Optional, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-excludes]
 
+`analyzed_fields`.`includes`:::
+(Optional, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-includes]
 
 `description`::
 (Optional, string)
@@ -139,14 +271,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=source-put-dfa]
 
-`allow_lazy_start`::
-(Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
-
-
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
-
 
 [[ml-put-dfanalytics-example-preprocess]]
 ===== Preprocessing actions example
@@ -281,7 +407,7 @@ The API returns the following result:
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/"version" : "8.0.0"/"version" : $body.version/]
 
 
 [[ml-put-dfanalytics-example-r]]

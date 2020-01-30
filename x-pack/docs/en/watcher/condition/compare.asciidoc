@@ -44,7 +44,7 @@ condition returns `true` if the number of the total hits in the
 {
   "condition" : {
     "compare" : {
-      "ctx.payload.hits.total.value" : { <1>
+      "ctx.payload.hits.total" : { <1>
         "gte" : 5 <2>
       }
     }

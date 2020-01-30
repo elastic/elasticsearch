@@ -56,7 +56,7 @@ public class LocalModelTests extends ESTestCase {
 
         SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
-        assertThat(result.valueAsString(), is("0.0"));
+        assertThat(result.valueAsString(), is("0"));
 
         ClassificationInferenceResults classificationResult =
             (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(1));

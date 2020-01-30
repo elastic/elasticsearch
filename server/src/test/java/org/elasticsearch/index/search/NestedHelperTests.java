@@ -52,7 +52,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "keyword")
@@ -97,7 +97,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject();
-        indexService = createIndex("index", Settings.EMPTY, "type", mapping);
+        indexService = createIndex("index", Settings.EMPTY, mapping);
         mapperService = indexService.mapperService();
     }
 
@@ -335,7 +335,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         Query expectedChildQuery = new BooleanQuery.Builder()
                 .add(new MatchAllDocsQuery(), Occur.MUST)
                 // we automatically add a filter since the inner query might match non-nested docs
-                .add(new TermQuery(new Term("_type", "__nested1")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "nested1")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
@@ -364,7 +364,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         // we need to add the filter again because of include_in_parent
         expectedChildQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("_type", "__nested2")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "nested2")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
@@ -380,7 +380,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         // we need to add the filter again because of include_in_root
         expectedChildQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("_type", "__nested3")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "nested3")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 

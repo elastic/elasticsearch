@@ -101,7 +101,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
 
     private TestContext create(SearchType... searchTypes) throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+        assertAcked(prepareCreate("index").setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field1")
                     .field("type", "long")
                 .endObject()

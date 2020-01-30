@@ -113,7 +113,7 @@ import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.HttpChannelTaskHandler;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
@@ -164,7 +164,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -512,9 +511,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             restClient.close();
             restClient = null;
         }
-        assertBusy(() -> assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
-                    HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
-                HttpChannelTaskHandler.INSTANCE.getNumChannels()));
+        assertBusy(() -> {
+            int numChannels = RestCancellableNodeClient.getNumChannels();
+            assertEquals( numChannels+ " channels still being tracked in " + RestCancellableNodeClient.class.getSimpleName()
+                + " while there should be none", 0, numChannels);
+        });
     }
 
     private void afterInternal(boolean afterClass) throws Exception {
@@ -671,7 +672,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         // always default delayed allocation to 0 to make sure we have tests are not delayed
         builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
-        builder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
         if (randomBoolean()) {
             builder.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000));
         }
@@ -1401,13 +1401,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                     new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
-                if (randomBoolean()) {
-                    client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                        new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
-                } else {
-                    client().admin().indices().syncedFlush(syncedFlushRequest(indices).indicesOptions(IndicesOptions.lenientExpandOpen()),
-                        new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
-                }
+                client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
+                    new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
             } else if (rarely()) {
                 client().admin().indices().prepareForceMerge(indices)
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-/** 
+import java.util.List;
+
+/**
  * Interface for lambda/method reference nodes. They need special handling by LDefCall.
  * <p>
  * This is because they know nothing about the target interface, and can only push
@@ -31,10 +33,10 @@ interface ILambda {
     String getPointer();
 
     /** Returns the types of captured parameters. Can be empty */
-    org.objectweb.asm.Type[] getCaptures();
+    List<Class<?>> getCaptures();
 
     /** Returns the number of captured parameters */
     default int getCaptureCount() {
-        return getCaptures().length;
+        return getCaptures().size();
     }
 }

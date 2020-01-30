@@ -47,7 +47,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -622,11 +621,11 @@ public class RelocationIT extends ESIntegTestCase {
             Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)).toArray(Settings[]::new);
         List<String> nodes = internalCluster().startNodes(nodeSettings);
         String[] blueNodes = nodes.subList(0, halfNodes).toArray(String[]::new);
-        String[] redNodes = nodes.subList(0, halfNodes).toArray(String[]::new);
+        String[] redNodes = nodes.subList(halfNodes, nodes.size()).toArray(String[]::new);
+        logger.debug("--> blue nodes: [{}], red nodes: [{}]", blueNodes, redNodes);
         ensureStableCluster(halfNodes * 2);
         assertAcked(
             client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))
                 .put("index.routing.allocation.include.color", "blue")));
         ensureGreen("test");

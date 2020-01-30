@@ -102,7 +102,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -169,7 +169,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testLegacyCircle() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+            .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {

@@ -132,6 +132,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/50307")
     public void testTDigestHistogram() throws Exception {
 
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()

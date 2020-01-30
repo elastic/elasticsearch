@@ -73,6 +73,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
@@ -754,6 +755,9 @@ final class MLRequestConverters {
             params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
                 Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
         }
+        if (getTrainedModelsRequest.getTags() != null) {
+            params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());
         return request;
@@ -790,6 +794,16 @@ final class MLRequestConverters {
             .addPathPart(deleteRequest.getId())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
+    static Request putTrainedModel(PutTrainedModelRequest putTrainedModelRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(putTrainedModelRequest.getTrainedModelConfig().getModelId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putTrainedModelRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
     }
 
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {

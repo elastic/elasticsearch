@@ -13,7 +13,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,24 +31,28 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -481,12 +484,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "          \"target_field\": \"regression_value\",\n" +
             "          \"model_id\": \"modelprocessorlicensetest\",\n" +
             "          \"inference_config\": {\"regression\": {}},\n" +
-            "          \"field_mappings\": {\n" +
-            "            \"col1\": \"col1\",\n" +
-            "            \"col2\": \"col2\",\n" +
-            "            \"col3\": \"col3\",\n" +
-            "            \"col4\": \"col4\"\n" +
-            "          }\n" +
+            "          \"field_mappings\": {}\n" +
             "        }\n" +
             "      }]}\n";
         // Creating a pipeline should work
@@ -668,76 +666,22 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
     }
 
-    private void putInferenceModel(String modelId) throws Exception {
-        String config = "" +
-            "{\n" +
-            "  \"model_id\": \"" + modelId + "\",\n" +
-            "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
-            "  \"description\": \"test model for classification\",\n" +
-            "  \"version\": \"8.0.0\",\n" +
-            "  \"created_by\": \"benwtrent\",\n" +
-            "  \"license_level\": \"platinum\",\n" +
-            "  \"estimated_heap_memory_usage_bytes\": 0,\n" +
-            "  \"estimated_operations\": 0,\n" +
-            "  \"created_time\": 0\n" +
-            "}";
-        String definition = "" +
-            "{" +
-            "  \"trained_model\": {\n" +
-            "    \"tree\": {\n" +
-            "      \"feature_names\": [\n" +
-            "        \"col1_male\",\n" +
-            "        \"col1_female\",\n" +
-            "        \"col2_encoded\",\n" +
-            "        \"col3_encoded\",\n" +
-            "        \"col4\"\n" +
-            "      ],\n" +
-            "      \"tree_structure\": [\n" +
-            "        {\n" +
-            "          \"node_index\": 0,\n" +
-            "            \"split_feature\": 0,\n" +
-            "            \"split_gain\": 12.0,\n" +
-            "            \"threshold\": 10.0,\n" +
-            "            \"decision_type\": \"lte\",\n" +
-            "            \"default_left\": true,\n" +
-            "            \"left_child\": 1,\n" +
-            "            \"right_child\": 2\n" +
-            "         },\n" +
-            "         {\n" +
-            "           \"node_index\": 1,\n" +
-            "           \"leaf_value\": 1\n" +
-            "         },\n" +
-            "         {\n" +
-            "           \"node_index\": 2,\n" +
-            "           \"leaf_value\": 2\n" +
-            "         }\n" +
-            "      ],\n" +
-            "     \"target_type\": \"regression\"\n" +
-            "    }\n" +
-            "  }" +
-            "}";
-        String compressedDefinitionString =
-            InferenceToXContentCompressor.deflate(new BytesArray(definition.getBytes(StandardCharsets.UTF_8)));
-        String compressedDefinition = "" +
-            "{" +
-            "  \"model_id\": \"" + modelId + "\",\n" +
-            "  \"doc_type\": \"" + TrainedModelDefinitionDoc.NAME + "\",\n" +
-            "  \"doc_num\": " + 0 + ",\n" +
-            "  \"compression_version\": " + 1 + ",\n" +
-            "  \"total_definition_length\": " + compressedDefinitionString.length() + ",\n" +
-            "  \"definition_length\": " + compressedDefinitionString.length() + ",\n" +
-            "  \"definition\": \"" + compressedDefinitionString + "\"\n" +
-            "}";
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId(modelId)
-            .setSource(config, XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get().status(), equalTo(RestStatus.CREATED));
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
-            .setSource(compressedDefinition, XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get().status(), equalTo(RestStatus.CREATED));
+    private void putInferenceModel(String modelId) {
+        TrainedModelConfig config = TrainedModelConfig.builder()
+            .setParsedDefinition(
+            new TrainedModelDefinition.Builder()
+            .setTrainedModel(
+            Tree.builder()
+                .setTargetType(TargetType.REGRESSION)
+                .setFeatureNames(Arrays.asList("feature1"))
+                .setNodes(TreeNode.builder(0).setLeafValue(1.0))
+                .build())
+            .setPreProcessors(Collections.emptyList()))
+            .setModelId(modelId)
+            .setDescription("test model for classification")
+            .setInput(new TrainedModelInput(Arrays.asList("feature1")))
+            .build();
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();
     }
 
     private static OperationMode randomInvalidLicenseType() {

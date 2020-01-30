@@ -132,7 +132,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
-        // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(4);
         toClose.add(() -> IOUtils.rm(snapPath));

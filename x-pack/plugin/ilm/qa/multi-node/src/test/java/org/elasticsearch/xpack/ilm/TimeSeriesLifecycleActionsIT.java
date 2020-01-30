@@ -458,7 +458,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void forceMergeActionWithCodec(Codec codec) throws Exception {
+    public void forceMergeActionWithCodec(String codec) throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -481,8 +481,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         };
         assertThat(numSegments.get(), greaterThan(1));
-        String codecName = codec != null ? codec.getName(): null;
-        createNewSingletonPolicy("warm", new ForceMergeAction(1, codecName));
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, codec));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -496,7 +495,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testForceMergeAction() throws Exception {
         forceMergeActionWithCodec(null);
-        forceMergeActionWithCodec(Codec.forName(CodecService.BEST_COMPRESSION_CODEC));
+        forceMergeActionWithCodec(CodecService.BEST_COMPRESSION_CODEC);
     }
 
 

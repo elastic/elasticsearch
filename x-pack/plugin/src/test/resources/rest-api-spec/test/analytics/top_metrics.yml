@@ -1,5 +1,5 @@
 ---
-"sort by field":
+"sort by long field":
   - do:
       bulk:
         index: test
@@ -40,6 +40,129 @@
   - match: { aggregations.tm.top.0.sort: [1] }
 
 ---
+"sort by double field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              s:
+                type: scaled_float
+                scaling_factor: 10
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1.0, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2.0, "v": 1}'
+          - '{"index": {}}'
+          - '{"s": 3.0, "v": 2.71828}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3.0] }
+
+  - do:
+      search:
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1.0] }
+
+---
+"sort by scaled float field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              s:
+                type: scaled_float
+                scaling_factor: 10
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3.0] }
+
+  - do:
+      search:
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s: asc
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1.0] }
+
+---
+"sort by keyword field fails":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": "cow", "v": 3.1415}'
+
+  - do:
+      catch: bad_request
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort: s.keyword
+  - match: { error.root_cause.0.reason: "unsupported sort: only supported on numeric fields" }
+
+---
 "sort by score":
   - do:
       bulk:
@@ -71,6 +194,10 @@
 
 ---
 "sort by geo_distance":
+  - skip:
+      reason: in development
+      features: always
+
   - do:
       indices.create:
         index: test

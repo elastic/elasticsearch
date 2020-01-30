@@ -76,11 +76,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      */
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 
-    default BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format) {
-        // TODO implement all the fields.
-        throw new IllegalArgumentException("Unsupported field type");
-    }
+    BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format);
 
     /**
      * Clears any resources associated with this field data.

@@ -20,7 +20,10 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ScorerAware;
@@ -30,6 +33,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -115,7 +119,7 @@ public abstract class BucketedSort implements Releasable {
                 setValue(bucket);
                 return true;
             }
-            return setIfCompetitive(doc, bucket);
+            return setIfCompetitive(bucket);
         }
 
         /**
@@ -143,7 +147,7 @@ public abstract class BucketedSort implements Releasable {
          *     to fit it, and *then* get bucket number 3.</li>
          * </ul>
          */
-        protected abstract boolean setIfCompetitive(int doc, long bucket) throws IOException;
+        protected abstract boolean setIfCompetitive(long bucket) throws IOException;
     }
 
     /**
@@ -197,7 +201,7 @@ public abstract class BucketedSort implements Releasable {
             }
 
             @Override
-            protected final boolean setIfCompetitive(int doc, long bucket) throws IOException {
+            protected final boolean setIfCompetitive(long bucket) throws IOException {
                 double docSort = docValue();
                 double bestSort = buckets.get(bucket);
                 // The NaN check is important here because it needs to always lose.
@@ -255,7 +259,7 @@ public abstract class BucketedSort implements Releasable {
             }
 
             @Override
-            protected final boolean setIfCompetitive(int doc, long bucket) throws IOException {
+            protected final boolean setIfCompetitive(long bucket) throws IOException {
                 float docSort = docValue();
                 float bestSort = buckets.get(bucket);
                 // The NaN check is important here because it needs to always lose.
@@ -333,7 +337,7 @@ public abstract class BucketedSort implements Releasable {
             }
 
             @Override
-            protected final boolean setIfCompetitive(int doc, long bucket) throws IOException {
+            protected final boolean setIfCompetitive(long bucket) throws IOException {
                 long docSort = docValue();
                 int intBucket = bucketIsInt(bucket);
                 if (false == seen.get(intBucket)) {
@@ -355,6 +359,127 @@ public abstract class BucketedSort implements Releasable {
                     // I don't feel too bad about that because it'd take about 16 GB of memory....
                 }
                 return (int) bucket;
+            }
+        }
+    }
+
+    /**
+     * Wraps Lucene's sort 
+     */
+    public static class ForLuceneSort extends BucketedSort {
+        private final SortField sortField;
+        private ObjectArray<Bucket> buckets = bigArrays.newObjectArray(1);
+
+        public ForLuceneSort(SortField sortField, BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
+            super(bigArrays, sortOrder, format);
+            this.sortField = sortField;
+        }
+
+        @Override
+        public void close() {
+            buckets.close();
+        }
+
+        @Override
+        public boolean needsScores() { return sortField.needsScores(); }
+
+        @Override
+        protected BigArray buckets() { return buckets; }
+
+        @Override
+        protected void grow(long minSize) {
+            buckets = bigArrays.grow(buckets, minSize);
+        }
+
+        @Override
+        protected SortValue getValueForBucket(long bucket) {
+            Bucket b = buckets.get(bucket);
+            if (b == null) {
+                return null;
+            }
+            Object v = b.comparator.value(0);
+            if (v instanceof Double) {
+                return SortValue.from((Double) v);
+            }
+            if (v instanceof Float) {
+                return SortValue.from((Float) v);
+            }
+            if (v instanceof Number) {
+                return SortValue.from(((Number) v).longValue());
+            }
+            throw new IllegalArgumentException("unsupported field type");
+        }
+
+        @Override
+        public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+            return new Leaf(ctx);
+        }
+
+        protected class Leaf extends BucketedSort.Leaf {
+            private final LeafReaderContext ctx;
+            private Scorable scorer;
+            private int doc;
+
+            public Leaf(LeafReaderContext ctx) {
+                this.ctx = ctx;
+            }
+
+            @Override
+            public final void setScorer(Scorable scorer) {
+                this.scorer = scorer;
+            }
+
+            @Override
+            protected boolean advanceExact(int doc) throws IOException {
+                if (doc <= ctx.reader().maxDoc()) {
+                    this.doc = doc;
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            protected final void setValue(long bucket) throws IOException {
+                Bucket b = new Bucket(sortField.getComparator(1, 0));
+                buckets.set(bucket, b);
+                LeafFieldComparator leafComparator = b.leafComparator(ctx, scorer);
+                leafComparator.copy(0, doc);
+                leafComparator.setBottom(0);
+            }
+
+            @Override
+            protected final boolean setIfCompetitive(long bucket) throws IOException {
+                Bucket b = buckets.get(bucket);
+                if (b == null) {
+                    setValue(bucket);
+                    return true;
+                }
+                LeafFieldComparator leafComparator = b.leafComparator(ctx, scorer);
+                if (leafComparator.compareBottom(doc) > 0) {
+                    return false;
+                }
+                leafComparator.copy(0, doc);
+                leafComparator.setBottom(0);
+                return true;
+            }
+        }
+
+        private static class Bucket {
+            private final FieldComparator<?> comparator;
+            private LeafFieldComparator leafComparator;
+            private Object lastLeafId;
+
+            public Bucket(FieldComparator<?> comparator) {
+                this.comparator = comparator;
+            }
+
+            LeafFieldComparator leafComparator(LeafReaderContext ctx, Scorable scorer) throws IOException {
+                if (lastLeafId != ctx.id()) {
+                    lastLeafId = ctx.id();
+                    leafComparator = comparator.getLeafComparator(ctx);
+                    leafComparator.setScorer(scorer);
+                }
+                return leafComparator;
             }
         }
     }

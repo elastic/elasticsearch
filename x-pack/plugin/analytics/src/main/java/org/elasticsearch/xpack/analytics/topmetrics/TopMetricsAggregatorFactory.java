@@ -44,10 +44,12 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
         if (metricValueSource == null) {
             return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }
-        if (sortBuilders.size()!= 1) {
-            throw new IllegalArgumentException("[top_metrics] only supports sorting on a single field");
+        BucketedSort bucketedSort;
+        try {
+            bucketedSort = sortBuilders.get(0).buildBucketedSort(searchContext.getQueryShardContext());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unsupported sort: " + e.getMessage(), e);
         }
-        BucketedSort bucketedSort = sortBuilders.get(0).buildBucketedSort(searchContext.getQueryShardContext());
 
         return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, bucketedSort,
                 metricField.getFieldName(), metricValueSource);

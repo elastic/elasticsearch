@@ -133,7 +133,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).commitStateWrites(JOB_ID);
     }
 
-    public void testProcessResult_bucket() throws Exception {
+    public void testProcessResult_bucket() {
         when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
         AutodetectResult result = mock(AutodetectResult.class);
@@ -150,7 +150,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister, never()).deleteInterimResults(JOB_ID);
     }
 
-    public void testProcessResult_bucket_deleteInterimRequired() throws Exception {
+    public void testProcessResult_bucket_deleteInterimRequired() {
         when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
         AutodetectResult result = mock(AutodetectResult.class);
@@ -167,7 +167,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).deleteInterimResults(JOB_ID);
     }
 
-    public void testProcessResult_records() throws Exception {
+    public void testProcessResult_records() {
         AutodetectResult result = mock(AutodetectResult.class);
         List<AnomalyRecord> records =
             Arrays.asList(
@@ -183,7 +183,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
     }
 
-    public void testProcessResult_influencers() throws Exception {
+    public void testProcessResult_influencers() {
         AutodetectResult result = mock(AutodetectResult.class);
         List<Influencer> influencers =
             Arrays.asList(
@@ -199,9 +199,10 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
     }
 
-    public void testProcessResult_categoryDefinition() throws Exception {
+    public void testProcessResult_categoryDefinition() {
         AutodetectResult result = mock(AutodetectResult.class);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
+        when(categoryDefinition.getCategoryId()).thenReturn(1L);
         when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
 
         processorUnderTest.setDeleteInterimRequired(false);
@@ -212,7 +213,66 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
     }
 
-    public void testProcessResult_flushAcknowledgement() throws Exception {
+    public void testProcessResult_excessiveCategoryDefinitionCountEarly() {
+        int iterations = 3;
+        int categoryCount = AutodetectResultProcessor.EXCESSIVE_EARLY_CATEGORY_COUNT * 2;
+
+        processorUnderTest.setDeleteInterimRequired(false);
+
+        AutodetectResult result = mock(AutodetectResult.class);
+        for (int iteration = 1; iteration <= iterations; ++iteration) {
+            for (int categoryId = 1; categoryId <= categoryCount; ++categoryId) {
+                CategoryDefinition categoryDefinition = new CategoryDefinition(JOB_ID);
+                categoryDefinition.setCategoryId(categoryId);
+                when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
+
+                processorUnderTest.processResult(result);
+            }
+        }
+
+        verify(bulkBuilder, never()).executeRequest();
+        verify(persister, times(iterations * categoryCount)).persistCategoryDefinition(any(CategoryDefinition.class), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(auditor).warning(eq(JOB_ID), eq(Messages.getMessage(Messages.JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES,
+            AutodetectResultProcessor.EXCESSIVE_EARLY_CATEGORY_COUNT, 1)));
+    }
+
+    public void testProcessResult_highCategoryDefinitionCountLateOn() {
+        int iterations = 3;
+        int categoryCount = AutodetectResultProcessor.EXCESSIVE_EARLY_CATEGORY_COUNT * 2;
+
+        processorUnderTest.setDeleteInterimRequired(false);
+
+        when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
+        when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
+
+        AutodetectResult bucketResult = mock(AutodetectResult.class);
+        final int numPriorBuckets = (int) AutodetectResultProcessor.EARLY_BUCKET_THRESHOLD + 1;
+        for (int i = 0; i < numPriorBuckets; ++i) {
+            Bucket bucket = new Bucket(JOB_ID, new Date(i * 1000 + 1000000), BUCKET_SPAN_MS);
+            when(bucketResult.getBucket()).thenReturn(bucket);
+            processorUnderTest.processResult(bucketResult);
+        }
+
+        AutodetectResult categoryResult = mock(AutodetectResult.class);
+        for (int iteration = 1; iteration <= iterations; ++iteration) {
+            for (int categoryId = 1; categoryId <= categoryCount; ++categoryId) {
+                CategoryDefinition categoryDefinition = new CategoryDefinition(JOB_ID);
+                categoryDefinition.setCategoryId(categoryId);
+                when(categoryResult.getCategoryDefinition()).thenReturn(categoryDefinition);
+                processorUnderTest.processResult(categoryResult);
+            }
+        }
+
+        verify(bulkBuilder).persistTimingStats(any(TimingStats.class));
+        verify(bulkBuilder, times(numPriorBuckets)).persistBucket(any(Bucket.class));
+        verify(bulkBuilder, times(numPriorBuckets)).executeRequest();
+        verify(persister, times(iterations * categoryCount)).persistCategoryDefinition(any(CategoryDefinition.class), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(auditor, never()).warning(eq(JOB_ID), anyString());
+    }
+
+    public void testProcessResult_flushAcknowledgement() {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
@@ -228,12 +288,13 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkBuilder).executeRequest();
     }
 
-    public void testProcessResult_flushAcknowledgementMustBeProcessedLast() throws Exception {
+    public void testProcessResult_flushAcknowledgementMustBeProcessedLast() {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
+        when(categoryDefinition.getCategoryId()).thenReturn(1L);
         when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
 
         processorUnderTest.setDeleteInterimRequired(false);
@@ -248,7 +309,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
-    public void testProcessResult_modelPlot() throws Exception {
+    public void testProcessResult_modelPlot() {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelPlot modelPlot = mock(ModelPlot.class);
         when(result.getModelPlot()).thenReturn(modelPlot);
@@ -260,7 +321,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkBuilder).persistModelPlot(modelPlot);
     }
 
-    public void testProcessResult_modelSizeStats() throws Exception {
+    public void testProcessResult_modelSizeStats() {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
@@ -273,7 +334,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).persistModelSizeStats(eq(modelSizeStats), any());
     }
 
-    public void testProcessResult_modelSizeStatsWithMemoryStatusChanges() throws Exception {
+    public void testProcessResult_modelSizeStatsWithMemoryStatusChanges() {
         TimeValue delay = TimeValue.timeValueSeconds(5);
         // Set up schedule delay time
         when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), anyString()))
@@ -313,7 +374,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb", "1kb"));
     }
 
-    public void testProcessResult_modelSnapshot() throws Exception {
+    public void testProcessResult_modelSnapshot() {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
             .setSnapshotId("a_snapshot_id")
@@ -337,7 +398,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
     }
 
-    public void testProcessResult_quantiles_givenRenormalizationIsEnabled() throws Exception {
+    public void testProcessResult_quantiles_givenRenormalizationIsEnabled() {
         AutodetectResult result = mock(AutodetectResult.class);
         Quantiles quantiles = mock(Quantiles.class);
         when(result.getQuantiles()).thenReturn(quantiles);
@@ -354,7 +415,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).renormalize(quantiles);
     }
 
-    public void testProcessResult_quantiles_givenRenormalizationIsDisabled() throws Exception {
+    public void testProcessResult_quantiles_givenRenormalizationIsDisabled() {
         AutodetectResult result = mock(AutodetectResult.class);
         Quantiles quantiles = mock(Quantiles.class);
         when(result.getQuantiles()).thenReturn(quantiles);

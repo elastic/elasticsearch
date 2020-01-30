@@ -407,7 +407,7 @@ The API returns the following result:
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/"version" : "8.0.0"/"version" : $body.version/]
 
 
 [[ml-put-dfanalytics-example-r]]

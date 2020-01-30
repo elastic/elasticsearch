@@ -43,7 +43,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
     public void testParsing() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("alias-field")
                             .field("type", "alias")
@@ -55,7 +55,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject());
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
     }
 

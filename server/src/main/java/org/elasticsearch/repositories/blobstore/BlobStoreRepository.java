@@ -1052,6 +1052,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
+        // Keep track of the most recent generation we failed to load so we can break out of the loop if we fail to load the same
+        // generation repeatedly.
+        long lastFailedGeneration = RepositoryData.UNKNOWN_REPO_GEN;
         while (true) {
             final long genToLoad;
             if (bestEffortConsistency) {
@@ -1061,7 +1064,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     generation = latestIndexBlobId();
                 } catch (IOException ioe) {
-                    throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
+                    listener.onFailure(
+                        new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe));
+                    return;
                 }
                 genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
                 if (genToLoad > generation) {
@@ -1076,7 +1081,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onResponse(getRepositoryData(genToLoad));
                 return;
             } catch (RepositoryException e) {
-                if (genToLoad != latestKnownRepoGen.get()) {
+                // If the generation to load changed concurrently and we didn't just try loading the same generation before we retry
+                if (genToLoad != latestKnownRepoGen.get() && genToLoad != lastFailedGeneration) {
+                    lastFailedGeneration = genToLoad;
                     logger.warn("Failed to load repository data generation [" + genToLoad +
                         "] because a concurrent operation moved the current generation to [" + latestKnownRepoGen.get() + "]", e);
                     continue;
@@ -1086,10 +1093,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // of N so we mark this repository as corrupted.
                     markRepoCorrupted(genToLoad, e,
                         ActionListener.wrap(v -> listener.onFailure(corruptedStateException(e)), listener::onFailure));
-                    return;
                 } else {
-                    throw e;
+                    listener.onFailure(e);
                 }
+                return;
+            } catch (Exception e) {
+                listener.onFailure(new RepositoryException(metadata.name(), "Unexpected exception when loading repository data", e));
+                return;
             }
         }
     }
@@ -1436,7 +1446,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {

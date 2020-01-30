@@ -1,156 +1,55 @@
 [[analysis]]
 = Text analysis
 
+:lucene-analysis-docs:  https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis
+
 [partintro]
 --
 
-_Text analysis_ is the process of converting text, like the body of any email,
-into _tokens_ or _terms_ which are added to the inverted index for searching.
-Analysis is performed by an <<analysis-analyzers,_analyzer_>> which can be
-either a built-in analyzer or a <<analysis-custom-analyzer,`custom`>> analyzer
-defined per index.
+_Text analysis_ is the process of converting unstructured text, like
+the body of an email or a product description, into a structured format that's
+optimized for search.
 
 [float]
-== Index time analysis
+[[when-to-configure-analysis]]
+=== When to configure text analysis
 
-For instance, at index time the built-in <<english-analyzer,`english`>> _analyzer_ 
-will first convert the sentence:
+{es} performs text analysis when indexing or searching <<text,`text`>> fields.
 
-[source,text]
-------
-"The QUICK brown foxes jumped over the lazy dog!"
-------
+If your index doesn't contain `text` fields, no further setup is needed; you can
+skip the pages in this section.
 
-into distinct tokens. It will then lowercase each token, remove frequent
-stopwords ("the") and reduce the terms to their word stems (foxes -> fox,
-jumped -> jump, lazy -> lazi). In the end, the following terms will be added
-to the inverted index:
+However, if you use `text` fields or your text searches aren't returning results
+as expected, configuring text analysis can often help. You should also look into
+analysis configuration if you're using {es} to:
 
-[source,text]
-------
-[ quick, brown, fox, jump, over, lazi, dog ]
-------
+* Build a search engine
+* Mine unstructured data
+* Fine-tune search for a specific language
+* Perform lexicographic or linguistic research
 
 [float]
-[[specify-index-time-analyzer]]
-=== Specifying an index time analyzer
+[[analysis-toc]]
+=== In this section
 
-{es} determines which index-time analyzer to use by
-checking the following parameters in order:
-
-. The <<analyzer,`analyzer`>> mapping parameter of the field
-. The `default` analyzer parameter in the index settings
-
-If none of these parameters are specified, the
-<<analysis-standard-analyzer,`standard` analyzer>> is used.
-
-[discrete]
-[[specify-index-time-field-analyzer]]
-==== Specify the index-time analyzer for a field
-
-Each <<text,`text`>> field in a mapping can specify its own
-<<analyzer,`analyzer`>>:
-
-[source,console]
--------------------------
-PUT my_index
-{
-  "mappings": {
-    "properties": {
-      "title": {
-        "type":     "text",
-        "analyzer": "standard"
-      }
-    }
-  }
-}
--------------------------
-
-[discrete]
-[[specify-index-time-default-analyzer]]
-==== Specify a default index-time analyzer
-
-When <<indices-create-index,creating an index>>, you can set a default
-index-time analyzer using the `default` analyzer setting:
-
-[source,console]
-----
-PUT my_index
-{
-  "settings": {
-    "analysis": {
-      "analyzer": {
-        "default": {
-          "type": "whitespace"
-        }
-      }
-    }
-  }
-}
-----
-
-A default index-time analyzer is useful when mapping multiple `text` fields that
-use the same analyzer. It's also used as a general fallback analyzer for both
-index-time and search-time analysis.
-
-[float]
-== Search time analysis
-
-This same analysis process is applied to the query string at search time in
-<<full-text-queries,full text queries>> like the
-<<query-dsl-match-query,`match` query>>
-to convert the text in the query string into terms of the same form as those
-that are stored in the inverted index.
-
-For instance, a user might search for:
-
-[source,text]
-------
-"a quick fox"
-------
-
-which would be analysed by the same `english` analyzer into the following terms:
-
-[source,text]
-------
-[ quick, fox ]
-------
-
-Even though the exact words used in the query string don't appear in the
-original text (`quick` vs `QUICK`, `fox` vs `foxes`), because we have applied
-the same analyzer to both the text and the query string, the terms from the
-query string exactly match the terms from the text in the inverted index,
-which means that this query would match our example document.
-
-[float]
-=== Specifying a search time analyzer
-
-Usually the same analyzer should be used both at
-index time and at search time, and <<full-text-queries,full text queries>>
-like the  <<query-dsl-match-query,`match` query>> will use the mapping to look
-up the analyzer to use for each field.
-
-The analyzer to use to search a particular field is determined by
-looking for:
-
-* An `analyzer` specified in the query itself.
-* The <<search-analyzer,`search_analyzer`>> mapping parameter.
-* The <<analyzer,`analyzer`>> mapping parameter.
-* An analyzer in the index settings called `default_search`.
-* An analyzer in the index settings called `default`.
-* The `standard` analyzer.
+* <<analysis-overview>>
+* <<analysis-concepts>>
+* <<configure-text-analysis>>
+* <<analysis-analyzers>>
+* <<analysis-tokenizers>>
+* <<analysis-tokenfilters>>
+* <<analysis-charfilters>>
+* <<analysis-normalizers>>
 
 --
 
 include::analysis/overview.asciidoc[]
 
-include::analysis/anatomy.asciidoc[]
+include::analysis/concepts.asciidoc[]
 
-include::analysis/testing.asciidoc[]
+include::analysis/configure-text-analysis.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
-
-include::analysis/normalizers.asciidoc[]
 
 include::analysis/tokenizers.asciidoc[]
 
@@ -158,3 +57,4 @@ include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
 
+include::analysis/normalizers.asciidoc[]

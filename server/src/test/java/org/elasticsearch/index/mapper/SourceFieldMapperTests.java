@@ -121,13 +121,13 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
-        DocumentMapper docMapper = parser.parse("_doc", new CompressedXContent(mapping1));
-        docMapper = parser.parse("_doc", docMapper.mappingSource());
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
+        docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("_doc", new CompressedXContent(mapping2)).mapping());
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
         } else {
             try {
-                docMapper.merge(parser.parse("_doc", new CompressedXContent(mapping2)).mapping());
+                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
                 fail();
             } catch (IllegalArgumentException e) {
                 for (String conflict : conflicts) {
@@ -140,14 +140,14 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
     public void testEnabledNotUpdateable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         // using default of true
-        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", false).endObject()
             .endObject().endObject());
         assertConflicts(mapping1, mapping2, parser, "Cannot update enabled setting for [_source]");
 
         // not changing is ok
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", true).endObject()
             .endObject().endObject());
         assertConflicts(mapping1, mapping3, parser);
@@ -155,14 +155,14 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludesNotUpdateable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*").endObject()
             .endObject().endObject());
         assertConflicts(defaultMapping, mapping1, parser, "Cannot update includes setting for [_source]");
         assertConflicts(mapping1, defaultMapping, parser, "Cannot update includes setting for [_source]");
 
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
         assertConflicts(mapping1, mapping2, parser, "Cannot update includes setting for [_source]");
@@ -173,14 +173,14 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testExcludesNotUpdateable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*").endObject()
             .endObject().endObject());
         assertConflicts(defaultMapping, mapping1, parser, "Cannot update excludes setting for [_source]");
         assertConflicts(mapping1, defaultMapping, parser, "Cannot update excludes setting for [_source]");
 
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
         assertConflicts(mapping1, mapping2, parser, "Cannot update excludes setting for [_source]");

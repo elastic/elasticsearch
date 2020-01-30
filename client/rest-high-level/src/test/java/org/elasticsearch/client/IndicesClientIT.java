@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -97,7 +96,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -758,41 +756,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }
-
-    public void testSyncedFlush() throws IOException {
-        {
-            String index = "index";
-            Settings settings = Settings.builder()
-                    .put("number_of_shards", 1)
-                    .put("number_of_replicas", 0)
-                    .build();
-            createIndex(index, settings);
-            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
-            SyncedFlushResponse flushResponse =
-                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync,
-                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE));
-            assertThat(flushResponse.totalShards(), equalTo(1));
-            assertThat(flushResponse.successfulShards(), equalTo(1));
-            assertThat(flushResponse.failedShards(), equalTo(0));
-        }
-        {
-            String nonExistentIndex = "non_existent_index";
-            assertFalse(indexExists(nonExistentIndex));
-            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
-            ElasticsearchException exception = expectThrows(
-                ElasticsearchException.class,
-                () ->
-                    execute(
-                        syncedFlushRequest,
-                        highLevelClient().indices()::flushSynced,
-                        highLevelClient().indices()::flushSyncedAsync,
-                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
-                    )
-            );
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-        }
-    }
-
 
     public void testClearCache() throws IOException {
         {

@@ -303,6 +303,46 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         }
     }
 
+    public void testMountCorruptedRepositoryData() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally corrupts the repository contents");
+        Client client = client();
+
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client.admin().cluster().preparePutRepository(repoName)
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", repo)
+                .put("compress", false)));
+
+        final String snapshot = "test-snap";
+
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshot)
+            .setWaitForCompletion(true).setIndices("test-idx-*").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> corrupt index-N blob");
+        final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        Files.write(repo.resolve("index-" + repositoryData.getGenId()), randomByteArrayOfLength(randomIntBetween(1, 100)));
+
+        logger.info("--> verify loading repository data throws RepositoryException");
+        expectThrows(RepositoryException.class, () -> getRepositoryData(repository));
+
+        logger.info("--> mount repository path in a new repository");
+        final String otherRepoName = "other-repo";
+        assertAcked(client.admin().cluster().preparePutRepository(otherRepoName)
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", repo)
+                .put("compress", false)));
+        final Repository otherRepo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(otherRepoName);
+
+        logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
+        expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
+    }
+
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {
         logger.info("--> try to delete snapshot");
         final RepositoryException repositoryException3 = expectThrows(RepositoryException.class,

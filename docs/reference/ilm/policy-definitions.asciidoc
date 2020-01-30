@@ -670,7 +670,9 @@ PUT _ilm/policy/my_policy
 [IMPORTANT]
 This action may be used explicitly, as shown below, but this action is also run
 before <<ilm-rollover-action,the Rollover action>> and <<ilm-shrink-action,the
-Shrink action>> as described in the documentation for those actions.
+Shrink action>> as described in the documentation for those actions. This is
+expected and safe for non-CCR indices to run, as the steps are skipped when CCR
+is not in use.
 
 This action turns a {ref}/ccr-apis.html[ccr] follower index
 into a regular index. This can be desired when moving follower

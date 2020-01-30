@@ -232,7 +232,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCopyToStrictDynamicInnerObjectParsing() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
             .field("dynamic", "strict")
                 .startObject("properties")
                     .startObject("copy_test")
@@ -243,7 +243,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
+            .parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = BytesReference.bytes(jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -253,7 +253,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
             fail();
         } catch (MapperParsingException ex) {
-            assertThat(ex.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
+            assertThat(ex.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [type1] is not allowed"));
         }
     }
 

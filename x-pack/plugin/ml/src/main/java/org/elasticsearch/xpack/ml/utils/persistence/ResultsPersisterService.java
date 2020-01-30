@@ -13,17 +13,20 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -33,9 +36,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class ResultsPersisterService {
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
@@ -52,10 +52,20 @@ public class ResultsPersisterService {
     // Having an exponent higher than this causes integer overflow
     private static final int MAX_RETRY_EXPONENT = 24;
 
-    private final Client client;
+    private final CheckedConsumer<Integer, InterruptedException> sleeper;
+    private final OriginSettingClient client;
     private volatile int maxFailureRetries;
 
-    public ResultsPersisterService(Client client, ClusterService clusterService, Settings settings) {
+    public ResultsPersisterService(OriginSettingClient client, ClusterService clusterService, Settings settings) {
+        this(Thread::sleep, client, clusterService, settings);
+    }
+
+    // Visible for testing
+    ResultsPersisterService(CheckedConsumer<Integer, InterruptedException> sleeper,
+                            OriginSettingClient client,
+                            ClusterService clusterService,
+                            Settings settings) {
+        this.sleeper = sleeper;
         this.client = client;
         this.maxFailureRetries = PERSIST_RESULTS_MAX_RETRIES.get(settings);
         clusterService.getClusterSettings()
@@ -85,29 +95,84 @@ public class ResultsPersisterService {
                                            String jobId,
                                            Supplier<Boolean> shouldRetry,
                                            Consumer<String> msgHandler) {
-        int currentMin = MIN_RETRY_SLEEP_MILLIS;
-        int currentMax = MIN_RETRY_SLEEP_MILLIS;
-        int currentAttempt = 0;
-        BulkResponse bulkResponse = null;
-        final Random random = Randomness.get();
-        while(currentAttempt <= maxFailureRetries) {
-            bulkResponse = bulkIndex(bulkRequest);
+        RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
+        while (true) {
+            BulkResponse bulkResponse = client.bulk(bulkRequest).actionGet();
             if (bulkResponse.hasFailures() == false) {
                 return bulkResponse;
             }
-            if (shouldRetry.get() == false) {
-                throw new ElasticsearchException("[{}] failed to index all results. {}", jobId, bulkResponse.buildFailureMessage());
+
+            retryContext.nextIteration("index", bulkResponse.buildFailureMessage());
+
+            // We should only retry the docs that failed.
+            bulkRequest = buildNewRequestFromFailures(bulkRequest, bulkResponse);
+        }
+    }
+
+    public SearchResponse searchWithRetry(SearchRequest searchRequest,
+                                          String jobId,
+                                          Supplier<Boolean> shouldRetry,
+                                          Consumer<String> msgHandler) {
+        RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
+        while (true) {
+            String failureMessage;
+            try {
+                SearchResponse searchResponse = client.search(searchRequest).actionGet();
+                if (RestStatus.OK.equals(searchResponse.status())) {
+                    return searchResponse;
+                }
+                failureMessage = searchResponse.status().toString();
+            } catch (ElasticsearchException e) {
+                LOGGER.warn("[" + jobId + "] Exception while executing search action", e);
+                failureMessage = e.getDetailedMessage();
             }
-            if (currentAttempt > maxFailureRetries) {
-                LOGGER.warn("[{}] failed to index after [{}] attempts. Setting [xpack.ml.persist_results_max_retries] was reduced",
-                    jobId,
-                    currentAttempt);
-                throw new ElasticsearchException("[{}] failed to index all results after [{}] attempts. {}",
-                    jobId,
-                    currentAttempt,
-                    bulkResponse.buildFailureMessage());
-            }
+
+            retryContext.nextIteration("search", failureMessage);
+        }
+    }
+
+    /**
+     * {@link RetryContext} object handles logic that is executed between consecutive retries of an action.
+     *
+     * Note that it does not execute the action itself.
+     */
+    private class RetryContext {
+
+        final String jobId;
+        final Supplier<Boolean> shouldRetry;
+        final Consumer<String> msgHandler;
+        final Random random = Randomness.get();
+
+        int currentAttempt = 0;
+        int currentMin = MIN_RETRY_SLEEP_MILLIS;
+        int currentMax = MIN_RETRY_SLEEP_MILLIS;
+
+        RetryContext(String jobId, Supplier<Boolean> shouldRetry, Consumer<String> msgHandler) {
+            this.jobId = jobId;
+            this.shouldRetry = shouldRetry;
+            this.msgHandler = msgHandler;
+        }
+
+        void nextIteration(String actionName, String failureMessage) {
             currentAttempt++;
+
+            // If the outside conditions have changed and retries are no longer needed, do not retry.
+            if (shouldRetry.get() == false) {
+                String msg = new ParameterizedMessage(
+                    "[{}] should not retry {} after [{}] attempts. {}", jobId, actionName, currentAttempt, failureMessage)
+                    .getFormattedMessage();
+                LOGGER.info(msg);
+                throw new ElasticsearchException(msg);
+            }
+
+            // If the configured maximum number of retries has been reached, do not retry.
+            if (currentAttempt > maxFailureRetries) {
+                String msg = new ParameterizedMessage(
+                    "[{}] failed to {} after [{}] attempts. {}", jobId, actionName, currentAttempt, failureMessage).getFormattedMessage();
+                LOGGER.warn(msg);
+                throw new ElasticsearchException(msg);
+            }
+
             // Since we exponentially increase, we don't want force randomness to have an excessively long sleep
             if (currentMax < MAX_RETRY_SLEEP_MILLIS) {
                 currentMin = currentMax;
@@ -121,37 +186,25 @@ public class ResultsPersisterService {
             int randSleep = currentMin + random.nextInt(randBound);
             {
                 String msg = new ParameterizedMessage(
-                    "failed to index after [{}] attempts. Will attempt again in [{}].",
+                    "failed to {} after [{}] attempts. Will attempt again in [{}].",
+                    actionName,
                     currentAttempt,
                     TimeValue.timeValueMillis(randSleep).getStringRep())
                     .getFormattedMessage();
-                LOGGER.warn(()-> new ParameterizedMessage("[{}] {}", jobId, msg));
+                LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
                 msgHandler.accept(msg);
             }
-            // We should only retry the docs that failed.
-            bulkRequest = buildNewRequestFromFailures(bulkRequest, bulkResponse);
             try {
-                Thread.sleep(randSleep);
+                sleeper.accept(randSleep);
             } catch (InterruptedException interruptedException) {
                 LOGGER.warn(
-                    new ParameterizedMessage("[{}] failed to index after [{}] attempts due to interruption",
+                    new ParameterizedMessage("[{}] failed to {} after [{}] attempts due to interruption",
                         jobId,
+                        actionName,
                         currentAttempt),
                     interruptedException);
                 Thread.currentThread().interrupt();
             }
-        }
-        String bulkFailureMessage = bulkResponse == null ? "" : bulkResponse.buildFailureMessage();
-        LOGGER.warn("[{}] failed to index after [{}] attempts.", jobId, currentAttempt);
-        throw new ElasticsearchException("[{}] failed to index all results after [{}] attempts. {}",
-            jobId,
-            currentAttempt,
-            bulkFailureMessage);
-    }
-
-    private BulkResponse bulkIndex(BulkRequest bulkRequest) {
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            return client.bulk(bulkRequest).actionGet();
         }
     }
 

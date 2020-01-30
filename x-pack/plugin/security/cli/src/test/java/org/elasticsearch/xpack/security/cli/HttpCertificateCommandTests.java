@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.cli;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import joptsimple.OptionSet;
-import org.apache.lucene.util.Constants;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
@@ -530,13 +529,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testTextFileSubstitutions() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/50964", Constants.WINDOWS);
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
             try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
                  StringWriter out = new StringWriter();
                  PrintWriter writer = new PrintWriter(out)) {
                 HttpCertificateCommand.copyWithSubstitutions(in, writer, subs);
-                return out.toString();
+                return out.toString().replace("\r\n", "\n");
             }
         };
         assertThat(copy.apply("abc\n", Map.of()), is("abc\n"));

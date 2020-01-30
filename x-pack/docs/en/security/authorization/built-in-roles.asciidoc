@@ -37,29 +37,17 @@ suitable for writing beats output to {es}.
 
 --
 
-[[built-in-roles-transform-admin]] `transform_admin` :: 
-Grants `manage_transform` cluster privileges, which enable you to manage 
-{transforms}. This role also includes all 
-{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
-
-[[built-in-roles-transform-user]] `transform_user` ::
-Grants `monitor_transform` cluster privileges, which enable you to use 
-{transforms}. This role also includes all
-{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
-
 [[built-in-roles-data-frame-transforms-admin]] `data_frame_transforms_admin` ::
-(This role is deprecated, please use the 
-<<built-in-roles-transform-admin,`transform_admin`>> role instead.) Grants 
-`manage_data_frame_transforms` cluster privileges, which enable you to manage 
-{transforms}. This role also includes all
+Grants `manage_data_frame_transforms` cluster privileges, which enable you to
+manage {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-admin,`transform_admin`>>"].
 
 [[built-in-roles-data-frame-transforms-user]] `data_frame_transforms_user` ::
-(This role is deprecated, please use the 
-<<built-in-roles-transform-user,`transform_user`>> role instead.) Grants 
-`monitor_data_frame_transforms` cluster privileges, which enable you to use 
-{transforms}. This role also includes all
+Grants `monitor_data_frame_transforms` cluster privileges, which enable you to
+use {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-user,`transform_user`>>"].
 
 [[built-in-roles-ingest-user]] `ingest_admin` ::
 Grants access to manage *all* index templates and *all* ingest pipeline configurations.
@@ -152,6 +140,16 @@ Grants full access to the cluster, including all indices and data. A user with
 the `superuser` role can also manage users and roles and
 <<run-as-privilege, impersonate>> any other user in the system. Due to the
 permissive nature of this role, take extra care when assigning it to a user.
+
+[[built-in-roles-transform-admin]] `transform_admin`:: 
+Grants `manage_transform` cluster privileges, which enable you to manage 
+{transforms}. This role also includes all 
+{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
+
+[[built-in-roles-transform-user]] `transform_user`::
+Grants `monitor_transform` cluster privileges, which enable you to use 
+{transforms}. This role also includes all
+{kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transport-client]] `transport_client`::
 Grants the privileges required to access the cluster through the Java Transport

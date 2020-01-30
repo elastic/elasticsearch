@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -77,7 +76,7 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ? new WeightedSum(weights) :
             randomFrom(
                 new WeightedMode(
-                    categoryLabels != null ? categoryLabels.size() - 1 : randomIntBetween(1, 10),
+                    categoryLabels != null ? categoryLabels.size() : randomIntBetween(2, 10),
                     weights),
                 new LogisticRegression(weights));
         double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION  ?

@@ -82,7 +82,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             randomFrom(
                 new WeightedMode(
                     weights,
-                    categoryLabels != null ? categoryLabels.size() - 1 : randomIntBetween(1, 10)),
+                    categoryLabels != null ? categoryLabels.size() : randomIntBetween(2, 10)),
                 new LogisticRegression(weights));
 
         double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION ?
@@ -257,7 +257,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 1))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
             .setClassificationWeights(Arrays.asList(0.7, 0.3))
             .build();
 
@@ -355,7 +355,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 1))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
@@ -426,7 +426,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 3))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);

@@ -188,7 +188,7 @@ public class LocalModelTests extends ESTestCase {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 1))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
             .build();
     }
 

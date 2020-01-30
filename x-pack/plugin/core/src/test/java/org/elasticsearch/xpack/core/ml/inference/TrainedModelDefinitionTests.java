@@ -309,23 +309,26 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
     public void testMultiClassIrisInference() throws IOException {
         // Fairly simple, random forest classification model built to fit in our format
         // Trained on the well known Iris dataset
-        String compressedDef = "H4sIAMHqMV4C/+1b7Y6bOhB9lVV+b5HHX9h9g/sMVYVo4iRIbBIBaXtV9d0vJr23uzGKJwwsu" +
-            "73kx0qwgI+xZ+bMmeHHqqny4uA22dNx48rVx4cfK3eo3dOX0nUHTV7tXJM1f5/88Wpd5nVdbIt13hTHw+rxYbV1eXOuX" +
-            "HbIn1zdXvJpVbtTXmalO+yavb/icvyt2FwOT6558e/L8eXfnx+vh8jK/IsrLw/+qyrqD7VrjnXub+wOv7qqLtbH8lj9P" +
-            "lVUu+LQ3t897sX8uue0k6rcXLPzQ2d1U53X/rkXOIcWWlYcNu57e8zaizZuXdR+8v8CKxvnH1a6bZOt90W5aU9Ce6Iqd" +
-            "vvfZ7iHcyqLJvsFuz0n/Jj7ytX7Y3cNSwzrfgCWM8vtz8eHKwRwE0G+zb7m5dmfZOG9HIteBOiB9cDnV/BlYpRHLwxIb" +
-            "VOehhAEFoIMICgUglSFg0rsO4PwXoUFrAPAKWLFIVG2+zGpBVfayBCCJsBPsfBNAN/2wGdX8FVipUdv2s2qFYieFTcE9" +
-            "BZ7L+8xFLythsYKHDF5fb12PSCAMgO0vUKPwUrU7uszFxCEJQOJn/HNgMKS9n2D/8MT9vlnN9ISGt5gaNCojaa7yMCsE" +
-            "jqVAvQMoSHqqqaLE7cNXS8mc6/JGFRwkrEVBywCHiAQiD3HEdGdE6yWYDIp4gWSTWb70kTjfgOCFygvfkOm2oi0z20og" +
-            "tFqgtGmhHEN9q1ZXFwf4Oss2vZYiAFQez/u8iMc7fbmB7TxQmi9IHD0iD3ffcrcTdIiZElQ6CHa9iA0Ps4RS6gS6LaRB" +
-            "qME46noAYHOjyBMkDgM56gaPW4ajstw7L5nWHQ+BWFCBRaXEHbv3Cremgw3sm/lDWXbWMKG5YxyMyUZ4nwhSWPkFUMoy" +
-            "lyak0QxBBtjCASWZMdRvQgsyYzD00aWsQbwtOlUrNuOYzr9KUKSxDhEbXwdC4YwNaDQHE6JV7NxJNBjcURKjgKLOnB34" +
-            "NModUB1ux4sS4U0WsygDkSd5kzigMJJepeNz4WRbYJg3ouetn0Z2hAOE5eSEEotqIRaJSy2YSm6AkOJ0H0Tt5QknpJQT" +
-            "FldWfzqYL/62qrrgFLJ4ldf26+ywdX7kUvYQxJgQ9guFLmFxv3NcHWNJK2mIxUEafVvjdL4oiEV0OYOob2DGieu31NUn" +
-            "y/7uFctjYxslvg8jeAXzTrm0vuGc29CTO7l3teOIk1YrNVnZI2Pz67xDXHZb1Pkoyc+mKrMhM1q86VBIwRZRI/g9EG2N" +
-            "R/2fPNySpAFSpDli8S3hLr30zMXs5qlZ24xmfm+QJicHVpUAifkdORQvwY5pLTJ3dR9zDjF47dZAJ7yAwQ5TufB+E1y1" +
-            "6snrlMjOVsBePkc4Q/urX4/Kv/bbK0OQ6VQkTrD/621mg+uUbxCNzWiTW/CbmpSg09ERDBTfak2QDcY1Bs1oTp/u4EaU" +
-            "px2Ga0vUHQ7oJAzQNsrWFwT+xD5CW2+nOGa2AcQ9D+wtdpfnO92ldvljcuO5+Z0bjq+9M35V/jru/9nZ7qnwH9Pwf3xozzl37MO1jOo/vcP8wTvX0JBAAA=";
+        String compressedDef = "H4sIAPbiMl4C/+1b246bMBD9lVWet8jjG3b/oN9QVYgmToLEkghIL6r23wukl90" +
+            "YxRMGlt2WPKwEC/gYe2bOnBl+rOoyzQq3SR4OG5ev3t/9WLmicg+fc9cd1Gm5c3VSfz+2x6t1nlZVts3Wa" +
+            "Z0ditX93Wrr0vpUuqRIH1zVXPJxVbljmie5K3b1vr3ifPw125wPj65+9u/z8fnfn+4vh0jy9LPLzw/+UGb" +
+            "Vu8rVhyptb+wOv7iyytaH/FD+PZWVu6xo7u8e92x+3XOaSZVurtm1QydVXZ7W7XPPcIoGWpIVG/etOWbNR" +
+            "Ru3zqp28r+B5bVrH5a7bZ2s91m+aU5Cc6LMdvu/Z3gL55hndfILdnNOtGPuS1ftD901LDKs+wFYziy3j/d" +
+            "3FwjgKoJ0m3xJ81N7kvn3cix64aEH1gOfX8CXkVEtemFAahvz2IcgsBCkB0GhEMTKH1Ri3xn49yosYO0Bj" +
+            "hErDpGy3Y9JLbjSRvoQNAF+jIVvPPi2Bz67gK8iK1v0ptmsWoHoWXFDQG+x9/IeQ8Hbqm+swBGT15dr1wM" +
+            "CKDNA2yv0GKxE7b4+cwFBWDKQ+BlfDSgsat43tH94xD49diMtoeEVhgaN2mi6iwzMKqFjKUDPEBqCrmq6O" +
+            "HHd0PViMreajEEFJxlaccAi4B4CgdhzHBHdOcFqCSYTI14g2WS2z0007DfAe4Hy7DdkrI2I+9yGIhitJhh" +
+            "tTBjXYN+axcX1Ab7Oom2P+RgAtffDLj/A0a5vfkAbL/jWCwJHj9jT3afMzSQtQJYEhR6ibQ984+McsYQqg" +
+            "m4baTBKMB6LHhDo/Aj8BInDcI6q0ePG/rgMx+57hkXnU+AnVGBxCWH3zq3ijclwI/tW3lC2jSVsWM4oN1O" +
+            "SIc4XkjRGXjGEosylOUkUQ7AhhkBgSXYc1YvAksw4PG1kGWsAT5tOxbruOKbTnwIkSYxD1MbXsWAIUwMKz" +
+            "eGUeDUbRwI9Fkek5CiwqAM3Bz6NUgdUt+vBslhIo8UM6kDQac4kDiicpHfe+FwY2SQI5q3oadvnoQ3hMHE" +
+            "pCaHUgkqoVcRCG5aiKzCUCN03cUtJ4ikJxZTVlcWvDvarL626DiiVLH71pf0qG1y9H7mEPSQBNoTtQpFba" +
+            "NzfDFfXSNJqPFJBkFb/1iiNLxhSAW3u4Ns7qHHi+i1F9fmyj1vV0sDIZonP0wh+waxjLr1vOPcmxORe7n3" +
+            "pKOKIhVp9Rtb4+Owa3xCX/TpFPnrig6nKTNisNl8aNEKQRfQITh9kG/NhTzcvpwRZoARZvkh8S6h7Oz1zI" +
+            "atZeuYWk5nvC4TJ2aFFJXBCTkcO9UuQQ0qb3FXdx4xTPH6dBeApP0CQ43QejN8kd7l64jI1krMVgJfPEf7" +
+            "h3uq3o/K/ztZqP1QKFagz/G+t1XxwjeIFuqkRbXoTdlOTGnwCIoKZ6ku1AbrBoN6oCdX56w3UEOO0y2B9g" +
+            "aLbAYWcAdpeweKa2IfIT2jz5QzXxD6AoP+DrdXtxeluV7pdWrvkcKqPp7rjS19d+wp/fff/5Ez3FPjzFNy" +
+            "fdpTi9JB0sDp2JR7b309mn5HuPkEAAA==";
 
         TrainedModelDefinition definition = InferenceToXContentCompressor.inflate(compressedDef,
             parser -> TrainedModelDefinition.fromXContent(parser, true).build(),

@@ -34,7 +34,7 @@ public class WeightedMode implements OutputAggregator {
 
     public static final String NAME = "weighted_mode";
     public static final ParseField WEIGHTS = new ParseField("weights");
-    public static final ParseField MAX_CLASS_VALUE = new ParseField("max_class_value");
+    public static final ParseField NUM_CLASSES = new ParseField("num_classes");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<WeightedMode, Void> PARSER = new ConstructingObjectParser<>(
@@ -42,7 +42,7 @@ public class WeightedMode implements OutputAggregator {
         true,
         a -> new WeightedMode((Integer)a[0], (List<Double>)a[1]));
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CLASS_VALUE);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_CLASSES);
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }
 
@@ -51,11 +51,11 @@ public class WeightedMode implements OutputAggregator {
     }
 
     private final List<Double> weights;
-    private final int maxClassValue;
+    private final int numClasses;
 
-    public WeightedMode(int maxClassValue, List<Double> weights) {
+    public WeightedMode(int numClasses, List<Double> weights) {
         this.weights = weights;
-        this.maxClassValue = maxClassValue;
+        this.numClasses = numClasses;
     }
 
     @Override
@@ -69,7 +69,7 @@ public class WeightedMode implements OutputAggregator {
         if (weights != null) {
             builder.field(WEIGHTS.getPreferredName(), weights);
         }
-        builder.field(MAX_CLASS_VALUE.getPreferredName(), maxClassValue);
+        builder.field(NUM_CLASSES.getPreferredName(), numClasses);
         builder.endObject();
         return builder;
     }
@@ -79,11 +79,11 @@ public class WeightedMode implements OutputAggregator {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WeightedMode that = (WeightedMode) o;
-        return Objects.equals(weights, that.weights) && maxClassValue == that.maxClassValue;
+        return Objects.equals(weights, that.weights) && numClasses == that.numClasses;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(weights, maxClassValue);
+        return Objects.hash(weights, numClasses);
     }
 }

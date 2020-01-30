@@ -1403,7 +1403,7 @@ public class OptimizerTests extends ESTestCase {
 
         CombineBinaryComparisons rule = new CombineBinaryComparisons();
         Expression exp = rule.rule(and);
-        assertEquals(And.class, exp.getClass()); // can't optimize
+        assertEquals(and, exp); // can't optimize
     }
 
     // a != 2 AND a <= 2 -> a < 2

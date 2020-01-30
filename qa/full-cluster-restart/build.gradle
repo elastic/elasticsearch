@@ -54,7 +54,7 @@ for (Version version : bwcVersions.indexCompatible) {
     clusterName = 'full-cluster-restart'
 
     // some tests rely on the translog not being flushed
-    setting 'indices.memory.shard_inactive_time', '20m'
+    setting 'indices.memory.shard_inactive_time', '60m'
 
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'

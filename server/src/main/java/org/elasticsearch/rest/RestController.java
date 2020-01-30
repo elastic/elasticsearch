@@ -95,7 +95,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     public RestController(Settings settings, Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
                           NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
-                          @Nullable ClusterSettings clusterSettings) {
+                          ClusterSettings clusterSettings) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -107,10 +107,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         setTracerLogInclude(SETTING_REST_TRACE_LOG_INCLUDE.get(settings));
         setTracerLogExclude(SETTING_REST_TRACE_LOG_EXCLUDE.get(settings));
 
-        if (clusterSettings != null) {
-            clusterSettings.addSettingsUpdateConsumer(SETTING_REST_TRACE_LOG_INCLUDE, this::setTracerLogInclude);
-            clusterSettings.addSettingsUpdateConsumer(SETTING_REST_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
-        }
+        clusterSettings.addSettingsUpdateConsumer(SETTING_REST_TRACE_LOG_INCLUDE, this::setTracerLogInclude);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_REST_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
     }
 
     private void setTracerLogInclude(List<String> tracerLogInclude) {

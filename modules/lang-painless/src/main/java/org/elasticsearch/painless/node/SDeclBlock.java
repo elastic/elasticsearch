@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -51,20 +52,20 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, locals);
+            declaration.analyze(scriptRoot, scope);
         }
 
         statementCount = declarations.size();
     }
 
     @Override
-    DeclarationBlockNode write() {
+    DeclarationBlockNode write(ClassNode classNode) {
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
         for (SDeclaration declaration : declarations) {
-            declarationBlockNode.addDeclarationNode(declaration.write());
+            declarationBlockNode.addDeclarationNode(declaration.write(classNode));
         }
 
         declarationBlockNode.setLocation(location);

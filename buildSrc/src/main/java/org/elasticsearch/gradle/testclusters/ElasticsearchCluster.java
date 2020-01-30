@@ -442,10 +442,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ElasticsearchCluster that = (ElasticsearchCluster) o;
         return Objects.equals(clusterName, that.clusterName) && Objects.equals(path, that.path);
     }

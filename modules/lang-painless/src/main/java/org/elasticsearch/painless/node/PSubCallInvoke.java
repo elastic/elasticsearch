@@ -19,9 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CallSubNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -52,14 +53,14 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            arguments.set(argument, expression.cast(scriptRoot, scope));
         }
 
         statement = true;
@@ -67,11 +68,11 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    CallSubNode write() {
+    CallSubNode write(ClassNode classNode) {
         CallSubNode callSubNode = new CallSubNode();
 
         for (AExpression argument : arguments) {
-            callSubNode.addArgumentNode(argument.write());
+            callSubNode.addArgumentNode(argument.write(classNode));
         }
 
         callSubNode.setLocation(location);

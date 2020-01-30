@@ -481,8 +481,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         };
         assertThat(numSegments.get(), greaterThan(1));
-
-        createNewSingletonPolicy("warm", new ForceMergeAction(1, codec.getName()));
+        String codecName = codec != null ? codec.getName(): null;
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, codecName));
         updatePolicy(index, policy);
 
         assertBusy(() -> {

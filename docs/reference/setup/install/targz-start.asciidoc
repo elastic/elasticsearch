@@ -1,5 +1,17 @@
 ==== Running Elasticsearch from the command line
 
+[IMPORTANT]
+.Unidentified developer warnings
+====
+If using macOS Catalina or later macOS versions, you may receive an unidentified
+developer warning when you first run {es}. Unless turned off, this warning
+prevents you from running {es}.
+
+To turn off this warning, follow the instructions in
+https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac[Open
+a Mac app from an unidentified developer].
+====
+
 Elasticsearch can be started from the command line as follows:
 
 [source,sh]

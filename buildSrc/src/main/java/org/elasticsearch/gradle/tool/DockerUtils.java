@@ -208,14 +208,24 @@ public class DockerUtils {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
 
-        final ExecResult execResult = project.exec(spec -> {
-            // The redundant cast is to silence a compiler warning.
-            spec.setCommandLine((Object[]) args);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-        });
-
-        return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
+        try {
+            final ExecResult execResult = project.exec(spec -> {
+                // The redundant cast is to silence a compiler warning.
+                spec.setCommandLine((Object[]) args);
+                spec.setStandardOutput(stdout);
+                spec.setErrorOutput(stderr);
+            });
+            return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
+        } catch (GradleException ex) {
+            final String message = String.format(
+                Locale.ROOT,
+                "Error occurred running command [%s] stderr: [%s] stdout: [%s]",
+                String.join(" ", args),
+                stderr.toString().trim(),
+                stdout.toString().trim()
+            );
+            throw new GradleException(message, ex);
+        }
     }
 
     /**

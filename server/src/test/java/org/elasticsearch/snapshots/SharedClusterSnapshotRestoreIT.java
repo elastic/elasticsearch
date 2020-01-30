@@ -2616,13 +2616,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertEquals(repoName, e.getRepositoryName());
             assertEquals(snapshotName, e.getSnapshotName());
             assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
-
-            logger.info("-- try deleting another snapshot while the restore is in progress (should throw an error)");
-            e = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
-                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName2).get());
-            assertEquals(repoName, e.getRepositoryName());
-            assertEquals(snapshotName2, e.getSnapshotName());
-            assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
         } finally {
             // unblock even if the try block fails otherwise we will get bogus failures when we delete all indices in test teardown.
             logger.info("--> unblocking all data nodes");

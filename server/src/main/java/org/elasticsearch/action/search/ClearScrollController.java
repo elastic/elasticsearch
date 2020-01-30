@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
@@ -83,7 +83,7 @@ final class ClearScrollController implements Runnable {
     void cleanAllScrolls() {
         for (final DiscoveryNode node : nodes) {
             try {
-                Connection connection = searchTransportService.getConnection(null, node);
+                Transport.Connection connection = searchTransportService.getConnection(null, node);
                 searchTransportService.sendClearAllScrollContexts(connection, new ActionListener<TransportResponse>() {
                     @Override
                     public void onResponse(TransportResponse response) {
@@ -110,7 +110,7 @@ final class ClearScrollController implements Runnable {
                         onFreedContext(false);
                     } else {
                         try {
-                            Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
+                            Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
                             searchTransportService.sendFreeContext(connection, target.getScrollId(),
                                 ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)));
                         } catch (Exception e) {

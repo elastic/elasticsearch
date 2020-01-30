@@ -35,7 +35,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -78,7 +78,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     System::nanoTime);
         }
 
-        BiFunction<String, String, Connection> nodeIdToConnection = (cluster, node) -> {
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection = (cluster, node) -> {
             resolvedNodes.add(Tuple.tuple(cluster, node));
             return null;
         };
@@ -110,7 +110,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendReleaseSearchContext(long contextId, Connection connection, OriginalIndices originalIndices) {
+            public void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
                 releasedContexts.add(contextId);
             }
         };

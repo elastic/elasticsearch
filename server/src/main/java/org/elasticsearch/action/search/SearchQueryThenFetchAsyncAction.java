@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +39,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
     private final SearchProgressListener progressListener;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                    final BiFunction<String, String, Connection> nodeIdToConnection,
+                                    final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                     final Map<String, AliasFilter> aliasFilter,
                                     final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
                                     final SearchPhaseController searchPhaseController, final Executor executor,

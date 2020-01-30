@@ -37,7 +37,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -63,7 +63,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteQuery(Connection connection, QuerySearchRequest request, SearchTask task,
+            public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
@@ -123,7 +123,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteQuery(Connection connection, QuerySearchRequest request, SearchTask task,
+            public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
@@ -180,7 +180,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteQuery(Connection connection, QuerySearchRequest request, SearchTask task,
+            public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),

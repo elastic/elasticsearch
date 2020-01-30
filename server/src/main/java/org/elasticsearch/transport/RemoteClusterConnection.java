@@ -127,7 +127,7 @@ final class RemoteClusterConnection implements Closeable {
                 request.clear();
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
-                Connection connection = remoteConnectionManager.getAnyRemoteConnection();
+                Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
                 transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<ClusterStateResponse>() {
 
@@ -170,11 +170,11 @@ final class RemoteClusterConnection implements Closeable {
      * Returns a connection to the remote cluster, preferably a direct connection to the provided {@link DiscoveryNode}.
      * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
-    Connection getConnection(DiscoveryNode remoteClusterNode) {
+    Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
         return remoteConnectionManager.getConnection(remoteClusterNode);
     }
 
-    Connection getConnection() {
+    Transport.Connection getConnection() {
         return remoteConnectionManager.getAnyRemoteConnection();
     }
 

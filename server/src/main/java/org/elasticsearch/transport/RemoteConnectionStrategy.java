@@ -285,7 +285,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract ConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
+    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(ActionListener.wrap(

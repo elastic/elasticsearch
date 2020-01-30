@@ -22,9 +22,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,12 +68,12 @@ public class StubbableConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
         delegate.openConnection(node, connectionProfile, listener);
     }
 
     @Override
-    public Connection getConnection(DiscoveryNode node) {
+    public Transport.Connection getConnection(DiscoveryNode node) {
         TransportAddress address = node.getAddress();
         GetConnectionBehavior behavior = getConnectionBehaviors.getOrDefault(address, defaultGetConnectionBehavior);
         return behavior.getConnection(delegate, node);
@@ -128,7 +128,7 @@ public class StubbableConnectionManager implements ConnectionManager {
 
     @FunctionalInterface
     public interface GetConnectionBehavior {
-        Connection getConnection(ConnectionManager connectionManager, DiscoveryNode discoveryNode);
+        Transport.Connection getConnection(ConnectionManager connectionManager, DiscoveryNode discoveryNode);
     }
 
     @FunctionalInterface

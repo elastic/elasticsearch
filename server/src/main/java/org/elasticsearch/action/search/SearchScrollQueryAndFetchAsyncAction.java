@@ -27,7 +27,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.util.function.BiFunction;
 
@@ -45,7 +45,7 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
     }
 
     @Override
-    protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
+    protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
                                        SearchActionListener<ScrollQueryFetchSearchResult> searchActionListener) {
         searchTransportService.sendExecuteScrollFetch(connection, internalRequest, task, searchActionListener);
     }

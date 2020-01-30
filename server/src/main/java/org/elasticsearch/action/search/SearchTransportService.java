@@ -45,8 +45,8 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -78,16 +78,16 @@ public class SearchTransportService {
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
-    private final BiFunction<Connection, SearchActionListener, ActionListener> responseWrapper;
+    private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(TransportService transportService,
-                                  BiFunction<Connection, SearchActionListener, ActionListener> responseWrapper) {
+                                  BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
         this.transportService = transportService;
         this.responseWrapper = responseWrapper;
     }
 
-    public void sendFreeContext(Connection connection, final long contextId, OriginalIndices originalIndices) {
+    public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
                 @Override
@@ -102,29 +102,29 @@ public class SearchTransportService {
             }, SearchFreeContextResponse::new));
     }
 
-    public void sendFreeContext(Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
+    public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
         transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
     }
 
-    public void sendCanMatch(Connection connection, final ShardSearchRequest request, SearchTask task, final
+    public void sendCanMatch(Transport.Connection connection, final ShardSearchRequest request, SearchTask task, final
                             ActionListener<SearchService.CanMatchResponse> listener) {
         transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new));
     }
 
-    public void sendClearAllScrollContexts(Connection connection, final ActionListener<TransportResponse> listener) {
+    public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
         transportService.sendRequest(connection, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE));
     }
 
-    public void sendExecuteDfs(Connection connection, final ShardSearchRequest request, SearchTask task,
+    public void sendExecuteDfs(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
                                final SearchActionListener<DfsSearchResult> listener) {
         transportService.sendChildRequest(connection, DFS_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, DfsSearchResult::new, clientConnections, connection.getNode().getId()));
     }
 
-    public void sendExecuteQuery(Connection connection, final ShardSearchRequest request, SearchTask task,
+    public void sendExecuteQuery(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
                                  final SearchActionListener<SearchPhaseResult> listener) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
@@ -136,36 +136,36 @@ public class SearchTransportService {
                 new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId()));
     }
 
-    public void sendExecuteQuery(Connection connection, final QuerySearchRequest request, SearchTask task,
+    public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
                                  final SearchActionListener<QuerySearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_ID_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId()));
     }
 
-    public void sendExecuteScrollQuery(Connection connection, final InternalScrollSearchRequest request, SearchTask task,
+    public void sendExecuteScrollQuery(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQuerySearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_SCROLL_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, clientConnections, connection.getNode().getId()));
     }
 
-    public void sendExecuteScrollFetch(Connection connection, final InternalScrollSearchRequest request, SearchTask task,
+    public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections,
                     connection.getNode().getId()));
     }
 
-    public void sendExecuteFetch(Connection connection, final ShardFetchSearchRequest request, SearchTask task,
+    public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
                                  final SearchActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
 
-    public void sendExecuteFetchScroll(Connection connection, final ShardFetchRequest request, SearchTask task,
+    public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
                                        final SearchActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
-    private void sendExecuteFetch(Connection connection, String action, final ShardFetchRequest request, SearchTask task,
+    private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
                                   final SearchActionListener<FetchSearchResult> listener) {
         transportService.sendChildRequest(connection, action, request, task,
                 new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId()));
@@ -176,7 +176,7 @@ public class SearchTransportService {
      */
     void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task,
                                 final ActionListener<MultiSearchResponse> listener) {
-        final Connection connection = transportService.getConnection(transportService.getLocalNode());
+        final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
         transportService.sendChildRequest(connection, MultiSearchAction.NAME, request, task,
                 new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId()));
     }
@@ -371,7 +371,7 @@ public class SearchTransportService {
      * @param node the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
-    Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
+    Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
         if (clusterAlias == null) {
             return transportService.getConnection(node);
         } else {

@@ -31,13 +31,13 @@ public interface ConnectionManager extends Closeable {
 
     void removeListener(TransportConnectionListener listener);
 
-    void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener);
+    void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener);
 
     void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                        ConnectionValidator connectionValidator,
                        ActionListener<Void> listener) throws ConnectTransportException;
 
-    Connection getConnection(DiscoveryNode node);
+    Transport.Connection getConnection(DiscoveryNode node);
 
     boolean nodeConnected(DiscoveryNode node);
 
@@ -54,12 +54,12 @@ public interface ConnectionManager extends Closeable {
 
     @FunctionalInterface
     interface ConnectionValidator {
-        void validate(Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
+        void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
     }
 
     @FunctionalInterface
     interface ConnectionIdentifier {
-        void validate(Connection connection, ConnectionProfile profile, ActionListener<DiscoveryNode> listener);
+        void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<DiscoveryNode> listener);
     }
 
     final class DelegatingNodeConnectionListener implements TransportConnectionListener {
@@ -67,28 +67,28 @@ public interface ConnectionManager extends Closeable {
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key, Connection connection) {
+        public void onNodeDisconnected(DiscoveryNode key, Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onNodeDisconnected(key, connection);
             }
         }
 
         @Override
-        public void onNodeConnected(DiscoveryNode node, Connection connection) {
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node, connection);
             }
         }
 
         @Override
-        public void onConnectionOpened(Connection connection) {
+        public void onConnectionOpened(Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionOpened(connection);
             }
         }
 
         @Override
-        public void onConnectionClosed(Connection connection) {
+        public void onConnectionClosed(Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionClosed(connection);
             }

@@ -24,7 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
 
@@ -87,7 +87,7 @@ interface SearchPhaseContext extends Executor {
      * Returns a connection to the node if connected otherwise and {@link org.elasticsearch.transport.ConnectTransportException} will be
      * thrown.
      */
-    Connection getConnection(String clusterAlias, String nodeId);
+    Transport.Connection getConnection(String clusterAlias, String nodeId);
 
     /**
      * Returns the {@link SearchTransportService} to send shard request to other nodes
@@ -100,7 +100,7 @@ interface SearchPhaseContext extends Executor {
      * @see org.elasticsearch.search.fetch.FetchSearchResult#getRequestId()
      *
      */
-    default void sendReleaseSearchContext(long contextId, Connection connection, OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }

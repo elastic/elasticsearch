@@ -26,7 +26,7 @@ import org.elasticsearch.common.concurrent.CompletableContext;
 /**
  * Abstract Transport.Connection that provides common close logic.
  */
-public abstract class CloseableConnection implements Connection {
+public abstract class CloseableConnection implements Transport.Connection {
 
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 

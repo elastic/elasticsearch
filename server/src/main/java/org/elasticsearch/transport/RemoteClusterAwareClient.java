@@ -46,7 +46,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
     protected <Request extends ActionRequest, Response extends ActionResponse>
     void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(res -> {
-            Connection connection;
+            Transport.Connection connection;
             if (request instanceof RemoteClusterAwareRequest) {
                 DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
                 connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);

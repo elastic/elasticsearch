@@ -61,12 +61,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.RemoteClusterConnectionTests;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteClusterServiceTests;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -295,7 +295,7 @@ public class TransportSearchActionTests extends ESTestCase {
             new TransportAddress(TransportAddress.META_ADDRESS, 1024), Version.CURRENT);
         BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> new DiscoveryNode("remote-" + nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, 2048), Version.CURRENT);
-        BiFunction<String, DiscoveryNode, Connection> nodeToConnection = (clusterAlias, node) -> new Connection() {
+        BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection = (clusterAlias, node) -> new Transport.Connection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;
@@ -326,21 +326,21 @@ public class TransportSearchActionTests extends ESTestCase {
         };
 
         {
-            BiFunction<String, String, Connection> connectionLookup = TransportSearchAction.buildConnectionLookup(
+            BiFunction<String, String, Transport.Connection> connectionLookup = TransportSearchAction.buildConnectionLookup(
                 null, localNodes, remoteNodes, nodeToConnection);
 
-            Connection localConnection = connectionLookup.apply(null, randomAlphaOfLengthBetween(5, 10));
+            Transport.Connection localConnection = connectionLookup.apply(null, randomAlphaOfLengthBetween(5, 10));
             assertThat(localConnection.getNode().getId(), startsWith("local-"));
-            Connection remoteConnection = connectionLookup.apply(randomAlphaOfLengthBetween(5, 10),
+            Transport.Connection remoteConnection = connectionLookup.apply(randomAlphaOfLengthBetween(5, 10),
                 randomAlphaOfLengthBetween(5, 10));
             assertThat(remoteConnection.getNode().getId(), startsWith("remote-"));
         }
         {
             String requestClusterAlias = randomAlphaOfLengthBetween(5, 10);
-            BiFunction<String, String, Connection> connectionLookup = TransportSearchAction.buildConnectionLookup(
+            BiFunction<String, String, Transport.Connection> connectionLookup = TransportSearchAction.buildConnectionLookup(
                 requestClusterAlias, localNodes, remoteNodes, nodeToConnection);
 
-            Connection localConnection = connectionLookup.apply(requestClusterAlias, randomAlphaOfLengthBetween(5, 10));
+            Transport.Connection localConnection = connectionLookup.apply(requestClusterAlias, randomAlphaOfLengthBetween(5, 10));
             assertThat(localConnection.getNode().getId(), startsWith("local-"));
         }
     }
@@ -493,7 +493,7 @@ public class TransportSearchActionTests extends ESTestCase {
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
             RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                 @Override
-                public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
+                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                     if (disconnectedNodes.remove(node)) {
                         disconnectedLatch.countDown();
                     }
@@ -663,7 +663,7 @@ public class TransportSearchActionTests extends ESTestCase {
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
             RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                 @Override
-                public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
+                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                     if (disconnectedNodes.remove(node)) {
                         disconnectedLatch.countDown();
                     }

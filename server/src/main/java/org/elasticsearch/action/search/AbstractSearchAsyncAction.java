@@ -41,7 +41,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -73,7 +73,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
-    private final BiFunction<String, String, Connection> nodeIdToConnection;
+    private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     private final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
@@ -96,7 +96,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean throttleConcurrentRequests;
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
-                                        BiFunction<String, String, Connection> nodeIdToConnection,
+                                        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,
@@ -555,7 +555,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         results.getSuccessfulResults().forEach((entry) -> {
             try {
                 SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                 sendReleaseSearchContext(entry.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception inner) {
                 inner.addSuppressed(exception);
@@ -575,7 +575,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final Connection getConnection(String clusterAlias, String nodeId) {
+    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
         return nodeIdToConnection.apply(clusterAlias, nodeId);
     }
 

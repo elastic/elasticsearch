@@ -238,7 +238,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             final DiscoveryNode seedNode = seedNodes.next().get();
             logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
                 proxyAddress);
-            final StepListener<Connection> openConnectionStep = new StepListener<>();
+            final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
             try {
                 connectionManager.openConnection(seedNode, null, openConnectionStep);
             } catch (Exception e) {
@@ -263,7 +263,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     fullConnectionStep.onResponse(null);
                 }
             }, e -> {
-                final Connection connection = openConnectionStep.result();
+                final Transport.Connection connection = openConnectionStep.result();
                 logger.warn(new ParameterizedMessage("failed to connect to seed node [{}]", connection.getNode()), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
@@ -275,7 +275,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     assert handshakeResponse.getClusterName().value() != null;
                     remoteClusterName.set(handshakeResponse.getClusterName());
                 }
-                final Connection connection = openConnectionStep.result();
+                final Transport.Connection connection = openConnectionStep.result();
 
                 ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
@@ -315,11 +315,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
     private class SniffClusterStateResponseHandler implements TransportResponseHandler<ClusterStateResponse> {
 
-        private final Connection connection;
+        private final Transport.Connection connection;
         private final ActionListener<Void> listener;
         private final Iterator<Supplier<DiscoveryNode>> seedNodes;
 
-        SniffClusterStateResponseHandler(Connection connection, ActionListener<Void> listener,
+        SniffClusterStateResponseHandler(Transport.Connection connection, ActionListener<Void> listener,
                                          Iterator<Supplier<DiscoveryNode>> seedNodes) {
             this.connection = connection;
             this.listener = listener;

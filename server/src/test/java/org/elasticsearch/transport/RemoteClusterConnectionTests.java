@@ -495,7 +495,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 barrier.await();
                                 for (int j = 0; j < numGetCalls; j++) {
                                     try {
-                                        Connection lowLevelConnection = connection.getConnection();
+                                        Transport.Connection lowLevelConnection = connection.getConnection();
                                         assertNotNull(lowLevelConnection);
                                     } catch (NoSuchRemoteClusterException e) {
                                         // ignore, this is an expected exception
@@ -560,18 +560,18 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
-                        Connection remoteConnection = connection.getConnection(seedNode);
+                        Transport.Connection remoteConnection = connection.getConnection(seedNode);
                         assertEquals(seedNode, remoteConnection.getNode());
                     }
                     for (int i = 0; i < 10; i++) {
                         // we don't use the transport service connection manager so we will get a proxy connection for the local node
-                        Connection remoteConnection = connection.getConnection(service.getLocalNode());
+                        Transport.Connection remoteConnection = connection.getConnection(service.getLocalNode());
                         assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), equalTo(service.getLocalNode()));
                     }
                     for (int i = 0; i < 10; i++) {
                         // always a proxy connection as the target node is not connected
-                        Connection remoteConnection = connection.getConnection(disconnectedNode);
+                        Transport.Connection remoteConnection = connection.getConnection(disconnectedNode);
                         assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), sameInstance(disconnectedNode));
                     }

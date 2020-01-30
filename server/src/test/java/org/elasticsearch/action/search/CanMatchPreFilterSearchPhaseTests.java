@@ -36,7 +36,7 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(),
             System::nanoTime);
 
-        Map<String, Connection> lookup = new ConcurrentHashMap<>();
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
@@ -70,7 +70,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendCanMatch(Connection connection, ShardSearchRequest request, SearchTask task,
+            public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
                 new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(request.shardId().id() == 0 ? shard1 :
                     shard2, null))).start();
@@ -119,7 +119,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testFilterWithFailure() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(),
             System::nanoTime);
-        Map<String, Connection> lookup = new ConcurrentHashMap<>();
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
@@ -127,7 +127,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendCanMatch(Connection connection, ShardSearchRequest request, SearchTask task,
+            public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
                 boolean throwException = request.shardId().id() != 0;
                 if (throwException && randomBoolean()) {
@@ -183,7 +183,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 
-        final Map<String, Connection> lookup = new ConcurrentHashMap<>();
+        final Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         final DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
@@ -194,7 +194,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             new SearchTransportService(null, null) {
                 @Override
                 public void sendCanMatch(
-                    Connection connection,
+                    Transport.Connection connection,
                     ShardSearchRequest request,
                     SearchTask task,
                     ActionListener<SearchService.CanMatchResponse> listener) {
@@ -281,7 +281,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(),
             System::nanoTime);
 
-        Map<String, Connection> lookup = new ConcurrentHashMap<>();
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
@@ -294,7 +294,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             SearchTransportService searchTransportService = new SearchTransportService(null, null) {
                 @Override
-                public void sendCanMatch(Connection connection, ShardSearchRequest request, SearchTask task,
+                public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                          ActionListener<SearchService.CanMatchResponse> listener) {
                     Long min = rarely() ? null : randomLong();
                     Long max = min == null ? null  : randomLongBetween(min, Long.MAX_VALUE);

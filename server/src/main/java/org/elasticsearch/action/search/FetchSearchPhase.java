@@ -31,7 +31,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.List;
@@ -141,7 +141,7 @@ final class FetchSearchPhase extends SearchPhase {
                         counter.countDown();
                     } else {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                        Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
+                        Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
                             searchShardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getRequestId(), i, entry,
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices());
@@ -162,7 +162,7 @@ final class FetchSearchPhase extends SearchPhase {
     private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget,
                               final CountedCollector<FetchSearchResult> counter,
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
-                              final Connection connection) {
+                              final Transport.Connection connection) {
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
@@ -200,7 +200,7 @@ final class FetchSearchPhase extends SearchPhase {
         if (context.getRequest().scroll() == null && queryResult.hasSearchContext()) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                 context.sendReleaseSearchContext(queryResult.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);

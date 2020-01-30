@@ -39,7 +39,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
-import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;

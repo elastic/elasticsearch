@@ -89,6 +89,17 @@ public interface Transport extends LifecycleComponent {
 
     ResponseHandlers getResponseHandlers();
 
+    /**
+     * A unidirectional connection to a {@link DiscoveryNode}
+     */
+    interface Connection extends ChannelGroup {
+        /**
+         * The node this connection is associated with
+         */
+        DiscoveryNode getNode();
+
+    }
+
     interface ChannelGroup extends Closeable {
 
         /**

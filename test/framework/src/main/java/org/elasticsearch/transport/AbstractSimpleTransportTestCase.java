@@ -163,12 +163,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 latch.countDown();
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                 fail("disconnect should not be called " + node);
             }
         };
@@ -685,12 +685,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportConnectionListener disconnectListener = new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 fail("node connected should not be called, all connection have been done previously, node: " + node);
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                 latch.countDown();
             }
         };
@@ -1601,7 +1601,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.close();
             serviceA = buildService("TS_A", version0, null,
                 Settings.EMPTY, true, false);
-            try (Connection connection = openConnection(serviceA, node, null)) {
+            try (Transport.Connection connection = openConnection(serviceA, node, null)) {
                 CountDownLatch latch = new CountDownLatch(1);
                 serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<TestResponse>() {
@@ -1727,12 +1727,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(4);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 latch.countDown();
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                 fail("disconnect should not be called " + node);
             }
         };
@@ -1983,7 +1983,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.RECOVERY,
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE);
-            try (Connection connection = openConnection(serviceA, node, builder.build())) {
+            try (Transport.Connection connection = openConnection(serviceA, node, builder.build())) {
                 assertEquals(connection.getVersion(), version);
             }
         }
@@ -1998,11 +1998,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .setPingInterval(TimeValue.timeValueMillis(50))
             .build();
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
-            PlainActionFuture<Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
                 version0);
             originalTransport.openConnection(node, connectionProfile, future);
-            try (Connection connection = future.actionGet()) {
+            try (Transport.Connection connection = future.actionGet()) {
                 assertBusy(() -> {
                     assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30);
                 });
@@ -2036,9 +2036,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
                 version0);
-            PlainActionFuture<Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
-            try (Connection connection = future.actionGet()) {
+            try (Transport.Connection connection = future.actionGet()) {
                 assertEquals(connection.getVersion(), Version.CURRENT);
             }
         }
@@ -2213,7 +2213,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
-        try (Connection connection = openConnection(serviceB, serviceC.getLocalNode(), builder.build())) {
+        try (Transport.Connection connection = openConnection(serviceB, serviceC.getLocalNode(), builder.build())) {
             serviceC.close();
             serviceB.sendRequest(connection, "internal:action", new TestRequest("boom"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2279,7 +2279,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
 
-        try (Connection connection = openConnection(serviceB, serviceC.getLocalNode(), builder.build())) {
+        try (Transport.Connection connection = openConnection(serviceB, serviceC.getLocalNode(), builder.build())) {
             serviceB.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
@@ -2352,7 +2352,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
-        try (Connection connection = openConnection(serviceC, serviceB.getLocalNode(), builder.build())) {
+        try (Transport.Connection connection = openConnection(serviceC, serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
                 assertEquals(1, transportStats.getRxCount());
@@ -2467,7 +2467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
-        try (Connection connection = openConnection(serviceC, serviceB.getLocalNode(), builder.build())) {
+        try (Transport.Connection connection = openConnection(serviceC, serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
@@ -2712,7 +2712,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             AtomicBoolean connectionClosedListenerCalled = new AtomicBoolean(false);
             service.addConnectionListener(new TransportConnectionListener() {
                 @Override
-                public void onConnectionOpened(final Connection connection) {
+                public void onConnectionOpened(final Transport.Connection connection) {
                     closeConnectionChannel(connection);
                     try {
                         assertBusy(() -> assertTrue(connection.isClosed()));
@@ -2722,7 +2722,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public void onConnectionClosed(Connection connection) {
+                public void onConnectionClosed(Transport.Connection connection) {
                     connectionClosedListenerCalled.set(true);
                 }
             });
@@ -2740,7 +2740,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    private void closeConnectionChannel(Connection connection) {
+    private void closeConnectionChannel(Transport.Connection connection) {
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
         CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
@@ -2785,7 +2785,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param node the node to connect to
      * @param connectionProfile the connection profile to use
      */
-    public static Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
+    public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
         return PlainActionFuture.get(fut -> service.openConnection(node, connectionProfile, fut));
     }
 

@@ -47,14 +47,14 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(ClusterConnectionManager.class);
 
-    private final ConcurrentMap<DiscoveryNode, Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
-            Iterator<Map.Entry<DiscoveryNode, Connection>> iterator = connectedNodes.entrySet().iterator();
+            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<DiscoveryNode, Connection> next = iterator.next();
+                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
                 try {
                     IOUtils.closeWhileHandlingException(next.getValue());
                 } finally {
@@ -90,7 +90,7 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         internalOpenConnection(node, resolvedProfile, listener);
     }
@@ -149,7 +149,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                final Connection finalConnection = conn;
+                                final Transport.Connection finalConnection = conn;
                                 conn.addCloseListener(ActionListener.wrap(() -> {
                                     logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     connectedNodes.remove(node, finalConnection);
@@ -183,8 +183,8 @@ public class ClusterConnectionManager implements ConnectionManager {
      * @see #connectToNode(DiscoveryNode, ConnectionProfile, ConnectionValidator, ActionListener)
      */
     @Override
-    public Connection getConnection(DiscoveryNode node) {
-        Connection connection = connectedNodes.get(node);
+    public Transport.Connection getConnection(DiscoveryNode node) {
+        Transport.Connection connection = connectedNodes.get(node);
         if (connection == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
         }
@@ -204,7 +204,7 @@ public class ClusterConnectionManager implements ConnectionManager {
      */
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
-        Connection nodeChannels = connectedNodes.remove(node);
+        Transport.Connection nodeChannels = connectedNodes.remove(node);
         if (nodeChannels != null) {
             // if we found it and removed it we close
             nodeChannels.close();
@@ -249,7 +249,7 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     private void internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                        ActionListener<Connection> listener) {
+                                        ActionListener<Transport.Connection> listener) {
         transport.openConnection(node, connectionProfile, ActionListener.map(listener, connection -> {
             assert Transports.assertNotTransportThread("internalOpenConnection success");
             try {

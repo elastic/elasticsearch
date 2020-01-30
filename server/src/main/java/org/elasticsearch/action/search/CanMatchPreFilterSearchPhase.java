@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -61,7 +61,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
 
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
-                                        BiFunction<String, String, Connection> nodeIdToConnection,
+                                        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -58,7 +59,7 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (actual == null) {
@@ -88,19 +89,19 @@ public final class ENewObj extends AExpression {
 
             expression.expected = types[argument];
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            arguments.set(argument, expression.cast(scriptRoot, scope));
         }
 
         statement = true;
     }
 
     @Override
-    NewObjectNode write() {
+    NewObjectNode write(ClassNode classNode) {
         NewObjectNode newObjectNode = new NewObjectNode();
 
         for (AExpression argument : arguments) {
-            newObjectNode.addArgumentNode(argument.write());
+            newObjectNode.addArgumentNode(argument.write(classNode));
         }
 
         newObjectNode.setLocation(location);

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -220,7 +221,10 @@ public final class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
+            Set<Failure> localFailures = new LinkedHashSet<>();
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+
+            checkFullTextSearchInSelect(plan, localFailures);
 
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
@@ -246,8 +250,6 @@ public final class Verifier {
                 if (!p.childrenResolved()) {
                     return;
                 }
-
-                Set<Failure> localFailures = new LinkedHashSet<>();
 
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
@@ -300,6 +302,17 @@ public final class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
+        plan.forEachUp(p -> {
+            for (NamedExpression ne : p.projections()) {
+                ne.forEachUp((e) ->
+                        localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
+                                "functions in the SELECT clause")),
+                        FullTextPredicate.class);
+            }
+        }, Project.class);
     }
 
     /**

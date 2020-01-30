@@ -3,8 +3,6 @@
 [[ecommerce-transforms]]
 === Tutorial: Transforming the eCommerce sample data
 
-beta[]
-
 <<transforms,{transforms-cap}>> enable you to retrieve information
 from an {es} index, transform it, and store it in another index. Let's use the
 {kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
@@ -81,8 +79,11 @@ If you want to use more complex queries, you can create your {dataframe} from a
 {kibana-ref}/save-open-search.html[saved search].
 
 If you prefer, you can use the
-<<preview-transform,preview {transforms} API>>:
+<<preview-transform,preview {transforms} API>>.
 
+.API example
+[%collapsible]
+====
 [source,console]
 --------------------------------------------------
 POST _transform/_preview
@@ -131,6 +132,7 @@ POST _transform/_preview
 }
 --------------------------------------------------
 // TEST[skip:set up sample data]
+====
 --
 
 . When you are satisfied with what you see in the preview, create the
@@ -153,9 +155,11 @@ entities have changed. In general, it's a good idea to use the ingest timestamp
 field. In this example, however, you can use the `order_date` field.
 
 If you prefer, you can use the
-<<put-transform,create {transforms} API>>. For
-example:
+<<put-transform,create {transforms} API>>.
 
+.API example
+[%collapsible]
+====
 [source,console]
 --------------------------------------------------
 PUT _transform/ecommerce-customer-transform
@@ -211,6 +215,7 @@ PUT _transform/ecommerce-customer-transform
 }
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
+====
 --
 
 . Start the {transform}.
@@ -229,14 +234,17 @@ image::images/manage-transforms.jpg["Managing {transforms} in {kib}"]
 
 Alternatively, you can use the
 <<start-transform,start {transforms}>> and
-<<stop-transform,stop {transforms}>> APIs. For
-example:
+<<stop-transform,stop {transforms}>> APIs.
 
+.API example
+[%collapsible]
+====
 [source,console]
 --------------------------------------------------
 POST _transform/ecommerce-customer-transform/_start
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
+====
 
 TIP: If you chose a batch {transform}, it is a single operation that has a
 single checkpoint. You cannot restart it when it's complete. {ctransforms-cap}

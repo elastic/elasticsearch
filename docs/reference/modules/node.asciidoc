@@ -164,9 +164,9 @@ node.voting_only: true <1>
 -------------------
 <1> The default for `node.voting_only` is `false`.
 
-IMPORTANT: The `voting_only` role requires the {default-dist} of Elasticsearch
-and is not supported in the {oss-dist}. If you use the {oss-dist} and set
-`node.voting_only` then the node will fail to start.  Also note that only
+IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not 
+supported in the {oss-dist}. If you use the {oss-dist} and set 
+`node.voting_only` then the node will fail to start.  Also note that only 
 master-eligible nodes can be marked as voting-only.
 
 High availability (HA) clusters require at least three master-eligible nodes, at
@@ -213,8 +213,8 @@ nodes handle data related operations like CRUD, search, and aggregations.
 These operations are I/O-, memory-, and CPU-intensive. It is important to
 monitor these resources and to add more data nodes if they are overloaded.
 
-The main benefit of having dedicated data nodes is the separation of the
-master and data roles.
+The main benefit of having dedicated data nodes is the separation of the master 
+and data roles.
 
 To create a dedicated data node in the {default-dist}, set:
 [source,yaml]
@@ -250,7 +250,7 @@ cluster.remote.connect: false <4>
 [[node-ingest-node]]
 === Ingest Node
 
-Ingest nodes can execute pre-processing pipelines, composed of one or more
+Ingest nodes can execute pre-processing pipelines, composed of one or more 
 ingest processors. Depending on the type of operations performed by the ingest
 processors and the required resources, it may make sense to have dedicated
 ingest nodes, that will only perform this specific task.
@@ -344,7 +344,7 @@ cluster.remote.connect: false <4>
 [[ml-node]]
 === [xpack]#Machine learning node#
 
-The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
+The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API 
 requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
 the node can service API requests but it cannot run jobs.
 
@@ -442,9 +442,9 @@ Like all node settings, it can also be specified on the command line as:
 -----------------------
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
-should be configured to locate the data directory outside the Elasticsearch
-home directory, so that the home directory can be deleted without deleting
-your data! The RPM and Debian distributions do this for you already.
+should be configured to locate the data directory outside the {es} home 
+directory, so that the home directory can be deleted without deleting your data! 
+The RPM and Debian distributions do this for you already.
 
 
 [float]

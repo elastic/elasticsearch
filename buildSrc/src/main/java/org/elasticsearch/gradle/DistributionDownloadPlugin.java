@@ -45,10 +45,11 @@ import org.gradle.authentication.http.HttpHeaderAuthentication;
 import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.gradle.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
@@ -326,10 +327,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             distribution.getFlavor(),
             distribution.getBundledJdk() ? "" : "_nojdk"
         );
-    }
-
-    private static String capitalize(String s) {
-        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
     }
 
     private static String extractTaskName(ElasticsearchDistribution distribution) {

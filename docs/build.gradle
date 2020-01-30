@@ -44,6 +44,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
     if (BuildParams.isSnapshotBuild()) {
       setting 'xpack.autoscaling.enabled', 'true'
       setting 'xpack.eql.enabled', 'true'
@@ -67,7 +68,6 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'

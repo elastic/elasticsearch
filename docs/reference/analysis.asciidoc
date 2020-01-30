@@ -1,6 +1,8 @@
 [[analysis]]
 = Text analysis
 
+:lucene-analysis-docs:  https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis
+
 [partintro]
 --
 

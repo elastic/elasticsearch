@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -42,19 +43,19 @@ public class ConditionalNode extends BinaryNode {
     /* ---- end tree structure ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         Label fals = new Label();
         Label end = new Label();
 
-        conditionNode.write(classWriter, methodWriter, globals);
+        conditionNode.write(classWriter, methodWriter, globals, scopeTable);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-        getLeftNode().write(classWriter, methodWriter, globals);
+        getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
         methodWriter.goTo(end);
         methodWriter.mark(fals);
-        getRightNode().write(classWriter, methodWriter, globals);
+        getRightNode().write(classWriter, methodWriter, globals, scopeTable);
         methodWriter.mark(end);
     }
 }

@@ -30,12 +30,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder.PercentilesConfig;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -43,6 +45,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -96,6 +99,13 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
                 b.numberOfSignificantValueDigits(v.numberOfSigDigits);
             }
         }, HDR_OPTIONS_PARSER::parse, PercentilesMethod.HDR.getParseField(), ObjectParser.ValueType.OBJECT);
+    }
+
+    private static AtomicBoolean wasRegistered = new AtomicBoolean(false);
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        if (wasRegistered.compareAndSet(false, true) == true) {
+            PercentileRanksAggregatorFactory.registerAggregators(valuesSourceRegistry);
+        }
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -246,16 +256,17 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                        AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        switch (method) {
-        case TDIGEST:
-            return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, queryShardContext, parent,
-                    subFactoriesBuilder, metaData);
-        case HDR:
-            return new HDRPercentileRanksAggregatorFactory(name, config, values, numberOfSignificantValueDigits, keyed, queryShardContext,
-                    parent, subFactoriesBuilder, metaData);
-        default:
+        PercentilesConfig percentilesConfig;
+        if (method.equals(PercentilesMethod.TDIGEST)) {
+            percentilesConfig = new PercentilesConfig.TDigestConfig(compression);
+        } else if (method.equals(PercentilesMethod.HDR)) {
+            percentilesConfig = new PercentilesConfig.HdrHistoConfig(numberOfSignificantValueDigits);
+        } else {
             throw new IllegalStateException("Illegal method [" + method + "]");
         }
+
+        return new PercentileRanksAggregatorFactory(name, config, values, percentilesConfig, keyed, queryShardContext, parent,
+            subFactoriesBuilder, metaData);
     }
 
     @Override

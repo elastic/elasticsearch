@@ -354,7 +354,8 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(PercentileRanksAggregationBuilder.NAME, PercentileRanksAggregationBuilder::new,
                 PercentileRanksAggregationBuilder::parse)
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
-                        .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
+                        .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new)
+                .setAggregatorRegistrar(PercentileRanksAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
                 MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
                         .addResultReader(InternalMedianAbsoluteDeviation::new));

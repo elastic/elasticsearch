@@ -108,6 +108,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
+    private static ValuesSourceRegistry valuesSourceRegistry;
 
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
@@ -130,7 +131,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     @BeforeClass
     public static void initValuesSourceRegistry() {
-        new SearchModule(Settings.EMPTY, List.of());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
@@ -288,7 +290,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null,
-            ValuesSourceRegistry.getInstance());
+            valuesSourceRegistry);
     }
 
     /**

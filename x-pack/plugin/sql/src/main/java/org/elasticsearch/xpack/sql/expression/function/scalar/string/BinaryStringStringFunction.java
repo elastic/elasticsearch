@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
  * A binary string function with two string parameters and a numeric result
@@ -28,6 +29,6 @@ public abstract class BinaryStringStringFunction extends BinaryStringFunction<St
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 }

@@ -102,6 +102,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       }
 
       javaHome = BuildParams.runtimeJavaHome
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     }
   }
 

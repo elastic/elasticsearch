@@ -50,6 +50,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
@@ -93,7 +94,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     @Before
     public void setup() {
-        globalSettings = Settings.builder().put("path.home", createTempDir())
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        globalSettings = builder.put("path.home", createTempDir())
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate").build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);

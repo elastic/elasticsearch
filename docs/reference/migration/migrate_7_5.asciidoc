@@ -24,5 +24,5 @@ See also <<release-highlights>> and <<es-release-notes>>.
 ==== Stricter checking for wildcard queries on _index
 Previously, a wildcard query on the `_index` field matched directly against the
 fully-qualified index name. Now, in order to match against remote indices like
-i`cluster:index`, the query must contain a colon, as in `cl*ster:inde*`. This
+`cluster:index`, the query must contain a colon, as in `cl*ster:inde*`. This
 behavior aligns with the way indices are matched in the search endpoint.

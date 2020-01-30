@@ -101,6 +101,16 @@ PUT _template/my_template
 <2> Associates my_policy with all indices created with this template
 <3> Rolls over the write alias test when the rollover action is triggered
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 To be able to start using the policy for these `test-*` indexes we need to
 bootstrap the process by creating the first index.
 

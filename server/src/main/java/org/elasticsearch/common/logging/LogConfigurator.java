@@ -249,7 +249,7 @@ public class LogConfigurator {
         // third party libraries may do that
         System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO),
             false, StandardCharsets.UTF_8.name()));
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN),
+        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN),
             false, StandardCharsets.UTF_8.name()));
     }
 

@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
 
@@ -37,11 +37,6 @@ public class Year extends DateTimeHistogramFunction {
     @Override
     public String dateTimeFormat() {
         return "year";
-    }
-
-    @Override
-    public Expression orderBy() {
-        return field();
     }
 
     @Override

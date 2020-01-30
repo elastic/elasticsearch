@@ -5,27 +5,57 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.ExpressionSet;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.Range;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
-import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.AttributeMap;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.ExpressionSet;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
@@ -38,48 +68,18 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
-import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
-import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
-import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,16 +95,16 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
-import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.combineAnd;
-import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.inCommon;
-import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.splitOr;
-import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.subtract;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineOr;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.inCommon;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
@@ -673,12 +673,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
                 if (((IsNotNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataType.BOOLEAN);
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
 
             } else if (e instanceof IsNull) {
                 if (((IsNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataType.BOOLEAN);
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                 }
 
             } else if (e instanceof In) {
@@ -705,7 +705,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            return e.foldable() && (e instanceof Literal == false) ? Literal.of(e) : e;
+            return e.foldable() ? Literal.of(e) : e;
         }
     }
 
@@ -808,7 +808,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (FALSE.equals(l) || FALSE.equals(r)) {
-                    return FALSE;
+                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                 }
                 if (l.semanticEquals(r)) {
                     return l;
@@ -838,7 +838,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             if (bc instanceof Or) {
                 if (TRUE.equals(l) || TRUE.equals(r)) {
-                    return TRUE;
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
 
                 if (FALSE.equals(l)) {
@@ -883,10 +883,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {
-                return FALSE;
+                return new Literal(n.source(), Boolean.FALSE, DataTypes.BOOLEAN);
             }
             if (FALSE.semanticEquals(c)) {
-                return TRUE;
+                return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
             }
 
             if (c instanceof Negatable) {
@@ -919,12 +919,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return TRUE;
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
             }
             if (bc instanceof NullEquals) {
                 if (l.semanticEquals(r)) {
-                    return TRUE;
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
                 }
                 if (Expressions.isNull(r)) {
                     return new IsNull(bc.source(), l);
@@ -934,7 +934,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return FALSE;
+                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                 }
             }
 
@@ -1006,19 +1006,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     if (otherEq.right().foldable()) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
-                                Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
-                                if (comp != null) {
-                                    // var cannot be equal to two different values at the same time
-                                    if (comp != 0) {
-                                        return FALSE;
+                                    Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
+                                    if (comp != null) {
+                                        // var cannot be equal to two different values at the same time
+                                        if (comp != 0) {
+                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                        }
                                     }
                                 }
                             }
-                        }
                         equals.add(otherEq);
                     } else {
                         exps.add(otherEq);
-                    }
+                        }
                 } else if (ex instanceof GreaterThan || ex instanceof GreaterThanOrEqual ||
                     ex instanceof LessThan || ex instanceof LessThanOrEqual) {
                     BinaryComparison bc = (BinaryComparison) ex;
@@ -1055,8 +1055,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                  compare > 0 ||
                                  // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeLower()))
-                                ) {
-                                return FALSE;
+                            ) {
+                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                             }
                         }
                         if (range.upper().foldable()) {
@@ -1066,8 +1066,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                  compare < 0 ||
                                  // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeUpper()))
-                                ) {
-                                return FALSE;
+                            ) {
+                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                             }
                         }
 
@@ -1908,13 +1908,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsDown(e -> {
                 if (e instanceof Min) {
                     Min min = (Min) e;
-                    if (min.field().dataType().isString()) {
+                    if (DataTypes.isString(min.field().dataType())) {
                         return mins.computeIfAbsent(min.field(), k -> new First(min.source(), k, null));
                     }
                 }
                 if (e instanceof Max) {
                     Max max = (Max) e;
-                    if (max.field().dataType().isString()) {
+                    if (DataTypes.isString(max.field().dataType())) {
                         return maxs.computeIfAbsent(max.field(), k -> new Last(max.source(), k, null));
                     }
                 }
@@ -1950,7 +1950,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return Literal.NULL;
+                    return new Literal(expression.source(), null, DataTypes.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -1962,7 +1962,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (expression instanceof And) {
                 And and = (And) expression;
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return Literal.NULL;
+                    return new Literal(expression.source(), null, DataTypes.NULL);
                 }
             }
             return expression;

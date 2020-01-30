@@ -334,7 +334,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
             parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
             xContentRegistry());
 
-        Map<String, Object> fields = new HashMap<>(){{
+        Map<String, Object> fields = new HashMap<String, Object>(){{
             put("sepal_length", 5.1);
             put("sepal_width", 3.5);
             put("petal_length", 1.4);
@@ -347,7 +347,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                 .getClassificationLabel(),
             equalTo("Iris-setosa"));
 
-        fields = new HashMap<>(){{
+        fields = new HashMap<String, Object>(){{
             put("sepal_length", 7.0);
             put("sepal_width", 3.2);
             put("petal_length", 4.7);
@@ -359,7 +359,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                 .getClassificationLabel(),
             equalTo("Iris-versicolor"));
 
-        fields = new HashMap<>(){{
+        fields = new HashMap<String, Object>(){{
             put("sepal_length", 6.5);
             put("sepal_width", 3.0);
             put("petal_length", 5.2);

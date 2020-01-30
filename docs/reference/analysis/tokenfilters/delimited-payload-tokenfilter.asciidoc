@@ -18,7 +18,7 @@ split `the|1 quick|2 fox|3` into the tokens `the`, `quick`, and `fox`
 with respective payloads of `1`, `2`, and `3`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/payloads/DelimitedPayloadTokenFilter.html[DelimitedPayloadTokenFilter].
+{lucene-analysis-docs}/payloads/DelimitedPayloadTokenFilter.html[DelimitedPayloadTokenFilter].
 
 [NOTE]
 .Payloads

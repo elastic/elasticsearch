@@ -78,7 +78,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         when(user.getGroups()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
         when(user.getServiceProvider()).thenReturn(sp);
 
-        SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, clock, idp);
+        final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
+            clock, idp);
         return builder.build(user, null);
     }
 

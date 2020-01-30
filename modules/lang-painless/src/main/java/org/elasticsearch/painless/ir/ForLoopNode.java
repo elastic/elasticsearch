@@ -22,6 +22,8 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -48,28 +50,29 @@ public class ForLoopNode extends LoopNode {
         return afterthoughtNode;
     }
 
-    /* ---- end tree structure ---- */
-
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
+
+        scopeTable = scopeTable.newScope();
 
         Label start = new Label();
         Label begin = afterthoughtNode == null ? start : new Label();
         Label end = new Label();
 
         if (initializerNode instanceof DeclarationBlockNode) {
-            initializerNode.write(classWriter, methodWriter, globals);
+            initializerNode.write(classWriter, methodWriter, globals, scopeTable);
         } else if (initializerNode instanceof ExpressionNode) {
             ExpressionNode initializer = (ExpressionNode)this.initializerNode;
-            initializer.write(classWriter, methodWriter, globals);
+
+            initializer.write(classWriter, methodWriter, globals, scopeTable);
             methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());
         }
 
         methodWriter.mark(start);
 
         if (getConditionNode() != null && isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, globals);
+            getConditionNode().write(classWriter, methodWriter, globals, scopeTable);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
@@ -84,26 +87,30 @@ public class ForLoopNode extends LoopNode {
                 ++statementCount;
             }
 
-            if (getLoopCounter() != null) {
-                methodWriter.writeLoopCounter(getLoopCounter().getSlot(), statementCount, location);
+            Variable loop = scopeTable.getInternalVariable("loop");
+
+            if (loop != null) {
+                methodWriter.writeLoopCounter(loop.getSlot(), statementCount, location);
             }
 
             getBlockNode().continueLabel = begin;
             getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, globals);
+            getBlockNode().write(classWriter, methodWriter, globals, scopeTable);
         } else {
-            if (getLoopCounter() != null) {
-                methodWriter.writeLoopCounter(getLoopCounter().getSlot(), 1, location);
+            Variable loop = scopeTable.getInternalVariable("loop");
+
+            if (loop != null) {
+                methodWriter.writeLoopCounter(loop.getSlot(), 1, location);
             }
         }
 
         if (afterthoughtNode != null) {
             methodWriter.mark(begin);
-            afterthoughtNode.write(classWriter, methodWriter, globals);
+            afterthoughtNode.write(classWriter, methodWriter, globals, scopeTable);
             methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getExpressionType()).getSize());
         }
 
-        if (afterthoughtNode != null || !allEscape) {
+        if (afterthoughtNode != null || allEscape == false) {
             methodWriter.goTo(start);
         }
 

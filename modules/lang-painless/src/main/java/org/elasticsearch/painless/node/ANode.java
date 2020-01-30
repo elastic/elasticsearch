@@ -19,10 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IRNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,14 +61,10 @@ public abstract class ANode {
     abstract void extractVariables(Set<String> variables);
 
     /**
-     * Checks for errors and collects data for the writing phase.
-     */
-    abstract void analyze(ScriptRoot scriptRoot, Locals locals);
-
-    /**
      * Writes ASM based on the data collected during the analysis phase.
+     * @param classNode the root {@link ClassNode}
      */
-    abstract IRNode write();
+    abstract IRNode write(ClassNode classNode);
 
     /**
      * Create an error with location information pointing to this node.

@@ -124,6 +124,9 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
+    /** Setting for enabling or disabling eql. Defaults to true. */
+    public static final Setting<Boolean> EQL_ENABLED = Setting.boolSetting("xpack.eql.enabled", true, Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
 

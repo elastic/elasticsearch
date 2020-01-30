@@ -19,6 +19,10 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.eql.EqlInfoTransportAction;
+import org.elasticsearch.xpack.eql.EqlUsageTransportAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 
 import java.util.Arrays;
@@ -38,7 +42,10 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class)
+            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
     }
 
@@ -73,6 +80,6 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         if (!enabled) {
             return Collections.emptyList();
         }
-        return Arrays.asList(new RestEqlSearchAction(restController));
+        return Arrays.asList(new RestEqlSearchAction(restController), new RestEqlStatsAction(restController));
     }
 }

@@ -119,6 +119,10 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "eql" : {
+         "available" : true,
+         "enabled" : true
+      },
       "sql" : {
          "available" : true,
          "enabled" : true

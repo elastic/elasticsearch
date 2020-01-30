@@ -37,11 +37,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 public class SnapshotLifecycleServiceTests extends ESTestCase {
 
@@ -220,7 +220,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             // cancel the existing policy (foo-1) without waiting for the thread executing foo-1 to actually interrupt
             // (see org.elasticsearch.common.util.concurrent.FutureUtils#cancel) which means that foo-1 could actually get to be
             // rescheduled and re-run before it is indeed cancelled.
-            assertBusy(() -> assertThat(triggeredJobs, contains("foo-2")));
+            assertBusy(() -> assertThat(triggeredJobs, hasItem("foo-2")));
             assertBusy(() -> assertThat(triggerCount.get(), greaterThan(currentCount)));
 
             final int currentCount2 = triggerCount.get();

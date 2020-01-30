@@ -192,11 +192,11 @@ public final class StubbableTransport implements Transport {
         return delegate.profileBoundAddresses();
     }
 
-    public class WrappedConnection implements Connection {
+    public class WrappedConnection implements Transport.Connection {
 
-        private final Connection connection;
+        private final Transport.Connection connection;
 
-        private WrappedConnection(Connection connection) {
+        private WrappedConnection(Transport.Connection connection) {
             this.connection = connection;
         }
 
@@ -243,7 +243,7 @@ public final class StubbableTransport implements Transport {
             connection.close();
         }
 
-        public Connection getConnection() {
+        public Transport.Connection getConnection() {
             return connection;
         }
     }

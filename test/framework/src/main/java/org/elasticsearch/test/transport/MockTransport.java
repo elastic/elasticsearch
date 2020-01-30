@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -172,11 +171,6 @@ public class MockTransport implements Transport, LifecycleComponent {
             @Override
             public DiscoveryNode getNode() {
                 return node;
-            }
-
-            @Override
-            public Version getVersion() {
-                return node.getVersion();
             }
 
             @Override

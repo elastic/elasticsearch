@@ -539,11 +539,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public Version getVersion() {
-            return node.getVersion();
-        }
-
-        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws TransportException {
             throw new UnsupportedOperationException();

@@ -92,15 +92,11 @@ public interface Transport extends LifecycleComponent {
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
-    interface Connection extends ChannelGroup {
+    interface Connection extends Closeable {
         /**
          * The node this connection is associated with
          */
         DiscoveryNode getNode();
-
-    }
-
-    interface ChannelGroup extends Closeable {
 
         /**
          * Sends the request to the node this connection is associated with
@@ -127,7 +123,9 @@ public interface Transport extends LifecycleComponent {
         /**
          * Returns the version of the node this connection was established with.
          */
-        Version getVersion();
+        default Version getVersion() {
+            return getNode().getVersion();
+        }
 
         /**
          * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
@@ -139,7 +137,6 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
-
     }
 
     /**

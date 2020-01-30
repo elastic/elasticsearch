@@ -116,11 +116,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
 
         @Override
-        public Version getVersion() {
-            return localNode.getVersion();
-        }
-
-        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws TransportException {
             sendLocalRequest(requestId, action, request, options);

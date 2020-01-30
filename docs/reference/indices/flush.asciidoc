@@ -38,8 +38,7 @@ unflushed transaction log against the cost of performing each flush.
 
 Once each operation has been flushed it is permanently stored in the Lucene
 index. This may mean that there is no need to maintain an additional copy of it
-in the transaction log, unless <<index-modules-translog-retention,it is retained
-for some other reason>>. The transaction log is made up of multiple files,
+in the transaction log. The transaction log is made up of multiple files,
 called _generations_, and {es} will delete any generation files once they are no
 longer needed, freeing up disk space.
 

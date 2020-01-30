@@ -101,6 +101,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.add(IDP_SLO_REDIRECT_ENDPOINT);
         settings.add(IDP_SLO_POST_ENDPOINT);
         settings.add(IDP_SSO_REDIRECT_ENDPOINT);
+        settings.add(IDP_SSO_POST_ENDPOINT);
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
     }

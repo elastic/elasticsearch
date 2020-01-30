@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -33,11 +33,9 @@ import java.util.Set;
  */
 public final class SDeclaration extends AStatement {
 
-    private final DType type;
-    private final String name;
+    private DType type;
+    protected final String name;
     private AExpression expression;
-
-    Variable variable = null;
 
     public SDeclaration(Location location, DType type, String name, AExpression expression) {
         super(location);
@@ -57,26 +55,28 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
+        type = resolvedType;
 
         if (expression != null) {
             expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
+            expression.analyze(scriptRoot, scope);
+            expression = expression.cast(scriptRoot, scope);
         }
 
-        variable = locals.addVariable(location, resolvedType.getType(), name, false);
+        scope.defineVariable(location, resolvedType.getType(), name, false);
     }
 
     @Override
-    DeclarationNode write() {
+    DeclarationNode write(ClassNode classNode) {
         DeclarationNode declarationNode = new DeclarationNode();
 
-        declarationNode.setExpressionNode(expression == null ? null : expression.write());
+        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
 
         declarationNode.setLocation(location);
-        declarationNode.setVariable(variable);
+        declarationNode.setDeclarationType(((DResolvedType)type).getType());
+        declarationNode.setName(name);
 
         return declarationNode;
     }

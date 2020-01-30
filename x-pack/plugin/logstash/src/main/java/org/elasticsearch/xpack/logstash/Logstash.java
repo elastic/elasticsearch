@@ -12,14 +12,17 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
@@ -28,8 +31,9 @@ import java.util.regex.Pattern;
 /**
  * This class supplies the logstash featureset and templates
  */
-public class Logstash extends Plugin implements ActionPlugin {
+public class Logstash extends Plugin implements SystemIndexPlugin {
 
+    private static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
     private static final String LOGSTASH_TEMPLATE_FILE_NAME = "logstash-management";
     private static final String LOGSTASH_INDEX_TEMPLATE_NAME = ".logstash-management";
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
@@ -58,5 +62,11 @@ public class Logstash extends Plugin implements ActionPlugin {
             assert templates.get(LOGSTASH_INDEX_TEMPLATE_NAME).mappings().get(MapperService.SINGLE_MAPPING_NAME) != null;
             return templates;
         };
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.singletonList(new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME,
+            "Contains data for Logstash Central Management"));
     }
 }

@@ -10,8 +10,6 @@
 
 Retrieves usage information for {transforms}.
 
-beta[]
-
 
 [[get-transform-stats-request]]
 ==== {api-request-title}

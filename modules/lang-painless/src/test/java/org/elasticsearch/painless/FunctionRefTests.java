@@ -205,7 +205,7 @@ public class FunctionRefTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false);
         });
-        assertThat(e.getMessage(), endsWith("Variable [Bogus] is not defined."));
+        assertThat(e.getMessage(), endsWith("variable [Bogus] is not defined"));
     }
 
     public void testQualifiedClassMissing() {

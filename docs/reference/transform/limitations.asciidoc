@@ -6,22 +6,8 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-beta[]
-
 The following limitations and known problems apply to the {version} release of 
 the Elastic {transform} feature:
-
-
-[float]
-[[transform-compatibility-limitations]]
-==== Beta {transforms} do not have guaranteed backwards or forwards compatibility
-
-Whilst {transforms} are beta, it is not guaranteed that a {transform} created in 
-a previous version of the {stack} will be able to start and operate in a future 
-version. Neither can support be provided for {transform} tasks to be able to 
-operate in a cluster with mixed node versions. Please note that the output of a 
-{transform} is persisted to a destination index. This is a normal {es} index and 
-is not affected by the beta status. 
 
 
 [float]

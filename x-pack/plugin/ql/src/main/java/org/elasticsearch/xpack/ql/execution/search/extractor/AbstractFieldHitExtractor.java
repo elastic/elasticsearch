@@ -12,19 +12,25 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
@@ -83,13 +89,17 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         } else {
             fullFieldName = null;
         }
-        String esType = in.readOptionalString();
-        dataType = esType != null ? DataType.fromTypeName(esType) : null;
+        String typeName = in.readOptionalString();
+        dataType = typeName != null ? loadTypeFromName(typeName) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         arrayLeniency = in.readBoolean();
         path = sourcePath(fieldName, useDocValue, hitName);
         zoneId = readZoneId(in);
+    }
+
+    protected DataType loadTypeFromName(String typeName) {
+        return DataTypes.fromTypeName(typeName);
     }
 
     protected abstract ZoneId readZoneId(StreamInput in) throws IOException;
@@ -118,7 +128,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
             if (fullFieldName != null
                     && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
-                    && dataType.isFromDocValuesOnly() == false
+                    && isFromDocValuesOnly(dataType) == false
                     && dataType.isNumeric()) {
                 /*
                  * ignore_malformed makes sense for extraction from _source for numeric fields only.
@@ -171,11 +181,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             if (dataType == null) {
                 return values;
             }
-            if (dataType.isNumeric() && dataType.isFromDocValuesOnly() == false) {
-                if (dataType == DataType.DOUBLE || dataType == DataType.FLOAT || dataType == DataType.HALF_FLOAT) {
+            if (dataType.isNumeric() && isFromDocValuesOnly(dataType) == false) {
+                if (dataType == DataTypes.DOUBLE || dataType == DataTypes.FLOAT || dataType == DataTypes.HALF_FLOAT) {
                     Number result = null;
                     try {
-                        result = dataType.numberType().parse(values, true);
+                        result = numberType(dataType).parse(values, true);
                     } catch(IllegalArgumentException iae) {
                         return null;
                     }
@@ -185,13 +195,13 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                 } else {
                     Number result = null;
                     try {
-                        result = dataType.numberType().parse(values, true);
+                        result = numberType(dataType).parse(values, true);
                     } catch(IllegalArgumentException iae) {
                         return null;
                     }
                     return result;
                 }
-            } else if (dataType.isString()) {
+            } else if (DataTypes.isString(dataType)) {
                 return values.toString();
             } else {
                 return values;
@@ -200,12 +210,22 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         throw new QlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
     }
 
+    protected boolean isFromDocValuesOnly(DataType dataType) {
+        return dataType == KEYWORD // because of ignore_above.
+                    || dataType == DATETIME
+                    || dataType == SCALED_FLOAT; // because of scaling_factor
+    }
+    
+    private static NumberType numberType(DataType dataType) {
+        return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
+    }
+
     protected abstract Object unwrapCustomValue(Object values);
 
     protected abstract boolean isPrimitive(List<?> list);
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected Object extractFromSource(Map<String, Object> map) {
+    public Object extractFromSource(Map<String, Object> map) {
         Object value = null;
 
         // Used to avoid recursive method calls
@@ -286,7 +306,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return zoneId;
     }
 
-    protected DataType dataType() {
+    public DataType dataType() {
         return dataType;
     }
 

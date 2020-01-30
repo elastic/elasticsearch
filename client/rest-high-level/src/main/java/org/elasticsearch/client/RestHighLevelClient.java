@@ -56,6 +56,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
@@ -858,6 +860,34 @@ public class RestHighLevelClient implements Closeable {
     public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         return performRequestAsync(getRequest, RequestConverters::sourceExists, options,
             RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public GetSourceResponse getSource(GetSourceRequest getRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(getRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable getSourceAsync(GetSourceRequest getRequest, RequestOptions options,
+                                            ActionListener<GetSourceResponse> listener) {
+        return performRequestAsyncAndParseEntity(getRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
@@ -166,7 +167,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
      * the RealmConfig
      */
     private RealmConfig setupRealm(RealmConfig.RealmIdentifier realmIdentifier, Settings localSettings) {
-        final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings).build();
+        final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings)
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), "0").build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
         this.sslService = new SSLService(env);
         return new RealmConfig(

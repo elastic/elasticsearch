@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
@@ -52,7 +52,7 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DataFrameAnalyticsIndex.ID_COPY);
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY);
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;

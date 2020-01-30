@@ -138,7 +138,7 @@ testClusters.all {
   setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
 
   setting 'indices.lifecycle.poll_interval', '1000ms'
-  setting 'index.lifecycle.history_index_enabled', 'false'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),

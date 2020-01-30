@@ -511,7 +511,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Cannot use field [x.y] with unsupported type [foobar]", error("SELECT x.y FROM test"));
     }
 
-    public void testTermEqualitOnInexact() {
+    public void testTermEqualityOnInexact() {
         assertEquals("1:26: [text = 'value'] cannot operate on first argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text = 'value'"));
@@ -710,6 +710,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
+    }
+
+    public void testMatchAndQueryFunctionsNotAllowedInSelect() {
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') AS fullTextSearch FROM test"));
+        assertEquals("1:38: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT int > 10 AND (bool = false OR QUERY('foo*')) AS fullTextSearch FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause\n" +
+                "line 1:28: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo'), MATCH(text, 'bar') FROM test"));
+        accept("SELECT * FROM test WHERE MATCH(text, 'foo')");
     }
 
     public void testAllowCorrectFieldsInIncompatibleMappings() {

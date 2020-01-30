@@ -52,30 +52,35 @@ public class CacheDirectory extends FilterDirectory {
         this.shardId = Objects.requireNonNull(shardId);
     }
 
-    private CacheKey createCacheKey(String fileName, long fileLength) {
-        return new CacheKey(snapshotId, indexId, shardId, cacheDir, fileName, fileLength);
+    private CacheKey createCacheKey(String fileName) {
+        return new CacheKey(snapshotId, indexId, shardId, fileName);
     }
 
     public void close() throws IOException {
         super.close();
         // Ideally we could let the cache evict/remove cached files by itself after the
         // directory has been closed.
-        cacheService.removeFromCache(key -> key.getCacheDir().equals(cacheDir));
+        cacheService.removeFromCache(key ->
+            Objects.equals(key.getSnapshotId(), snapshotId) &&
+            Objects.equals(key.getIndexId(), indexId) &&
+            Objects.equals(key.getShardId(), shardId));
     }
 
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new CacheBufferedIndexInput(createCacheKey(name, fileLength(name)), context);
+        return new CacheBufferedIndexInput(name, fileLength(name), context);
     }
 
     private class CacheFileReference implements CacheFile.EvictionListener {
 
+        private final long fileLength;
         private final CacheKey cacheKey;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
 
-        private CacheFileReference(CacheKey cacheKey) {
-            this.cacheKey = cacheKey;
+        private CacheFileReference(String fileName, long fileLength) {
+            this.cacheKey = createCacheKey(fileName);
+            this.fileLength = fileLength;
         }
 
         @Nullable
@@ -85,7 +90,7 @@ public class CacheDirectory extends FilterDirectory {
                 return currentCacheFile;
             }
 
-            final CacheFile newCacheFile = cacheService.get(cacheKey);
+            final CacheFile newCacheFile = cacheService.get(cacheKey, fileLength, cacheDir);
             synchronized (this) {
                 currentCacheFile = cacheFile.get();
                 if (currentCacheFile != null) {
@@ -125,7 +130,9 @@ public class CacheDirectory extends FilterDirectory {
         @Override
         public String toString() {
             return "CacheFileReference{" +
-                "cacheKey=" + cacheKey +
+                "cacheKey='" + cacheKey + '\'' +
+                ", fileLength=" + fileLength +
+                ", cacheDir=" + cacheDir +
                 ", acquired=" + (cacheFile.get() != null) +
                 '}';
         }
@@ -142,9 +149,9 @@ public class CacheDirectory extends FilterDirectory {
         private AtomicBoolean closed;
         private boolean isClone;
 
-        CacheBufferedIndexInput(CacheKey cacheKey, IOContext ioContext) {
-            this(new CacheFileReference(cacheKey), ioContext,
-                "CachedBufferedIndexInput(" + cacheKey.getFileName() + ")", 0L, cacheKey.getFileLength(), false);
+        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
+            this(new CacheFileReference(fileName, fileLength), ioContext,
+                "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength, false);
         }
 
         private CacheBufferedIndexInput(CacheFileReference cacheFileReference, IOContext ioContext, String desc, long offset, long length,

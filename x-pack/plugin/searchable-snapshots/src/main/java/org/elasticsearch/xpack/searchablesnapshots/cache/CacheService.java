@@ -96,17 +96,17 @@ public class CacheService extends AbstractLifecycleComponent {
         return Math.toIntExact(rangeSize.getBytes());
     }
 
-    public CacheFile get(final CacheKey cacheKey) throws Exception {
+    public CacheFile get(final CacheKey cacheKey, final long fileLength, final Path cacheDir) throws Exception {
         ensureLifecycleStarted();
         return cache.computeIfAbsent(cacheKey, key -> {
             ensureLifecycleStarted();
             // generate a random UUID for the name of the cache file on disk
             final String uuid = UUIDs.randomBase64UUID();
             // resolve the cache file on disk w/ the expected cached file
-            final Path path = key.getCacheDir().resolve(uuid);
+            final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(key.toString(), key.getFileLength(), path, getRangeSize());
+            return new CacheFile(key.toString(), fileLength, path, getRangeSize());
         });
     }
 

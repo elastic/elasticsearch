@@ -9,7 +9,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.nio.file.Path;
 import java.util.Objects;
 
 public class CacheKey {
@@ -17,29 +16,29 @@ public class CacheKey {
     private final SnapshotId snapshotId;
     private final IndexId indexId;
     private final ShardId shardId;
-    private final Path cacheDir;
     private final String fileName;
-    private final long fileLength;
 
-    CacheKey(SnapshotId snapshotId, IndexId indexId, ShardId shardId, Path cacheDir, String fileName, long fileLength) {
+    CacheKey(SnapshotId snapshotId, IndexId indexId, ShardId shardId, String fileName) {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
-        this.cacheDir = Objects.requireNonNull(cacheDir);
         this.fileName = Objects.requireNonNull(fileName);
-        this.fileLength = fileLength;
+    }
+
+    SnapshotId getSnapshotId() {
+        return snapshotId;
+    }
+
+    IndexId getIndexId() {
+        return indexId;
+    }
+
+    ShardId getShardId() {
+        return shardId;
     }
 
     String getFileName() {
         return fileName;
-    }
-
-    long getFileLength() {
-        return fileLength;
-    }
-
-    Path getCacheDir() {
-        return cacheDir;
     }
 
     @Override
@@ -51,17 +50,15 @@ public class CacheKey {
             return false;
         }
         final CacheKey cacheKey = (CacheKey) o;
-        return fileLength == cacheKey.fileLength
-            && Objects.equals(snapshotId, cacheKey.snapshotId)
+        return Objects.equals(snapshotId, cacheKey.snapshotId)
             && Objects.equals(indexId, cacheKey.indexId)
             && Objects.equals(shardId, cacheKey.shardId)
-            && Objects.equals(cacheDir, cacheKey.cacheDir)
             && Objects.equals(fileName, cacheKey.fileName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotId, indexId, shardId, cacheDir, fileName, fileLength);
+        return Objects.hash(snapshotId, indexId, shardId, fileName);
     }
 
     @Override
@@ -71,8 +68,6 @@ public class CacheKey {
             ", indexId=" + indexId +
             ", shardId=" + shardId +
             ", fileName='" + fileName + '\'' +
-            ", fileLength=" + fileLength +
-            ", cacheDir=" + cacheDir +
             ']';
     }
 }

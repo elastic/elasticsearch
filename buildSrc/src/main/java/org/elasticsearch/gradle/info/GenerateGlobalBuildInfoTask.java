@@ -42,14 +42,12 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     private final RegularFileProperty outputFile;
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
-    private final RegularFileProperty fipsJvmFile;
 
     @Inject
     public GenerateGlobalBuildInfoTask(ObjectFactory objectFactory) {
         this.outputFile = objectFactory.fileProperty();
         this.compilerVersionFile = objectFactory.fileProperty();
         this.runtimeVersionFile = objectFactory.fileProperty();
-        this.fipsJvmFile = objectFactory.fileProperty();
     }
 
     @Input
@@ -114,11 +112,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         return runtimeVersionFile;
     }
 
-    @OutputFile
-    public RegularFileProperty getFipsJvmFile() {
-        return fipsJvmFile;
-    }
-
     @TaskAction
     public void generate() {
         String javaVendorVersion = System.getProperty("java.vendor.version", System.getProperty("java.vendor"));
@@ -137,7 +130,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         String runtimeJavaVersionDetails = gradleJavaVersionDetails;
         JavaVersion runtimeJavaVersionEnum = JavaVersion.current();
         File gradleJavaHome = Jvm.current().getJavaHome();
-        boolean inFipsJvm = false;
 
         try {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
@@ -153,10 +145,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 if (runtimeJavaHome.exists()) {
                     runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
                     runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
-
-                    // We don't expect Gradle to be running in a FIPS JVM
-                    String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
-                    inFipsJvm = Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
                 } else {
                     throw new RuntimeException("Runtime Java home path of '" + compilerJavaHome + "' does not exist");
                 }
@@ -242,7 +230,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         writeToFile(compilerVersionFile.getAsFile().get(), compilerJavaVersionEnum.name());
         writeToFile(runtimeVersionFile.getAsFile().get(), runtimeJavaVersionEnum.name());
-        writeToFile(fipsJvmFile.getAsFile().get(), Boolean.toString(inFipsJvm));
     }
 
     private void writeToFile(File file, String content) {

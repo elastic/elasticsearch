@@ -367,6 +367,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void extraJarFile(File from) {
+        nodes.all(node -> node.extraJarFile(from));
+    }
+
+    @Override
     public void user(Map<String, String> userSpec) {
         nodes.all(node -> node.user(userSpec));
     }

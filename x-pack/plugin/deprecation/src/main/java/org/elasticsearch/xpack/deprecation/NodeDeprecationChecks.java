@@ -53,7 +53,7 @@ class NodeDeprecationChecks {
 
         final String details = String.format(
             Locale.ROOT,
-            "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order",
+            "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order.",
             String.join("; ", orderNotConfiguredRealms));
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -64,7 +64,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkUniqueRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules) {
-        final Map<String, List<String>> orderToRealmName =
+        final Map<String, List<String>> orderToRealmSettings =
             RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
                 .filter(e -> e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
@@ -73,7 +73,7 @@ class NodeDeprecationChecks {
                     Collectors.mapping(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY,
                         Collectors.toList())));
 
-        Set<String> duplicateOrders = orderToRealmName.entrySet().stream()
+        Set<String> duplicateOrders = orderToRealmSettings.entrySet().stream()
             .filter(entry -> entry.getValue().size() > 1)
             .map(entry -> entry.getKey() + ": " + entry.getValue())
             .collect(Collectors.toSet());
@@ -85,12 +85,12 @@ class NodeDeprecationChecks {
         final String details = String.format(
             Locale.ROOT,
             "Found multiple realms configured with the same order: [%s]. " +
-                "In next major release, node will fail to start with duplicated realm order",
+                "In next major release, node will fail to start with duplicated realm order.",
             String.join("; ", duplicateOrders));
 
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Realm orders must be unique in next major release",
+            "Realm orders must be unique in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
             details
         );

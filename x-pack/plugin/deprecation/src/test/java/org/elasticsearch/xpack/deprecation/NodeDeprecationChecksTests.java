@@ -88,7 +88,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-missing-realm-order",
             String.format(
                 Locale.ROOT,
-                "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order",
+                "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order.",
                 RealmSettings.realmSettingPrefix(invalidRealm) + RealmSettings.ORDER_SETTING_KEY
             )
         ), deprecationIssues.get(0));
@@ -121,7 +121,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
             deprecationIssues.get(0).getUrl());
-        assertEquals("Realm orders must be unique in next major release", deprecationIssues.get(0).getMessage());
+        assertEquals("Realm orders must be unique in next major release.", deprecationIssues.get(0).getMessage());
         assertThat(deprecationIssues.get(0).getDetails(), startsWith("Found multiple realms configured with the same order:"));
         assertThat(deprecationIssues.get(0).getDetails(), containsString(invalidRealm1.getType() + "." + invalidRealm1.getName()));
         assertThat(deprecationIssues.get(0).getDetails(), containsString(invalidRealm2.getType() + "." + invalidRealm2.getName()));

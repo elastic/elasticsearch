@@ -22,56 +22,83 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RemoteConnectionManager implements Closeable {
+public class RemoteConnectionManager implements ConnectionManager {
 
     private final String clusterAlias;
-    private final ConnectionManager connectionManager;
+    private final ConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
-    private volatile List<Transport.Connection> connections = Collections.emptyList();
+    private volatile List<Connection> connections = Collections.emptyList();
 
-    RemoteConnectionManager(String clusterAlias, ConnectionManager connectionManager) {
+    RemoteConnectionManager(String clusterAlias, ConnectionManager delegate) {
         this.clusterAlias = clusterAlias;
-        this.connectionManager = connectionManager;
-        this.connectionManager.addListener(new TransportConnectionListener() {
+        this.delegate = delegate;
+        this.delegate.addListener(new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Connection connection) {
                 addConnection(connection);
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
                 removeConnection(connection);
             }
         });
     }
 
+    @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               ConnectionManager.ConnectionValidator connectionValidator,
                               ActionListener<Void> listener) throws ConnectTransportException {
-        connectionManager.connectToNode(node, connectionProfile, connectionValidator, listener);
+        delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
     }
 
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        connectionManager.openConnection(node, profile, listener);
+    @Override
+    public void addListener(TransportConnectionListener listener) {
+        delegate.addListener(listener);
     }
 
-    public Transport.Connection getRemoteConnection(DiscoveryNode node) {
+    @Override
+    public void removeListener(TransportConnectionListener listener) {
+        delegate.removeListener(listener);
+    }
+
+    @Override
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        delegate.openConnection(node, profile, listener);
+    }
+
+    @Override
+    public Connection getConnection(DiscoveryNode node) {
         try {
-            return connectionManager.getConnection(node);
+            return delegate.getConnection(node);
         } catch (NodeNotConnectedException e) {
             return new ProxyConnection(getAnyRemoteConnection(), node);
         }
     }
 
-    public Transport.Connection getAnyRemoteConnection() {
-        List<Transport.Connection> localConnections = this.connections;
+    @Override
+    public boolean nodeConnected(DiscoveryNode node) {
+        return delegate.nodeConnected(node);
+    }
+
+    @Override
+    public void disconnectFromNode(DiscoveryNode node) {
+        delegate.disconnectFromNode(node);
+    }
+
+    @Override
+    public ConnectionProfile getConnectionProfile() {
+        return delegate.getConnectionProfile();
+    }
+
+    public Connection getAnyRemoteConnection() {
+        List<Connection> localConnections = this.connections;
         if (localConnections.isEmpty()) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         } else {
@@ -81,28 +108,31 @@ public class RemoteConnectionManager implements Closeable {
         }
     }
 
-    public ConnectionManager getConnectionManager() {
-        return connectionManager;
-    }
-
+    @Override
     public int size() {
-        return connectionManager.size();
+        return delegate.size();
     }
 
+    @Override
     public void close() {
-        connectionManager.closeNoBlock();
+        delegate.closeNoBlock();
     }
 
-    private synchronized void addConnection(Transport.Connection addedConnection) {
-        ArrayList<Transport.Connection> newConnections = new ArrayList<>(this.connections);
+    @Override
+    public void closeNoBlock() {
+        delegate.closeNoBlock();
+    }
+
+    private synchronized void addConnection(Connection addedConnection) {
+        ArrayList<Connection> newConnections = new ArrayList<>(this.connections);
         newConnections.add(addedConnection);
         this.connections = Collections.unmodifiableList(newConnections);
     }
 
-    private synchronized void removeConnection(Transport.Connection removedConnection) {
+    private synchronized void removeConnection(Connection removedConnection) {
         int newSize = this.connections.size() - 1;
-        ArrayList<Transport.Connection> newConnections = new ArrayList<>(newSize);
-        for (Transport.Connection connection : this.connections) {
+        ArrayList<Connection> newConnections = new ArrayList<>(newSize);
+        for (Connection connection : this.connections) {
             if (connection.equals(removedConnection) == false) {
                 newConnections.add(connection);
             }
@@ -111,11 +141,11 @@ public class RemoteConnectionManager implements Closeable {
         this.connections = Collections.unmodifiableList(newConnections);
     }
 
-    static final class ProxyConnection implements Transport.Connection {
-        private final Transport.Connection connection;
+    static final class ProxyConnection implements Connection {
+        private final Connection connection;
         private final DiscoveryNode targetNode;
 
-        private ProxyConnection(Transport.Connection connection, DiscoveryNode targetNode) {
+        private ProxyConnection(Connection connection, DiscoveryNode targetNode) {
             this.connection = connection;
             this.targetNode = targetNode;
         }

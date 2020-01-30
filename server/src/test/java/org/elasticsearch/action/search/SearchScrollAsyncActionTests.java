@@ -30,7 +30,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,7 +68,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 null, request, null)
             {
                 @Override
-                protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+                protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                                    SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener)
                 {
                     new Thread(() -> {
@@ -81,7 +81,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                protected Connection getConnection(String clusterAlias, DiscoveryNode node) {
                     return new SearchAsyncActionTests.MockConnection(node);
                 }
 
@@ -159,7 +159,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, listener, null,
                 request, null) {
                 @Override
-                protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+                protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                                    SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener)
                 {
                     new Thread(() -> {
@@ -172,7 +172,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                protected Connection getConnection(String clusterAlias, DiscoveryNode node) {
                     return new SearchAsyncActionTests.MockConnection(node);
                 }
 
@@ -227,7 +227,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 , null, request, null)
             {
                 @Override
-                protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+                protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                                    SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener)
                 {
                     try {
@@ -245,7 +245,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                protected Connection getConnection(String clusterAlias, DiscoveryNode node) {
                     return new SearchAsyncActionTests.MockConnection(node);
                 }
 
@@ -307,7 +307,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 null, request, null)
             {
                 @Override
-                protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+                protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                                    SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener)
                 {
                     new Thread(() -> {
@@ -324,7 +324,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                protected Connection getConnection(String clusterAlias, DiscoveryNode node) {
                     return new SearchAsyncActionTests.MockConnection(node);
                 }
 
@@ -406,14 +406,14 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, listener, null,
                 request, null) {
                 @Override
-                protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+                protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                                    SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener)
                 {
                     new Thread(() -> searchActionListener.onFailure(new IllegalArgumentException("BOOM on shard"))).start();
                 }
 
                 @Override
-                protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                protected Connection getConnection(String clusterAlias, DiscoveryNode node) {
                     return new SearchAsyncActionTests.MockConnection(node);
                 }
 

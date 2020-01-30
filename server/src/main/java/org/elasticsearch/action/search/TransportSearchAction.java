@@ -58,10 +58,10 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -508,17 +508,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         final DiscoveryNodes nodes = clusterState.nodes();
-        BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
+        BiFunction<String, String, Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
-    static BiFunction<String, String, Transport.Connection> buildConnectionLookup(String requestClusterAlias,
-                                                              Function<String, DiscoveryNode> localNodes,
-                                                              BiFunction<String, String, DiscoveryNode> remoteNodes,
-                                                              BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
+    static BiFunction<String, String, Connection> buildConnectionLookup(String requestClusterAlias,
+                                                                        Function<String, DiscoveryNode> localNodes,
+                                                                        BiFunction<String, String, DiscoveryNode> remoteNodes,
+                                                                        BiFunction<String, DiscoveryNode, Connection> nodeToConnection) {
         return (clusterAlias, nodeId) -> {
             final DiscoveryNode discoveryNode;
             final boolean remoteCluster;
@@ -559,7 +559,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
-                                                        BiFunction<String, String, Transport.Connection> connectionLookup,
+                                                        BiFunction<String, String, Connection> connectionLookup,
                                                         long clusterStateVersion,
                                                         Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,

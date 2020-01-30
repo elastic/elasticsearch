@@ -98,7 +98,7 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -810,7 +810,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+        public void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                                 TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);
@@ -872,7 +872,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             private final AtomicInteger count = new AtomicInteger();
 
             @Override
-            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+            public void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                                     TransportRequestOptions options) throws IOException {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {

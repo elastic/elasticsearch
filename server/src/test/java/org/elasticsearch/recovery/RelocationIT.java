@@ -66,7 +66,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -665,8 +665,8 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                TransportRequestOptions options) throws IOException {
+        public void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                TransportRequestOptions options) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {

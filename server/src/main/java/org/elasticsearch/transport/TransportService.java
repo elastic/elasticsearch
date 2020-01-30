@@ -109,10 +109,15 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
-    private final Transport.Connection localNodeConnection = new Transport.Connection() {
+    private final Connection localNodeConnection = new Connection() {
         @Override
         public DiscoveryNode getNode() {
             return localNode;
+        }
+
+        @Override
+        public Version getVersion() {
+            return localNode.getVersion();
         }
 
         @Override
@@ -145,7 +150,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders) {
         this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new ConnectionManager(settings, transport));
+            new ClusterConnectionManager(settings, transport));
     }
 
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
@@ -369,7 +374,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * @param listener the action listener to notify
      */
     public void openConnection(final DiscoveryNode node, ConnectionProfile connectionProfile,
-                               ActionListener<Transport.Connection> listener) {
+                               ActionListener<Connection> listener) {
         if (isLocalNode(node)) {
             listener.onResponse(localNodeConnection);
         } else {
@@ -391,7 +396,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * @throws IllegalStateException if the handshake failed
      */
     public void handshake(
-        final Transport.Connection connection,
+        final Connection connection,
         final long handshakeTimeout,
         final ActionListener<DiscoveryNode> listener) {
         handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(),
@@ -412,7 +417,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * @throws IllegalStateException if the handshake failed
      */
     public void handshake(
-        final Transport.Connection connection,
+        final Connection connection,
         final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
         final ActionListener<HandshakeResponse> listener) {
         final DiscoveryNode node = connection.getNode();
@@ -520,7 +525,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
         try {
-            Transport.Connection connection = getConnection(node);
+            Connection connection = getConnection(node);
             sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -533,7 +538,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
         try {
-            Transport.Connection connection = getConnection(node);
+            Connection connection = getConnection(node);
             sendRequest(connection, action, request, options, handler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -541,7 +546,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
     }
 
-    public final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
+    public final <T extends TransportResponse> void sendRequest(final Connection connection, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
@@ -557,7 +562,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * Returns either a real transport connection or a local node connection if we are using the local node optimization.
      * @throws NodeNotConnectedException if the given node is not connected
      */
-    public Transport.Connection getConnection(DiscoveryNode node) {
+    public Connection getConnection(DiscoveryNode node) {
         if (isLocalNode(node)) {
             return localNodeConnection;
         } else {
@@ -570,7 +575,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                      final TransportRequestOptions options,
                                                                      final TransportResponseHandler<T> handler) {
         try {
-            Transport.Connection connection = getConnection(node);
+            Connection connection = getConnection(node);
             sendChildRequest(connection, action, request, parentTask, options, handler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -578,13 +583,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
     }
 
-    public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
+    public <T extends TransportResponse> void sendChildRequest(final Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportResponseHandler<T> handler) {
         sendChildRequest(connection, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
     }
 
-    public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
+    public <T extends TransportResponse> void sendChildRequest(final Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportRequestOptions options,
                                                                final TransportResponseHandler<T> handler) {
@@ -601,7 +606,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     }
 
-    private <T extends TransportResponse> void sendRequestInternal(final Transport.Connection connection, final String action,
+    private <T extends TransportResponse> void sendRequestInternal(final Connection connection, final String action,
                                                                    final TransportRequest request,
                                                                    final TransportRequestOptions options,
                                                                    TransportResponseHandler<T> handler) {
@@ -912,7 +917,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     @Override
-    public void onConnectionClosed(Transport.Connection connection) {
+    public void onConnectionClosed(Connection connection) {
         try {
             List<Transport.ResponseContext<? extends TransportResponse>> pruned =
                 responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));

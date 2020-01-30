@@ -117,7 +117,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;
-        connectionManager.getConnectionManager().addListener(this);
+        connectionManager.addListener(this);
     }
 
     static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
@@ -271,7 +271,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 .getConcreteSettingForNamespace(clusterAlias)
                 .get(newSettings);
 
-            ConnectionProfile oldProfile = connectionManager.getConnectionManager().getConnectionProfile();
+            ConnectionProfile oldProfile = connectionManager.getConnectionProfile();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
             builder.setCompressionEnabled(compressionEnabled);
             builder.setPingInterval(pingSchedule);
@@ -285,7 +285,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract ConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+    public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(ActionListener.wrap(
@@ -299,7 +299,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         final List<ActionListener<Void>> toNotify;
         synchronized (mutex) {
             if (closed.compareAndSet(false, true)) {
-                connectionManager.getConnectionManager().removeListener(this);
+                connectionManager.removeListener(this);
                 toNotify = listeners;
                 listeners = Collections.emptyList();
             } else {

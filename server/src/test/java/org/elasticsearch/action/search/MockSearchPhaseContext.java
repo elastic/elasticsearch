@@ -25,7 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -99,7 +99,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public Transport.Connection getConnection(String clusterAlias, String nodeId) {
+    public Connection getConnection(String clusterAlias, String nodeId) {
         return null; // null is ok here for this test
     }
 
@@ -135,7 +135,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    public void sendReleaseSearchContext(long contextId, Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,7 +76,7 @@ final class DfsQueryPhase extends SearchPhase {
         progressListener.notifyListShards(progressListener.searchShards(resultList), sourceBuilder == null || sourceBuilder.size() != 0);
         for (final DfsSearchResult dfsResult : resultList) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
-            Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+            Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
                     dfsResult.getRequestId(), dfs);
             final int shardIndex = dfsResult.getShardIndex();

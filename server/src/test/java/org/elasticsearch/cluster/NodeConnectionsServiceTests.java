@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -364,7 +365,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate,
+        public void handshake(Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate,
                               ActionListener<HandshakeResponse> listener) {
             listener.onResponse(new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT));
         }
@@ -438,6 +439,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     @Override
                     public DiscoveryNode getNode() {
                         return node;
+                    }
+
+                    @Override
+                    public Version getVersion() {
+                        return node.getVersion();
                     }
 
                     @Override

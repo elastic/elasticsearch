@@ -174,7 +174,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      *
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
-    public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
+    public Connection getConnection(DiscoveryNode node, String cluster) {
         return getRemoteClusterConnection(cluster).getConnection(node);
     }
 
@@ -193,7 +193,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
-    public Transport.Connection getConnection(String cluster) {
+    public Connection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
     }
 

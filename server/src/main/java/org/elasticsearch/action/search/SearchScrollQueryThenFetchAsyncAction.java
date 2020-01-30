@@ -33,7 +33,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 
 import java.util.function.BiFunction;
 
@@ -58,7 +58,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     }
 
     @Override
-    protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+    protected void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                        SearchActionListener<ScrollQuerySearchResult> searchActionListener) {
         searchTransportService.sendExecuteScrollQuery(connection, internalRequest, task, searchActionListener);
     }
@@ -91,7 +91,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                         SearchShardTarget searchShardTarget = querySearchResult.getSearchShardTarget();
                         DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                         assert node != null : "target node is null in secondary phase";
-                        Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), node);
+                        Connection connection = getConnection(searchShardTarget.getClusterAlias(), node);
                         searchTransportService.sendExecuteFetchScroll(connection, shardFetchRequest, task,
                             new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override

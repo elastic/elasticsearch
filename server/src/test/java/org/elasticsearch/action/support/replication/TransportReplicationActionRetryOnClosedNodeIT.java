@@ -43,7 +43,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -144,7 +144,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
                         @Override
-                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                        public <T extends TransportResponse> void sendRequest(Connection connection, String action,
                                                                               TransportRequest request, TransportRequestOptions options,
                                                                               TransportResponseHandler<T> handler) {
                             // only activated on primary

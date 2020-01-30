@@ -26,6 +26,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -192,11 +193,11 @@ public final class StubbableTransport implements Transport {
         return delegate.profileBoundAddresses();
     }
 
-    public class WrappedConnection implements Transport.Connection {
+    public class WrappedConnection implements Connection {
 
-        private final Transport.Connection connection;
+        private final Connection connection;
 
-        private WrappedConnection(Transport.Connection connection) {
+        private WrappedConnection(Connection connection) {
             this.connection = connection;
         }
 
@@ -243,7 +244,7 @@ public final class StubbableTransport implements Transport {
             connection.close();
         }
 
-        public Transport.Connection getConnection() {
+        public Connection getConnection() {
             return connection;
         }
     }

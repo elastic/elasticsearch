@@ -32,7 +32,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -191,7 +191,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         }
 
         @Override
-        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+        public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                               TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
                 final DiscoveryNode destinationNode = connection.getNode();

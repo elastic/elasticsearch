@@ -19,7 +19,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -86,7 +86,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     public AsyncSender interceptSender(AsyncSender sender) {
         return new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 final boolean requireAuth = shouldRequireExistingAuthentication();
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
@@ -133,7 +133,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         return licenseState.isAuthAllowed() && isStateNotRecovered == false;
     }
 
-    private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
+    private <T extends TransportResponse> void sendWithUser(Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
                                                             AsyncSender sender, final boolean requireAuthentication) {
         if (securityContext.getAuthentication() == null && requireAuthentication) {

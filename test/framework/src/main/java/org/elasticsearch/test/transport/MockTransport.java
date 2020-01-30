@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,7 +39,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
-import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -79,8 +81,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     public TransportService createTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this),
-            settings, this);
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
@@ -172,6 +173,11 @@ public class MockTransport implements Transport, LifecycleComponent {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public Version getVersion() {
+                return node.getVersion();
             }
 
             @Override

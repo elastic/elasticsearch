@@ -21,11 +21,11 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TestProfiles;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -126,7 +126,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
                 version0);
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Connection> future = PlainActionFuture.newFuture();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
                 assertEquals(connection.getVersion(), Version.CURRENT);
@@ -303,7 +303,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
 
-        Transport.Connection connection1 = serviceA.getConnection(serviceB.getLocalNode());
+        Connection connection1 = serviceA.getConnection(serviceB.getLocalNode());
         SSLEngine sslEngine = getSSLEngine(connection1);
         assertThat(sslEngine, notNullValue());
         // test client authentication is default
@@ -315,7 +315,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Settings settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_REQUIRED_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
-            try (Transport.Connection connection2 = openConnection(serviceA, service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+            try (Connection connection2 = openConnection(serviceA, service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertThat(sslEngine.getNeedClientAuth(), is(true));
                 assertThat(sslEngine.getWantClientAuth(), is(false));
@@ -327,7 +327,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_NO_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
-            try (Transport.Connection connection2 = openConnection(serviceA, service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+            try (Connection connection2 = openConnection(serviceA, service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertThat(sslEngine.getNeedClientAuth(), is(false));
                 assertThat(sslEngine.getWantClientAuth(), is(false));
@@ -339,7 +339,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_OPTIONAL_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
-            try (Transport.Connection connection2 = openConnection(serviceA, service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+            try (Connection connection2 = openConnection(serviceA, service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertThat(sslEngine.getNeedClientAuth(), is(false));
                 assertThat(sslEngine.getWantClientAuth(), is(true));
@@ -359,7 +359,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
             DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
-            try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
+            try (Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
                 assertThat(sslEngine.getNeedClientAuth(), is(true));
@@ -380,7 +380,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
             DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
-            try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
+            try (Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
                 assertThat(sslEngine.getNeedClientAuth(), is(false));
@@ -401,7 +401,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
             DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
-            try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
+            try (Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
                 assertThat(sslEngine.getNeedClientAuth(), is(false));
@@ -410,11 +410,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
     }
 
-    private SSLEngine getEngineFromAcceptedChannel(TcpTransport transport, Transport.Connection connection) throws Exception {
+    private SSLEngine getEngineFromAcceptedChannel(TcpTransport transport, Connection connection) throws Exception {
         return SSLEngineUtils.getSSLEngine(getAcceptedChannel(transport, connection));
     }
 
-    private TcpChannel getAcceptedChannel(TcpTransport transport, Transport.Connection connection) throws Exception {
+    private TcpChannel getAcceptedChannel(TcpTransport transport, Connection connection) throws Exception {
         InetSocketAddress localAddress = getSingleChannel(connection).getLocalAddress();
         AtomicReference<TcpChannel> accepted = new AtomicReference<>();
         assertBusy(() -> {
@@ -426,11 +426,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         return accepted.get();
     }
 
-    private SSLEngine getSSLEngine(Transport.Connection connection) {
+    private SSLEngine getSSLEngine(Connection connection) {
         return SSLEngineUtils.getSSLEngine(getSingleChannel(connection));
     }
 
-    private TcpChannel getSingleChannel(Transport.Connection connection) {
+    private TcpChannel getSingleChannel(Connection connection) {
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
         return nodeChannels.getChannels().get(0);

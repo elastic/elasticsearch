@@ -21,8 +21,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.Transport.Connection;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
@@ -95,7 +94,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -123,7 +122,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -158,7 +157,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -191,7 +190,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -199,7 +198,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         sender.sendRequest(connection, "indices:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
@@ -227,7 +226,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -261,12 +260,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertNull(securityContext.getUser());
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 fail("sender should not be called!");
             }
         });
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         IllegalStateException e =
                 expectThrows(IllegalStateException.class, () -> sender.sendRequest(connection, "indices:foo", null, null, null));
@@ -295,7 +294,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<Authentication> authRef = new AtomicReference<>();
         AsyncSender intercepted = new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -308,7 +307,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Version connectionVersion = Version.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
         assertEquals(Version.CURRENT, Version.min(connectionVersion, Version.CURRENT));
 
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
@@ -336,7 +335,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<Authentication> authRef = new AtomicReference<>();
         AsyncSender intercepted = new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -349,7 +348,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Version connectionVersion = Version.fromId(Version.CURRENT.id - randomIntBetween(100, 100000));
         assertEquals(connectionVersion, Version.min(connectionVersion, Version.CURRENT));
 
-        Transport.Connection connection = mock(Transport.Connection.class);
+        Connection connection = mock(Connection.class);
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());

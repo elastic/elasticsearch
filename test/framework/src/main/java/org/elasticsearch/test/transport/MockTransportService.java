@@ -48,7 +48,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.Connection;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -90,7 +91,7 @@ import java.util.function.Supplier;
 public final class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
-    private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
+    private final Map<DiscoveryNode, List<Connection>> openConnections = new HashMap<>();
 
     private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
 
@@ -160,7 +161,7 @@ public final class MockTransportService extends TransportService {
                                  Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                  @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         super(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new StubbableConnectionManager(new ConnectionManager(settings, transport), settings, transport));
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport)));
         this.original = transport.getDelegate();
     }
 
@@ -279,9 +280,9 @@ public final class MockTransportService extends TransportService {
             listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated")));
 
         transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
-            private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+            private Set<Connection> toClose = ConcurrentHashMap.newKeySet();
             @Override
-            public void sendRequest(Transport.Connection connection, long requestId, String action,
+            public void sendRequest(Connection connection, long requestId, String action,
                                     TransportRequest request, TransportRequestOptions options) {
                 // don't send anything, the receiving node is unresponsive
                 toClose.add(connection);
@@ -327,7 +328,7 @@ public final class MockTransportService extends TransportService {
             private CountDownLatch stopLatch = new CountDownLatch(1);
             @Override
             public void openConnection(Transport transport, DiscoveryNode discoveryNode,
-                                             ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+                                             ConnectionProfile profile, ActionListener<Connection> listener) {
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
                     original.openConnection(discoveryNode, profile, listener);
@@ -360,7 +361,7 @@ public final class MockTransportService extends TransportService {
             private boolean cleared = false;
 
             @Override
-            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+            public void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                                     TransportRequestOptions options) throws IOException {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
                 TimeValue delay = delaySupplier.get();
@@ -507,13 +508,13 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener) {
         super.openConnection(node, connectionProfile, ActionListener.delegateFailure(listener, (l, connection) -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
                 connection.addCloseListener(ActionListener.wrap(() -> {
                     synchronized (openConnections) {
-                        List<Transport.Connection> connections = openConnections.get(node);
+                        List<Connection> connections = openConnections.get(node);
                         boolean remove = connections.remove(connection);
                         assert remove : "Should have removed connection";
                         if (connections.isEmpty()) {

@@ -31,8 +31,8 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,7 +139,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         for (int i = 0; i < context.length; i++) {
             ScrollIdForNode target = context[i];
             final int shardIndex = i;
-            final Transport.Connection connection;
+            final Connection connection;
             try {
                 DiscoveryNode node = clusterNodeLookup.apply(target.getClusterAlias(), target.getNode());
                 if (node == null) {
@@ -212,7 +212,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         shardFailures.add(failure);
     }
 
-    protected abstract void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+    protected abstract void executeInitialPhase(Connection connection, InternalScrollSearchRequest internalRequest,
                                                 SearchActionListener<T> searchActionListener);
 
     protected abstract SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup);
@@ -272,7 +272,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+    protected Connection getConnection(String clusterAlias, DiscoveryNode node) {
         return searchTransportService.getConnection(clusterAlias, node);
     }
 }

@@ -37,7 +37,7 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -112,7 +112,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
+            public void sendExecuteFetch(Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (request.id() == 321) {
@@ -170,7 +170,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
+            public void sendExecuteFetch(Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 if (request.id() == 321) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -225,7 +225,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
+            public void sendExecuteFetch(Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 new Thread(() -> {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -289,7 +289,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         AtomicInteger numFetches = new AtomicInteger(0);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
+            public void sendExecuteFetch(Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (numFetches.incrementAndGet() == 1) {
@@ -345,7 +345,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
+            public void sendExecuteFetch(Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (request.id() == 321) {

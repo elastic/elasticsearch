@@ -49,9 +49,9 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-public class ConnectionManagerTests extends ESTestCase {
+public class ClusterConnectionManagerTests extends ESTestCase {
 
-    private ConnectionManager connectionManager;
+    private ClusterConnectionManager connectionManager;
     private ThreadPool threadPool;
     private Transport transport;
     private ConnectionProfile connectionProfile;
@@ -59,11 +59,11 @@ public class ConnectionManagerTests extends ESTestCase {
     @Before
     public void createConnectionManager() {
         Settings settings = Settings.builder()
-            .put("node.name", ConnectionManagerTests.class.getSimpleName())
+            .put("node.name", ClusterConnectionManagerTests.class.getSimpleName())
             .build();
         threadPool = new ThreadPool(settings);
         transport = mock(Transport.class);
-        connectionManager = new ConnectionManager(settings, transport);
+        connectionManager = new ClusterConnectionManager(settings, transport);
         TimeValue oneSecond = new TimeValue(1000);
         TimeValue oneMinute = TimeValue.timeValueMinutes(1);
         connectionProfile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, oneSecond, oneSecond,
@@ -80,28 +80,28 @@ public class ConnectionManagerTests extends ESTestCase {
         AtomicInteger nodeDisconnectedCount = new AtomicInteger();
         connectionManager.addListener(new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Connection connection) {
                 nodeConnectedCount.incrementAndGet();
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
-        Transport.Connection connection = new TestConnect(node);
+        Connection connection = new TestConnect(node);
         doAnswer(invocationOnMock -> {
-            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            ActionListener<Connection> listener = (ActionListener<Connection>) invocationOnMock.getArguments()[2];
             listener.onResponse(connection);
             return null;
         }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
 
         assertFalse(connectionManager.nodeConnected(node));
 
-        AtomicReference<Transport.Connection> connectionRef = new AtomicReference<>();
+        AtomicReference<Connection> connectionRef = new AtomicReference<>();
         ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             connectionRef.set(c);
             l.onResponse(null);
@@ -128,15 +128,15 @@ public class ConnectionManagerTests extends ESTestCase {
     }
 
     public void testConcurrentConnects() throws Exception {
-        Set<Transport.Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
-            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            ActionListener<Connection> listener = (ActionListener<Connection>) invocationOnMock.getArguments()[2];
 
             boolean success = randomBoolean();
             if (success) {
-                Transport.Connection connection = new TestConnect(node);
+                Connection connection = new TestConnect(node);
                 connections.add(connection);
                 if (randomBoolean()) {
                     listener.onResponse(connection);
@@ -225,7 +225,7 @@ public class ConnectionManagerTests extends ESTestCase {
 
         connectionManager.close();
         // The connection manager will close all open connections
-        for (Transport.Connection connection : connections) {
+        for (Connection connection : connections) {
             assertTrue(connection.isClosed());
         }
     }
@@ -235,21 +235,21 @@ public class ConnectionManagerTests extends ESTestCase {
         AtomicInteger nodeDisconnectedCount = new AtomicInteger();
         connectionManager.addListener(new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Connection connection) {
                 nodeConnectedCount.incrementAndGet();
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
-        Transport.Connection connection = new TestConnect(node);
+        Connection connection = new TestConnect(node);
         doAnswer(invocationOnMock -> {
-            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            ActionListener<Connection> listener = (ActionListener<Connection>) invocationOnMock.getArguments()[2];
             listener.onResponse(connection);
             return null;
         }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
@@ -275,12 +275,12 @@ public class ConnectionManagerTests extends ESTestCase {
         AtomicInteger nodeDisconnectedCount = new AtomicInteger();
         connectionManager.addListener(new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeConnected(DiscoveryNode node, Connection connection) {
                 nodeConnectedCount.incrementAndGet();
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Connection connection) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -288,7 +288,7 @@ public class ConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
-            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            ActionListener<Connection> listener = (ActionListener<Connection>) invocationOnMock.getArguments()[2];
             listener.onFailure(new ConnectTransportException(node, ""));
             return null;
         }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
@@ -319,6 +319,11 @@ public class ConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public Version getVersion() {
+            return node.getVersion();
         }
 
         @Override

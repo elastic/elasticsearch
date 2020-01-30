@@ -54,7 +54,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -445,7 +445,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             return new AsyncSender() {
                 @Override
                 public <T extends TransportResponse> void sendRequest(
-                        Transport.Connection connection, String action, TransportRequest request,
+                        Connection connection, String action, TransportRequest request,
                         TransportRequestOptions options, TransportResponseHandler<T> handler) {
                     if (action.startsWith("indices:data/write/bulk[s]")) {
                         /*

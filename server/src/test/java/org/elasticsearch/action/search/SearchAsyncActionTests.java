@@ -34,7 +34,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -84,7 +84,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
 
         SearchTransportService transportService = new SearchTransportService(null, null);
-        Map<String, Transport.Connection> lookup = new HashMap<>();
+        Map<String, Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
@@ -121,7 +121,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     });
 
                     new Thread(() -> {
-                        Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                        Connection connection = getConnection(null, shard.currentNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                         connection.getNode());
                         listener.onResponse(testSearchPhaseResult);
@@ -188,7 +188,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, doReplicas, primaryNode, replicaNode);
         SearchTransportService transportService = new SearchTransportService(null, null);
-        Map<String, Transport.Connection> lookup = new HashMap<>();
+        Map<String, Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
@@ -231,7 +231,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                        Connection connection = getConnection(null, shard.currentNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                             connection.getNode());
                         if (shardFailures[shard.shardId().id()]) {
@@ -286,13 +286,13 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null) {
             @Override
-            public void sendFreeContext(Transport.Connection connection, long contextId, OriginalIndices originalIndices) {
+            public void sendFreeContext(Connection connection, long contextId, OriginalIndices originalIndices) {
                 numFreedContext.incrementAndGet();
                 assertTrue(nodeToContextMap.containsKey(connection.getNode()));
                 assertTrue(nodeToContextMap.get(connection.getNode()).remove(contextId));
             }
         };
-        Map<String, Transport.Connection> lookup = new HashMap<>();
+        Map<String, Connection> lookup = new HashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
@@ -325,7 +325,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard, SearchActionListener<TestSearchPhaseResult>
                 listener) {
                 assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
-                Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                Connection connection = getConnection(null, shard.currentNodeId());
                 TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                     connection.getNode());
                 Set<Long> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
@@ -396,7 +396,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(numShardAttempts);
 
         SearchTransportService transportService = new SearchTransportService(null, null);
-        Map<String, Transport.Connection> lookup = new HashMap<>();
+        Map<String, Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
@@ -433,7 +433,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         return Boolean.TRUE;
                     });
                     new Thread(() -> {
-                        Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                        Connection connection = getConnection(null, shard.currentNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                             connection.getNode());
                         if (shardIt.remaining() > 0) {
@@ -525,7 +525,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
     }
 
-    public static final class MockConnection implements Transport.Connection {
+    public static final class MockConnection implements Connection {
 
         private final DiscoveryNode node;
 
@@ -536,6 +536,11 @@ public class SearchAsyncActionTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public Version getVersion() {
+            return node.getVersion();
         }
 
         @Override

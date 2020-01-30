@@ -46,7 +46,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         transport = mock(Transport.class);
-        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", new ConnectionManager(Settings.EMPTY, transport));
+        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", new ClusterConnectionManager(Settings.EMPTY, transport));
     }
 
     @SuppressWarnings("unchecked")
@@ -54,7 +54,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 1000);
 
         doAnswer(invocationOnMock -> {
-            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            ActionListener<Connection> listener = (ActionListener<Connection>) invocationOnMock.getArguments()[2];
             listener.onResponse(new TestRemoteConnection((DiscoveryNode) invocationOnMock.getArguments()[0]));
             return null;
         }).when(transport).openConnection(any(DiscoveryNode.class), any(ConnectionProfile.class), any(ActionListener.class));
@@ -72,25 +72,25 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         remoteConnectionManager.connectToNode(node2, null, validator, future2);
         assertTrue(future2.isDone());
 
-        assertEquals(node1, remoteConnectionManager.getRemoteConnection(node1).getNode());
-        assertEquals(node2, remoteConnectionManager.getRemoteConnection(node2).getNode());
+        assertEquals(node1, remoteConnectionManager.getConnection(node1).getNode());
+        assertEquals(node2, remoteConnectionManager.getConnection(node2).getNode());
 
         DiscoveryNode node4 = new DiscoveryNode("node-4", address, Version.CURRENT);
-        assertThat(remoteConnectionManager.getRemoteConnection(node4), instanceOf(RemoteConnectionManager.ProxyConnection.class));
+        assertThat(remoteConnectionManager.getConnection(node4), instanceOf(RemoteConnectionManager.ProxyConnection.class));
 
         // Test round robin
         Set<Version> versions = new HashSet<>();
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
 
         assertThat(versions, hasItems(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
 
         // Test that the connection is cleared from the round robin list when it is closed
-        remoteConnectionManager.getRemoteConnection(node1).close();
+        remoteConnectionManager.getConnection(node1).close();
 
         versions.clear();
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
 
         assertThat(versions, hasItems(Version.CURRENT.minimumCompatibilityVersion()));
         assertEquals(1, versions.size());
@@ -107,6 +107,11 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public Version getVersion() {
+            return node.getVersion();
         }
 
         @Override

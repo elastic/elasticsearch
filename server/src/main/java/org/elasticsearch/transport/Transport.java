@@ -83,20 +83,13 @@ public interface Transport extends LifecycleComponent {
      * Opens a new connection to the given node. When the connection is fully connected, the listener is called.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      */
-    void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
+    void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener);
 
     TransportStats getStats();
 
     ResponseHandlers getResponseHandlers();
 
-    /**
-     * A unidirectional connection to a {@link DiscoveryNode}
-     */
-    interface Connection extends Closeable {
-        /**
-         * The node this connection is associated with
-         */
-        DiscoveryNode getNode();
+    interface ChannelGroup extends Closeable {
 
         /**
          * Sends the request to the node this connection is associated with
@@ -123,9 +116,7 @@ public interface Transport extends LifecycleComponent {
         /**
          * Returns the version of the node this connection was established with.
          */
-        default Version getVersion() {
-            return getNode().getVersion();
-        }
+        Version getVersion();
 
         /**
          * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
@@ -137,6 +128,7 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
+
     }
 
     /**

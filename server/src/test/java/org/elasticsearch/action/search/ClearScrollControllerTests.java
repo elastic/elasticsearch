@@ -28,8 +28,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -64,14 +64,14 @@ public class ClearScrollControllerTests extends ESTestCase {
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
+            public void sendClearAllScrollContexts(Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
                 Thread t = new Thread(() -> listener.onResponse(TransportResponse.Empty.INSTANCE)); // response is unused
                 t.start();
             }
 
             @Override
-            Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+            Connection getConnection(String clusterAlias, DiscoveryNode node) {
                 return new SearchAsyncActionTests.MockConnection(node);
             }
         };
@@ -121,7 +121,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
 
             @Override
-            public void sendFreeContext(Transport.Connection connection, long contextId,
+            public void sendFreeContext(Connection connection, long contextId,
                                         ActionListener<SearchFreeContextResponse> listener) {
                 nodesInvoked.add(connection.getNode());
                 boolean freed = randomBoolean();
@@ -133,7 +133,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
 
             @Override
-            Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+            Connection getConnection(String clusterAlias, DiscoveryNode node) {
                 return new SearchAsyncActionTests.MockConnection(node);
             }
         };
@@ -189,7 +189,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
 
             @Override
-            public void sendFreeContext(Transport.Connection connection, long contextId,
+            public void sendFreeContext(Connection connection, long contextId,
                                         ActionListener<SearchFreeContextResponse> listener) {
                 nodesInvoked.add(connection.getNode());
                 boolean freed = randomBoolean();
@@ -209,7 +209,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             }
 
             @Override
-            Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+            Connection getConnection(String clusterAlias, DiscoveryNode node) {
                 if (randomBoolean()) {
                     numFailures.incrementAndGet();
                     numConnectionFailures.incrementAndGet();

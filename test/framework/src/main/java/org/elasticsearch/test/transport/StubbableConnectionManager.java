@@ -20,26 +20,24 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.Connection;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportConnectionListener;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public class StubbableConnectionManager extends ConnectionManager {
+public class StubbableConnectionManager implements ConnectionManager {
 
     private final ConnectionManager delegate;
     private final ConcurrentMap<TransportAddress, GetConnectionBehavior> getConnectionBehaviors;
     private volatile GetConnectionBehavior defaultGetConnectionBehavior = ConnectionManager::getConnection;
     private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
 
-    public StubbableConnectionManager(ConnectionManager delegate, Settings settings, Transport transport) {
-        super(settings, transport);
+    public StubbableConnectionManager(ConnectionManager delegate) {
         this.delegate = delegate;
         this.getConnectionBehaviors = new ConcurrentHashMap<>();
     }
@@ -70,12 +68,12 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener) {
         delegate.openConnection(node, connectionProfile, listener);
     }
 
     @Override
-    public Transport.Connection getConnection(DiscoveryNode node) {
+    public Connection getConnection(DiscoveryNode node) {
         TransportAddress address = node.getAddress();
         GetConnectionBehavior behavior = getConnectionBehaviors.getOrDefault(address, defaultGetConnectionBehavior);
         return behavior.getConnection(delegate, node);
@@ -118,9 +116,19 @@ public class StubbableConnectionManager extends ConnectionManager {
         delegate.close();
     }
 
+    @Override
+    public void closeNoBlock() {
+        delegate.closeNoBlock();
+    }
+
+    @Override
+    public ConnectionProfile getConnectionProfile() {
+        return delegate.getConnectionProfile();
+    }
+
     @FunctionalInterface
     public interface GetConnectionBehavior {
-        Transport.Connection getConnection(ConnectionManager connectionManager, DiscoveryNode discoveryNode);
+        Connection getConnection(ConnectionManager connectionManager, DiscoveryNode discoveryNode);
     }
 
     @FunctionalInterface

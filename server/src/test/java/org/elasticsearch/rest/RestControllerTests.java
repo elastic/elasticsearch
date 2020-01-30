@@ -84,6 +84,7 @@ public class RestControllerTests extends ESTestCase {
     private RestController restController;
     private HierarchyCircuitBreakerService circuitBreakerService;
     private UsageService usageService;
+
     @Before
     public void setup() {
         circuitBreakerService = new HierarchyCircuitBreakerService(

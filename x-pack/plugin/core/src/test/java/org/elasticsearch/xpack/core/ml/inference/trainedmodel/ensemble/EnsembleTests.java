@@ -444,7 +444,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         assertThat(1.0,
             closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
-        featureMap = new HashMap<>(2) {{
+        featureMap = new HashMap<String, Object>(2) {{
             put("foo", 0.6);
             put("bar", null);
         }};

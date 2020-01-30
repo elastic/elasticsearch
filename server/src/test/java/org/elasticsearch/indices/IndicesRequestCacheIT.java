@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -123,20 +124,26 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).setPreFilterShardSize(Integer.MAX_VALUE).get();
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .setPreFilterShardSize(Integer.MAX_VALUE).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 5);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+            // to ensure that query is executed even if it rewrites to match_no_docs
+            .addAggregation(new GlobalAggregationBuilder("global"))
             .setPreFilterShardSize(Integer.MAX_VALUE).get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 3, 7);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).setPreFilterShardSize(Integer.MAX_VALUE)
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .setPreFilterShardSize(Integer.MAX_VALUE)
             .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(7L));

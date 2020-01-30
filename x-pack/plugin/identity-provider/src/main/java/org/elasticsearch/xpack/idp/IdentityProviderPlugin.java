@@ -39,36 +39,37 @@ import java.util.List;
 public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
-    public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id");
+    public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
     public static final Setting<String> IDP_SSO_REDIRECT_ENDPOINT = Setting.simpleString("xpack.idp.sso_endpoint.redirect", value -> {
         try {
             new URI(value);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.redirect]. Not a valid URI", e);
         }
-    });
+    }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SSO_POST_ENDPOINT = Setting.simpleString("xpack.idp.sso_endpoint.post", value -> {
         try {
             new URI(value);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.post]. Not a valid URI", e);
         }
-    });
+    }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SLO_REDIRECT_ENDPOINT = Setting.simpleString("xpack.idp.slo_endpoint.redirect", value -> {
         try {
             new URI(value);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.redirect]. Not a valid URI", e);
         }
-    });
+    }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SLO_POST_ENDPOINT = Setting.simpleString("xpack.idp.slo_endpoint.post", value -> {
         try {
             new URI(value);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.post]. Not a valid URI", e);
         }
-    });
-    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias");
+    }, Setting.Property.NodeScope);
+    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
+        Setting.Property.NodeScope);
 
     private final Logger logger = LogManager.getLogger();
     private boolean enabled;

@@ -1,9 +1,9 @@
 [[modules-node]]
 == Node
 
-Any time that you start an instance of Elasticsearch, you are starting a
-_node_. A collection of connected nodes is called a <<modules-cluster,cluster>>. 
-If you are running a single node of {es}, then you have a cluster of one node.
+Any time that you start an instance of Elasticsearch, you are starting a _node_. 
+A collection of connected nodes is called a <<modules-cluster,cluster>>. If you 
+are running a single node of {es}, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer is used 
@@ -76,7 +76,7 @@ phase.
 
 [float]
 [[master-node]]
-=== Master-Eligible Node
+=== Master-eligible node
 
 The master node is responsible for lightweight cluster-wide actions such as
 creating or deleting an index, tracking which nodes are part of the cluster,
@@ -95,18 +95,15 @@ restarts.
 [[dedicated-master-node]]
 ==== Dedicated master-eligible node
 
-Indexing and searching your data is CPU-, memory-, and I/O-intensive work which 
-can put pressure on a node's resources. To ensure that your master node is 
-stable and not under pressure, it is a good idea to split the roles between 
-dedicated master-eligible nodes and dedicated data nodes. 
-
-While master nodes can also behave as <<coordinating-node,coordinating nodes>>
-and route search and indexing requests from clients to data nodes, it is
-better _not_ to use dedicated master-eligible nodes for this purpose. It is 
-important for the stability of the cluster that master-eligible nodes do as 
-little work as possible. For this reason, in larger deployments, it is 
-recommended to run three dedicated master-eligible nodes and remove the `master` 
-role from all remaining nodes in the cluster.
+It is important for the health of the cluster that the elected master node has 
+the resources it needs to fulfil its responsibilities. If the elected master 
+node is overloaded with other tasks then the cluster may not operate well. In 
+particular, indexing and searching your data can be very resource-intensive, so 
+in large or high-throughput clusters it is a good idea to avoid using the 
+master-eligible nodes for tasks such as indexing and searching. You can do this 
+by configuring three of your nodes to be dedicated master-eligible nodes. 
+Dedicated master-eligible nodes only have the `master` role, allowing them to 
+focus on managing the cluster.
 
 To create a dedicated master-eligible node in the {default-dist}, set:
 

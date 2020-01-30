@@ -43,3 +43,11 @@ Creating indices with soft deletes disabled was deprecated in 7.6 and
 is no longer supported in 8.0. The setting index.soft_deletes.enabled
 can no longer be set to false. As the setting defaults to true, simply
 leave the setting unset.
+
+[float]
+==== Translog retention settings are no longer supported
+
+Translog retention settings `index.translog.retention.size` and
+`index.translog.retention.age` were effectively ignored in 7.4,
+deprecated in 7.7, and removed in 8.0 in favor of
+<<index-modules-history-retention,soft deletes>>.

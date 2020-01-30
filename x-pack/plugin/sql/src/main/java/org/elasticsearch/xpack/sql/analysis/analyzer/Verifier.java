@@ -219,15 +219,7 @@ public final class Verifier {
             Set<Failure> localFailures = new LinkedHashSet<>();
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
 
-            // Full-Text search function are not allowed in the SELECT clause
-            plan.forEachUp(p -> {
-                for (NamedExpression ne : p.projections()) {
-                    ne.forEachUp((e) ->
-                            localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
-                                    "functions in the SELECT clause")),
-                            FullTextPredicate.class);
-                }
-            }, Project.class);
+            checkFullTextSearchInSelect(plan, localFailures);
 
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
@@ -305,6 +297,17 @@ public final class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
+        plan.forEachUp(p -> {
+            for (NamedExpression ne : p.projections()) {
+                ne.forEachUp((e) ->
+                        localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
+                                "functions in the SELECT clause")),
+                        FullTextPredicate.class);
+            }
+        }, Project.class);
     }
 
     /**

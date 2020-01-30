@@ -76,7 +76,7 @@ phase.
 
 [float]
 [[master-node]]
-=== Master-Eligible Node
+=== Master-eligible node
 
 The master node is responsible for lightweight cluster-wide actions such as
 creating or deleting an index, tracking which nodes are part of the cluster,

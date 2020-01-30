@@ -113,8 +113,6 @@ the request checks whether the index matches provided conditions
 but does not perform a rollover.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -430,7 +428,7 @@ PUT logs/_doc/2 <2>
 //////////////////////////
 [source,console]
 --------------------------------------------------
-GET _alias
+GET my_logs_index-000001,my_logs_index-000002/_alias
 --------------------------------------------------
 // TEST[continued]
 //////////////////////////

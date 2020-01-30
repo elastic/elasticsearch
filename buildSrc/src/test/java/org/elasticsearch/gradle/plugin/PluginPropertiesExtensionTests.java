@@ -30,8 +30,9 @@ public class PluginPropertiesExtensionTests extends GradleUnitTestCase {
         String projectName = "Test";
         String projectVersion = "5.0";
 
-        PluginPropertiesExtension pluginPropertiesExtension  =
-                new PluginPropertiesExtension(this.createProject(projectName, projectVersion));
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(
+            this.createProject(projectName, projectVersion)
+        );
 
         assertEquals(projectName, pluginPropertiesExtension.getName());
         assertEquals(projectVersion, pluginPropertiesExtension.getVersion());
@@ -40,8 +41,7 @@ public class PluginPropertiesExtensionTests extends GradleUnitTestCase {
     public void testCreatingPluginPropertiesExtensionWithNameWithoutVersion() {
         String projectName = "Test";
 
-        PluginPropertiesExtension pluginPropertiesExtension  =
-                new PluginPropertiesExtension(this.createProject(projectName, null));
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject(projectName, null));
 
         assertEquals(projectName, pluginPropertiesExtension.getName());
         assertEquals("unspecified", pluginPropertiesExtension.getVersion());

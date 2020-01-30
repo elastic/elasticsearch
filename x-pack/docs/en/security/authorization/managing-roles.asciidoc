@@ -50,6 +50,7 @@ The following describes the structure of an indices permissions entry:
   "privileges": [ ... ], <2>
   "field_security" : { ... }, <3>
   "query": "..." <4>
+  "allow_restricted_indices": false <5>
 }
 -------
 // NOTCONSOLE
@@ -57,12 +58,20 @@ The following describes the structure of an indices permissions entry:
 <1> A list of indices (or index name patterns) to which the permissions in this
     entry apply.
 <2> The index level privileges the owners of the role have on the associated
-    indices (those indices that are specified in the `name` field)
+    indices (those indices that are specified in the `names` field)
 <3> Specification for document fields the owners of the role have read access to.
     See <<field-and-document-access-control>> for details.
 <4> A search query that defines the documents the owners of the role have read
     access to. A document within the associated indices must match this query
     in order for it to be accessible by the owners of the role.
+<5> Restricted indices are a special category of indices that are used
+    internally to store configuration data. Only internal system
+    roles should normally grant privileges over the restricted indices.
+    **Toggling this flag is most discouraged because it could effectively grant
+    superuser privileges.** If however, for administrative purposes, you need to
+    create a role with privileges covering restricted indices, you must set
+    this field to `true` (default  is `false`), and then the `names` field will
+    cover the restricted indices as well.
 
 [TIP]
 ==============================================================================

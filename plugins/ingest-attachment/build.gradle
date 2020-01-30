@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -23,9 +25,9 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.22',
+  'tika'  : '1.22',
   'pdfbox': '2.0.16',
-  'poi': '4.0.1',
+  'poi'   : '4.0.1',
   'mime4j': '0.8.3'
 ]
 
@@ -82,12 +84,12 @@ forbiddenPatterns {
   exclude '**/*.vsdx'
 }
 
-thirdPartyAudit{ 
-    ignoreMissingClasses()
+thirdPartyAudit {
+  ignoreMissingClasses()
 }
 
 thirdPartyAudit.onlyIf {
-  // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+  // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
   // rather than provide a long list of exclusions, disable the check on FIPS.
-  project.inFipsJvm == false
+  BuildParams.inFipsJvm == false
 }

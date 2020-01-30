@@ -35,9 +35,8 @@ import java.util.regex.Pattern;
 public class Jdk implements Buildable, Iterable<File> {
 
     private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
-    static final Pattern VERSION_PATTERN =
-        Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
-    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));
+    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows", "mac"));
 
     private final String name;
     private final Configuration configuration;
@@ -87,7 +86,8 @@ public class Jdk implements Buildable, Iterable<File> {
     public void setPlatform(String platform) {
         if (ALLOWED_PLATFORMS.contains(platform) == false) {
             throw new IllegalArgumentException(
-                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
+                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS
+            );
         }
         this.platform.set(platform);
     }
@@ -111,6 +111,17 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration.getBuildDependencies();
     }
 
+    public Object getBinJavaPath() {
+        return new Object() {
+            @Override
+            public String toString() {
+                final String platform = getPlatform();
+                final boolean isOSX = "mac".equals(platform) || "darwin".equals(platform);
+                return getPath() + (isOSX ? "/Contents/Home" : "") + "/bin/java";
+            }
+        };
+    }
+
     // internal, make this jdks configuration unmodifiable
     void finalizeValues() {
         if (version.isPresent() == false) {
@@ -124,7 +135,7 @@ public class Jdk implements Buildable, Iterable<File> {
         }
         version.finalizeValue();
         platform.finalizeValue();
-        vendor.finalizeValue();;
+        vendor.finalizeValue();
     }
 
     @Override

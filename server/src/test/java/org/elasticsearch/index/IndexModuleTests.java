@@ -19,6 +19,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
@@ -160,7 +161,7 @@ public class IndexModuleTests extends ESTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
                 threadPool, scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
-                new IndicesFieldDataCache(settings, listener), writableRegistry());
+                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false);
     }
 
     public void testWrapperIsBound() throws IOException {
@@ -442,7 +443,7 @@ public class IndexModuleTests extends ESTestCase {
                 final Analyzer analyzer = new Analyzer() {
                     @Override
                     protected TokenStreamComponents createComponents(String fieldName) {
-                        throw new AssertionError("should not be here");
+                        return new TokenStreamComponents(new StandardTokenizer());
                     }
 
                     @Override

@@ -19,16 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.BraceSubDefNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -47,34 +43,30 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        index.analyze(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        index.analyze(scriptRoot, scope);
         index.expected = index.actual;
-        index = index.cast(scriptRoot, locals);
+        index = index.cast(scriptRoot, scope);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        setup(classWriter, methodWriter, globals);
-        load(classWriter, methodWriter, globals);
-    }
+    BraceSubDefNode write(ClassNode classNode) {
+        BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
-    @Override
-    int accessElementCount() {
-        return 2;
+        braceSubDefNode.setChildNode(index.write(classNode));
+
+        braceSubDefNode.setLocation(location);
+        braceSubDefNode.setExpressionType(actual);
+
+        return braceSubDefNode;
     }
 
     @Override
@@ -85,34 +77,6 @@ final class PSubDefArray extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         this.actual = actual;
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.dup();
-        index.write(classWriter, methodWriter, globals);
-        Type methodType = Type.getMethodType(
-                MethodWriter.getType(index.actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
-        methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType =
-            Type.getMethodType(MethodWriter.getType(actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
-        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType =
-            Type.getMethodType(
-                Type.getType(void.class), Type.getType(Object.class), MethodWriter.getType(index.actual), MethodWriter.getType(actual));
-        methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 
     @Override

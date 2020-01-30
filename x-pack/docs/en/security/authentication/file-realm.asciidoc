@@ -23,5 +23,7 @@ To define users, the {security-features} provide the
 <<users-command,users>> command-line tool. This tool enables you to add
 and remove users, assign user roles, and manage user passwords.
 
-For more information, see 
-<<configuring-file-realm>>.
+[[file-realm-configuration]]
+==== Configuring a file realm
+
+include::configuring-file-realm.asciidoc[]

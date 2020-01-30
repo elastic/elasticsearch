@@ -41,7 +41,7 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         super.setUp();
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("index", "type", "1").setSource("field", "value").get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").get();
         refresh();
     }
 

@@ -281,7 +281,7 @@ as described in <<random-score-function, random score function>>.
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10(doc['field'].value * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -297,7 +297,7 @@ a value `1` if a document doesn't have a field `field`:
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10((doc['field'].size() == 0 ? 1 : doc['field'].value()) * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }

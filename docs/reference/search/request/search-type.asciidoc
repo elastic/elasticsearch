@@ -43,7 +43,7 @@ The request is processed in two phases. In the first phase, the query
 is forwarded to *all involved shards*. Each shard executes the search
 and generates a sorted list of results, local to that shard. Each
 shard returns *just enough information* to the coordinating node
-to allow it merge and re-sort the shard level results into a globally
+to allow it to merge and re-sort the shard level results into a globally
 sorted set of results, of maximum length `size`. 
 
 During the second phase, the coordinating node requests the document

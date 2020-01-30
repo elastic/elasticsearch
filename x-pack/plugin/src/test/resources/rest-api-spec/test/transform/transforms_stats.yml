@@ -33,6 +33,7 @@ setup:
 teardown:
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-stats"
         wait_for_completion: true
 
@@ -252,6 +253,7 @@ teardown:
 
   - do:
       transform.stop_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-stats-continuous"
         wait_for_completion: true
 

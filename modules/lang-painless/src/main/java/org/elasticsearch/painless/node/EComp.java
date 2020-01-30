@@ -20,25 +20,17 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ComparisonNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.EQUALS;
-import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 
 /**
  * Represents a comparison expression.
@@ -60,41 +52,35 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
         right.extractVariables(variables);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (operation == Operation.EQ) {
-            analyzeEq(scriptRoot, locals);
+            analyzeEq(scriptRoot, scope);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(scriptRoot, locals);
+            analyzeEqR(scriptRoot, scope);
         } else if (operation == Operation.NE) {
-            analyzeNE(scriptRoot, locals);
+            analyzeNE(scriptRoot, scope);
         } else if (operation == Operation.NER) {
-            analyzeNER(scriptRoot, locals);
+            analyzeNER(scriptRoot, scope);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(scriptRoot, locals);
+            analyzeGTE(scriptRoot, scope);
         } else if (operation == Operation.GT) {
-            analyzeGT(scriptRoot, locals);
+            analyzeGT(scriptRoot, scope);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(scriptRoot, locals);
+            analyzeLTE(scriptRoot, scope);
         } else if (operation == Operation.LT) {
-            analyzeLT(scriptRoot, locals);
+            analyzeLT(scriptRoot, scope);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeEq(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -144,7 +130,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeEqR(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeEqR(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -185,7 +171,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNE(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeNE(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -235,7 +221,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNER(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeNER(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -276,7 +262,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGTE(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeGTE(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -316,7 +302,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGT(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeGT(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -356,7 +342,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLTE(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeLTE(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -396,7 +382,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLT(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeLT(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -437,116 +423,18 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    ComparisonNode write(ClassNode classNode) {
+        ComparisonNode comparisonNode = new ComparisonNode();
 
-        left.write(classWriter, methodWriter, globals);
+        comparisonNode.setLeftNode(left.write(classNode));
+        comparisonNode.setRightNode(right.write(classNode));
 
-        if (!right.isNull) {
-            right.write(classWriter, methodWriter, globals);
-        }
+        comparisonNode.setLocation(location);
+        comparisonNode.setExpressionType(actual);
+        comparisonNode.setComparisonType(promotedType);
+        comparisonNode.setOperation(operation);
 
-        Label jump = new Label();
-        Label end = new Label();
-
-        boolean eq = (operation == Operation.EQ || operation == Operation.EQR);
-        boolean ne = (operation == Operation.NE || operation == Operation.NER);
-        boolean lt  = operation == Operation.LT;
-        boolean lte = operation == Operation.LTE;
-        boolean gt  = operation == Operation.GT;
-        boolean gte = operation == Operation.GTE;
-
-        boolean writejump = true;
-
-        Type type = MethodWriter.getType(promotedType);
-
-        if (promotedType == void.class || promotedType == byte.class || promotedType == short.class || promotedType == char.class) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (promotedType == boolean.class) {
-            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-            else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        } else if (promotedType == int.class || promotedType == long.class || promotedType == float.class || promotedType == double.class) {
-            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-            else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
-            else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
-            else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
-            else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
-            else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-        } else if (promotedType == def.class) {
-            Type booleanType = Type.getType(boolean.class);
-            Type descriptor = Type.getMethodType(booleanType, MethodWriter.getType(left.actual), MethodWriter.getType(right.actual));
-
-            if (eq) {
-                if (right.isNull) {
-                    methodWriter.ifNull(jump);
-                } else if (!left.isNull && operation == Operation.EQ) {
-                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
-                    writejump = false;
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                }
-            } else if (ne) {
-                if (right.isNull) {
-                    methodWriter.ifNonNull(jump);
-                } else if (!left.isNull && operation == Operation.NE) {
-                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
-                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                }
-            } else if (lt) {
-                methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else if (lte) {
-                methodWriter.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else if (gt) {
-                methodWriter.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else if (gte) {
-                methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        } else {
-            if (eq) {
-                if (right.isNull) {
-                    methodWriter.ifNull(jump);
-                } else if (operation == Operation.EQ) {
-                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
-                    writejump = false;
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                }
-            } else if (ne) {
-                if (right.isNull) {
-                    methodWriter.ifNonNull(jump);
-                } else if (operation == Operation.NE) {
-                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
-                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                }
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
-        if (writejump) {
-            methodWriter.push(false);
-            methodWriter.goTo(end);
-            methodWriter.mark(jump);
-            methodWriter.push(true);
-            methodWriter.mark(end);
-        }
+        return comparisonNode;
     }
 
     @Override

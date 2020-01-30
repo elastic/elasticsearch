@@ -1,16 +1,17 @@
 [role="xpack"]
 [[transform-script]]
-=== Script transform
+=== Script {watcher-transform}
 
-A <<transform,transform>> that executes a script on the current payload in the
-watch execution context and replaces it with a newly generated one. The following
-snippet shows how a simple script transform can be defined on the watch level:
+A <<transform,{watcher-transform}>> that executes a script on the current
+payload in the watch execution context and replaces it with a newly generated
+one. The following snippet shows how a simple script {watcher-transform} can be
+defined on the watch level:
 
-TIP:  The `script` transform is often useful when used in combination with the
-      <<transform-search,`search`>> transform, where the script can extract only
-      the significant data from a search result, and by that, keep the payload
-      minimal. This can be achieved with the <<transform-chain,`chain`>>
-      transform.
+TIP:  The `script` {watcher-transform} is often useful when used in combination
+      with the <<transform-search,`search`>> {watcher-transform}, where the
+      script can extract only the significant data from a search result, and by
+      that, keep the payload minimal. This can be achieved with the
+      <<transform-chain,`chain`>> {watcher-transform}.
 
 
 [source,js]
@@ -39,7 +40,7 @@ to set the `script` field to an object describing the script and its language.
 The following table lists the possible settings that can be configured:
 
 [[transform-script-settings]]
-.Script transform settings
+.Script {watcher-transform} settings
 [options="header"]
 |======
 | Name      |Required | Default    | Description

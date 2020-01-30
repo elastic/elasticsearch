@@ -58,9 +58,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-2", "_doc", Integer.toString(i), "foo", "baz" + i);
-            index("test-idx-3", "_doc", Integer.toString(i), "foo", "baz" + i);
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-2", Integer.toString(i), "foo", "baz" + i);
+            indexDoc("test-idx-3", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
 
@@ -98,7 +98,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
 
@@ -140,7 +140,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotsResponse.getFailedResponses().get("test-repo"), instanceOf(SnapshotMissingException.class));
     }
 
-    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException, InterruptedException {
+    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository");
 
         logger.info("--> creating repository");
@@ -153,7 +153,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
 

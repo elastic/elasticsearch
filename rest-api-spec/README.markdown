@@ -67,6 +67,23 @@ If an API is stable but it response should be treated as an arbitrary map of key
 }
 ```
 
+## Type definition
+In the documentation, you will find the `type` field, which documents which type every parameter will accept.
+
+#### Querystring parameters
+| Type  | Description  |
+|---|---|
+| `list`  | An array of strings *(represented as a comma separated list in the querystring)* |
+| `date` | A string representing a date formatted in ISO8601 or a number representing milliseconds since the epoch *(used only in ML)*   |
+| `time` | A numeric or string value representing duration |
+| `string` | A string value  |
+| `enum` | A set of named constants *(a single value should be sent in the querystring)*  |
+| `int` | A signed 32-bit integer with a minimum value of -2<sup>31</sup> and a maximum value of 2<sup>31</sup>-1.  |
+| `double` | A [double-precision 64-bit IEEE 754](https://en.wikipedia.org/wiki/Floating-point_arithmetic) floating point number, restricted to finite values.  |
+| `long` | A signed 64-bit integer with a minimum value of -2<sup>63</sup> and a maximum value of 2<sup>63</sup>-1. *(Note: the max safe integer for JSON is 2<sup>53</sup>-1)* |
+| `number` | Alias for `double`. *(deprecated, a more specific type should be used)*  |
+| `boolean` | Boolean fields accept JSON true and false values  |
+
 ## Backwards compatibility
 
 The specification follows the same backward compatibility guarantees as Elasticsearch.

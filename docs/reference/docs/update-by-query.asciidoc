@@ -59,7 +59,7 @@ When the versions match, the document is updated and the version number is incre
 If a document changes between the time that the snapshot is taken and 
 the update operation is processed, it results in a version conflict and the operation fails. 
 You can opt to count version conflicts instead of halting and returning by 
-setting `conflicts` to `proceeed`. 
+setting `conflicts` to `proceed`. 
 
 NOTE: Documents with a version equal to 0 cannot be updated using update by
 query because `internal` versioning does not support 0 as a valid
@@ -305,7 +305,6 @@ POST twitter/_update_by_query?conflicts=proceed
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 <1> The query must be passed as a value to the `query` key, in the same
@@ -318,7 +317,6 @@ Update documents in multiple indices:
 --------------------------------------------------
 POST twitter,blog/_update_by_query
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
 
 Limit the update by query operation to shards that a particular routing value:
@@ -327,7 +325,6 @@ Limit the update by query operation to shards that a particular routing value:
 --------------------------------------------------
 POST twitter/_update_by_query?routing=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default update by query uses scroll batches of 1000. 
@@ -337,7 +334,6 @@ You can change the batch size with the `scroll_size` parameter:
 --------------------------------------------------
 POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[docs-update-by-query-api-source]]
@@ -361,7 +357,6 @@ POST twitter/_update_by_query
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Note that `conflicts=proceed` is not specified in this example. In this case, a
@@ -402,7 +397,6 @@ PUT _ingest/pipeline/set-foo
 }
 POST twitter/_update_by_query?pipeline=set-foo
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 

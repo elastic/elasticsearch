@@ -20,6 +20,8 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -105,7 +107,7 @@ public interface Repository extends LifecycleComponent {
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
      */
-    RepositoryData getRepositoryData();
+    void getRepositoryData(ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process
@@ -197,10 +199,12 @@ public interface Repository extends LifecycleComponent {
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
+     * @param userMetadata        user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens, ActionListener<String> listener);
+                       IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens, Map<String, Object> userMetadata,
+                       ActionListener<String> listener);
 
     /**
      * Restores snapshot of the shard.
@@ -211,9 +215,10 @@ public interface Repository extends LifecycleComponent {
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
+     * @param listener        listener to invoke once done
      */
-    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
-
+    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                      ActionListener<Void> listener);
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
@@ -223,4 +228,21 @@ public interface Repository extends LifecycleComponent {
      * @return snapshot status
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+
+    /**
+     * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
+     * thus the same semantics as with {@link org.elasticsearch.cluster.ClusterStateApplier#applyClusterState} apply for the
+     * {@link ClusterState} that is passed here.
+     *
+     * @param state new cluster state
+     */
+    void updateState(ClusterState state);
+
+    /**
+     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * during snapshot initialization.
+     */
+    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
+        return userMetadata;
+    }
 }

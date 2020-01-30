@@ -49,9 +49,8 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.hamcrest.Matchers;
-import org.junit.Before;
+import org.junit.After;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -90,7 +89,7 @@ public class SecurityTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
+        public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
             return Collections.singletonMap(realmType, config -> null);
         }
     }
@@ -105,7 +104,7 @@ public class SecurityTests extends ESTestCase {
             .put("path.home", createTempDir()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
-        SSLService sslService = new SSLService(settings, env);
+        SSLService sslService = new SSLService(env);
         security = new Security(settings, null, Arrays.asList(extensions)) {
             @Override
             protected XPackLicenseState getLicenseState() {
@@ -143,13 +142,9 @@ public class SecurityTests extends ESTestCase {
         return null;
     }
 
-    @Before
-    public void cleanup() throws IOException {
-        if (threadContext != null) {
-            threadContext.stashContext();
-            threadContext.close();
-            threadContext = null;
-        }
+    @After
+    public void cleanup() {
+        threadContext = null;
     }
 
     public void testCustomRealmExtension() throws Exception {

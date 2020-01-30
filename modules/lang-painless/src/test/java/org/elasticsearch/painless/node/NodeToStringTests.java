@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FeatureTestObject;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
@@ -54,7 +54,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testEAssignment() {
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def i))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
               + "  (SExpression (EAssignment (EVariable i) = (ENumeric 2)))\n"
               + "  (SReturn (EVariable i)))",
                 "def i;\n"
@@ -63,7 +63,7 @@ public class NodeToStringTests extends ESTestCase {
         for (String operator : new String[] {"+", "-", "*", "/", "%", "&", "^", "|", "<<", ">>", ">>>"}) {
             assertToString(
                     "(SClass\n"
-                  + "  (SDeclBlock (SDeclaration def i (ENumeric 1)))\n"
+                  + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i (ENumeric 1)))\n"
                   + "  (SExpression (EAssignment (EVariable i) " + operator + "= (ENumeric 2)))\n"
                   + "  (SReturn (EVariable i)))",
                     "def i = 1;\n"
@@ -73,31 +73,31 @@ public class NodeToStringTests extends ESTestCase {
         // Compound
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def i))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
               + "  (SReturn (EAssignment (EVariable i) = (ENumeric 2))))",
                 "def i;\n"
               + "return i = 2");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def i))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
               + "  (SReturn (EAssignment (EVariable i) ++ post)))",
                 "def i;\n"
               + "return i++");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def i))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
               + "  (SReturn (EAssignment (EVariable i) ++ pre)))",
                 "def i;\n"
               + "return ++i");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def i))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
               + "  (SReturn (EAssignment (EVariable i) -- post)))",
                 "def i;\n"
               + "return i--");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def i))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
               + "  (SReturn (EAssignment (EVariable i) -- pre)))",
                 "def i;\n"
               + "return --i");
@@ -153,7 +153,8 @@ public class NodeToStringTests extends ESTestCase {
     public void testECapturingFunctionRef() {
         assertToString(
                   "(SClass\n"
-                + "  (SDeclBlock (SDeclaration Integer x (PCallInvoke (EStatic Integer) valueOf (Args (ENumeric 5)))))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [Integer]) x "
+                + "(PCallInvoke (EStatic Integer) valueOf (Args (ENumeric 5)))))\n"
                 + "  (SReturn (PCallInvoke (PCallInvoke (EStatic Optional) empty) orElseGet (Args (ECapturingFunctionRef x toString)))))",
                   "Integer x = Integer.valueOf(5);\n"
                 + "return Optional.empty().orElseGet(x::toString)");
@@ -349,7 +350,7 @@ public class NodeToStringTests extends ESTestCase {
         assertToString("(SClass (SReturn (EVariable params)))", "return params");
         assertToString(
                   "(SClass\n"
-                + "  (SDeclBlock (SDeclaration def a (ENumeric 1)))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) a (ENumeric 1)))\n"
                 + "  (SReturn (EVariable a)))",
                   "def a = 1;\n"
                 + "return a");
@@ -373,13 +374,13 @@ public class NodeToStringTests extends ESTestCase {
         assertToString("(SClass (SReturn (PField nullSafe (EVariable params) a)))", "return params?.a");
         assertToString(
                   "(SClass\n"
-                + "  (SDeclBlock (SDeclaration int[] a (ENewArray int[] dims (Args (ENumeric 10)))))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [int[]]) a (ENewArray int[] dims (Args (ENumeric 10)))))\n"
                 + "  (SReturn (PField (EVariable a) length)))",
                   "int[] a = new int[10];\n"
                 + "return a.length");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration org.elasticsearch.painless.FeatureTestObject a"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [org.elasticsearch.painless.FeatureTestObject]) a"
               + " (ENewObj org.elasticsearch.painless.FeatureTestObject)))\n"
               + "  (SExpression (EAssignment (PField (EVariable a) x) = (ENumeric 10)))\n"
               + "  (SReturn (PField (EVariable a) x)))",
@@ -511,13 +512,13 @@ public class NodeToStringTests extends ESTestCase {
     public void testSBreak() {
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int itr (ENumeric 2)))\n"
-              + "  (SDeclBlock (SDeclaration int a (ENumeric 1)))\n"
-              + "  (SDeclBlock (SDeclaration int b (ENumeric 1)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) itr (ENumeric 2)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) a (ENumeric 1)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) b (ENumeric 1)))\n"
               + "  (SDo (EComp (EVariable b) < (ENumeric 1000)) (SBlock\n"
               + "    (SExpression (EAssignment (EVariable itr) ++ post))\n"
               + "    (SIf (EComp (EVariable itr) > (ENumeric 10000)) (SBlock (SBreak)))\n"
-              + "    (SDeclBlock (SDeclaration int tmp (EVariable a)))\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) tmp (EVariable a)))\n"
               + "    (SExpression (EAssignment (EVariable a) = (EVariable b)))\n"
               + "    (SExpression (EAssignment (EVariable b) = (EBinary (EVariable tmp) + (EVariable b))))))\n"
               + "  (SReturn (EVariable b)))",
@@ -539,13 +540,13 @@ public class NodeToStringTests extends ESTestCase {
     public void testSContinue() {
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int itr (ENumeric 2)))\n"
-              + "  (SDeclBlock (SDeclaration int a (ENumeric 1)))\n"
-              + "  (SDeclBlock (SDeclaration int b (ENumeric 1)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) itr (ENumeric 2)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) a (ENumeric 1)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) b (ENumeric 1)))\n"
               + "  (SDo (EComp (EVariable b) < (ENumeric 1000)) (SBlock\n"
               + "    (SExpression (EAssignment (EVariable itr) ++ post))\n"
               + "    (SIf (EComp (EVariable itr) < (ENumeric 10000)) (SBlock (SContinue)))\n"
-              + "    (SDeclBlock (SDeclaration int tmp (EVariable a)))\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) tmp (EVariable a)))\n"
               + "    (SExpression (EAssignment (EVariable a) = (EVariable b)))\n"
               + "    (SExpression (EAssignment (EVariable b) = (EBinary (EVariable tmp) + (EVariable b))))))\n"
               + "  (SReturn (EVariable b)))",
@@ -567,7 +568,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testSDeclBlock() {
         assertToString(
                   "(SClass\n"
-                + "  (SDeclBlock (SDeclaration def a))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) a))\n"
                 + "  (SExpression (EAssignment (EVariable a) = (ENumeric 10)))\n"
                 + "  (SReturn (EVariable a)))",
                   "def a;\n"
@@ -575,34 +576,34 @@ public class NodeToStringTests extends ESTestCase {
                 + "return a");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration def a (ENumeric 10)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) a (ENumeric 10)))\n"
               + "  (SReturn (EVariable a)))",
                 "def a = 10;\n"
               + "return a");
         assertToString(
                 "(SClass\n"
               + "  (SDeclBlock\n"
-              + "    (SDeclaration def a)\n"
-              + "    (SDeclaration def b)\n"
-              + "    (SDeclaration def c))\n"
+              + "    (SDeclaration (DUnresolvedType [def]) a)\n"
+              + "    (SDeclaration (DUnresolvedType [def]) b)\n"
+              + "    (SDeclaration (DUnresolvedType [def]) c))\n"
               + "  (SReturn (EVariable a)))",
                 "def a, b, c;\n"
               + "return a");
         assertToString(
                 "(SClass\n"
               + "  (SDeclBlock\n"
-              + "    (SDeclaration def a (ENumeric 10))\n"
-              + "    (SDeclaration def b (ENumeric 20))\n"
-              + "    (SDeclaration def c (ENumeric 100)))\n"
+              + "    (SDeclaration (DUnresolvedType [def]) a (ENumeric 10))\n"
+              + "    (SDeclaration (DUnresolvedType [def]) b (ENumeric 20))\n"
+              + "    (SDeclaration (DUnresolvedType [def]) c (ENumeric 100)))\n"
               + "  (SReturn (EVariable a)))",
                 "def a = 10, b = 20, c = 100;\n"
               + "return a");
         assertToString(
                 "(SClass\n"
               + "  (SDeclBlock\n"
-              + "    (SDeclaration def a (ENumeric 10))\n"
-              + "    (SDeclaration def b)\n"
-              + "    (SDeclaration def c (ENumeric 100)))\n"
+              + "    (SDeclaration (DUnresolvedType [def]) a (ENumeric 10))\n"
+              + "    (SDeclaration (DUnresolvedType [def]) b)\n"
+              + "    (SDeclaration (DUnresolvedType [def]) c (ENumeric 100)))\n"
               + "  (SReturn (EVariable a)))",
                 "def a = 10, b, c = 100;\n"
               + "return a");
@@ -610,9 +611,9 @@ public class NodeToStringTests extends ESTestCase {
                 "(SClass\n"
               + "  (SIf (PField (EVariable params) a) (SBlock\n"
               + "    (SDeclBlock\n"
-              + "      (SDeclaration def a (ENumeric 10))\n"
-              + "      (SDeclaration def b)\n"
-              + "      (SDeclaration def c (ENumeric 100)))\n"
+              + "      (SDeclaration (DUnresolvedType [def]) a (ENumeric 10))\n"
+              + "      (SDeclaration (DUnresolvedType [def]) b)\n"
+              + "      (SDeclaration (DUnresolvedType [def]) c (ENumeric 100)))\n"
               + "    (SReturn (EVariable a))))\n"
               + "  (SReturn (EBoolean false)))",
                 "if (params.a) {"
@@ -625,12 +626,12 @@ public class NodeToStringTests extends ESTestCase {
     public void testSDo() {
         assertToString(
                   "(SClass\n"
-                + "  (SDeclBlock (SDeclaration int itr (ENumeric 2)))\n"
-                + "  (SDeclBlock (SDeclaration int a (ENumeric 1)))\n"
-                + "  (SDeclBlock (SDeclaration int b (ENumeric 1)))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) itr (ENumeric 2)))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) a (ENumeric 1)))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) b (ENumeric 1)))\n"
                 + "  (SDo (EComp (EVariable b) < (ENumeric 1000)) (SBlock\n"
                 + "    (SExpression (EAssignment (EVariable itr) ++ post))\n"
-                + "    (SDeclBlock (SDeclaration int tmp (EVariable a)))\n"
+                + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) tmp (EVariable a)))\n"
                 + "    (SExpression (EAssignment (EVariable a) = (EVariable b)))\n"
                 + "    (SExpression (EAssignment (EVariable b) = (EBinary (EVariable tmp) + (EVariable b))))))\n"
                 + "  (SReturn (EVariable b)))",
@@ -649,7 +650,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testSEach() {
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int l (ENumeric 0)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) l (ENumeric 0)))\n"
               + "  (SEach String s (EListInit (EString 'cat') (EString 'dog') (EString 'chicken')) (SBlock "
                   + "(SExpression (EAssignment (EVariable l) += (PCallInvoke (EVariable s) length)))))\n"
               + "  (SReturn (EVariable l)))",
@@ -660,9 +661,9 @@ public class NodeToStringTests extends ESTestCase {
                 + "return l");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int l (ENumeric 0)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) l (ENumeric 0)))\n"
               + "  (SEach String s (EListInit (EString 'cat') (EString 'dog') (EString 'chicken')) (SBlock\n"
-              + "    (SDeclBlock (SDeclaration String s2 (EBinary (EString 'dire ') + (EVariable s))))\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [String]) s2 (EBinary (EString 'dire ') + (EVariable s))))\n"
               + "    (SExpression (EAssignment (EVariable l) += (PCallInvoke (EVariable s2) length)))))\n"
               + "  (SReturn (EVariable l)))",
                 "int l = 0;\n"
@@ -676,9 +677,9 @@ public class NodeToStringTests extends ESTestCase {
     public void testSFor() {
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int sum (ENumeric 0)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) sum (ENumeric 0)))\n"
               + "  (SFor\n"
-              + "    (SDeclBlock (SDeclaration int i (ENumeric 0)))\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 0)))\n"
               + "    (EComp (EVariable i) < (ENumeric 1000))\n"
               + "    (EAssignment (EVariable i) ++ post)\n"
               + "    (SBlock (SExpression (EAssignment (EVariable sum) += (EVariable i)))))\n"
@@ -690,13 +691,13 @@ public class NodeToStringTests extends ESTestCase {
                 + "return sum");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int sum (ENumeric 0)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) sum (ENumeric 0)))\n"
               + "  (SFor\n"
-              + "    (SDeclBlock (SDeclaration int i (ENumeric 0)))\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 0)))\n"
               + "    (EComp (EVariable i) < (ENumeric 1000))\n"
               + "    (EAssignment (EVariable i) ++ post)\n"
               + "    (SBlock (SFor\n"
-              + "      (SDeclBlock (SDeclaration int j (ENumeric 0)))\n"
+              + "      (SDeclBlock (SDeclaration (DUnresolvedType [int]) j (ENumeric 0)))\n"
               + "      (EComp (EVariable j) < (ENumeric 1000))\n"
               + "      (EAssignment (EVariable j) ++ post)\n"
               + "      (SBlock (SExpression (EAssignment (EVariable sum) += (EBinary (EVariable i) * (EVariable j))))))))\n"
@@ -740,7 +741,7 @@ public class NodeToStringTests extends ESTestCase {
                 + "}");
         assertToString(
                 "(SClass\n"
-              + "  (SDeclBlock (SDeclaration int i (ENumeric 0)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 0)))\n"
               + "  (SIfElse (PField (EVariable param) a)\n"
               + "    (SBlock (SIfElse (PField (EVariable param) b)\n"
               + "      (SBlock (SReturn (EBoolean true)))\n"
@@ -760,7 +761,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachArray() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", int.class, 5, false);
+        Variable v = new Variable(int.class, "test", false);
         AExpression e = new ENewArray(l, "int", Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)), true);
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachArray node = new SSubEachArray(l, v, e, b);
@@ -772,7 +773,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachIterable() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", int.class, 5, false);
+        Variable v = new Variable(int.class, "test", false);
         AExpression e = new EListInit(l, Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)));
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachIterable node = new SSubEachIterable(l, v, e, b);
@@ -789,7 +790,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testSWhile() {
         assertToString(
                   "(SClass\n"
-                + "  (SDeclBlock (SDeclaration int i (ENumeric 0)))\n"
+                + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 0)))\n"
                 + "  (SWhile (EComp (EVariable i) < (ENumeric 10)) (SBlock (SExpression (EAssignment (EVariable i) ++ post))))\n"
                 + "  (SReturn (EVariable i)))",
                   "int i = 0;\n"
@@ -822,7 +823,7 @@ public class NodeToStringTests extends ESTestCase {
                 "(SClass\n"
               + "  (SFunction def a (Args (Pair int i) (Pair int j))\n"
               + "    (SIf (EComp (EVariable i) < (EVariable j)) (SBlock (SReturn (EBoolean true))))\n"
-              + "    (SDeclBlock (SDeclaration int k (EBinary (EVariable i) + (EVariable j))))\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) k (EBinary (EVariable i) + (EVariable j))))\n"
               + "    (SReturn (EVariable k)))\n"
               + "  (SReturn (EBoolean true)))",
                 "def a(int i, int j) {\n"
@@ -852,7 +853,8 @@ public class NodeToStringTests extends ESTestCase {
     public void testSTryAndSCatch() {
         assertToString(
                   "(SClass (STry (SBlock (SReturn (ENumeric 1)))\n"
-                + "  (SCatch Exception e (SBlock (SReturn (ENumeric 2))))))",
+                + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) " +
+                          "(SBlock (SReturn (ENumeric 2))))))",
                   "try {\n"
                 + "  return 1\n"
                 + "} catch (Exception e) {\n"
@@ -860,9 +862,10 @@ public class NodeToStringTests extends ESTestCase {
                 + "}");
         assertToString(
                 "(SClass (STry (SBlock\n"
-              + "  (SDeclBlock (SDeclaration int i (ENumeric 1)))\n"
+              + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 1)))\n"
               + "  (SReturn (ENumeric 1)))\n"
-              + "  (SCatch Exception e (SBlock (SReturn (ENumeric 2))))))",
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) " +
+                        "(SBlock (SReturn (ENumeric 2))))))",
                 "try {\n"
               + "  int i = 1;"
               + "  return 1\n"
@@ -871,8 +874,8 @@ public class NodeToStringTests extends ESTestCase {
               + "}");
         assertToString(
                 "(SClass (STry (SBlock (SReturn (ENumeric 1)))\n"
-              + "  (SCatch Exception e (SBlock\n"
-              + "    (SDeclBlock (SDeclaration int i (ENumeric 1)))\n"
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) (SBlock\n"
+              + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 1)))\n"
               + "    (SReturn (ENumeric 2))))))",
                 "try {\n"
               + "  return 1\n"
@@ -882,8 +885,10 @@ public class NodeToStringTests extends ESTestCase {
               + "}");
         assertToString(
                 "(SClass (STry (SBlock (SReturn (ENumeric 1)))\n"
-              + "  (SCatch NullPointerException e (SBlock (SReturn (ENumeric 2))))\n"
-              + "  (SCatch Exception e (SBlock (SReturn (ENumeric 3))))))",
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [NullPointerException]) e) " +
+                        "(SBlock (SReturn (ENumeric 2))))\n"
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) " +
+                        "(SBlock (SReturn (ENumeric 3))))))",
                 "try {\n"
               + "  return 1\n"
               + "} catch (NullPointerException e) {\n"

@@ -35,22 +35,22 @@ import java.time.ZoneOffset;
 
 public enum ValueType implements Writeable {
 
-    STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
+    STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES,
             IndexFieldData.class, DocValueFormat.RAW),
     LONG((byte) 2, "byte|short|integer|long", "long",
-                    ValuesSourceType.NUMERIC,
+                    CoreValuesSourceType.NUMERIC,
             IndexNumericFieldData.class, DocValueFormat.RAW),
-    DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
+    DOUBLE((byte) 3, "float|double", "double", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    NUMBER((byte) 4, "number", "number", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    DATE((byte) 5, "date", "date", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class,
             new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS)),
-    IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
+    IP((byte) 6, "ip", "ip", CoreValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
-    NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
-    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
-    RANGE((byte) 10, "range", "range", ValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
+    NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    GEOPOINT((byte) 8, "geo_point", "geo_point", CoreValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
+    BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
+    RANGE((byte) 10, "range", "range", CoreValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
 
     final String description;
     final ValuesSourceType valuesSourceType;

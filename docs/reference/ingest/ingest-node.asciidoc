@@ -718,8 +718,9 @@ The `ignore_failure` can be set on any processor and defaults to `false`.
 
 You may want to retrieve the actual error message that was thrown
 by a failed processor. To do so you can access metadata fields called
-`on_failure_message`, `on_failure_processor_type`, and `on_failure_processor_tag`. These fields are only accessible
-from within the context of an `on_failure` block.
+`on_failure_message`, `on_failure_processor_type`, `on_failure_processor_tag` and
+`on_failure_pipeline` (in case an error occurred inside a pipeline processor).
+These fields are only accessible from within the context of an `on_failure` block.
 
 Here is an updated version of the example that you
 saw earlier. But instead of setting the error message manually, the example leverages the `on_failure_message`
@@ -824,6 +825,7 @@ include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/circle.asciidoc[]
 include::processors/convert.asciidoc[]
+include::processors/csv.asciidoc[]
 include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
@@ -836,6 +838,7 @@ include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/html_strip.asciidoc[]
+include::processors/inference.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]

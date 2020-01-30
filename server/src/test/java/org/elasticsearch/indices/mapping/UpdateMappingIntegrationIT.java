@@ -88,7 +88,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec))
+            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(rec))
                 .setTimeout(TimeValue.timeValueMinutes(5)).setSource(fieldName, "some_value"));
         }
         indexRandom(true, false, indexRequests);
@@ -117,11 +117,11 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("_doc", "{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -141,7 +141,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -158,13 +158,13 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         try {
-            client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
+            client().admin().indices().preparePutMapping("test")
+                    .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [body] of different type, current_type [text], merged_type [integer]"));
@@ -173,11 +173,11 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithNormsConflicts() {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}", XContentType.JSON)
+                .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
                 .execute().actionGet();
         try {
-            client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON).execute()
+            client().admin().indices().preparePutMapping("test")
+                    .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON).execute()
                     .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
@@ -194,12 +194,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
+                .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
                 .execute().actionGet();
 
         //no changes, we return
@@ -231,11 +231,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Client client1 = clientArray.get(i % clientArray.size());
                         Client client2 = clientArray.get((i + 1) % clientArray.size());
                         String indexName = i % 2 == 0 ? "test2" : "test1";
-                        String typeName = "type";
                         String fieldName = Thread.currentThread().getName() + "_" + i;
 
-                        AcknowledgedResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
-                                JsonXContent.contentBuilder().startObject().startObject(typeName)
+                        AcknowledgedResponse response = client1.admin().indices().preparePutMapping(indexName).setSource(
+                                JsonXContent.contentBuilder().startObject().startObject("_doc")
                                         .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                         .endObject().endObject()
                         ).setMasterNodeTimeout(TimeValue.timeValueMinutes(5)).get();
@@ -271,7 +270,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", block);
-                assertAcked(client().admin().indices().preparePutMapping("test").setType("_doc")
+                assertAcked(client().admin().indices().preparePutMapping("test")
                     .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
             } finally {
                 disableIndexBlock("test", block);
@@ -281,7 +280,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", block);
-                assertBlocked(client().admin().indices().preparePutMapping("test").setType("_doc")
+                assertBlocked(client().admin().indices().preparePutMapping("test")
                     .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
             } finally {
                 disableIndexBlock("test", block);

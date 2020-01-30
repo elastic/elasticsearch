@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -129,9 +130,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class JobResultsProvider {
@@ -295,7 +294,7 @@ public class JobResultsProvider {
             // This assumes the requested mapping will be merged with mappings from the template,
             // and may need to be revisited if template merging is ever refactored
             try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(termFields)) {
-                createIndexRequest.mapping(SINGLE_MAPPING_NAME, termFieldsMapping);
+                createIndexRequest.mapping(termFieldsMapping);
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(
@@ -345,7 +344,7 @@ public class JobResultsProvider {
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
             listener.onFailure(new IllegalArgumentException(message));
         } else {
-            updateIndexMappingWithTermFields(indexName, mapping.type(), termFields, listener);
+            updateIndexMappingWithTermFields(indexName, termFields, listener);
         }
     }
 
@@ -375,12 +374,11 @@ public class JobResultsProvider {
         return count;
     }
 
-    private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
+    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields,
                                                   ActionListener<Boolean> listener) {
         // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(mappingType, termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
-                    .setType(mappingType)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -717,7 +715,7 @@ public class JobResultsProvider {
      * @return a bucket {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
-        return new BatchedBucketsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedBucketsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -729,7 +727,7 @@ public class JobResultsProvider {
      * @return a record {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<AnomalyRecord> newBatchedRecordsIterator(String jobId) {
-        return new BatchedRecordsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedRecordsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -926,7 +924,7 @@ public class JobResultsProvider {
      * @return an influencer {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
-        return new BatchedInfluencersIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedInfluencersIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**

@@ -24,7 +24,7 @@ testClusters.integTest {
   setting 'xpack.notification.email.account._email.smtp.host', 'host.domain'
   setting 'xpack.notification.email.account._email.smtp.port', '587'
   setting 'xpack.notification.email.account._email.smtp.user', '_user'
-  keystore  'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
+  keystore 'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
   setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'

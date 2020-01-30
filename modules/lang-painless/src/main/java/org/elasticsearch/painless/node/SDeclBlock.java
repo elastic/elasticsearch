@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DeclarationBlockNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
@@ -47,13 +45,6 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        for (SDeclaration declaration: declarations) {
-            declaration.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         for (SDeclaration declaration : declarations) {
             declaration.extractVariables(variables);
@@ -61,19 +52,25 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, locals);
+            declaration.analyze(scriptRoot, scope);
         }
 
         statementCount = declarations.size();
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        for (AStatement declaration : declarations) {
-            declaration.write(classWriter, methodWriter, globals);
+    DeclarationBlockNode write(ClassNode classNode) {
+        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
+
+        for (SDeclaration declaration : declarations) {
+            declarationBlockNode.addDeclarationNode(declaration.write(classNode));
         }
+
+        declarationBlockNode.setLocation(location);
+
+        return declarationBlockNode;
     }
 
     @Override

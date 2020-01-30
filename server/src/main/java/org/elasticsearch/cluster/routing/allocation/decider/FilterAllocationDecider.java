@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -109,20 +110,31 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
             }
         }
-        return shouldFilter(shardRouting, node, allocation);
+        return shouldFilter(shardRouting, node.node(), allocation);
     }
 
     @Override
     public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(indexMetaData, node, allocation);
+        return shouldFilter(indexMetaData, node.node(), allocation);
     }
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node, allocation);
+        return shouldFilter(shardRouting, node.node(), allocation);
     }
 
-    private Decision shouldFilter(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    @Override
+    public Decision shouldAutoExpandToNode(IndexMetaData indexMetaData, DiscoveryNode node, RoutingAllocation allocation) {
+        Decision decision = shouldClusterFilter(node, allocation);
+        if (decision != null) return decision;
+
+        decision = shouldIndexFilter(indexMetaData, node, allocation);
+        if (decision != null) return decision;
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
+    }
+
+    private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
         if (decision != null) return decision;
 
@@ -132,7 +144,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
-    private Decision shouldFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
+    private Decision shouldFilter(IndexMetaData indexMd, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
         if (decision != null) return decision;
 
@@ -142,21 +154,21 @@ public class FilterAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
-    private Decision shouldIndexFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
+    private Decision shouldIndexFilter(IndexMetaData indexMd, DiscoveryNode node, RoutingAllocation allocation) {
         if (indexMd.requireFilters() != null) {
-            if (indexMd.requireFilters().match(node.node()) == false) {
+            if (indexMd.requireFilters().match(node) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index setting [%s] filters [%s]",
                     IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX, indexMd.requireFilters());
             }
         }
         if (indexMd.includeFilters() != null) {
-            if (indexMd.includeFilters().match(node.node()) == false) {
+            if (indexMd.includeFilters().match(node) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index setting [%s] filters [%s]",
                     IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, indexMd.includeFilters());
             }
         }
         if (indexMd.excludeFilters() != null) {
-            if (indexMd.excludeFilters().match(node.node())) {
+            if (indexMd.excludeFilters().match(node)) {
                 return allocation.decision(Decision.NO, NAME, "node matches index setting [%s] filters [%s]",
                     IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), indexMd.excludeFilters());
             }
@@ -164,21 +176,21 @@ public class FilterAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
+    private Decision shouldClusterFilter(DiscoveryNode node, RoutingAllocation allocation) {
         if (clusterRequireFilters != null) {
-            if (clusterRequireFilters.match(node.node()) == false) {
+            if (clusterRequireFilters.match(node) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX, clusterRequireFilters);
             }
         }
         if (clusterIncludeFilters != null) {
-            if (clusterIncludeFilters.match(node.node()) == false) {
+            if (clusterIncludeFilters.match(node) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX, clusterIncludeFilters);
             }
         }
         if (clusterExcludeFilters != null) {
-            if (clusterExcludeFilters.match(node.node())) {
+            if (clusterExcludeFilters.match(node)) {
                 return allocation.decision(Decision.NO, NAME, "node matches cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX, clusterExcludeFilters);
             }

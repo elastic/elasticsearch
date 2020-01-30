@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -70,7 +70,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ThreadPool threadPool) {
+                                                               ClusterService clusterService) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
         @Override
@@ -227,7 +227,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", numShards).put("number_of_replicas", 0));
-        List<Object> mappings = new ArrayList<>();
+        List<String> mappings = new ArrayList<>();
         if (requireRouting) {
             mappings.addAll(Arrays.asList("_routing", "required=true"));
         }
@@ -236,7 +236,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             mappings.addAll(Arrays.asList("nested", "type=nested", "incorrect", "type=object"));
         }
         if (mappings.isEmpty() == false) {
-            createIndexRequestBuilder.addMapping("_doc", mappings.toArray());
+            createIndexRequestBuilder.setMapping(mappings.toArray(new String[0]));
         }
         assertAcked(createIndexRequestBuilder);
         ensureGreen();
@@ -255,8 +255,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx, "_doc",
-                Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

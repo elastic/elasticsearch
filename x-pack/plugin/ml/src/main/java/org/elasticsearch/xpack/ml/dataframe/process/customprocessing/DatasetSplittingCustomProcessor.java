@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.List;
@@ -23,12 +22,13 @@ class DatasetSplittingCustomProcessor implements CustomProcessor {
 
     private final int dependentVariableIndex;
     private final double trainingPercent;
-    private final Random random = Randomness.get();
+    private final Random random;
     private boolean isFirstRow = true;
 
-    DatasetSplittingCustomProcessor(List<String> fieldNames, String dependentVariable, double trainingPercent) {
+    DatasetSplittingCustomProcessor(List<String> fieldNames, String dependentVariable, double trainingPercent, long randomizeSeed) {
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.trainingPercent = trainingPercent;
+        this.random = new Random(randomizeSeed);
     }
 
     private static int findDependentVariableIndex(List<String> fieldNames, String dependentVariable) {

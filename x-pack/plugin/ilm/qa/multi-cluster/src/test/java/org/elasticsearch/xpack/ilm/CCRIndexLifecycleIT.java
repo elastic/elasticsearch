@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
@@ -53,7 +55,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
@@ -108,12 +109,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48461")
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -189,7 +188,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "_template/my_template");
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
@@ -289,7 +287,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
                     .put("index.number_of_shards", 3)
                     .put("index.number_of_replicas", 0)
                     .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -355,7 +352,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -407,7 +403,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // follower
             putShrinkOnlyPolicy(client(), policyName);
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -480,7 +475,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -742,14 +736,33 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
         Map<String, Object> response = toMap(client.performRequest(request));
-        Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) response.get(index)).get("settings");
-        return settings.get(setting);
+        return Optional.ofNullable((Map<?, ?>) response.get(index))
+            .map(m -> (Map<?, ?>) m.get("settings"))
+            .map(m -> m.get(setting))
+            .orElse(null);
     }
 
-    private static void assertDocumentExists(RestClient client, String index, String id) throws IOException {
-        Request request = new Request("HEAD", "/" + index + "/_doc/" + id);
-        Response response = client.performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+    private void assertDocumentExists(RestClient client, String index, String id) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_doc/" + id);
+        Response response;
+        try {
+            response = client.performRequest(request);
+            if (response.getStatusLine().getStatusCode() != 200) {
+                if (response.getEntity() != null) {
+                    logger.error(EntityUtils.toString(response.getEntity()));
+                } else {
+                    logger.error("response body was null");
+                }
+                fail("HTTP response code expected to be [200] but was [" + response.getStatusLine().getStatusCode() + "]");
+            }
+        } catch (ResponseException ex) {
+            if (ex.getResponse().getEntity() != null) {
+                logger.error(EntityUtils.toString(ex.getResponse().getEntity()), ex);
+            } else {
+                logger.error("response body was null");
+            }
+            fail("HTTP response code expected to be [200] but was [" + ex.getResponse().getStatusLine().getStatusCode() + "]");
+        }
     }
 
     private void createNewSingletonPolicy(String policyName, String phaseName, LifecycleAction action, TimeValue after) throws IOException {

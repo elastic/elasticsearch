@@ -19,25 +19,25 @@
 apply plugin: "nebula.maven-scm"
 
 dependencies {
-    compile project(':libs:elasticsearch-core')
+  compile project(':libs:elasticsearch-core')
 
-    testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
-    }
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
+  }
 
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.pem'
-    exclude '**/*.p12'
-    exclude '**/*.jks'
+  exclude '**/*.key'
+  exclude '**/*.pem'
+  exclude '**/*.p12'
+  exclude '**/*.jks'
 }

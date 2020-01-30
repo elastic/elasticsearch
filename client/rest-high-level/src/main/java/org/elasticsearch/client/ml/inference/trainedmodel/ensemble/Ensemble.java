@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -41,6 +42,7 @@ public class Ensemble implements TrainedModel {
     public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
     public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
+    public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
         NAME,
@@ -60,6 +62,7 @@ public class Ensemble implements TrainedModel {
             AGGREGATE_OUTPUT);
         PARSER.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
         PARSER.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
+        PARSER.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
     }
 
     public static Ensemble fromXContent(XContentParser parser) {
@@ -71,17 +74,20 @@ public class Ensemble implements TrainedModel {
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;
     private final List<String> classificationLabels;
+    private final double[] classificationWeights;
 
     Ensemble(List<String> featureNames,
              List<TrainedModel> models,
              @Nullable OutputAggregator outputAggregator,
              TargetType targetType,
-             @Nullable List<String> classificationLabels) {
+             @Nullable List<String> classificationLabels,
+             @Nullable double[] classificationWeights) {
         this.featureNames = featureNames;
         this.models = models;
         this.outputAggregator = outputAggregator;
         this.targetType = targetType;
         this.classificationLabels = classificationLabels;
+        this.classificationWeights = classificationWeights;
     }
 
     @Override
@@ -116,6 +122,9 @@ public class Ensemble implements TrainedModel {
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
+        if (classificationWeights != null) {
+            builder.field(CLASSIFICATION_WEIGHTS.getPreferredName(), classificationWeights);
+        }
         builder.endObject();
         return builder;
     }
@@ -129,12 +138,18 @@ public class Ensemble implements TrainedModel {
             && Objects.equals(models, that.models)
             && Objects.equals(targetType, that.targetType)
             && Objects.equals(classificationLabels, that.classificationLabels)
+            && Arrays.equals(classificationWeights, that.classificationWeights)
             && Objects.equals(outputAggregator, that.outputAggregator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureNames, models, outputAggregator, classificationLabels, targetType);
+        return Objects.hash(featureNames,
+            models,
+            outputAggregator,
+            classificationLabels,
+            targetType,
+            Arrays.hashCode(classificationWeights));
     }
 
     public static Builder builder() {
@@ -147,6 +162,7 @@ public class Ensemble implements TrainedModel {
         private OutputAggregator outputAggregator;
         private TargetType targetType;
         private List<String> classificationLabels;
+        private double[] classificationWeights;
 
         public Builder setFeatureNames(List<String> featureNames) {
             this.featureNames = featureNames;
@@ -173,6 +189,11 @@ public class Ensemble implements TrainedModel {
             return this;
         }
 
+        public Builder setClassificationWeights(List<Double> classificationWeights) {
+            this.classificationWeights = classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
+            return this;
+        }
+
         private void setOutputAggregatorFromParser(List<OutputAggregator> outputAggregators) {
             this.setOutputAggregator(outputAggregators.get(0));
         }
@@ -182,7 +203,7 @@ public class Ensemble implements TrainedModel {
         }
 
         public Ensemble build() {
-            return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels);
+            return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels, classificationWeights);
         }
     }
 }

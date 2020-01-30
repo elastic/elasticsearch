@@ -47,21 +47,21 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testIndex() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
+        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("index1", "type", "id").setSource("field", "value")::get,
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("index1").setId("id").setSource("field", "value")::get,
                 BulkAction.NAME + "[s]");
 
-        client().prepareIndex("test4", "type", "id").setSource("field", "value").get();
+        client().prepareIndex("test4").setId("id").setSource("field", "value").get();
         //the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("missing", "type", "id").setSource("field", "value")::get,
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("missing").setId("id").setSource("field", "value")::get,
                 BulkAction.NAME + "[s]");
         ensureGreen();
     }
 
     public void testDelete() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
+        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
         assertEquals(RestStatus.OK, client().prepareDelete("test1", "id").get().status());
 
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "id")::get, BulkAction.NAME + "[s]");
@@ -72,7 +72,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testUpdate() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
+        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
         assertEquals(RestStatus.OK, client().prepareUpdate("test1", "id")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get().status());
 

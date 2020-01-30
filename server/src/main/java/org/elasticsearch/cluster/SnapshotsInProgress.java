@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -81,7 +82,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder.append("]").toString();
     }
 
-    public static class Entry implements ToXContent {
+    public static class Entry implements ToXContent, RepositoryOperation {
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
@@ -139,6 +140,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 useShardGenerations);
         }
 
+        public Entry(Entry entry, State state, List<IndexId> indices, long repositoryStateId,
+                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, boolean useShardGenerations, String failure) {
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.startTime, repositoryStateId, shards,
+                failure, entry.userMetadata, useShardGenerations);
+        }
+
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
                 entry.repositoryStateId, shards, entry.failure, entry.userMetadata, entry.useShardGenerations);
@@ -151,6 +158,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry, entry.state, shards, entry.failure);
+        }
+
+        @Override
+        public String repository() {
+            return snapshot.getRepository();
         }
 
         public Snapshot snapshot() {
@@ -189,7 +201,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return startTime;
         }
 
-        public long getRepositoryStateId() {
+        @Override
+        public long repositoryStateId() {
             return repositoryStateId;
         }
 

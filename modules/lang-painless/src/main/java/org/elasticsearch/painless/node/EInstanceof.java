@@ -19,14 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.InstanceofNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -41,7 +39,7 @@ public final class EInstanceof extends AExpression {
     private final String type;
 
     private Class<?> resolvedType;
-    private Class<?> expressionType;
+    private Class<?> instanceType;
     private boolean primitiveExpression;
 
     public EInstanceof(Location location, AExpression expression, String type) {
@@ -51,17 +49,12 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         expression.extractVariables(variables);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         // ensure the specified type is part of the definition
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -74,34 +67,32 @@ public final class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        expression.analyze(scriptRoot, locals);
+        expression.analyze(scriptRoot, scope);
         expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, locals);
+        expression = expression.cast(scriptRoot, scope);
 
         // record if the expression returns a primitive
         primitiveExpression = expression.actual.isPrimitive();
         // map to wrapped type for primitive types
-        expressionType = expression.actual.isPrimitive() ?
+        instanceType = expression.actual.isPrimitive() ?
             PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
 
         actual = boolean.class;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // primitive types
-        if (primitiveExpression) {
-            // run the expression anyway (who knows what it does)
-            expression.write(classWriter, methodWriter, globals);
-            // discard its result
-            methodWriter.writePop(MethodWriter.getType(expression.actual).getSize());
-            // push our result: its a primitive so it cannot be null.
-            methodWriter.push(resolvedType.isAssignableFrom(expressionType));
-        } else {
-            // ordinary instanceof
-            expression.write(classWriter, methodWriter, globals);
-            methodWriter.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
-        }
+    InstanceofNode write(ClassNode classNode) {
+        InstanceofNode instanceofNode = new InstanceofNode();
+
+        instanceofNode.setChildNode(expression.write(classNode));
+
+        instanceofNode.setLocation(location);
+        instanceofNode.setExpressionType(actual);
+        instanceofNode.setInstanceType(instanceType);
+        instanceofNode.setResolvedType(resolvedType);
+        instanceofNode.setPrimitiveResult(primitiveExpression);
+
+        return instanceofNode;
     }
 
     @Override

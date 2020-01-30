@@ -235,6 +235,49 @@ public class TransformIT extends TransformIntegTestCase {
         deleteTransform(config.getId());
     }
 
+    public void testStopWaitForCheckpoint() throws Exception {
+        String indexName = "wait-for-checkpoint-reviews";
+        String transformId = "data-frame-transform-wait-for-checkpoint";
+        createReviewsIndex(indexName, 1000);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
+        groups.put("by-business", TermsGroupSource.builder().setField("business_id").build());
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        TransformConfig config = createTransformConfigBuilder(transformId,
+            groups,
+            aggs,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName)
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .build();
+
+        assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+
+        // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
+        stopTransform(transformId, false, null, true);
+
+        // Wait until the first checkpoint
+        waitUntilCheckpoint(config.getId(), 1L);
+
+        // Even though we are continuous, we should be stopped now as we needed to stop at the first checkpoint
+        assertBusy(() -> {
+            TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
+            assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
+            assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(1000L));
+        });
+
+        stopTransform(config.getId());
+        deleteTransform(config.getId());
+    }
+
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         BulkRequest bulk = new BulkRequest(index);
         for (int i = 0; i < 25; i++) {

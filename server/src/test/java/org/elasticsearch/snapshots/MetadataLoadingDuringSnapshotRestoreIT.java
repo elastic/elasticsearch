@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -35,7 +36,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -65,9 +65,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     public void testWhenMetadataAreLoaded() throws Exception {
         createIndex("docs");
         indexRandom(true,
-            client().prepareIndex("docs", "doc", "1").setSource("rank", 1),
-            client().prepareIndex("docs", "doc", "2").setSource("rank", 2),
-            client().prepareIndex("docs", "doc", "3").setSource("rank", 3),
+            client().prepareIndex("docs").setId("1").setSource("rank", 1),
+            client().prepareIndex("docs").setId("2").setSource("rank", 2),
+            client().prepareIndex("docs").setId("3").setSource("rank", 3),
             client().prepareIndex("others").setSource("rank", 4),
             client().prepareIndex("others").setSource("rank", 5));
 
@@ -185,8 +185,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         public CountingMockRepository(final RepositoryMetaData metadata,
                                       final Environment environment,
-                                      final NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
-            super(metadata, environment, namedXContentRegistry, threadPool);
+                                      final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
+            super(metadata, environment, namedXContentRegistry, clusterService);
         }
 
         @Override
@@ -206,9 +206,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     public static class CountingMockRepositoryPlugin extends MockRepository.Plugin {
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ThreadPool threadPool) {
+                                                               ClusterService clusterService) {
             return Collections.singletonMap("coutingmock",
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, threadPool));
+                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService));
         }
     }
 }

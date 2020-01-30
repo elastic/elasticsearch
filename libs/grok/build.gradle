@@ -18,15 +18,15 @@
  */
 
 dependencies {
-    compile 'org.jruby.joni:joni:2.1.29'
-    // joni dependencies:
-    compile 'org.jruby.jcodings:jcodings:1.0.44'
+  compile 'org.jruby.joni:joni:2.1.29'
+  // joni dependencies:
+  compile 'org.jruby.jcodings:jcodings:1.0.44'
 
-    testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
-    }
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
+  }
 }
 
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }

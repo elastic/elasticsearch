@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -36,26 +37,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
@@ -88,36 +91,9 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
     }
 
-    public void testDoubleAddMapping() throws Exception {
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", "date", "type=date")
-                    .addMapping("type1", "num", "type=integer");
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", new HashMap<String,Object>())
-                    .addMapping("type1", new HashMap<String,Object>());
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", jsonBuilder().startObject().endObject())
-                    .addMapping("type1", jsonBuilder().startObject().endObject());
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-    }
-
     public void testNonNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+            .setMapping(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("date")
                         .field("type", "date")
@@ -134,7 +110,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
+            .setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -145,15 +121,15 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                .setMapping(XContentFactory.jsonBuilder().startObject()
                         .startObject("type2").endObject()
                     .endObject()).get());
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: Root mapping definition has unsupported parameters"));
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
 
     public void testEmptyMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+            .setMapping(XContentFactory.jsonBuilder().startObject()
                 .startObject("_doc").endObject()
             .endObject()));
 
@@ -314,6 +290,28 @@ public class CreateIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
+    }
+
+    public void testFailureToCreateIndexCleansUpIndicesService() {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate("test-idx-1")
+            .setSettings(settings)
+            .addAlias(new Alias("alias1").writeIndex(true))
+            .get());
+
+        assertThrows(client().admin().indices().prepareCreate("test-idx-2")
+                .setSettings(settings)
+                .addAlias(new Alias("alias1").writeIndex(true)),
+            IllegalStateException.class);
+
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
+        for (IndexService indexService : indicesService) {
+            assertThat(indexService.index().getName(), not("test-idx-2"));
+        }
     }
 
     /**

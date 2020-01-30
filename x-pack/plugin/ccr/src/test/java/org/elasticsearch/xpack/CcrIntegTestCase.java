@@ -401,8 +401,20 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     numNodeTasks++;
                 }
             }
-            assertThat(numNodeTasks, equalTo(0));
+            assertThat(listTasksResponse.getTasks().toString(), numNodeTasks, equalTo(0));
         }, 30, TimeUnit.SECONDS);
+    }
+
+
+    @Before
+    public void setupSourceEnabledOrDisabled() {
+        sourceEnabled = randomBoolean();
+    }
+
+    protected boolean sourceEnabled;
+
+    protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas) throws IOException {
+        return getIndexSettings(numberOfShards, numberOfReplicas, Collections.emptyMap());
     }
 
     protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
@@ -435,6 +447,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                             builder.endObject();
                         }
                         builder.endObject();
+                        if (sourceEnabled == false) {
+                            builder.startObject("_source");
+                            builder.field("enabled", false);
+                            builder.endObject();
+                        }
                     }
                     builder.endObject();
                 }

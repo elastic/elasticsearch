@@ -10,8 +10,6 @@
 
 Stops one or more {transforms}.
 
-beta[]
-
 
 [[stop-transform-request]]
 ==== {api-request-title}
@@ -45,32 +43,15 @@ All {transforms} can be stopped by using `_all` or `*` as the
 ==== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}. This identifier
-  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
-
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[stop-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {transforms} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns a successful acknowledgement message
-when there are no matches. When there are only partial matches, the API stops
-the appropriate {transforms}. For example, if the request contains
-`test-id1*,test-id2*` as the identifiers and there are no {transforms}
-that match `test-id2*`, the API nonetheless stops the {transforms}
-that match `test-id1*`.
-
-If this parameter is `false`, the request returns a `404` status code when there
-are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 `force`::
   (Optional, boolean) Set to `true` to stop a failed {transform} or to 
@@ -90,6 +71,10 @@ are no matches or only partial matches.
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
+`wait_for_checkpoint`::
+  (Optional, boolean) If set to `true`, the transform will not completely stop
+  until the current checkpoint is completed. If set to `false`, the {transform}
+  stops as soon as possible. Defaults to `false`.
 
 [[stop-transform-response-codes]]
 ==== {api-response-codes-title}

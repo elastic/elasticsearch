@@ -259,6 +259,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
+        
+        if (val == null) {
+            return null;
+        }
+        
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -267,9 +272,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
-                if (val == null) {
-                    return null;
-                }
                 return asDateTimeField(val, JdbcDateUtils::dateTimeAsMillisSinceEpoch, Function.identity());
             }
             if (DATE == type) {
@@ -278,7 +280,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             if (TIME == type) {
                 return timeAsMillisSinceEpoch(val.toString());
             }
-            return val == null ? null : (Long) val;
+            return (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
                     format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);

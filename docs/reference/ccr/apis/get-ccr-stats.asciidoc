@@ -176,4 +176,3 @@ The API returns the following results:
 // TESTRESPONSE[s/"failed_write_requests" : 0/"failed_write_requests" : $body.follow_stats.indices.0.shards.0.failed_write_requests/]
 // TESTRESPONSE[s/"operations_written" : 832/"operations_written" : $body.follow_stats.indices.0.shards.0.operations_written/]
 // TESTRESPONSE[s/"time_since_last_read_millis" : 8/"time_since_last_read_millis" : $body.follow_stats.indices.0.shards.0.time_since_last_read_millis/]
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/47718"]

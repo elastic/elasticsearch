@@ -54,7 +54,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
         super(config, null, null, true, Function.identity());
         this.stats = new SegmentsStats();
         Directory directory = store.directory();
-        try (DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES)) {
+        // Do not wrap soft-deletes reader when calculating segment stats as the wrapper might filter out fully deleted segments.
+        try (DirectoryReader reader = openDirectory(directory, false)) {
             for (LeafReaderContext ctx : reader.getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, true, stats);
@@ -151,7 +152,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
 
                 if (minTranslogGeneration < lastCommitGeneration) {
                     // a translog deletion policy that retains nothing but the last translog generation from safe commit
-                    final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1, 0);
+                    final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
                     translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastCommitGeneration);
                     translogDeletionPolicy.setMinTranslogGenerationForRecovery(lastCommitGeneration);
 

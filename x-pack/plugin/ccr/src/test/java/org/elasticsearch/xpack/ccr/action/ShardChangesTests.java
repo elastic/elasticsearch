@@ -46,13 +46,11 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
 
     // this emulates what the CCR persistent task will do for pulling
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
-        client().admin().indices().prepareCreate("index")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.soft_deletes.enabled", true))
-            .get();
+        client().admin().indices().prepareCreate("index").setSettings(Settings.builder().put("index.number_of_shards", 1)).get();
 
-        client().prepareIndex("index", "doc", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         long globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -76,9 +74,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.seqNo(), equalTo(2L));
         assertThat(operation.id(), equalTo("3"));
 
-        client().prepareIndex("index", "doc", "3").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "4").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index", "doc", "5").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
 
         shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -105,7 +103,6 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     public void testMissingOperations() throws Exception {
         client().admin().indices().prepareCreate("index")
             .setSettings(Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.soft_deletes.retention.operations", 0)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -113,7 +110,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             .get();
 
         for (int i = 0; i < 32; i++) {
-            client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
             client().prepareDelete("index", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }

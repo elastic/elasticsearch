@@ -48,7 +48,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .addMapping("type", "field", "type=text")
+            .setMapping("field", "type=text")
             .get();
         ensureGreen("test");
         AtomicInteger numAutoGenDocs = new AtomicInteger();
@@ -57,7 +57,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
-                    IndexResponse indexResponse = client().prepareIndex("test", "type", "id").setSource("field", "value").get();
+                    IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
                     assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
                     assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());

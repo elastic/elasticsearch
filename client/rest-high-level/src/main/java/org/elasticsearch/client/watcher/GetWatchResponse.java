@@ -132,7 +132,7 @@ public class GetWatchResponse {
     private static final ParseField STATUS_FIELD = new ParseField("status");
     private static final ParseField WATCH_FIELD = new ParseField("watch");
 
-    private static ConstructingObjectParser<GetWatchResponse, Void> PARSER =
+    private static final ConstructingObjectParser<GetWatchResponse, Void> PARSER =
         new ConstructingObjectParser<>("get_watch_response", true,
             a -> {
                 boolean isFound = (boolean) a[1];

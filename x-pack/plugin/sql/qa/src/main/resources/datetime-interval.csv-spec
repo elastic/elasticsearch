@@ -191,6 +191,15 @@ SELECT 4 * -INTERVAL '2' HOURS AS result1, -5 * -INTERVAL '3' HOURS AS result2;
 -0 08:00:00.0  | +0 15:00:00.0
 ;
 
+intervalNullMath
+schema::null_multiply:string|null_sub1:string|null_sub2:string|null_add:string
+SELECT null * INTERVAL '1 23:45' DAY TO MINUTES AS null_multiply, INTERVAL '1' DAY - null AS null_sub1, null - INTERVAL '1' DAY AS null_sub2, INTERVAL 1 DAY + null AS null_add;
+
+  null_multiply  |  null_sub1  |  null_sub2  |  null_add  
+-----------------+-------------+-------------+-------------
+null             |null         |null         |null
+;
+
 intervalAndFieldMultiply
 schema::languages:byte|result:string
 SELECT languages, CAST (languages * INTERVAL '1 10:30' DAY TO MINUTES AS string) AS result FROM test_emp ORDER BY emp_no LIMIT 5;
@@ -313,7 +322,7 @@ SELECT birth_date, MAX(hire_date) - INTERVAL 1 YEAR AS f FROM test_emp GROUP BY 
 ;
 
 monthOfDatePlusInterval_And_GroupBy
-SELECT WEEK_OF_YEAR(birth_date + INTERVAL 25 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 3 ORDER BY c DESC;
+SELECT WEEK_OF_YEAR(birth_date + INTERVAL 25 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 3 ORDER BY c DESC, x ASC;
 
       x:i      |       c:l       
 ---------------+---------------
@@ -324,8 +333,7 @@ null           |10
 30             |4              
 40             |4              
 45             |4              
-1              |3              
-8              |3              
+8              |3
 21             |3              
 28             |3              
 32             |3              

@@ -51,6 +51,10 @@ groupByMulScalar
 SELECT emp_no * 2 AS e FROM test_emp GROUP BY e ORDER BY e;
 groupByModScalar
 SELECT (emp_no % 3) + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
+groupByCastScalar
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) ORDER BY CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) NULLS FIRST;
+groupByCastScalarWithAlias
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) as "cast" FROM test_emp GROUP BY "cast" ORDER BY "cast" NULLS FIRST;
 
 // group by nested functions with no alias
 groupByTruncate

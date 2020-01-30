@@ -64,12 +64,12 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
         createIndex("test");
-        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", "value"),
-                client().prepareIndex("test", "type", "2").setSource("field", "value"),
-                client().prepareIndex("test", "type", "3").setSource("field", "value"),
-                client().prepareIndex("test", "type", "4").setSource("field", "value"),
-                client().prepareIndex("test", "type", "5").setSource("field", "value"),
-                client().prepareIndex("test", "type", "6").setSource("field", "value"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("field", "value"),
+                client().prepareIndex("test").setId("2").setSource("field", "value"),
+                client().prepareIndex("test").setId("3").setSource("field", "value"),
+                client().prepareIndex("test").setId("4").setSource("field", "value"),
+                client().prepareIndex("test").setId("5").setSource("field", "value"),
+                client().prepareIndex("test").setId("6").setSource("field", "value"));
 
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
@@ -89,14 +89,14 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleIp() throws Exception {
         createIndex("test");
 
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("from").field("type", "ip").endObject()
                         .startObject("to").field("type", "ip").endObject()
                         .endObject().endObject().endObject())
                 .get();
 
-        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE)
+        client().prepareIndex("test").setId("1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse search = client().prepareSearch()
@@ -109,18 +109,18 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testIpCidr() throws Exception {
         createIndex("test");
 
-        client().admin().indices().preparePutMapping("test").setType("type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        client().admin().indices().preparePutMapping("test")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("ip").field("type", "ip").endObject()
                         .endObject().endObject().endObject())
                 .get();
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("ip", "192.168.0.1").get();
-        client().prepareIndex("test", "type1", "2").setSource("ip", "192.168.0.2").get();
-        client().prepareIndex("test", "type1", "3").setSource("ip", "192.168.0.3").get();
-        client().prepareIndex("test", "type1", "4").setSource("ip", "192.168.1.4").get();
-        client().prepareIndex("test", "type1", "5").setSource("ip", "2001:db8::ff00:42:8329").get();
+        client().prepareIndex("test").setId("1").setSource("ip", "192.168.0.1").get();
+        client().prepareIndex("test").setId("2").setSource("ip", "192.168.0.2").get();
+        client().prepareIndex("test").setId("3").setSource("ip", "192.168.0.3").get();
+        client().prepareIndex("test").setId("4").setSource("ip", "192.168.1.4").get();
+        client().prepareIndex("test").setId("5").setSource("ip", "2001:db8::ff00:42:8329").get();
         refresh();
 
         SearchResponse search = client().prepareSearch()
@@ -181,7 +181,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleId() {
         createIndex("test");
 
-        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         // id is not indexed, but lets see that we automatically convert to
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).get();
         assertHitCount(searchResponse, 1L);
@@ -192,8 +192,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testSimpleDateRange() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").get();
-        client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").get();
+        client().prepareIndex("test").setId("1").setSource("field", "2010-01-05T02:00").get();
+        client().prepareIndex("test").setId("2").setSource("field", "2010-01-06T02:00").get();
         ensureGreen();
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d")
@@ -229,7 +229,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         for (int i = 1; i <= max; i++) {
             String id = String.valueOf(i);
-            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", i));
+            docbuilders.add(client().prepareIndex("test").setId(id).setSource("field", i));
         }
 
         indexRandom(true, docbuilders);
@@ -260,7 +260,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.sort.field", "rank")
             )
-            .addMapping("type1", "rank", "type=integer")
+            .setMapping("rank", "type=integer")
             .get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
@@ -268,7 +268,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         for (int i = max-1; i >= 0; i--) {
             String id = String.valueOf(i);
-            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("rank", i));
+            docbuilders.add(client().prepareIndex("test").setId(id).setSource("rank", i));
         }
 
         indexRandom(true, docbuilders);
@@ -415,7 +415,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
+        assertAcked(prepareCreate("idx").setMapping("num", "type=integer"));
         ensureGreen("idx");
 
         try {

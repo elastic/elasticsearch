@@ -10,6 +10,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -85,14 +86,13 @@ import static org.mockito.Mockito.when;
 public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     private OpenIdConnectAuthenticator authenticator;
-    private Settings globalSettings;
     private Environment env;
     private ThreadContext threadContext;
     private int callsToReloadJwk;
 
     @Before
     public void setup() {
-        globalSettings = Settings.builder().put("path.home", createTempDir())
+        final Settings globalSettings = Settings.builder().put("path.home", createTempDir())
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate").build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
@@ -108,7 +108,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     private OpenIdConnectAuthenticator buildAuthenticator() throws URISyntaxException {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
-        return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(globalSettings, env), null);
+        return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
@@ -116,7 +116,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(rpConfig.getSignatureAlgorithm(), jwkSource);
         final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
-        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
+        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(env), validator,
             null);
     }
 
@@ -125,7 +125,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(),
             rpConfig.getSignatureAlgorithm(), new Secret(rpConfig.getClientSecret().toString()));
-        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
+        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(env), validator,
             null);
     }
 
@@ -971,7 +971,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         } else if (type.equals("ES")) {
             hashSize = randomFrom(256, 384, 512);
-            ECKey.Curve curve = curveFromHashSize(hashSize);
+            Curve curve = curveFromHashSize(hashSize);
             KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
             gen.initialize(curve.toECParameterSpec());
             KeyPair keyPair = gen.generateKeyPair();
@@ -983,16 +983,16 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         } else {
             throw new IllegalArgumentException("Invalid key type :" + type);
         }
-        return new Tuple(key, new JWKSet(jwk));
+        return new Tuple<>(key, new JWKSet(jwk));
     }
 
-    private ECKey.Curve curveFromHashSize(int size) {
+    private Curve curveFromHashSize(int size) {
         if (size == 256) {
-            return ECKey.Curve.P_256;
+            return Curve.P_256;
         } else if (size == 384) {
-            return ECKey.Curve.P_384;
+            return Curve.P_384;
         } else if (size == 512) {
-            return ECKey.Curve.P_521;
+            return Curve.P_521;
         } else {
             throw new IllegalArgumentException("Invalid hash size:" + size);
         }

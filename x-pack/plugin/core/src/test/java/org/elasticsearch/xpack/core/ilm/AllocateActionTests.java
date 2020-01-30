@@ -114,7 +114,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
         for (int i = 0; i < numIncludes; i++) {
-            map.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+            map.put(randomAlphaOfLengthBetween(2, 20), randomAlphaOfLengthBetween(2, 20));
         }
         return map;
     }

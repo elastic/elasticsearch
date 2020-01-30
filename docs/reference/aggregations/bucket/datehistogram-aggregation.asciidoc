@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-datehistogram-aggregation]]
-=== Date Histogram Aggregation
+=== Date histogram aggregation
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can
@@ -10,7 +10,8 @@ that here the interval can be specified using date/time expressions. Time-based
 data requires special support because time-based intervals are not always a
 fixed length.
 
-==== Calendar and Fixed intervals
+[[calendar_and_fixed_intervals]]
+==== Calendar and fixed intervals
 
 When configuring a date histogram aggregation, the interval can be specified
 in two manners: calendar-aware time intervals, and fixed time intervals.
@@ -42,7 +43,8 @@ are clear to the user immediately and there is no ambiguity.  The old `interval`
 will be removed in the future.
 ==================================
 
-===== Calendar Intervals
+[[calendar_intervals]]
+===== Calendar intervals
 
 Calendar-aware intervals are configured with the `calendar_interval` parameter.
 Calendar intervals can only be specified in "singular" quantities of the unit
@@ -100,10 +102,11 @@ One year (1y) is the interval between the start day of the month and time of
 day and the same day of the month and time of day the following year in the
 specified timezone, so that the date and time are the same at the start and end. +
 
-===== Calendar Interval Examples
+[[calendar_interval_examples]]
+===== Calendar interval examples
 As an example, here is an aggregation requesting bucket intervals of a month in calendar time:
 
-[source,console]
+[source,console,id=datehistogram-aggregation-calendar-interval-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -122,7 +125,7 @@ POST /sales/_search?size=0
 If you attempt to use multiples of calendar units, the aggregation will fail because only
 singular calendar units are supported:
 
-[source,console]
+[source,console,id=datehistogram-aggregation-calendar-interval-multiples-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -157,7 +160,8 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // NOTCONSOLE
 
-===== Fixed Intervals
+[[fixed_intervals]]
+===== Fixed intervals
 
 Fixed intervals are configured with the `fixed_interval` parameter.
 
@@ -192,12 +196,13 @@ All days begin at the earliest possible time, which is usually 00:00:00
 
 Defined as 24 hours (86,400,000 milliseconds)
 
-===== Fixed Interval Examples
+[[fixed_interval_examples]]
+===== Fixed interval examples
 
 If we try to recreate the "month" `calendar_interval` from earlier, we can approximate that with
 30 fixed days:
 
-[source,console]
+[source,console,id=datehistogram-aggregation-fixed-interval-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -215,7 +220,7 @@ POST /sales/_search?size=0
 
 But if we try to use a calendar unit that is not supported, such as weeks, we'll get an exception:
 
-[source,console]
+[source,console,id=datehistogram-aggregation-fixed-interval-unsupported-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -286,7 +291,7 @@ date string using the `format` parameter specification:
 TIP: If you don't specify `format`, the first date
 <<mapping-date-format,format>> specified in the field mapping is used.
 
-[source,console]
+[source,console,id=datehistogram-aggregation-format-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -348,7 +353,7 @@ such as`America/Los_Angeles`.
 
 Consider the following example:
 
-[source,console]
+[source,console,id=datehistogram-aggregation-timezone-example]
 ---------------------------------
 PUT my_index/_doc/1?refresh
 {
@@ -456,18 +461,21 @@ the bucket covering that day will only hold data for 23 hours instead of the usu
 where you'll have only a 11h bucket on the morning of 27 March when the DST shift
 happens.
 
+[[search-aggregations-bucket-datehistogram-offset]]
 ===== Offset
 
+// tag::offset-explanation[]
 Use the `offset` parameter to change the start value of each bucket by the
 specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
 an hour, or `1d` for a day. See <<time-units>> for more possible time
 duration options.
 
 For example, when using an interval of `day`, each bucket runs from midnight
-to midnight.  Setting the `offset` parameter to `+6h` changes each bucket
+to midnight. Setting the `offset` parameter to `+6h` changes each bucket
 to run from 6am to 6am:
+// end::offset-explanation[]
 
-[source,console]
+[source,console,id=datehistogram-aggregation-offset-example]
 -----------------------------
 PUT my_index/_doc/1?refresh
 {
@@ -493,8 +501,10 @@ GET my_index/_search?size=0
 }
 -----------------------------
 
+// tag::offset-result-intro[]
 Instead of a single bucket starting at midnight, the above request groups the
 documents into buckets starting at 6am:
+// end::offset-result-intro[]
 
 [source,console-result]
 -----------------------------
@@ -520,15 +530,17 @@ documents into buckets starting at 6am:
 -----------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+// tag::offset-note[]
 NOTE: The start `offset` of each bucket is calculated after `time_zone`
 adjustments have been made.
+// end::offset-note[]
 
 ===== Keyed Response
 
 Setting the `keyed` flag to `true` associates a unique string key with each
 bucket and returns the ranges as a hash rather than an array:
 
-[source,console]
+[source,console,id=datehistogram-aggregation-keyed-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -597,7 +609,7 @@ The `missing` parameter defines how to treat documents that are missing a value.
 By default, they are ignored, but it is also possible to treat them as if they
 have a value.
 
-[source,console]
+[source,console,id=datehistogram-aggregation-missing-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -630,7 +642,7 @@ When you need to aggregate the results by day of the week, use a script that
 returns the day of the week:
 
 
-[source,console]
+[source,console,id=datehistogram-aggregation-script-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

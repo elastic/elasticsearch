@@ -1,0 +1,68 @@
+---
+"Test two sub-queries with only one having inner_hits":
+    - skip:
+        version: " - 7.99.99"
+        reason: "The bug was corrected from 8.0"
+
+    - do:
+        indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                entity_type: { "type": "keyword" }
+                join_field: { "type": "join", "relations": { "question": "answer", "person" : "address" } }
+            settings:
+              number_of_shards: 1
+
+    - do:
+        index:
+          index: test
+          id: 1
+          body: { "join_field": { "name": "question" }, "entity_type": "question" }
+
+    - do:
+        index:
+          index: test
+          id: 2
+          routing: 1
+          body: { "join_field": { "name": "answer", "parent": 1} , "entity_type": "answer" }
+
+    - do:
+        index:
+          index: test
+          id: 3
+          body: { "join_field": { "name": "person" }, "entity_type": "person" }
+
+    - do:
+        index:
+          index: test
+          routing: 3
+          id: 4
+          body: { "join_field": { "name": "address", "parent": 3 }, "entity_type": "address" }
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+          index: test
+          body:
+            query:
+              bool:
+                should:
+                  - term:
+                      entity_type: person
+                  - has_parent:
+                      parent_type: question
+                      query:
+                        match_all: {}
+                      inner_hits: {}
+
+
+    - match: { hits.total.value: 2 }
+    - match: { hits.hits.0._id: "3" }
+    - match: { hits.hits.0.inner_hits.question.hits.total.value: 0}
+    - match: { hits.hits.1._id: "2" }
+    - match: { hits.hits.1.inner_hits.question.hits.total.value: 1}
+    - match: { hits.hits.1.inner_hits.question.hits.hits.0._id: "1"}

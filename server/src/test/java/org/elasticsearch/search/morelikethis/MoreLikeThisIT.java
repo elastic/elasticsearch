@@ -25,11 +25,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -72,8 +70,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
@@ -95,8 +93,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeThisWithTypes() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-            jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+            jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("text").field("type", "text").endObject()
                 .endObject().endObject().endObject()));
 
@@ -120,8 +118,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     //Issue #30148
     public void testMoreLikeThisForZeroTokensInOneOfTheAnalyzedFields() throws Exception {
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test")
-            .addMapping("type", jsonBuilder()
-            .startObject().startObject("type")
+            .setMapping(jsonBuilder()
+            .startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("myField").field("type", "text").endObject()
                 .startObject("empty").field("type", "text").endObject()
@@ -150,7 +148,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "some_long", "type=long"));
+                .setMapping("some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -172,8 +170,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testMoreLikeThisWithAliases() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
@@ -223,13 +221,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisWithAliasesInLikeDocuments() throws Exception {
         String indexName = "foo";
         String aliasName = "foo_name";
-        String typeName = "bar";
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate(indexName).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -249,12 +242,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
-        client().prepareIndex("foo", "bar", "1")
+        client().admin().indices().prepareCreate("foo").get();
+        client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .get();
         client().admin().indices().prepareRefresh("foo").get();
@@ -272,14 +261,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("foo").get();
         ensureGreen();
 
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("2")
                 .get();
@@ -293,16 +278,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
         assertAcked(prepareCreate("foo", 2,
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("bar", mapping, XContentType.JSON));
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
 
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("4000")
                 .get();
@@ -316,18 +296,18 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     // Issue #3252
     public void testNumericField() throws Exception {
         final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
-        prepareCreate("test").addMapping("type", jsonBuilder()
-                    .startObject().startObject("type")
+        prepareCreate("test").setMapping(jsonBuilder()
+                    .startObject().startObject("_doc")
                     .startObject("properties")
                         .startObject("int_value").field("type", randomFrom(numericTypes)).endObject()
                         .startObject("string_value").field("type", "text").endObject()
                         .endObject()
                     .endObject().endObject()).get();
         ensureGreen();
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
                 .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
                 .get();
 
@@ -403,11 +383,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .endObject()
         .endObject();
 
-        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
-        index("test", "_doc", "1", "text", "lucene");
-        index("test", "_doc", "2", "text", "lucene release");
+        indexDoc("test", "1", "text", "lucene");
+        indexDoc("test", "2", "text", "lucene release");
         refresh();
 
         Item item = new Item("test", "1");
@@ -420,8 +400,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeInclude() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
@@ -459,8 +439,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeThisIds() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
@@ -485,7 +465,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisMultiValueFields() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=keyword")
+                .setMapping("text", "type=text,analyzer=keyword")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         ensureGreen();
 
@@ -493,10 +473,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         String[] values = {"aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj"};
         List<IndexRequestBuilder> builders = new ArrayList<>(values.length + 1);
         // index one document with all the values
-        builders.add(client().prepareIndex("test", "type1", "0").setSource("text", values));
+        builders.add(client().prepareIndex("test").setId("0").setSource("text", values));
         // index each document with only one of the values
         for (int i = 0; i < values.length; i++) {
-            builders.add(client().prepareIndex("test", "type1", String.valueOf(i + 1)).setSource("text", values[i]));
+            builders.add(client().prepareIndex("test").setId(String.valueOf(i + 1)).setSource("text", values[i]));
         }
         indexRandom(true, builders);
 
@@ -517,7 +497,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=whitespace")
+                .setMapping("text", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         ensureGreen();
 
@@ -528,7 +508,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             for (int j = 1; j <= 10 - i; j++) {
                 text += j + " ";
             }
-            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", text));
+            builders.add(client().prepareIndex("test").setId(i + "").setSource("text", text));
         }
         indexRandom(true, builders);
 
@@ -563,7 +543,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             doc.field("field" + i, generateRandomStringArray(5, 10, false) + "a"); // make sure they are not all empty
         }
         doc.endObject();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         // routing to ensure we hit the shard with the doc
@@ -581,11 +561,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
+                .setMapping("text", "type=text,analyzer=whitespace", "date", "type=date"));
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(jsonBuilder()
                 .startObject()
                 .field("text", "Hello World!")
                 .field("date", "2009-01-01")
@@ -648,7 +628,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Indexing each field value of this document as a single document.");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numFields; i++) {
-            builders.add(client().prepareIndex("test", "type1", i+"").setSource("field"+i, i+""));
+            builders.add(client().prepareIndex("test").setId(i+"").setSource("field"+i, i+""));
         }
         indexRandom(true, builders);
 
@@ -683,15 +663,15 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
+                .setMapping("text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(jsonBuilder()
                         .startObject()
                         .field("text", "hello world")
                         .field("text1", "elasticsearch")
                         .endObject()),
-                client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
+                client().prepareIndex("test").setId("2").setSource(jsonBuilder()
                         .startObject()
                         .field("text", "goodby moon")
                         .field("text1", "elasticsearch")
@@ -719,9 +699,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testWithRouting() throws IOException {
-        client().prepareIndex("index", "type", "1").setRouting("3").setSource("text", "this is a document").get();
-        client().prepareIndex("index", "type", "2").setRouting("1").setSource("text", "this is another document").get();
-        client().prepareIndex("index", "type", "3").setRouting("4").setSource("text", "this is yet another document").get();
+        client().prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
+        client().prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
+        client().prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
         refresh("index");
 
         Item item = new Item("index", "2").routing("1");
@@ -735,8 +715,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     //Issue #29678
     public void testWithMissingRouting() throws IOException {
         logger.info("Creating index test with routing required for type1");
-        assertAcked(prepareCreate("test").addMapping("type1",
-            jsonBuilder().startObject().startObject("type1")
+        assertAcked(prepareCreate("test").setMapping(
+            jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
                 .startObject("_routing").field("required", true).endObject()
             .endObject().endObject()));

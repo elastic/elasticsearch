@@ -127,22 +127,24 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
+     * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
+     * be called after all aggregations have been fully reduced
+     */
+    public InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
+        }
+        return reducedAggs;
+    }
+
+    /**
      * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
      * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        if (reduceContext.isFinalReduce()) {
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
-            }
-        }
-        return aggResult;
-    }
-
-    public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns

@@ -122,12 +122,12 @@ public class SplitIndexIT extends ESIntegTestCase {
             settings.put("index.routing_partition_size",
                 randomIntBetween(1, numRoutingShards));
             if (useNested) {
-                createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
+                createInitialIndex.setMapping("_routing", "required=true", "nested1", "type=nested");
             } else {
-                createInitialIndex.addMapping("t1", "_routing", "required=true");
+                createInitialIndex.setMapping("_routing", "required=true");
             }
         } else if (useNested) {
-            createInitialIndex.addMapping("t1", "nested1", "type=nested");
+            createInitialIndex.setMapping("nested1", "type=nested");
         }
         logger.info("use routing {} use mixed routing {} use nested {}", useRouting, useMixedRouting, useNested);
         createInitialIndex.setSettings(settings).get();
@@ -137,7 +137,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
             try {
-                return client().prepareIndex(index, "t1", Integer.toString(id))
+                return client().prepareIndex(index).setId(Integer.toString(id))
                     .setSource(jsonBuilder().startObject()
                         .field("foo", "bar")
                         .field("i", id)
@@ -465,10 +465,10 @@ public class SplitIndexIT extends ESIntegTestCase {
                     .put("number_of_shards", 2)
                     .put("number_of_replicas", 0)
             )
-            .addMapping("type", "id", "type=keyword,doc_values=true")
+            .setMapping("id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "type", Integer.toString(i))
+            client().prepareIndex("source").setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node

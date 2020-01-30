@@ -141,24 +141,24 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                     Collections.emptyMap())).setTimeout(timeout));
 
 
-        checkWriteAction(clientToMasterlessNode.prepareIndex("test", "type1", "1")
+        checkWriteAction(clientToMasterlessNode.prepareIndex("test").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-        checkWriteAction(clientToMasterlessNode.prepareIndex("no_index", "type1", "1")
+        checkWriteAction(clientToMasterlessNode.prepareIndex("no_index").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
         BulkRequestBuilder bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
-        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("test", "type1", "1")
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("test").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("test", "type1", "2")
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("test").setId("2")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
         bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
-        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("no_index", "type1", "1")
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("no_index").setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("no_index", "type1", "2")
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("no_index").setId("2")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
@@ -203,8 +203,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         prepareCreate("test2").setSettings(
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1", "type1", "1").setSource("field", "value1").get();
-        client().prepareIndex("test2", "type1", "1").setSource("field", "value1").get();
+        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
@@ -253,7 +253,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
 
         try {
-            clientToMasterlessNode.prepareIndex("test1", "type1", "1")
+            clientToMasterlessNode.prepareIndex("test1").setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {

@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,14 +33,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double[] percents;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
 
     HDRPercentilesAggregatorFactory(String name,
-                                        ValuesSourceConfig<Numeric> config,
+                                        ValuesSourceConfig<ValuesSource> config,
                                         double[] percents,
                                         int numberOfSignificantValueDigits,
                                         boolean keyed,
@@ -66,7 +65,7 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,

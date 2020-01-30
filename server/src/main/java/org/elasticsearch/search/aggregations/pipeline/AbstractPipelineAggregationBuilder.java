@@ -105,7 +105,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
-    
+
     /**
      * Validates pipeline aggregations that need sequentially ordered data.
      */
@@ -175,6 +175,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;

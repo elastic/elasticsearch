@@ -257,7 +257,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             List<String> fields = new ArrayList<>();
             fields.add(path);
             final MapperService mapperService =
-                createIndex(index, Settings.EMPTY, "_doc", mapping).mapperService();
+                createIndex(index, Settings.EMPTY, mapping).mapperService();
             FieldType fieldType = mapperService.fullName(path + "._index_prefix");
             assertThat(fieldType, instanceOf(PrefixFieldType.class));
             PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;

@@ -5,9 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -21,8 +27,22 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
     String getName();
 
     /**
+     * Builds the aggregation that collect required data to compute the metric
+     * @param actualField the field that stores the actual value
+     * @param predictedField the field that stores the predicted value (class name or probability)
+     * @return the aggregations required to compute the metric
+     */
+    Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField);
+
+    /**
+     * Processes given aggregations as a step towards computing result
+     * @param aggs aggregations from {@link SearchResponse}
+     */
+    void process(Aggregations aggs);
+
+    /**
      * Gets the evaluation result for this metric.
      * @return {@code Optional.empty()} if the result is not available yet, {@code Optional.of(result)} otherwise
      */
-    Optional<EvaluationMetricResult> getResult();
+    Optional<? extends EvaluationMetricResult> getResult();
 }

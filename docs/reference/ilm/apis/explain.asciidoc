@@ -8,42 +8,48 @@
 
 Shows an index's current lifecycle status.
 
-==== Request
+[[ilm-explain-lifecycle-request]]
+==== {api-request-title}
 
 `GET <index>/_ilm/explain`
 
-==== Description
+[[ilm-explain-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage_ilm` or both privileges on the indices being
+managed to use this API. For more information, see <<security-privileges>>.
+
+[[ilm-explain-lifecycle-desc]]
+==== {api-description-title}
 
 Retrieves information about the index's current lifecycle state, such as
 the currently executing phase, action, and step. Shows when the index entered
 each one, the definition of the running phase, and information
 about any failures.
 
-==== Path Parameters
+[[ilm-explain-lifecycle-path-params]]
+==== {api-path-parms-title}
 
-`index` (required)::
-  (string) Identifier for the index.
+`<index>`::
+  (Required, string) Identifier for the index.
 
-==== Request Parameters
+[[ilm-explain-lifecycle-query-params]]
+==== {api-query-parms-title}
 
 `only_managed`::
-  (boolean) Filters the returned indices to only indices that are managed by
+  (Optional, boolean) Filters the returned indices to only indices that are managed by
   ILM.
 
 `only_errors`::
-  (boolean) Filters the returned indices to only indices that are managed by
+  (Optional, boolean) Filters the returned indices to only indices that are managed by
   ILM and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
-
-You must have the `view_index_metadata` or `manage_ilm` or both privileges on the indices
-being managed to use this API.
-For more information, see <<security-privileges>>.
-
-==== Examples
+[[ilm-explain-lifecycle-example]]
+==== {api-examples-title}
 
 The following example retrieves the lifecycle state of `my_index`:
 
@@ -239,8 +245,11 @@ information for the step that's being performed on the index.
 
 If the index is in the ERROR step, something went wrong while executing a
 step in the policy and you will need to take action for the index to proceed
-to the next step. To help you diagnose the problem, the explain response shows
-the step that failed and the step info provides information about the error.
+to the next step. Some steps are safe to automatically be retried in certain
+circumstances. To help you diagnose the problem, the explain response shows
+the step that failed, the step info which provides information about the error,
+and information about the retry attempts executed for the failed step if it's
+the case.
 
 [source,console-result]
 --------------------------------------------------
@@ -262,10 +271,12 @@ the step that failed and the step info provides information about the error.
       "step": "ERROR",
       "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
-      "failed_step": "attempt-rollover", <1>
-      "step_info": { <2>
-        "type": "resource_already_exists_exception",
-        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] already exists",
+      "failed_step": "check-rollover-ready", <1>
+      "is_auto_retryable_error": true, <2>
+      "failed_step_retry_count": 1, <3>
+      "step_info": { <4>
+        "type": "cluster_block_exception",
+        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] blocked by: [FORBIDDEN/5/index read-only (api)",
         "index_uuid": "H7lF9n36Rzqa-KfKcnGQMg",
         "index": "test-000057"
       },
@@ -290,4 +301,8 @@ the step that failed and the step info provides information about the error.
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
 <1> The step that caused the error
-<2> What went wrong
+<2> Indicates if retrying the failed step can overcome the error. If this
+is true, ILM will retry the failed step automatically.
+<3> Shows the number of attempted automatic retries to execute the failed
+step.
+<4> What went wrong

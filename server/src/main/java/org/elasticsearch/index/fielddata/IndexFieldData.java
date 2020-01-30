@@ -68,7 +68,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
-     * Returns the {@link SortField} to used for sorting.
+     * Returns the {@link SortField} to use for sorting.
      */
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
@@ -25,7 +24,6 @@ import static org.elasticsearch.xpack.sql.qa.cli.CliIntegrationTestCase.elastics
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48117")
 public class CliSecurityIT extends SqlSecurityTestCase {
     static SecurityConfig adminSecurityConfig() {
         String keystoreLocation;

@@ -1,4 +1,3 @@
-
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 

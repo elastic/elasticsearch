@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.results.GeoResults;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
@@ -131,6 +132,7 @@ public class ElasticsearchMappings {
     public static final String BOOLEAN = "boolean";
     public static final String DATE = "date";
     public static final String DOUBLE = "double";
+    public static final String GEO_POINT = "geo_point";
     public static final String INTEGER = "integer";
     public static final String KEYWORD = "keyword";
     public static final String LONG = "long";
@@ -416,6 +418,9 @@ public class ElasticsearchMappings {
                 .startObject(DataFrameAnalyticsSource.QUERY.getPreferredName())
                     .field(ENABLED, false)
                 .endObject()
+                .startObject(DataFrameAnalyticsSource._SOURCE.getPreferredName())
+                    .field(ENABLED, false)
+                .endObject()
             .endObject()
         .endObject()
         .startObject(DataFrameAnalyticsConfig.DEST.getPreferredName())
@@ -466,6 +471,9 @@ public class ElasticsearchMappings {
                         .startObject(BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
+                        .startObject(BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
                         .startObject(Regression.PREDICTION_FIELD_NAME.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
@@ -493,6 +501,9 @@ public class ElasticsearchMappings {
                         .endObject()
                         .startObject(BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName())
                             .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName())
+                            .field(TYPE, INTEGER)
                         .endObject()
                         .startObject(Classification.PREDICTION_FIELD_NAME.getPreferredName())
                             .field(TYPE, KEYWORD)
@@ -547,14 +558,14 @@ public class ElasticsearchMappings {
                .endObject();
     }
 
-    public static XContentBuilder resultsMapping(String mappingType) throws IOException {
-        return resultsMapping(mappingType, Collections.emptyList());
+    public static XContentBuilder resultsMapping() throws IOException {
+        return resultsMapping(Collections.emptyList());
     }
 
-    public static XContentBuilder resultsMapping(String mappingType, Collection<String> extraTermFields) throws IOException {
+    public static XContentBuilder resultsMapping(Collection<String> extraTermFields) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(mappingType);
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -885,6 +896,16 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
                 .endObject()
+                .startObject(AnomalyCause.GEO_RESULTS.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                        .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endObject()
         .endObject()
         .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
@@ -897,6 +918,16 @@ public class ElasticsearchMappings {
                 .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(AnomalyRecord.GEO_RESULTS.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
+                .endObject()
+                .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
                 .endObject()
             .endObject()
         .endObject();
@@ -1234,7 +1265,7 @@ public class ElasticsearchMappings {
     }
 
     public static void addDocMappingIfMissing(String alias,
-                                              CheckedFunction<String, XContentBuilder, IOException> mappingSupplier,
+                                              CheckedSupplier<XContentBuilder, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
         AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
@@ -1254,13 +1285,8 @@ public class ElasticsearchMappings {
         }
 
         if (indicesThatRequireAnUpdate.length > 0) {
-            // Use the mapping type of the first index in the update
-            IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
-            String mappingType = indexMetaData.mapping().type();
-
-            try (XContentBuilder mapping = mappingSupplier.apply(mappingType)) {
+            try (XContentBuilder mapping = mappingSupplier.get()) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                putMappingRequest.type(mappingType);
                 putMappingRequest.source(mapping);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {

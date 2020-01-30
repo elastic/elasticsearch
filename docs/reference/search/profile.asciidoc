@@ -153,16 +153,9 @@ The API returns the following result:
                  "rewrite_time": 51443,
                  "collector": [
                     {
-                       "name": "CancellableCollector",
-                       "reason": "search_cancelled",
-                       "time_in_nanos": "304311",
-                       "children": [
-                         {
-                           "name": "SimpleTopScoreDocCollector",
-                           "reason": "search_top_hits",
-                           "time_in_nanos": "32273"
-                         }
-                       ]
+                       "name": "SimpleTopScoreDocCollector",
+                       "reason": "search_top_hits",
+                       "time_in_nanos": "32273"
                     }
                  ]
               }
@@ -445,16 +438,9 @@ Looking at the previous example:
 --------------------------------------------------
 "collector": [
    {
-      "name": "CancellableCollector",
-      "reason": "search_cancelled",
-      "time_in_nanos": "304311",
-      "children": [
-        {
-          "name": "SimpleTopScoreDocCollector",
-          "reason": "search_top_hits",
-          "time_in_nanos": "32273"
-        }
-      ]
+      "name": "SimpleTopScoreDocCollector",
+      "reason": "search_top_hits",
+      "time_in_nanos": "32273"
    }
 ]
 --------------------------------------------------
@@ -657,33 +643,26 @@ The API returns the following result:
                      "rewrite_time": 7208,
                      "collector": [
                         {
-                          "name": "CancellableCollector",
-                          "reason": "search_cancelled",
-                          "time_in_nanos": 2390,
+                          "name": "MultiCollector",
+                          "reason": "search_multi",
+                          "time_in_nanos": 1820,
                           "children": [
                             {
-                              "name": "MultiCollector",
-                              "reason": "search_multi",
-                              "time_in_nanos": 1820,
+                              "name": "FilteredCollector",
+                              "reason": "search_post_filter",
+                              "time_in_nanos": 7735,
                               "children": [
                                 {
-                                  "name": "FilteredCollector",
-                                  "reason": "search_post_filter",
-                                  "time_in_nanos": 7735,
-                                  "children": [
-                                    {
-                                      "name": "SimpleTopScoreDocCollector",
-                                      "reason": "search_top_hits",
-                                      "time_in_nanos": 1328
-                                    }
-                                  ]
-                                },
-                                {
-                                  "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
-                                  "reason": "aggregation",
-                                  "time_in_nanos": 8273
+                                  "name": "SimpleTopScoreDocCollector",
+                                  "reason": "search_top_hits",
+                                  "time_in_nanos": 1328
                                 }
                               ]
+                            },
+                            {
+                              "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
+                              "reason": "aggregation",
+                              "time_in_nanos": 8273
                             }
                           ]
                         }

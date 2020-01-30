@@ -65,7 +65,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").get();
+            client().prepareIndex("test").setId(""+i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
@@ -147,8 +147,8 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         refresh();
 
         final Client client = internalCluster().smartClient();
-        SearchRequestBuilder request = client.prepareSearch("test")
-            .setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*"); // multiple wildchar  to cover multi-param usecase
+        // multiple wildchar to cover multi-param usecase
+        SearchRequestBuilder request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*");
         assertSearchOnRandomNodes(request);
 
         request = client.prepareSearch("test")

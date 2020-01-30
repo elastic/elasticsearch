@@ -173,9 +173,10 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final Exception cause;
         private final RestStatus status;
         private final long seqNo;
+        private final long term;
         private final boolean aborted;
 
-        public static ConstructingObjectParser<Failure, Void> PARSER =
+        public static final ConstructingObjectParser<Failure, Void> PARSER =
             new ConstructingObjectParser<>(
                 "bulk_failures",
                 true,
@@ -194,32 +195,35 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         /**
          * For write failures before operation was assigned a sequence number.
          *
-         * use @{link {@link #Failure(String, String, Exception, long)}}
+         * use @{link {@link #Failure(String, String, Exception, long, long)}}
          * to record operation sequence no with failure
          */
         public Failure(String index, String id, Exception cause) {
-            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
         public Failure(String index, String id, Exception cause, boolean aborted) {
-            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO, aborted);
+            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, aborted);
         }
 
         public Failure(String index, String id, Exception cause, RestStatus status) {
-            this(index, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+            this(index, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
         /** For write failures after operation was assigned a sequence number. */
-        public Failure(String index, String id, Exception cause, long seqNo) {
-            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, false);
+        public Failure(String index, String id, Exception cause, long seqNo, long term) {
+            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
         }
 
-        public Failure(String index, String id, Exception cause, RestStatus status, long seqNo, boolean aborted) {
+        private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
             this.index = index;
             this.id = id;
             this.cause = cause;
             this.status = status;
             this.seqNo = seqNo;
+            this.term = term;
             this.aborted = aborted;
         }
 
@@ -237,18 +241,26 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                term = in.readVLong();
+            } else {
+                term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+            }
             aborted = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getIndex());
+            out.writeString(index);
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
-            out.writeOptionalString(getId());
-            out.writeException(getCause());
-            out.writeZLong(getSeqNo());
+            out.writeOptionalString(id);
+            out.writeException(cause);
+            out.writeZLong(seqNo);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeVLong(term);
+            }
             out.writeBoolean(aborted);
         }
 
@@ -294,6 +306,15 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        /**
+         * The operation primary term of the primary
+         * NOTE: {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}
+         * indicates primary term was not assigned by primary
+         */
+        public long getTerm() {
+            return term;
         }
 
         /**

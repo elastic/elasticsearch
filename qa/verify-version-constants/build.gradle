@@ -19,44 +19,44 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 tasks.register("bwcTest") {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
-    String baseName = "v${bwcVersion}"
+  String baseName = "v${bwcVersion}"
 
-    testClusters {
-        "${baseName}" {
-            version = bwcVersion.toString()
-            setting 'http.content_type.required', 'true'
-            javaHome = project.file(project.ext.runtimeJavaHome)
-        }
+  testClusters {
+    "${baseName}" {
+      version = bwcVersion.toString()
+      setting 'http.content_type.required', 'true'
     }
+  }
 
-    tasks.register("${baseName}#integTest", RestTestRunnerTask) {
-        useCluster testClusters."${baseName}"
-        nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-        nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
-    }
+  tasks.register("${baseName}#integTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
 
-    tasks.register("${baseName}#bwcTest") {
-        dependsOn "${baseName}#integTest"
-    }
+  tasks.register("${baseName}#bwcTest") {
+    dependsOn "${baseName}#integTest"
+  }
 
-    bwcTest.dependsOn("${baseName}#bwcTest")
+  bwcTest.dependsOn("${baseName}#bwcTest")
 }
 
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
     for (version in bwcVersions.unreleasedIndexCompatible) {
-        dependsOn "v${version}#bwcTest"
+      dependsOn "v${version}#bwcTest"
     }
   }
 }

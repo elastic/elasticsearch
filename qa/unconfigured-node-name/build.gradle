@@ -29,5 +29,5 @@ testClusters.integTest {
 
 integTest.runner {
   nonInputProperties.systemProperty 'tests.logfile',
-    "${ -> testClusters.integTest.singleNode().getServerLog() }"
+    "${-> testClusters.integTest.singleNode().getServerLog()}"
 }

@@ -42,27 +42,22 @@ configurations {
 
 idea {
   module {
-   if (scopes.TEST != null) {
-     scopes.TEST.plus.add(project.configurations.restSpec)
-   }
+    if (scopes.TEST != null) {
+      scopes.TEST.plus.add(project.configurations.restSpec)
+    }
   }
 }
 
 dependencies {
-  compile project(':server')
-  compile project(':client:rest')
   compile project(':modules:mapper-extras')
   compile project(':modules:parent-join')
   compile project(':modules:aggs-matrix-stats')
   compile project(':modules:rank-eval')
   compile project(':modules:lang-mustache')
+
+  // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')
   shadow project(':client:rest')
-  bundle project(':modules:mapper-extras')
-  bundle project(':modules:parent-join')
-  bundle project(':modules:aggs-matrix-stats')
-  bundle project(':modules:rank-eval')
-  bundle project(':modules:lang-mustache')
 
   testCompile project(':client:test')
   testCompile project(':test:framework')
@@ -73,7 +68,7 @@ dependencies {
   // Needed for serialization tests:
   // (In order to serialize a server side class to a client side class or the other way around)
   testCompile(project(':x-pack:plugin:core')) {
-      exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
 
   restSpec project(':rest-api-spec')
@@ -81,7 +76,7 @@ dependencies {
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  dependsOn jar // so that configurations resolve
+  dependsOn configurations.restSpec // so that configurations resolve
   from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }
@@ -131,6 +126,8 @@ testClusters.all {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.transport.ssl.enabled', 'false'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
@@ -141,11 +138,12 @@ testClusters.all {
   setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
 
   setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'index.lifecycle.history_index_enabled', 'false'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-          password: System.getProperty('tests.rest.cluster.password', 'test-password'),
-          role: System.getProperty('tests.rest.cluster.role', 'admin')
+    password: System.getProperty('tests.rest.cluster.password', 'test-password'),
+    role: System.getProperty('tests.rest.cluster.role', 'admin')
   user username: 'admin_user', password: 'admin-password'
 
   extraConfigFile nodeCert.name, nodeCert

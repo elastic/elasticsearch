@@ -23,7 +23,7 @@ Each `has_parent` query in a search can increase query time significantly.
 To use the `has_parent` query, your index must include a <<parent-join,join>>
 field mapping. For example:
 
-[source,js]
+[source,console]
 ----
 PUT /my-index
 {
@@ -43,13 +43,12 @@ PUT /my-index
 }
 
 ----
-// CONSOLE
 // TESTSETUP
 
 [[has-parent-query-ex-query]]
 ===== Example query
 
-[source,js]
+[source,console]
 ----
 GET /my-index/_search
 {
@@ -67,7 +66,6 @@ GET /my-index/_search
     }
 }
 ----
-// CONSOLE
 
 [[has-parent-top-level-params]]
 ==== Top-level parameters for `has_parent`
@@ -114,13 +112,13 @@ You can use this parameter to query multiple indices that may not contain the
 [[has-parent-query-performance]]
 ===== Sorting
 You cannot sort the results of a `has_parent` query using standard
-<<search-request-sort,sort options>>.
+<<request-body-search-sort,sort options>>.
 
 If you need to sort returned documents by a field in their parent documents, use
 a `function_score` query and sort by `_score`. For example, the following query
 sorts returned documents by the `view_count` field of their parent documents.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -139,4 +137,3 @@ GET /_search
     }
 }
 ----
-// CONSOLE

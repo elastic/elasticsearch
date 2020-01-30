@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.OriginalIndices;
@@ -95,6 +96,7 @@ public class ExceptionsHelperTests extends ESTestCase {
 
     public void testStatus() {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 

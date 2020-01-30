@@ -24,6 +24,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -80,8 +82,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1371,31 +1375,42 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMetaField() throws Exception {
-        createIndex("test");
-        ensureGreen();
-        final int numDocs = randomIntBetween(10, 20);
-        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = client().prepareIndex("test", "type", Integer.toString(i))
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
+            .get();
+        try {
+            createIndex("test");
+            ensureGreen();
+            final int numDocs = randomIntBetween(10, 20);
+            IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+            for (int i = 0; i < numDocs; ++i) {
+                indexReqs[i] = client().prepareIndex("test", "type", Integer.toString(i))
                     .setSource();
-        }
-        indexRandom(true, indexReqs);
+            }
+            indexRandom(true, indexReqs);
 
-        SortOrder order = randomFrom(SortOrder.values());
-        SearchResponse searchResponse = client().prepareSearch()
+            SortOrder order = randomFrom(SortOrder.values());
+            SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
                 .addSort("_id", order)
                 .get();
-        assertNoFailures(searchResponse);
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
-        for (int i = 0; i < hits.length; ++i) {
-            String idString = hits[i].getId();
-            final BytesRef id = new BytesRef(idString);
-            assertEquals(idString, hits[i].getSortValues()[0]);
-            assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
-            previous = id;
+            assertNoFailures(searchResponse);
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+            for (int i = 0; i < hits.length; ++i) {
+                String idString = hits[i].getId();
+                final BytesRef id = new BytesRef(idString);
+                assertEquals(idString, hits[i].getSortValues()[0]);
+                assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+                previous = id;
+            }
+            // assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
+        } finally {
+            // unset cluster setting
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
+                .get();
         }
     }
 
@@ -1418,6 +1433,20 @@ public class FieldSortIT extends ESIntegTestCase {
                                                         .startObject("fields")
                                                             .startObject("sub")
                                                                 .field("type", "keyword")
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
+                                                    .startObject("bar")
+                                                        .field("type", "nested")
+                                                        .startObject("properties")
+                                                            .startObject("foo")
+                                                                .field("type", "text")
+                                                                .field("fielddata", true)
+                                                                .startObject("fields")
+                                                                    .startObject("sub")
+                                                                        .field("type", "keyword")
+                                                                    .endObject()
+                                                                .endObject()
                                                             .endObject()
                                                         .endObject()
                                                     .endObject()
@@ -1470,6 +1499,22 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(hits[1].getSortValues().length, is(1));
         assertThat(hits[0].getSortValues()[0], is("bar"));
         assertThat(hits[1].getSortValues()[0], is("abc"));
+
+        {
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addSort(SortBuilders
+                        .fieldSort("nested.bar.foo")
+                        .setNestedSort(new NestedSortBuilder("nested")
+                            .setNestedSort(new NestedSortBuilder("nested.bar")
+                                .setMaxChildren(1)))
+                        .order(SortOrder.DESC))
+                    .get()
+            );
+            assertThat(exc.toString(),
+                containsString("max_children is only supported on top level of nested sort"));
+        }
 
         // We sort on nested sub field
         searchResponse = client().prepareSearch()
@@ -1800,4 +1845,50 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         }
     }
+
+    public void testLongSortOptimizationCorrectResults() {
+        assertAcked(prepareCreate("test1")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2))
+            .addMapping("_doc", "long_field", "type=long").get());
+
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        for (int i = 1; i <= 7000; i++) {
+            if (i % 3500 == 0) {
+                bulkBuilder.get();
+                bulkBuilder = client().prepareBulk();
+            }
+            String source = "{\"long_field\":" + randomLong()  + "}";
+            bulkBuilder.add(client().prepareIndex("test1", "_doc").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+        }
+        refresh();
+
+        //*** 1. sort DESC on long_field
+        SearchResponse searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.DESC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        long previousLong = Long.MAX_VALUE;
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            long currentLong = (long) hit.getSortValues()[0];
+            assertThat("sort order is incorrect", currentLong, lessThanOrEqualTo(previousLong));
+            previousLong = currentLong;
+        }
+
+        //*** 2. sort ASC on long_field
+        searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.ASC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        previousLong = Long.MIN_VALUE;
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            long currentLong = (long) hit.getSortValues()[0];
+            assertThat("sort order is incorrect", currentLong, greaterThanOrEqualTo(previousLong));
+            previousLong = currentLong;
+        }
+    }
+
 }

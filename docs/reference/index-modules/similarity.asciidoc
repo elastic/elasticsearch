@@ -18,31 +18,30 @@ can be configured via the index settings as shown below. The index
 options can be provided when creating an index or updating index
 settings.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index
 {
-    "settings" : {
-        "index" : {
-            "similarity" : {
-              "my_similarity" : {
-                "type" : "DFR",
-                "basic_model" : "g",
-                "after_effect" : "l",
-                "normalization" : "h2",
-                "normalization.h2.c" : "3.0"
-              }
-            }
+  "settings": {
+    "index": {
+      "similarity": {
+        "my_similarity": {
+          "type": "DFR",
+          "basic_model": "g",
+          "after_effect": "l",
+          "normalization": "h2",
+          "normalization.h2.c": "3.0"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-Here we configure the DFRSimilarity so it can be referenced as
+Here we configure the DFR similarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index/_mapping
 {
@@ -51,7 +50,6 @@ PUT /index/_mapping
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -190,7 +188,7 @@ A similarity that allows you to use a script in order to specify how scores
 should be computed. For instance, the below example shows how to reimplement
 TF-IDF:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index
 {
@@ -237,11 +235,10 @@ GET /index/_search?explain=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Which yields:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 12,
@@ -357,7 +354,7 @@ document-independent contribution to the score.
 The below configuration will give the same tf-idf scores but is slightly
 more efficient:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index
 {
@@ -385,11 +382,10 @@ PUT /index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index/_doc/1
 {
@@ -413,10 +409,9 @@ GET /index/_search?explain=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 1,
@@ -523,7 +518,7 @@ By default, Elasticsearch will use whatever similarity is configured as
 You can change the default similarity for all fields in an index when
 it is <<indices-create-index,created>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index
 {
@@ -538,13 +533,12 @@ PUT /index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 If you want to change the default similarity after creating the index
 you must <<indices-open-close,close>> your index, send the following
 request and <<indices-open-close,open>> it again afterwards:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /index/_close
 
@@ -561,5 +555,4 @@ PUT /index/_settings
 
 POST /index/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

@@ -24,15 +24,18 @@ Creates and updates role mappings.
 ==== {api-description-title}
 
 Role mappings define which roles are assigned to each user. Each mapping has 
-_rules_ that identify users and a list of _roles_ that are
-granted to those users.  
+_rules_ that identify users and a list of _roles_ that are granted to those users.
+
+The role mapping APIs are generally the preferred way to manage role mappings
+rather than using {ref}/mapping-roles.html#mapping-roles-file[role mapping files].
+The create or update role mappings API cannot update role mappings that are defined
+in role mapping files.
 
 NOTE: This API does not create roles. Rather, it maps users to existing roles.
-Roles can be created by using <<security-api-roles, Role Management APIs>> or
-{stack-ov}/defining-roles.html#roles-management-file[roles files].
+Roles can be created by using the <<security-api-put-role,create or update
+roles API>> or <<roles-management-file,roles files>>.
 
-For more information, see 
-{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+For more information, see <<mapping-roles>>.
 
 
 [[security-api-put-role-mapping-path-params]]
@@ -313,7 +316,7 @@ POST /_security/role_mapping/mapping8
 A templated role can be used to automatically map every user to their own
 custom role. The role itself can be defined through the
 <<security-api-put-role, Roles API>> or using a
-{stack-ov}/custom-roles-authorization.html#implementing-custom-roles-provider[custom roles provider].
+<<implementing-custom-roles-provider,custom roles provider>>.
 
 In this example every user who authenticates using the "cloud-saml" realm
 will be automatically mapped to two roles - the `"saml_user"` role and a

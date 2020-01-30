@@ -66,6 +66,24 @@ You can change this default behavior by changing the
 this is a common setting in Elasticsearch, changing its value might effect other
 schedules in the system.
 
+While the _role mapping APIs_ is the preferred way to manage role mappings, using
+the `role_mappings.yml` file becomes useful in a couple of use cases: 
+
+. If you want to define fixed role mappings that no one (besides an administrator 
+with physical access to the {es} nodes) would be able to change.
+
+. If cluster administration depends on users from external realms and these users
+need to have their roles mapped to them even when the cluster is RED. For instance
+an administrator that authenticates via LDAP or PKI and gets assigned an
+administrator role so that they can perform corrective actions.
+
+Please note however, that the role_mappings.yml file is provided
+as a minimal administrative function and is not intended to cover and be used to
+define roles for all use cases.
+
+IMPORTANT: You cannot view, edit, or remove any roles that are defined in the role
+mapping files by using the the role mapping APIs. 
+
 ==== Realm specific details
 [float]
 [[ldap-role-mapping]]
@@ -96,7 +114,8 @@ user:
 <3> The distinguished name of an LDAP or Active Directory user.
 
 You can use the role-mapping API to define equivalent mappings as follows:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -105,9 +124,8 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -119,7 +137,6 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[pki-role-mapping]]
@@ -140,7 +157,7 @@ user:
 
 The following example creates equivalent mappings using the API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admin_user
 {
@@ -149,9 +166,8 @@ PUT /_security/role_mapping/admin_user
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_user
 {
@@ -160,4 +176,3 @@ PUT /_security/role_mapping/basic_user
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE

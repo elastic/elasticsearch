@@ -60,6 +60,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
@@ -269,7 +270,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return builder;
     }
 
-    private static ConstructingObjectParser<ScriptSortBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<ScriptSortBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
 
     static {
@@ -325,6 +326,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     "max_children is only supported on last level of nested sort");
             }
             // new nested sorts takes priority
+            validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
             nested = resolveNested(context, nestedSort);
         } else {
             nested = resolveNested(context, nestedPath, nestedFilter);
@@ -333,7 +335,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
-                final StringSortScript.Factory factory = context.getScriptService().compile(script, StringSortScript.CONTEXT);
+                final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
                     StringSortScript leafScript;
@@ -362,7 +364,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 };
                 break;
             case NUMBER:
-                final NumberSortScript.Factory numberSortFactory = context.getScriptService().compile(script, NumberSortScript.CONTEXT);
+                final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
                     NumberSortScript leafScript;

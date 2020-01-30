@@ -198,7 +198,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext.putHeader(AuditTrail.X_FORWARDED_FOR_HEADER,
                     randomFrom("2001:db8:85a3:8d3:1319:8a2e:370:7348", "203.0.113.195", "203.0.113.195, 70.41.3.18, 150.172.238.178"));
         }
-        logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
+        logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
     }
 

@@ -29,19 +29,11 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         CreateApiKeyRequest request = new CreateApiKeyRequest();
 
         ActionRequestValidationException ve = request.validate();
-        assertNotNull(ve);
-        assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name is required"));
+        assertNull(ve);
 
         request.setName(name);
         ve = request.validate();
         assertNull(ve);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.setName(""));
-        assertThat(e.getMessage(), containsString("name must not be null or empty"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> request.setName(null));
-        assertThat(e.getMessage(), containsString("name must not be null or empty"));
 
         request.setName(randomAlphaOfLength(257));
         ve = request.validate();

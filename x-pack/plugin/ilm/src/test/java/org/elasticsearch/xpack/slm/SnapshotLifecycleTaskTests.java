@@ -23,6 +23,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -47,6 +51,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -56,7 +61,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testGetSnapMetadata() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -76,7 +82,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testSkipCreatingSnapshotWhenJobDoesNotMatch() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -106,7 +113,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testCreateSnapshotOnTrigger() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -179,6 +187,83 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                     assertEquals(policy.getRepository(), item.getRepository());
                     assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
                     assertEquals(snapshotName.get(), item.getSnapshotName());
+                });
+
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
+            // Trigger the event with a matching job name for the policy
+            task.triggered(new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm),
+                System.currentTimeMillis(), System.currentTimeMillis()));
+
+            assertTrue("snapshot should be triggered once", clientCalled.get());
+            assertTrue("history store should be called once", historyStoreCalled.get());
+        }
+
+        threadPool.shutdownNow();
+    }
+
+    public void testPartialFailureSnapshot() throws Exception {
+        final String id = randomAlphaOfLength(4);
+        final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
+
+        final ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metaData(MetaData.builder()
+                .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
+                .build())
+            .build();
+
+        final ThreadPool threadPool = new TestThreadPool("test");
+        final AtomicBoolean clientCalled = new AtomicBoolean(false);
+        final SetOnce<String> snapshotName = new SetOnce<>();
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
+             VerifyingClient client = new VerifyingClient(threadPool,
+                 (action, request, listener) -> {
+                     assertFalse(clientCalled.getAndSet(true));
+                     assertThat(action, instanceOf(CreateSnapshotAction.class));
+                     assertThat(request, instanceOf(CreateSnapshotRequest.class));
+
+                     CreateSnapshotRequest req = (CreateSnapshotRequest) request;
+
+                     SnapshotLifecyclePolicy policy = slpm.getPolicy();
+                     assertThat(req.snapshot(), startsWith(policy.getName() + "-"));
+                     assertThat(req.repository(), equalTo(policy.getRepository()));
+                     snapshotName.set(req.snapshot());
+                     if (req.indices().length > 0) {
+                         assertThat(Arrays.asList(req.indices()), equalTo(policy.getConfig().get("indices")));
+                     }
+                     boolean globalState = policy.getConfig().get("include_global_state") == null ||
+                         Boolean.parseBoolean((String) policy.getConfig().get("include_global_state"));
+                     assertThat(req.includeGlobalState(), equalTo(globalState));
+
+                     return new CreateSnapshotResponse(
+                         new SnapshotInfo(
+                             new SnapshotId(req.snapshot(), "uuid"),
+                             Arrays.asList(req.indices()),
+                             randomNonNegativeLong(),
+                             "snapshot started",
+                             randomNonNegativeLong(),
+                             3,
+                             Collections.singletonList(
+                                 new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),
+                             req.includeGlobalState(),
+                             req.userMetadata()
+                         ));
+                 })) {
+            final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC,
+                item -> {
+                    assertFalse(historyStoreCalled.getAndSet(true));
+                    final SnapshotLifecyclePolicy policy = slpm.getPolicy();
+                    assertEquals(policy.getId(), item.getPolicyId());
+                    assertEquals(policy.getRepository(), item.getRepository());
+                    assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
+                    assertEquals(snapshotName.get(), item.getSnapshotName());
+                    assertFalse("item should be a failure", item.isSuccess());
+                    assertThat(item.getErrorDetails(),
+                        containsString("failed to create snapshot successfully, 1 out of 3 total shards failed"));
+                    assertThat(item.getErrorDetails(),
+                        containsString("forced failure"));
                 });
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);

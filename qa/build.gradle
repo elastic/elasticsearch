@@ -1,4 +1,3 @@
-
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
@@ -12,7 +11,11 @@ subprojects { Project subproj ->
   }
   plugins.withType(TestClustersPlugin).whenPluginAdded {
     testClusters.all {
-      testDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
+      String configuredTestDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
+      testDistribution = configuredTestDistribution
+      if (configuredTestDistribution.equals("DEFAULT")) {
+        setting "xpack.security.enabled", "false"
+      }
     }
   }
 }

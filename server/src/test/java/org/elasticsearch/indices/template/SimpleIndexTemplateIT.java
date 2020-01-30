@@ -533,7 +533,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             () -> createIndex("test"));
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
         assertThat(e.getCause(), instanceOf(ParsingException.class));
-        assertThat(e.getCause().getMessage(), equalTo("no [query] registered for [invalid]"));
+        assertThat(e.getCause().getMessage(), equalTo("unknown query [invalid]"));
     }
 
     public void testAliasInvalidFilterInvalidJson() throws Exception {

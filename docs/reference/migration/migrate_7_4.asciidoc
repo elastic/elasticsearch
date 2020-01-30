@@ -9,8 +9,6 @@ your application to Elasticsearch 7.4.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.4.0]
-
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
@@ -38,6 +36,12 @@ which now takes a `name` parameter in its constructor.
 If a document doesn't have a value for a vector field (dense_vector
 or sparse_vector) on which a vector function is executed, an error will
 be thrown.
+
+[discrete]
+==== Use float instead of double for query vectors
+Previously, vector functions like `cosineSimilarity` represented the query
+vector as an list of doubles. Now vector functions use floats, which matches
+how the stored document vectors are represented.
 
 [discrete]
 [[breaking_74_snapshots_changes]]
@@ -120,6 +124,13 @@ be disabled by setting the system property
 === Settings changes
 
 [discrete]
+[[breaking_74_unique_realm_names]]
+==== Authentication realm name uniqueness is enforced
+
+Authentication realm name uniqueness is now enforced. If you configure more than one realm of any type
+with the same name, the node fails to start.
+
+[discrete]
 [[deprecate-pidfile]]
 ==== `pidfile` setting is being replaced by `node.pidfile`
 
@@ -133,3 +144,65 @@ deprecated, and will be removed in version 8.0.0. Instead, use `node.pidfile`.
 To ensure that all settings are in a proper namespace, the `processors` setting
 is deprecated, and will be removed in version 8.0.0. Instead, use
 `node.processors`.
+
+[discrete]
+[[breaking_74_transform_changes]]
+=== {transform-cap} changes
+
+[discrete]
+[[transform_stats_format]]
+==== Stats response format changes
+
+The response format of the <<get-transform-stats>> is very different
+to previous versions:
+
+- `task_state` and `indexer_state` are combined into a single `state` field
+  that replaces the old `state` object.
+- Within the `checkpointing` object, `current` is renamed to `last` and
+  `in_progress` to `next`.
+- The `checkpoint` number is now nested under `last` and `next`.
+- `checkpoint_progress` is now reported in an object nested in the `next`
+  checkpoint object. (If there is no `next` checkpoint then no checkpoint is
+  in progress and by definition the `last` checkpoint is 100% complete.)
+
+For an example of the new format see <<get-transform-stats-example>>.
+
+[discrete]
+[[breaking_74_df_analytics_changes]]
+=== {dfanalytics-cap} changes
+
+[discrete]
+[[progress_reporting_change]]
+==== Changes to progress reporting
+
+The single integer `progress_percent` field at the top level of the
+{dfanalytics-job} stats is replaced by a `progress` field that is an array
+of objects. Each object contains the `phase` name and `progress_percent` of one
+phase of the analytics. For example:
+
+[source,js]
+----
+{
+  "id" : "my_job",
+  "state" : "analyzing",
+  "progress" : [
+    {
+      "phase" : "reindexing",
+      "progress_percent" : 100
+    },
+    {
+      "phase" : "loading_data",
+      "progress_percent" : 100
+    },
+    {
+      "phase" : "analyzing",
+      "progress_percent" : 47
+    },
+    {
+      "phase" : "writing_results",
+      "progress_percent" : 0
+    }
+  ]
+}
+----
+// NOTCONSOLE

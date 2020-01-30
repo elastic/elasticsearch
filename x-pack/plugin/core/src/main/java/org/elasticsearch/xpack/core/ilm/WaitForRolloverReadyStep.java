@@ -43,13 +43,25 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                 indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        if (indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
+            logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
+                indexMetaData.getIndex().getName(), rolloverAlias);
+            listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
             return;
         }
 
@@ -101,7 +113,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 "index [%s] is not the write index for alias [%s]", indexMetaData.getIndex().getName(), rolloverAlias)));
         }
 
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
         if (maxAge != null) {
             rolloverRequest.addMaxIndexAgeCondition(maxAge);

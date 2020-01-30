@@ -5,7 +5,7 @@ deprecated[7.0.0,Types and the `type` query are deprecated and in the process of
 
 Filters documents matching the provided document / mapping type.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -16,4 +16,3 @@ GET /_search
     }
 }    
 --------------------------------------------------
-// CONSOLE

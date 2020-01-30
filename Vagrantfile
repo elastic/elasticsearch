@@ -1,5 +1,5 @@
 # -*- mode: ruby -*-
-# vi: set ft=ruby :
+# vim: ft=ruby ts=2 sw=2 sts=2 et:
 
 # This Vagrantfile exists to test packaging. Read more about its use in the
 # vagrant section in TESTING.asciidoc.
@@ -63,6 +63,7 @@ Vagrant.configure(2) do |config|
         # Install Jayatana so we can work around it being present.
         [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
+      ubuntu_docker config
     end
   end
   'ubuntu-1804'.tap do |box|
@@ -72,6 +73,7 @@ Vagrant.configure(2) do |config|
        # Install Jayatana so we can work around it being present.
        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
+      ubuntu_docker config
     end
   end
   # Wheezy's backports don't contain Openjdk 8 and the backflips
@@ -90,6 +92,7 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-9-x86_64'
       deb_common config, box
+      deb_docker config
     end
   end
   'centos-6'.tap do |box|
@@ -102,6 +105,7 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/centos-7-x86_64'
       rpm_common config, box
+      rpm_docker config
     end
   end
   'oel-6'.tap do |box|
@@ -120,12 +124,14 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
+      dnf_docker config
     end
   end
   'fedora-29'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-28-x86_64'
+      config.vm.box = 'elastic/fedora-29-x86_64'
       dnf_common config, box
+      dnf_docker config
     end
   end
   'opensuse-42'.tap do |box|
@@ -188,6 +194,67 @@ def deb_common(config, name, extra: '')
   )
 end
 
+def ubuntu_docker(config)
+  config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
+    # Install packages to allow apt to use a repository over HTTPS
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common
+
+    # Add Docker’s official GPG key
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+
+    # Set up the stable Docker repository
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) \
+      stable"
+
+    # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+
+    # Enable IPv4 forwarding
+    sed -i '/net.ipv4.ip_forward/s/^#//' /etc/sysctl.conf
+    systemctl restart networking
+  SHELL
+end
+
+
+def deb_docker(config)
+  config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
+    # Install packages to allow apt to use a repository over HTTPS
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common
+
+    # Add Docker’s official GPG key
+    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+
+    # Set up the stable Docker repository
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/debian \
+      $(lsb_release -cs) \
+      stable"
+
+    # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
+end
+
 def rpm_common(config, name)
   linux_common(
     config,
@@ -196,6 +263,25 @@ def rpm_common(config, name)
     update_tracking_file: '/var/cache/yum/last_update',
     install_command: 'yum install -y'
   )
+end
+
+def rpm_docker(config)
+  config.vm.provision 'install Docker using yum', type: 'shell', inline: <<-SHELL
+    # Install prerequisites
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+
+    # Add repository
+    yum-config-manager -y --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+    # Install Docker
+    yum install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker
+    systemctl enable --now docker
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def dnf_common(config, name)
@@ -212,6 +298,25 @@ def dnf_common(config, name)
     install_command: 'dnf install -y',
     install_command_retries: 5
   )
+end
+
+def dnf_docker(config)
+  config.vm.provision 'install Docker using dnf', type: 'shell', inline: <<-SHELL
+    # Install prerequisites
+    dnf -y install dnf-plugins-core
+
+    # Add repository
+    dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+
+    # Install Docker
+    dnf install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker
+    systemctl enable --now docker
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def suse_common(config, name, extra: '')
@@ -374,6 +479,7 @@ JAVA
     ensure curl
     ensure unzip
     ensure rsync
+    ensure expect
 
     installed bats || {
       # Bats lives in a git repository....

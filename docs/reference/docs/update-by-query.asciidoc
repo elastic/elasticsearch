@@ -6,16 +6,15 @@ document in the index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
 mapping change. Here is the API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 That will return something like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -65,18 +64,17 @@ that update will have picked up the online mapping update.
 
 Back to the API format, this will update tweets from the `twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 You can also limit `_update_by_query` using the
 <<query-dsl,Query DSL>>. This will update all documents from the
 `twitter` index for the user `kimchy`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_update_by_query?conflicts=proceed
 {
@@ -87,7 +85,6 @@ POST twitter/_update_by_query?conflicts=proceed
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 <1> The query must be passed as a value to the `query` key, in the same
@@ -100,7 +97,7 @@ is genuinely useful for things like
 fun. `_update_by_query` <<modules-scripting-using,supports scripts>> to update
 the document. This will increment the `likes` field on all of kimchy's tweets:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_update_by_query
 {
@@ -115,7 +112,6 @@ POST twitter/_update_by_query
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Just as in <<docs-update,Update API>> you can set `ctx.op` to change the
@@ -148,37 +144,34 @@ from its original location.
 It's also possible to do this whole thing on multiple indexes at once, just
 like the search API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter,blog/_update_by_query
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_update_by_query?routing=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default `_update_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 `_update_by_query` can also use the <<ingest>> feature by
 specifying a `pipeline` like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/set-foo
 {
@@ -192,7 +185,6 @@ PUT _ingest/pipeline/set-foo
 }
 POST twitter/_update_by_query?pipeline=set-foo
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -249,18 +241,17 @@ starting the next set. This is "bursty" instead of "smooth". The default is `-1`
 ==== Response body
 
 //////////////////////////
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 //////////////////////////
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -356,11 +347,10 @@ version conflicts.
 You can fetch the status of all running update by query requests with the
 <<tasks,Task API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?detailed=true&actions=*byquery
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:No tasks to retrieve]
 
 The responses looks like:
@@ -415,11 +405,10 @@ will finish when their sum is equal to the `total` field.
 With the task id you can look up the task directly. The following example 
 retrieves information about task `r1A2WoRbTwKZ516z6NEs5A:36619`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -436,11 +425,10 @@ you to delete that document.
 
 Any update by query can be cancelled using the <<tasks,Task Cancel API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
-// CONSOLE
 
 The task ID can be found using the <<tasks,tasks API>>.
 
@@ -456,11 +444,10 @@ that it has been cancelled and terminates itself.
 The value of `requests_per_second` can be changed on a running update by query
 using the `_rethrottle` API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _update_by_query/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
-// CONSOLE
 
 The task ID can be found using the <<tasks, tasks API>>.
 
@@ -485,7 +472,7 @@ break the request down into smaller parts.
 Slice an update by query manually by providing a slice id and total number of
 slices to each request:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST twitter/_update_by_query
 {
@@ -508,17 +495,15 @@ POST twitter/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 Which you can verify works with:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET _refresh
 POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which results in a sensible `total` like this one:
@@ -543,7 +528,7 @@ You can also let update by query automatically parallelize using
 <<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST twitter/_update_by_query?refresh&slices=5
 {
@@ -552,16 +537,14 @@ POST twitter/_update_by_query?refresh&slices=5
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 Which you also can verify works with:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which results in a sensible `total` like this one:
@@ -634,7 +617,7 @@ documents being reindexed and cluster resources.
 Say you created an index without dynamic mapping, filled it with data, and then
 added a mapping value to pick up more fields from the data:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -664,7 +647,6 @@ PUT test/_mapping   <2>
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> This means that new fields won't be indexed, just stored in `_source`.
 
@@ -673,7 +655,7 @@ field you have to reindex all documents with it.
 
 Searching for the data won't find anything:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_search?filter_path=hits.total
 {
@@ -684,7 +666,6 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]
@@ -701,7 +682,7 @@ POST test/_search?filter_path=hits.total
 
 But you can issue an `_update_by_query` request to pick up the new mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_update_by_query?refresh&conflicts=proceed
 POST test/_search?filter_path=hits.total
@@ -713,7 +694,6 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]

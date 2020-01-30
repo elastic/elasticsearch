@@ -1,5 +1,8 @@
 [[cluster-state]]
-=== Cluster State
+=== Cluster state API
+++++
+<titleabbrev>Cluster state</titleabbrev>
+++++
 
 Returns metadata about the state of the cluster.
 
@@ -124,26 +127,21 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 The following example returns only `metadata` and `routing_table` data for the
 `foo` and `bar` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/metadata,routing_table/foo,bar
 --------------------------------------------------
-// CONSOLE
 
 The next example returns everything for the `foo` and `bar` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/_all/foo,bar
 --------------------------------------------------
-// CONSOLE
 
 This example returns only the `blocks` metadata:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/blocks
 --------------------------------------------------
-// CONSOLE
-
-

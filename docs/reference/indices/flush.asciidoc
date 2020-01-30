@@ -1,5 +1,32 @@
 [[indices-flush]]
-=== Flush
+=== Flush API
+++++
+<titleabbrev>Flush</titleabbrev>
+++++
+
+Flushes one or more indices.
+
+[source,console]
+--------------------------------------------------
+POST /twitter/_flush
+--------------------------------------------------
+// TEST[setup:twitter]
+
+
+[[flush-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_flush`
+
+`GET /<index>/_flush`
+
+`POST /_flush`
+
+`GET /_flush`
+
+
+[[flush-api-desc]]
+==== {api-description-title}
 
 Flushing an index is the process of making sure that any data that is currently
 only stored in the <<index-modules-translog,transaction log>> is also
@@ -22,244 +49,90 @@ call the flush API after indexing some documents then a successful response
 indicates that {es} has flushed all the documents that were indexed before the
 flush API was called.
 
-[source,js]
---------------------------------------------------
-POST twitter/_flush
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
 
-[float]
-[[flush-parameters]]
-==== Request Parameters
+[[flush-api-path-params]]
+==== {api-path-parms-title}
 
-The flush API accepts the following request parameters:
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To flush all indices,
+omit this parameter
+or use a value of `_all` or `*`.
 
-[horizontal]
-`wait_if_ongoing`:: If set to `true` the flush operation will block until the
-flush can be executed if another flush operation is already executing. If set to
-`false` then an exception will be thrown on the shard level if another flush
-operation is already running. Defaults to `true`.
 
-`force`:: Whether a flush should be forced even if it is not necessarily needed
-i.e. if no changes will be committed to the index. This can be used to force
-the generation number of the transaction log to be incremented even if no
-uncommitted changes are present. This parameter should be considered internal.
+[[flush-api-query-params]]
+==== {api-query-parms-title}
 
-[float]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`force`::
++
+--
+(Optional, boolean)
+If `true`,
+the request forces a flush
+even if there are no changes to commit to the index.
+Defaults to `true`.
+
+You can use this parameter
+to increment the generation number of the transaction log.
+
+This parameter is considered internal.
+--
+
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`wait_if_ongoing`::
++
+--
+(Optional, boolean)
+If `true`,
+the flush operation blocks until execution
+when another flush operation is running.
+
+
+If `false`,
+{es} returns an error
+if you request a flush
+when another flush operation is running.
+
+Defaults to `true`.
+--
+
+
+[[flush-api-example]]
+==== {api-examples-title}
+
+
+[[flush-api-specific-ex]]
+===== Flush a specific index
+
+[source,console]
+----
+POST /kimchy/_flush
+----
+// TEST[s/^/PUT kimchy\n/]
+
+
 [[flush-multi-index]]
-==== Multi Index
+===== Flush several indices
 
-The flush API can be applied to more than one index with a single call, or even
-on `_all` the indices.
-
-[source,js]
---------------------------------------------------
-POST kimchy,elasticsearch/_flush
-
-POST _flush
---------------------------------------------------
-// CONSOLE
+[source,console]
+----
+POST /kimchy,elasticsearch/_flush
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-[[synced-flush-api]]
-==== Synced Flush
 
-{es} keeps track of which shards have received indexing activity recently, and
-considers shards that have not received any indexing operations for 5 minutes to
-be inactive. When a shard becomes inactive {es} performs a special kind of flush
-known as a _synced flush_. A synced flush performs a normal
-<<indices-flush,flush>> on each copy of the shard, and then adds a marker known
-as the `sync_id` to each copy to indicate that these copies have identical
-Lucene indices. Comparing the `sync_id` markers of the two copies is a very
-efficient way to check whether they have identical contents.
+[[flush-api-all-ex]]
+===== Flush all indices
 
-When allocating shard copies, {es} must ensure that each replica contains the
-same data as the primary. If the shard copies have been synced-flushed and the
-replica shares a `sync_id` with the primary then {es} knows that the two copies
-have identical contents. This means there is no need to copy any segment files
-from the primary to the replica, which saves a good deal of time during
-recoveries and restarts.
-
-This is particularly useful for clusters having lots of indices which are very
-rarely updated, such as with time-based indices. Without the synced flush
-marker, recovery of this kind of cluster would be much slower.
-
-To check whether a shard has a `sync_id` marker or not, look for the `commit`
-section of the shard stats returned by the <<indices-stats,indices stats>> API:
-
-[source,sh]
---------------------------------------------------
-GET twitter/_stats?filter_path=**.commit&level=shards <1>
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT twitter\nPOST twitter\/_flush\/synced\n/]
-<1> `filter_path` is used to reduce the verbosity of the response, but is entirely optional
-
-
-which returns something similar to:
-
-[source,js]
---------------------------------------------------
-{
-   "indices": {
-      "twitter": {
-         "shards": {
-            "0": [
-               {
-                 "commit" : {
-                   "id" : "3M3zkw2GHMo2Y4h4/KFKCg==",
-                   "generation" : 3,
-                   "user_data" : {
-                     "translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA",
-                     "history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ",
-                     "local_checkpoint" : "-1",
-                     "translog_generation" : "2",
-                     "max_seq_no" : "-1",
-                     "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
-                     "max_unsafe_auto_id_timestamp" : "-1",
-                     "min_retained_seq_no" : "0"
-                   },
-                   "num_docs" : 0
-                 }
-               }
-            ]
-         }
-      }
-   }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"id" : "3M3zkw2GHMo2Y4h4\/KFKCg=="/"id": $body.indices.twitter.shards.0.0.commit.id/]
-// TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
-// TESTRESPONSE[s/"history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ"/"history_uuid": $body.indices.twitter.shards.0.0.commit.user_data.history_uuid/]
-// TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
-<1> the `sync id` marker
-
-NOTE: The `sync_id` marker is removed as soon as the shard is flushed again, and
-{es} may trigger an automatic flush of a shard at any time if there are
-unflushed operations in the shard's translog. In practice this means that one
-should consider any indexing operation on an index as having removed its
-`sync_id` markers.
-
-[float]
-==== Synced Flush API
-
-The Synced Flush API allows an administrator to initiate a synced flush
-manually. This can be particularly useful for a planned cluster restart where
-you can stop indexing but don't want to wait for 5 minutes until all indices
-are marked as inactive and automatically sync-flushed.
-
-You can request a synced flush even if there is ongoing indexing activity, and
-{es} will perform the synced flush on a "best-effort" basis: shards that do not
-have any ongoing indexing activity will be successfully sync-flushed, and other
-shards will fail to sync-flush. The successfully sync-flushed shards will have
-faster recovery times as long as the `sync_id` marker is not removed by a
-subsequent flush.
-
-[source,sh]
---------------------------------------------------
-POST twitter/_flush/synced
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-The response contains details about how many shards were successfully
-sync-flushed and information about any failure.
-
-Here is what it looks like when all shards of a two shards and one replica
-index successfully sync-flushed:
-
-[source,js]
---------------------------------------------------
-{
-   "_shards": {
-      "total": 2,
-      "successful": 2,
-      "failed": 0
-   },
-   "twitter": {
-      "total": 2,
-      "successful": 2,
-      "failed": 0
-   }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"successful": 2/"successful": 1/]
-
-Here is what it looks like when one shard group failed due to pending
-operations:
-
-[source,js]
---------------------------------------------------
-{
-   "_shards": {
-      "total": 4,
-      "successful": 2,
-      "failed": 2
-   },
-   "twitter": {
-      "total": 4,
-      "successful": 2,
-      "failed": 2,
-      "failures": [
-         {
-            "shard": 1,
-            "reason": "[2] ongoing operations on primary"
-         }
-      ]
-   }
-}
---------------------------------------------------
-// NOTCONSOLE
-
-NOTE: The above error is shown when the synced flush fails due to concurrent
-indexing operations. The HTTP status code in that case will be `409 Conflict`.
-
-Sometimes the failures are specific to a shard copy. The copies that failed
-will not be eligible for fast recovery but those that succeeded still will be.
-This case is reported as follows:
-
-[source,js]
---------------------------------------------------
-{
-   "_shards": {
-      "total": 4,
-      "successful": 1,
-      "failed": 1
-   },
-   "twitter": {
-      "total": 4,
-      "successful": 3,
-      "failed": 1,
-      "failures": [
-         {
-            "shard": 1,
-            "reason": "unexpected error",
-            "routing": {
-               "state": "STARTED",
-               "primary": false,
-               "node": "SZNr2J_ORxKTLUCydGX4zA",
-               "relocating_node": null,
-               "shard": 1,
-               "index": "twitter"
-            }
-         }
-      ]
-   }
-}
---------------------------------------------------
-// NOTCONSOLE
-
-NOTE: When a shard copy fails to sync-flush, the HTTP status code returned will
-be `409 Conflict`.
-
-The synced flush API can be applied to more than one index with a single call,
-or even on `_all` the indices.
-
-[source,js]
---------------------------------------------------
-POST kimchy,elasticsearch/_flush/synced
-
-POST _flush/synced
---------------------------------------------------
-// CONSOLE
+[source,console]
+----
+POST /_flush
+----

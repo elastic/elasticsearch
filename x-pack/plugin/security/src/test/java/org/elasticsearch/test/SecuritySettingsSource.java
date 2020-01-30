@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -30,11 +31,13 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
@@ -57,6 +60,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public static final String TEST_PASSWORD_HASHED =
         new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
             hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+    public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .addHeader("Authorization",
+            "Basic " + Base64.getEncoder().encodeToString(
+                (TEST_USER_NAME + ":" + SecuritySettingsSourceField.TEST_PASSWORD).getBytes(StandardCharsets.UTF_8)))
+        .build();
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
 
@@ -139,6 +147,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
                 .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
                 .put("xpack.license.self_generated.type", "trial");
+        if (inFipsJvm()) {
+            builder.put("xpack.security.ssl.diagnose.trust", false);
+        }
         addNodeSSLSettings(builder);
         return builder.build();
     }

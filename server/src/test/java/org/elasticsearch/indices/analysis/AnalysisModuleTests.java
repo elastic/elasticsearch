@@ -231,8 +231,7 @@ public class AnalysisModuleTests extends ESTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT.minimumCompatibilityVersion());
         // bwc deprecation
         {
-            Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+            final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version)
@@ -249,9 +248,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
                 .build();
-            IndexAnalyzers analyzers = getIndexAnalyzers(settings);
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
-                analyzers.get("my_standard").tokenStream("", ""));
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
             assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
         }
     }

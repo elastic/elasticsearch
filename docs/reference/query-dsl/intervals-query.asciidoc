@@ -7,7 +7,7 @@
 Returns documents based on the order and proximity of matching terms.
 
 The `intervals` query uses *matching rules*, constructed from a small set of
-definitions. Theses rules are then applied to terms from a specified `field`.
+definitions. These rules are then applied to terms from a specified `field`.
 
 The definitions produce sequences of minimal intervals that span terms in a
 body of text. These intervals can be further combined and filtered by
@@ -24,7 +24,7 @@ favorite food` immediately followed by `hot water` or `cold porridge` in the
 This search would match a `my_text` value of `my favorite food is cold
 porridge` but not `when it's cold my favorite food is porridge`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -56,7 +56,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[intervals-top-level-params]]
 ==== Top-level parameters for `intervals`
@@ -74,9 +73,9 @@ Valid rules include:
 * <<intervals-match,`match`>>
 * <<intervals-prefix,`prefix`>>
 * <<intervals-wildcard,`wildcard`>>
+* <<intervals-fuzzy,`fuzzy`>>
 * <<intervals-all_of,`all_of`>>
 * <<intervals-any_of,`any_of`>>
-* <<interval_filter,`filter`>>
 --
 
 [[intervals-match]]
@@ -99,7 +98,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean) 
+(Optional, boolean)
 If `true`, matching terms must appear in their specified order. Defaults to
 `false`.
 
@@ -176,6 +175,42 @@ Defaults to the top-level `<field>`'s analyzer.
 top-level `<field>`.
 
 The `pattern` is normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+--
+
+[[intervals-fuzzy]]
+==== `fuzzy` rule parameters
+
+The `fuzzy` rule matches terms that are similar to the provided term, within an
+edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more than
+128 terms, {es} returns an error.
+
+`term`::
+(Required, string) The term to match
+
+`prefix_length`::
+(Optional, string) Number of beginning characters left unchanged when creating
+expansions. Defaults to `0`.
+
+`transpositions`::
+(Optional, boolean) Indicates whether edits include transpositions of two
+adjacent characters (ab → ba). Defaults to `true`.
+
+`fuzziness`::
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information.  Defaults to `auto`.
+
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `term`.
+Defaults to the top-level `<field>` 's analyzer.
+
+`use_field`::
++
+--
+(Optional, string) If specified, match intervals from this field rather than the
+top-level `<field>`.
+
+The `term` is normalized using the search analyzer from this field, unless
 `analyzer` is specified separately.
 --
 
@@ -273,7 +308,7 @@ The following search includes a `filter` rule. It returns documents that have
 the words `hot` and `porridge` within 10 positions of each other, without the
 word `salty` in between:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -296,7 +331,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[interval-script-filter]]
 ===== Script filters
@@ -305,7 +339,7 @@ You can use a script to filter intervals based on their start position, end
 position, and internal gap count. The following `filter` script uses the
 `interval` variable with the `start`, `end`, and `gaps` methods:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -325,7 +359,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[interval-minimization]]
@@ -337,7 +370,7 @@ when using `max_gaps` restrictions or filters. For example, take the
 following query, searching for `salty` contained within the phrase `hot
 porridge`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -359,7 +392,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 This query does *not* match a document containing the phrase `hot porridge is
 salty porridge`, because the intervals returned by the match query for `hot
@@ -373,7 +405,7 @@ cause surprises when used in combination with `max_gaps`. Consider the
 following query, searching for `the` immediately followed by `big` or `big bad`,
 immediately followed by `wolf`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -398,7 +430,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Counter-intuitively, this query does *not* match the document `the big bad
 wolf`, because the `any_of` rule in the middle only produces intervals
@@ -407,7 +438,7 @@ starting at the same position, and so being minimized away. In these cases,
 it's better to rewrite the query so that all of the options are explicitly
 laid out at the top level:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -431,4 +462,3 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE

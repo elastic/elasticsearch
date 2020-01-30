@@ -2,7 +2,7 @@
 === HTTP/REST clients and security
 
 The {es} {security-features} work with standard HTTP 
-{wikipedia}/Basic_access_authentication[basic authentication]
+https://en.wikipedia.org/wiki/Basic_access_authentication[basic authentication]
 headers to authenticate users. Since Elasticsearch is stateless, this header must
 be sent with every request:
 
@@ -47,17 +47,15 @@ curl --user rdeniro:taxidriver -XPUT 'localhost:9200/idx'
 ---------------------------------------------------------
 
 [float]
-==== Client Libraries over HTTP
+==== Client libraries over HTTP
 
 For more information about using {security-features} with the language 
-specific clients, refer to
-https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby],
-http://elasticsearch-py.readthedocs.org/en/master/#ssl-and-authentication[Python],
-https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl],
-http://www.elastic.co/guide/en/elasticsearch/client/php-api/current/security.html[PHP],
-http://nest.azurewebsites.net/elasticsearch-net/security.html[.NET],
-http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[JavaScript]
+specific clients, refer to:
 
-////
-Groovy - TODO link
-////
+* {java-rest}/_basic_authentication.html[Java]
+* {jsclient-current}/auth-reference.html[JavaScript]
+* https://www.elastic.co/guide/en/elasticsearch/client/net-api/master/configuration-options.html[.NET]
+* https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl]
+* http://www.elastic.co/guide/en/elasticsearch/client/php-api/master/security.html[PHP]
+* https://elasticsearch-py.readthedocs.io/en/master/#ssl-and-authentication[Python]
+* https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby]

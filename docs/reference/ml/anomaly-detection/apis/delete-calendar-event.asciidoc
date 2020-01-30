@@ -18,7 +18,7 @@ Deletes scheduled events from a calendar.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-calendar-event-desc]]
 ==== {api-description-title}
@@ -31,23 +31,20 @@ events and delete the calendar, see the
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (Required, string) Identifier for the calendar.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `<event_id>`::
-  (Required, string) Identifier for the scheduled event. You can obtain this
-  identifier by using the <<ml-get-calendar-event,get calendar events API>>.
+(Required, string) Identifier for the scheduled event. You can obtain this
+identifier by using the <<ml-get-calendar-event,get calendar events API>>.
 
 [[ml-delete-calendar-event-example]]
 ==== {api-examples-title}
 
-The following example deletes a scheduled event from the `planned-outages`
-calendar:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages/events/LS8LJGEBMTCMA-qz49st
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:catch:missing]
 
 When the event is removed, you receive the following results:

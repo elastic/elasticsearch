@@ -34,19 +34,19 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         case OLD:
             break;
         case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
             break;
         case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
-            // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
+            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "green");
+                request.addParameter("timeout", "70s");
+                request.addParameter("level", "shards");
+            }));
             break;
         default:
             throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

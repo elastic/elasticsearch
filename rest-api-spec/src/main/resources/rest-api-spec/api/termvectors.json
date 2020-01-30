@@ -87,52 +87,43 @@
       "term_statistics":{
         "type":"boolean",
         "description":"Specifies if total term frequency and document frequency should be returned.",
-        "default":false,
-        "required":false
+        "default":false
       },
       "field_statistics":{
         "type":"boolean",
         "description":"Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned.",
-        "default":true,
-        "required":false
+        "default":true
       },
       "fields":{
         "type":"list",
-        "description":"A comma-separated list of fields to return.",
-        "required":false
+        "description":"A comma-separated list of fields to return."
       },
       "offsets":{
         "type":"boolean",
         "description":"Specifies if term offsets should be returned.",
-        "default":true,
-        "required":false
+        "default":true
       },
       "positions":{
         "type":"boolean",
         "description":"Specifies if term positions should be returned.",
-        "default":true,
-        "required":false
+        "default":true
       },
       "payloads":{
         "type":"boolean",
         "description":"Specifies if term payloads should be returned.",
-        "default":true,
-        "required":false
+        "default":true
       },
       "preference":{
         "type":"string",
-        "description":"Specify the node or shard the operation should be performed on (default: random).",
-        "required":false
+        "description":"Specify the node or shard the operation should be performed on (default: random)."
       },
       "routing":{
         "type":"string",
-        "description":"Specific routing value.",
-        "required":false
+        "description":"Specific routing value."
       },
       "realtime":{
         "type":"boolean",
-        "description":"Specifies if request is real-time as opposed to near-real-time (default: true).",
-        "required":false
+        "description":"Specifies if request is real-time as opposed to near-real-time (default: true)."
       },
       "version":{
         "type":"number",

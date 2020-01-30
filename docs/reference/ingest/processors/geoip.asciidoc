@@ -25,6 +25,7 @@ uncompressed. The `ingest-geoip` config directory is located at `$ES_CONFIG/inge
 | `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip module ships with the GeoLite2-City.mmdb, GeoLite2-Country.mmdb and GeoLite2-ASN.mmdb files.
 | `properties`           | no        | [`continent_name`, `country_iso_code`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `first_only`           | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
 |======
 
 *Depends on what is available in `database_file`:
@@ -41,7 +42,7 @@ in `properties`.
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -60,11 +61,10 @@ PUT my_index/_doc/my_id?pipeline=geoip
 }
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -90,7 +90,7 @@ Here is an example that uses the default country database and adds the
 geographical information to the `geo` field based on the `ip` field`. Note that
 this database is included in the module. So this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -111,11 +111,10 @@ PUT my_index/_doc/my_id?pipeline=geoip
 }
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -143,7 +142,7 @@ occurs, no `target_field` is inserted into the document.
 Here is an example of what documents will be indexed as when information for "80.231.5.0"
 cannot be found:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -164,11 +163,10 @@ PUT my_index/_doc/my_id?pipeline=geoip
 
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my_index",
@@ -194,7 +192,7 @@ as such in the mapping.
 
 You can use the following mapping for the example index above:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_ip_locations
 {
@@ -209,10 +207,9 @@ PUT my_ip_locations
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -251,10 +248,9 @@ GET /my_ip_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 3,

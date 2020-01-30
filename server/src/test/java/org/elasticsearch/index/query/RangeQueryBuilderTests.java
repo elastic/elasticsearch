@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -135,15 +134,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                    && context.getMapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0) &&
-                            context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+            } else if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0) &&
+                            context.getMapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
@@ -164,7 +163,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
-            MapperService mapperService = context.getQueryShardContext().getMapperService();
+            MapperService mapperService = context.getMapperService();
             MappedFieldType mappedFieldType = mapperService.fullName(expectedFieldName);
             final Long fromInMillis;
             final Long toInMillis;
@@ -174,12 +173,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.from(),
                         queryBuilder.includeLower(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), context);
                 toInMillis = queryBuilder.to() == null ? null :
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.to(),
                         queryBuilder.includeUpper(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), context);
             } else {
                 fromInMillis = toInMillis = null;
                 fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());

@@ -19,156 +19,33 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.NavigableSet;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
  */
 public abstract class RemoteClusterAware {
 
-    static {
-        // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
-    }
-
-    public static final Setting.AffixSetting<List<String>> SEARCH_REMOTE_CLUSTERS_SEEDS =
-            Setting.affixKeySetting(
-                    "search.remote.",
-                    "seeds",
-                    key -> Setting.listSetting(
-                            key,
-                            Collections.emptyList(),
-                            s -> {
-                                parsePort(s);
-                                return s;
-                            },
-                            Setting.Property.Deprecated,
-                            Setting.Property.Dynamic,
-                            Setting.Property.NodeScope));
-
-    public static final SettingUpgrader<List<String>> SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER = new SettingUpgrader<List<String>>() {
-
-        @Override
-        public Setting<List<String>> getSetting() {
-            return SEARCH_REMOTE_CLUSTERS_SEEDS;
-        }
-
-        @Override
-        public String getKey(final String key) {
-            return key.replaceFirst("^search", "cluster");
-        }
-
-    };
-
-    /**
-     * A list of initial seed nodes to discover eligible nodes from the remote cluster
-     */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting(
-            "cluster.remote.",
-            "seeds",
-            key -> Setting.listSetting(
-                    key,
-                    // the default needs to be emptyList() when fallback is removed
-                    "_na_".equals(key)
-                            ? SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(key)
-                            : SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSetting(key.replaceAll("^cluster", "search")),
-                    s -> {
-                        // validate seed address
-                        parsePort(s);
-                        return s;
-                    },
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope));
-
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
-
-    public static final Setting.AffixSetting<String> SEARCH_REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-            "search.remote.",
-            "proxy",
-            key -> Setting.simpleString(
-                    key,
-                    s -> {
-                        if (Strings.hasLength(s)) {
-                            parsePort(s);
-                        }
-                    },
-                    Setting.Property.Deprecated,
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope),
-            REMOTE_CLUSTERS_SEEDS);
-
-    public static final SettingUpgrader<String> SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER = new SettingUpgrader<String>() {
-
-        @Override
-        public Setting<String> getSetting() {
-            return SEARCH_REMOTE_CLUSTERS_PROXY;
-        }
-
-        @Override
-        public String getKey(final String key) {
-            return key.replaceFirst("^search", "cluster");
-        }
-
-    };
-
-    /**
-     * A proxy address for the remote cluster.
-     */
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-            "cluster.remote.",
-            "proxy",
-            key -> Setting.simpleString(
-                    key,
-                    // no default is needed when fallback is removed, use simple string which gives empty
-                    "_na_".equals(key)
-                            ? SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(key)
-                            : SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSetting(key.replaceAll("^cluster", "search")),
-                    s -> {
-                        if (Strings.hasLength(s)) {
-                            parsePort(s);
-                        }
-                        return s;
-                    },
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope),
-            REMOTE_CLUSTERS_SEEDS);
 
     protected final Settings settings;
     private final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
+     *
      * @param settings the nodes level settings
      */
     protected RemoteClusterAware(Settings settings) {
@@ -177,63 +54,10 @@ public abstract class RemoteClusterAware {
     }
 
     /**
-     * Builds the dynamic per-cluster config from the given settings. This is a map keyed by the cluster alias that points to a tuple
-     * (ProxyAddresss, [SeedNodeSuppliers]). If a cluster is configured with a proxy address all seed nodes will point to
-     * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.
+     * Returns remote clusters that are enabled in these settings
      */
-    protected static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
-            final Settings settings) {
-        final Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> remoteSeeds =
-                buildRemoteClustersDynamicConfig(settings, REMOTE_CLUSTERS_SEEDS);
-        final Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> searchRemoteSeeds =
-                buildRemoteClustersDynamicConfig(settings, SEARCH_REMOTE_CLUSTERS_SEEDS);
-        // sort the intersection for predictable output order
-        final NavigableSet<String> intersection =
-                new TreeSet<>(Arrays.asList(
-                        searchRemoteSeeds.keySet().stream().filter(s -> remoteSeeds.keySet().contains(s)).sorted().toArray(String[]::new)));
-        if (intersection.isEmpty() == false) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "found duplicate remote cluster configurations for cluster alias%s [%s]",
-                    intersection.size() == 1 ? "" : "es",
-                    String.join(",", intersection));
-            throw new IllegalArgumentException(message);
-        }
-        return Stream
-                .concat(remoteSeeds.entrySet().stream(), searchRemoteSeeds.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    private static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
-            final Settings settings, final Setting.AffixSetting<List<String>> seedsSetting) {
-        final Stream<Setting<List<String>>> allConcreteSettings = seedsSetting.getAllConcreteSettings(settings);
-        return allConcreteSettings.collect(
-                Collectors.toMap(seedsSetting::getNamespace, concreteSetting -> {
-                    String clusterName = seedsSetting.getNamespace(concreteSetting);
-                    List<String> addresses = concreteSetting.get(settings);
-                    final boolean proxyMode =
-                            REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).existsOrFallbackExists(settings);
-                    List<Tuple<String, Supplier<DiscoveryNode>>> nodes = new ArrayList<>(addresses.size());
-                    for (String address : addresses) {
-                        nodes.add(Tuple.tuple(address, () -> buildSeedNode(clusterName, address, proxyMode)));
-                    }
-                    return new Tuple<>(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).get(settings), nodes);
-                }));
-    }
-
-    static DiscoveryNode buildSeedNode(String clusterName, String address, boolean proxyMode) {
-        if (proxyMode) {
-            TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-            String hostName = address.substring(0, indexOfPortSeparator(address));
-            return new DiscoveryNode("", clusterName + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                    transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
-                    Version.CURRENT.minimumCompatibilityVersion());
-        } else {
-            TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
-            return new DiscoveryNode(clusterName + "#" + transportAddress.toString(),
-                    transportAddress,
-                    Version.CURRENT.minimumCompatibilityVersion());
-        }
+    protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
+        return RemoteConnectionStrategy.getRemoteClusters(settings);
     }
 
     /**
@@ -242,9 +66,8 @@ public abstract class RemoteClusterAware {
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
      * @param remoteClusterNames the remote cluster names
-     * @param requestIndices the indices in the search request to filter
-     * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
-     *
+     * @param requestIndices     the indices in the search request to filter
+     * @param indexExists        a predicate that can test if a certain index or alias exists in the local cluster
      * @return a map of grouped remote and local indices
      */
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices,
@@ -262,7 +85,7 @@ public abstract class RemoteClusterAware {
                         //if that happens. Note that indices and aliases can be created with ":" in their names names up to 6.last, which
                         //means such names need to be supported until 7.last. It will be possible to remove this check from 8.0 on.
                         throw new IllegalArgumentException("Can not filter indices; index " + index +
-                                " exists but there is also a remote cluster named: " + remoteClusterName);
+                            " exists but there is also a remote cluster named: " + remoteClusterName);
                     }
                     String indexName = index.substring(i + 1);
                     for (String clusterName : clusters) {
@@ -281,83 +104,35 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
-    void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
-        Boolean compress = TransportSettings.TRANSPORT_COMPRESS.get(settings);
-        TimeValue pingSchedule = TransportSettings.PING_SCHEDULE.get(settings);
-        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
-    }
-
-    void updateRemoteCluster(String clusterAlias, Settings settings) {
-        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
-            .getConcreteSettingForNamespace(clusterAlias)
-            .get(settings);
-
-        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+        updateRemoteCluster(clusterAlias, settings);
     }
 
     /**
-     * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
-     * empty the cluster alias is unregistered and should be removed.
+     * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
-                                                TimeValue pingSchedule);
+    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::updateRemoteCluster);
-        clusterSettings.addAffixUpdateConsumer(
-                RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
-                RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
-                (key, value) -> updateRemoteCluster(key, value.v2(), value.v1()),
-                (namespace, value) -> {});
-    }
-
-    static InetSocketAddress parseSeedAddress(String remoteHost) {
-        final Tuple<String, Integer> hostPort = parseHostPort(remoteHost);
-        final String host = hostPort.v1();
-        assert hostPort.v2() != null : remoteHost;
-        final int port = hostPort.v2();
-        InetAddress hostAddress;
-        try {
-            hostAddress = InetAddress.getByName(host);
-        } catch (UnknownHostException e) {
-            throw new IllegalArgumentException("unknown host [" + host + "]", e);
-        }
-        return new InetSocketAddress(hostAddress, port);
-    }
-
-    public static Tuple<String, Integer> parseHostPort(final String remoteHost) {
-        final String host = remoteHost.substring(0, indexOfPortSeparator(remoteHost));
-        final int port = parsePort(remoteHost);
-        return Tuple.tuple(host, port);
-    }
-
-    private static int parsePort(String remoteHost) {
-        try {
-            int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
-            if (port <= 0) {
-                throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
-            }
-            return port;
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("failed to parse port", e);
-        }
-    }
-
-    private static int indexOfPortSeparator(String remoteHost) {
-        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
-            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
-        }
-        return portSeparator;
+        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(
+            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS,
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
+            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
+            ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.SERVER_NAME);
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

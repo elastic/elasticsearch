@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -156,6 +157,84 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match " +
                 "to fail if fields are not explicitly specified in the query.");
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testTemplatesWithFieldNamesDisabled() throws IOException {
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    addRandomFields(10, goodMappingBuilder);
+                }
+                goodMappingBuilder.endObject();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+        assertFieldNamesEnabledTemplate(goodMappingBuilder, false);
+
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            // we currently always store a type level internally
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject(FieldNamesFieldMapper.NAME);
+                {
+                    badMappingBuilder.field("enabled", randomBoolean());
+                }
+                badMappingBuilder.endObject();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+        assertFieldNamesEnabledTemplate(badMappingBuilder, true);
+
+        // however, there was a bug where mappings could be stored without a type (#45120)
+        // so we also should try to check these cases
+
+        XContentBuilder badMappingWithoutTypeBuilder = jsonBuilder();
+        badMappingWithoutTypeBuilder.startObject();
+        {
+            badMappingWithoutTypeBuilder.startObject(FieldNamesFieldMapper.NAME);
+            {
+                badMappingWithoutTypeBuilder.field("enabled", randomBoolean());
+            }
+            badMappingWithoutTypeBuilder.endObject();
+        }
+        badMappingWithoutTypeBuilder.endObject();
+        assertFieldNamesEnabledTemplate(badMappingWithoutTypeBuilder, true);
+    }
+
+    private void assertFieldNamesEnabledTemplate(XContentBuilder templateBuilder, boolean expectIssue) throws IOException {
+        String badTemplateName = randomAlphaOfLength(5);
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metaData(MetaData.builder()
+                .put(IndexTemplateMetaData.builder(badTemplateName)
+                    .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                    .putMapping("_doc", Strings.toString(templateBuilder))
+                    .build())
+                .build())
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+        if (expectIssue) {
+            assertEquals(1, issues.size());
+            DeprecationIssue issue = issues.get(0);
+            assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
+            assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
+                    , issue.getUrl());
+            assertEquals("Index templates contain _field_names settings.", issue.getMessage());
+            assertEquals("Index templates [" + badTemplateName + "] "
+                    + "use the deprecated `enable` setting for the `" + FieldNamesFieldMapper.NAME +
+                    "` field. Using this setting in new index mappings will throw an error in the next major version and " +
+                    "needs to be removed from existing mappings and templates.", issue.getDetails());
+        } else {
+            assertTrue(issues.isEmpty());
+        }
     }
 
     public void testPollIntervalTooLow() {

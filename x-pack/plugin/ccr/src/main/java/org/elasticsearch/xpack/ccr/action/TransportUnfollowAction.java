@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -47,6 +49,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportUnfollowAction.class);
 
     private final Client client;
 

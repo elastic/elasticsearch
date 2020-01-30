@@ -1,14 +1,23 @@
 ---
 "Translog retention without soft_deletes":
+  - skip:
+      version:  " - 7.5.99"
+      reason:   "indices without soft deletes are deprecated in 7.6"
+      features: "warnings"
+
   - do:
       indices.create:
         index: test
         body:
           settings:
             soft_deletes.enabled: false
+      warnings:
+        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
+          Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       indices.stats:
         metric: [ translog ]
@@ -78,6 +87,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       indices.stats:
         metric: [ translog ]
@@ -130,8 +140,9 @@
 ---
 "Translog stats on closed indices without soft-deletes":
   - skip:
-      version: " - 7.2.99"
-      reason:  "closed indices have translog stats starting version 7.3.0"
+      version: " - 7.5.99"
+      reason:  "indices without soft deletes are deprecated in 7.6"
+      features: "warnings"
 
   - do:
       indices.create:
@@ -139,9 +150,14 @@
         body:
           settings:
             soft_deletes.enabled: false
+      warnings:
+        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
+          Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
+
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       index:
         index: test
@@ -194,6 +210,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       index:
         index: test

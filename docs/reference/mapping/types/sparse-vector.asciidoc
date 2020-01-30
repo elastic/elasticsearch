@@ -6,7 +6,7 @@
 <titleabbrev>Sparse vector</titleabbrev>
 ++++
 
-experimental[]
+deprecated[7.6, The `sparse_vector` type is deprecated and will be removed in 8.0.]
 
 A `sparse_vector` field stores sparse vectors of float values.
 The maximum number of dimensions that can be in a vector should
@@ -23,7 +23,7 @@ are dimensions, and fields values are values for these dimensions.
 Dimensions are integer values from `0` to `65535` encoded as strings.
 Dimensions don't need to be in order.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -38,7 +38,11 @@ PUT my_index
     }
   }
 }
+--------------------------------------------------
+// TEST[warning:The [sparse_vector] field type is deprecated and will be removed in 8.0.]
 
+[source,console]
+--------------------------------------------------
 PUT my_index/_doc/1
 {
   "my_text" : "text1",
@@ -50,9 +54,8 @@ PUT my_index/_doc/2
   "my_text" : "text2",
   "my_vector" : {"103": 0.5, "4": -0.5,  "5": 1, "11" : 1.2}
 }
-
 --------------------------------------------------
-// CONSOLE
+// TEST[continued]
 
 Internally, each document's sparse vector is encoded as a binary
 doc value. Its size in bytes is equal to

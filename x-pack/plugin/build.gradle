@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.test.NodeInfo
 
 import java.nio.charset.StandardCharsets
 
@@ -29,7 +29,7 @@ subprojects {
         dependsOn project.configurations.featureAwarePlugin
         outputs.file(successMarker)
 
-        executable = "${project.runtimeJavaHome}/bin/java"
+        executable = "${BuildParams.runtimeJavaHome}/bin/java"
 
         // default to main class files if such a source set exists
         final List files = []
@@ -46,7 +46,7 @@ subprojects {
            * anything above JDK 12 as JDK 13). So, to exclude JDK 14 until a newer version of ASM is available, we also have to exclude JDK
            * 13. See https://github.com/elastic/elasticsearch/issues/45927.
            */
-          Integer.parseInt(project.runtimeJavaVersion.getMajorVersion()) < 13
+          Integer.parseInt(BuildParams.runtimeJavaVersion.majorVersion) < 13
         }
         doFirst {
           args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
@@ -103,7 +103,7 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 task copyKeyCerts(type: Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
-    }
+  }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
@@ -120,12 +120,11 @@ integTest.runner {
 
   // TODO: fix this rest test to not depend on a hardcoded port!
   def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  boolean snapshot = Boolean.valueOf(System.getProperty("build.snapshot", "true"))
-  if (!snapshot) {
+  if (BuildParams.isSnapshotBuild() == false) {
     // these tests attempt to install basic/internal licenses signed against the dev/public.key
     // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are whitelisted in non-snapshot test runs
-    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*'])
+    // private key, these tests are blacklisted in non-snapshot test runs
+    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
   dependsOn copyKeyCerts

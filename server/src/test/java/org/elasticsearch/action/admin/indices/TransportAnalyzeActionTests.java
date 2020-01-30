@@ -38,6 +38,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -109,6 +110,25 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 }
             }
 
+            class DeprecatedTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
+
+                DeprecatedTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    return tokenStream;
+                }
+
+                @Override
+                public TokenStream normalize(TokenStream tokenStream) {
+                    deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    return tokenStream;
+                }
+            }
+
             class AppendCharFilterFactory extends AbstractCharFilterFactory {
 
                 final String suffix;
@@ -137,7 +157,10 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-                return singletonMap("mock", MockFactory::new);
+                Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
+                filters.put("mock", MockFactory::new);
+                filters.put("deprecated", DeprecatedTokenFilterFactory::new);
+                return filters;
             }
 
             @Override
@@ -443,13 +466,14 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     public void testNormalizerWithIndex() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request("index");
         request.normalizer("my_normalizer");
-        request.text("ABc");
+        // this should be lowercased and only emit a single token
+        request.text("Wi-fi");
         AnalyzeAction.Response analyze
             = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
 
         assertEquals(1, tokens.size());
-        assertEquals("abc", tokens.get(0).getTerm());
+        assertEquals("wi-fi", tokens.get(0).getTerm());
     }
 
     /**
@@ -505,5 +529,29 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             () -> TransportAnalyzeAction.analyze(request, registry, null, idxMaxTokenCount));
         assertEquals(e.getMessage(), "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
             + idxMaxTokenCount + "]." + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
+    }
+
+    public void testDeprecationWarnings() throws IOException {
+        AnalyzeAction.Request req = new AnalyzeAction.Request();
+        req.tokenizer("standard");
+        req.addTokenFilter("lowercase");
+        req.addTokenFilter("deprecated");
+        req.text("test text");
+
+        AnalyzeAction.Response analyze =
+            TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
+        assertEquals(2, analyze.getTokens().size());
+        assertWarnings("Using deprecated token filter [deprecated]");
+
+        // normalizer
+        req = new AnalyzeAction.Request();
+        req.addTokenFilter("lowercase");
+        req.addTokenFilter("deprecated");
+        req.text("text");
+
+        analyze =
+            TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
+        assertEquals(1, analyze.getTokens().size());
+        assertWarnings("Using deprecated token filter [deprecated]");
     }
 }

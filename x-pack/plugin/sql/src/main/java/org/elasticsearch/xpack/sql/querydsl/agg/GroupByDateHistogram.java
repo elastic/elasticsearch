@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
 import java.time.ZoneId;
@@ -19,52 +20,65 @@ import java.util.Objects;
  */
 public class GroupByDateHistogram extends GroupByKey {
 
-    private final long interval;
+    private final long fixedInterval;
+    private final String calendarInterval;
     private final ZoneId zoneId;
 
-    public GroupByDateHistogram(String id, String fieldName, long interval, ZoneId zoneId) {
-        this(id, fieldName, null, null, interval, zoneId);
+    public GroupByDateHistogram(String id, String fieldName, long fixedInterval, ZoneId zoneId) {
+        this(id, fieldName, null, null, fixedInterval, null, zoneId);
     }
 
-    public GroupByDateHistogram(String id, ScriptTemplate script, long interval, ZoneId zoneId) {
-        this(id, null, script, null, interval, zoneId);
+    public GroupByDateHistogram(String id, ScriptTemplate script, long fixedInterval, ZoneId zoneId) {
+        this(id, null, script, null, fixedInterval, null, zoneId);
+    }
+    
+    public GroupByDateHistogram(String id, String fieldName, String calendarInterval, ZoneId zoneId) {
+        this(id, fieldName, null, null, -1L, calendarInterval, zoneId);
+    }
+    
+    public GroupByDateHistogram(String id, ScriptTemplate script, String calendarInterval, ZoneId zoneId) {
+        this(id, null, script, null, -1L, calendarInterval, zoneId);
     }
 
-    private GroupByDateHistogram(String id, String fieldName, ScriptTemplate script, Direction direction, long interval,
-            ZoneId zoneId) {
+    private GroupByDateHistogram(String id, String fieldName, ScriptTemplate script, Direction direction, long fixedInterval,
+            String calendarInterval, ZoneId zoneId) {
         super(id, fieldName, script, direction);
-        this.interval = interval;
+        if (fixedInterval <= 0 && (calendarInterval == null || calendarInterval.trim().isEmpty())) {
+            throw new SqlIllegalArgumentException("Either fixed interval or calendar interval needs to be specified");
+        }
+        this.fixedInterval = fixedInterval;
+        this.calendarInterval = calendarInterval;
         this.zoneId = zoneId;
-
     }
 
     // For testing
-    public long interval() {
-        return interval;
+    public long fixedInterval() {
+        return fixedInterval;
     }
 
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
-        return new DateHistogramValuesSourceBuilder(id())
-                .fixedInterval(new DateHistogramInterval(interval + "ms"))
-                .timeZone(zoneId);
+        DateHistogramValuesSourceBuilder builder = new DateHistogramValuesSourceBuilder(id()).timeZone(zoneId);
+        return calendarInterval != null ? builder.calendarInterval(new DateHistogramInterval(calendarInterval))
+                                        : builder.fixedInterval(new DateHistogramInterval(fixedInterval + "ms"));
     }
 
     @Override
     protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        return new GroupByDateHistogram(id, fieldName, script, direction, interval, zoneId);
+        return new GroupByDateHistogram(id, fieldName, script, direction, fixedInterval, calendarInterval, zoneId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), interval, zoneId);
+        return Objects.hash(super.hashCode(), fixedInterval, calendarInterval, zoneId);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             GroupByDateHistogram other = (GroupByDateHistogram) obj;
-            return Objects.equals(interval, other.interval)
+            return Objects.equals(fixedInterval, other.fixedInterval)
+                    && Objects.equals(calendarInterval, other.calendarInterval)
                     && Objects.equals(zoneId, other.zoneId);
         }
         return false;

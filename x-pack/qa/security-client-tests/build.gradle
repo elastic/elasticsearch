@@ -14,27 +14,16 @@ task copyXPackPluginProps(type: Copy) {
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-integTestRunner {
+integTest.runner {
   systemProperty 'tests.security.manager', 'false'
 }
 
-integTestCluster {
+testClusters.integTest {
+  testDistribution = "default"
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupTransportClientUser',
-               'bin/elasticsearch-users', 'useradd', 'transport', '-p', 'x-pack-test-password', '-r', 'transport_client'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  user username: "test_user", password: "x-pack-test-password"
+  user username: "transport", password: "x-pack-test-password", role: "transport_client"
 }

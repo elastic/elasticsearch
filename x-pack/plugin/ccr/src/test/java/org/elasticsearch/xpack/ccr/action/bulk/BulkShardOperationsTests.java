@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -33,7 +34,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction.rewriteOperationWithPrimaryTerm;
 import static org.hamcrest.Matchers.equalTo;
-import static org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction.CcrWritePrimaryResult;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
@@ -76,7 +76,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     operations,
                 numOps - 1, followerPrimary, logger);
 
-        try (Translog.Snapshot snapshot = followerPrimary.getHistoryOperations("test", 0)) {
+        try (Translog.Snapshot snapshot = followerPrimary.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
@@ -124,7 +124,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         Randomness.shuffle(firstBulk);
         Randomness.shuffle(secondBulk);
         oldPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
-        final CcrWritePrimaryResult fullResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(oldPrimary.shardId(),
+        final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> fullResult =
+            TransportBulkShardOperationsAction.shardOperationOnPrimary(oldPrimary.shardId(),
             oldPrimary.getHistoryUUID(), firstBulk, seqno, oldPrimary, logger);
         assertThat(fullResult.replicaRequest().getOperations(),
             equalTo(firstBulk.stream().map(op -> rewriteOperationWithPrimaryTerm(op, oldPrimaryTerm)).collect(Collectors.toList())));
@@ -132,13 +133,14 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         final IndexShard newPrimary = reinitShard(oldPrimary);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
-        assertTrue(newPrimary.recoverFromStore());
+        assertTrue(recoverFromStore(newPrimary));
         IndexShardTestCase.updateRoutingEntry(newPrimary, newPrimary.routingEntry().moveToStarted());
         newPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
         // The second bulk includes some operations from the first bulk which were processed already;
         // only a subset of these operations will be included the result but with the old primary term.
         final List<Translog.Operation> existingOps = randomSubsetOf(firstBulk);
-        final CcrWritePrimaryResult partialResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(newPrimary.shardId(),
+        final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> partialResult =
+            TransportBulkShardOperationsAction.shardOperationOnPrimary(newPrimary.shardId(),
             newPrimary.getHistoryUUID(), Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
             seqno, newPrimary, logger);
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();

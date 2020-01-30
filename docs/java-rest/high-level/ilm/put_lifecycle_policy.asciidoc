@@ -3,7 +3,7 @@
 :request: PutLifecyclePolicyRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Lifecycle Policy API
 

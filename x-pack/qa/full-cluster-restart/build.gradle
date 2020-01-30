@@ -1,209 +1,147 @@
-import org.elasticsearch.gradle.test.NodeInfo
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
-import java.nio.charset.StandardCharsets
 
-// Apply the java plugin to this project so the sources can be edited in an IDE
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
-test.enabled = false
-
 dependencies {
-    // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
-    // Currently needed for ml tests are using the building for datafeed and job config)
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
+  // Currently needed for ml tests are using the building for datafeed and job config)
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-    testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
-    testCompile project(':x-pack:qa')
-}
-
-Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-
-    // wait up to twenty seconds
-    final long stopTime = System.currentTimeMillis() + 20000L;
-    Exception lastException = null;
-
-    while (System.currentTimeMillis() < stopTime) {
-        lastException = null;
-        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-        HttpURLConnection httpURLConnection = null;
-        try {
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${node.config.numNodes}&wait_for_status=yellow").openConnection();
-            httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.setConnectTimeout(1000);
-            httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
-            httpURLConnection.connect();
-            if (httpURLConnection.getResponseCode() == 200) {
-                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-                }
-                break;
-            }
-        } catch (Exception e) {
-            logger.debug("failed to call cluster health", e)
-            lastException = e
-        } finally {
-            if (httpURLConnection != null) {
-                httpURLConnection.disconnect();
-            }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-    }
-    if (tmpFile.exists() == false && lastException != null) {
-        logger.error("final attempt of calling cluster health failed", lastException)
-    }
-    return tmpFile.exists()
+  testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
+  testCompile project(':x-pack:qa')
 }
 
 licenseHeaders {
-    approvedLicenses << 'Apache'
+  approvedLicenses << 'Apache'
 }
 
 forbiddenPatterns {
-    exclude '**/system_key'
+  exclude '**/system_key'
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
+tasks.register("bwcTest") {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
-task copyTestNodeKeyMaterial(type: Copy) {
-    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
-    into outputDir
+tasks.register("copyTestNodeKeyMaterial", Copy) {
+  from project(':x-pack:plugin:core')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
+  into outputDir
 }
 
-for (Version version : bwcVersions.indexCompatible) {
-    String baseName = "v${version}"
-
-    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-        mustRunAfter(precommit)
-    }
-
-    Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
-    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        dependsOn copyTestNodeKeyMaterial
-        if (version.before('6.3.0')) {
-            String depVersion = version;
-            if (project.bwcVersions.unreleased.contains(version)) {
-                depVersion += "-SNAPSHOT"
-            }
-            mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
-
-        }
-        bwcVersion = version
-        numBwcNodes = 2
-        numNodes = 2
-        clusterName = 'full-cluster-restart'
-        String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
-        setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-        waitCondition = waitWithAuth
-
-        // some tests rely on the translog not being flushed
-        setting 'indices.memory.shard_inactive_time', '20m'
-
-        setting 'xpack.security.enabled', 'true'
-        setting 'xpack.security.transport.ssl.enabled', 'true'
-
-        setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-        setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-        keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-
-        setting 'xpack.license.self_generated.type', 'trial'
-        dependsOn copyTestNodeKeyMaterial
-        extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
-        extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
-
-        keystoreFile 'xpack.watcher.encryption_key', "${project.projectDir}/src/test/resources/system_key"
-        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-    }
-
-    Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
-    oldClusterTestRunner.configure {
-        systemProperty 'tests.is_old_cluster', 'true'
-        systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-        systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
-    }
-
-    Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
-
-    configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-        dependsOn oldClusterTestRunner,
-                "${baseName}#oldClusterTestCluster#node0.stop",
-                "${baseName}#oldClusterTestCluster#node1.stop"
-        numNodes = 2
-        clusterName = 'full-cluster-restart'
-        dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
-        cleanShared = false // We want to keep snapshots made by the old cluster!
-        setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-        waitCondition = waitWithAuth
-
-        // some tests rely on the translog not being flushed
-        setting 'indices.memory.shard_inactive_time', '20m'
-        setting 'xpack.security.enabled', 'true'
-
-        setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-        setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-        keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-
-        setting 'xpack.license.self_generated.type', 'trial'
-        dependsOn copyTestNodeKeyMaterial
-        extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
-        extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
-
-        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-        keystoreFile 'xpack.watcher.encryption_key', "${project.projectDir}/src/test/resources/system_key"
-    }
-
-    Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
-    upgradedClusterTestRunner.configure {
-        systemProperty 'tests.is_old_cluster', 'false'
-        systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-        systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
-    }
-
-    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-        dependsOn = [upgradedClusterTest]
-    }
-
-    if (project.bwc_tests_enabled) {
-        bwcTest.dependsOn(versionBwcTest)
-    }
+configurations {
+  restSpec
 }
 
-// basic integ tests includes testing bwc against the most recent version
+dependencies {
+  restSpec project(':rest-api-spec')
+}
+
+processTestResources {
+  dependsOn configurations.restSpec
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
+  from(project(xpackModule('core')).sourceSets.test.resources) {
+    include 'rest-api-spec/api/**'
+  }
+}
+
+for (Version bwcVersion : bwcVersions.indexCompatible) {
+  String baseName = "v${bwcVersion}"
+
+  testClusters {
+    "${baseName}" {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 2
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      javaHome = BuildParams.runtimeJavaHome
+      user username: "test_user", password: "x-pack-test-password"
+
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      // some tests rely on the translog not being flushed
+      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'xpack.security.enabled', 'true'
+      setting 'xpack.security.transport.ssl.enabled', 'true'
+      setting 'xpack.license.self_generated.type', 'trial'
+
+      extraConfigFile 'testnode.pem', file("${outputDir}/testnode.pem")
+      extraConfigFile 'testnode.crt', file("${outputDir}/testnode.crt")
+
+      keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
+      setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+
+      setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+      setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+      keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+    }
+  }
+
+  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+    mustRunAfter(precommit)
+    useCluster testClusters."${baseName}"
+    dependsOn copyTestNodeKeyMaterial
+    doFirst {
+      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+    }
+    systemProperty 'tests.is_old_cluster', 'true'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
+    exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
+  }
+
+
+  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+    mustRunAfter(precommit)
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#oldClusterTest"
+    doFirst {
+      testClusters."${baseName}".goToNextVersion()
+    }
+    systemProperty 'tests.is_old_cluster', 'false'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
+    exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
+  }
+
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
+
+  tasks.register("${baseName}#bwcTest") {
+    dependsOn "${baseName}#upgradedClusterTest"
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn("${baseName}#bwcTest")
+  }
+}
+
 task bwcTestSnapshots {
-    if (project.bwc_tests_enabled) {
-        for (final def version : bwcVersions.unreleasedIndexCompatible) {
-            dependsOn "v${version}#bwcTest"
-        }
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
+      dependsOn "v${version}#bwcTest"
     }
+  }
 }
 
 check.dependsOn(bwcTestSnapshots)
 
-// copy x-pack plugin info so it is on the classpath and security manager has the right permissions
-task copyXPackRestSpec(type: Copy) {
-    dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(xpackModule('core')).sourceSets.test.resources
-    include 'rest-api-spec/api/**'
-    into project.sourceSets.test.output.resourcesDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)
+test.enabled = false

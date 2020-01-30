@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -65,16 +66,23 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
     private final DocValueFormat format = DocValueFormat.RAW;
     private final boolean filterDuplicateText;
 
-    public SignificantTextAggregatorFactory(String name, IncludeExclude includeExclude,
-            QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
-            SignificanceHeuristic significanceHeuristic, SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder, String fieldName, String [] sourceFieldNames,
-            boolean filterDuplicateText, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, subFactoriesBuilder, metaData);
+    public SignificantTextAggregatorFactory(String name,
+                                                IncludeExclude includeExclude,
+                                                QueryBuilder filterBuilder,
+                                                TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                                                SignificanceHeuristic significanceHeuristic,
+                                                QueryShardContext queryShardContext,
+                                                AggregatorFactory parent,
+                                                AggregatorFactories.Builder subFactoriesBuilder,
+                                                String fieldName,
+                                                String [] sourceFieldNames,
+                                                boolean filterDuplicateText,
+                                                Map<String, Object> metaData) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
 
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
-        this.fieldType = context.getQueryShardContext().fieldMapper(fieldName);
+        this.fieldType = queryShardContext.fieldMapper(fieldName);
         this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
         this.sourceFieldNames = sourceFieldNames == null
             ? new String[] { indexedFieldName }
@@ -83,9 +91,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         this.includeExclude = includeExclude;
         this.filter = filterBuilder == null
                 ? null
-                : filterBuilder.toQuery(context.getQueryShardContext());
+                : filterBuilder.toQuery(queryShardContext);
         this.filterDuplicateText = filterDuplicateText;
-        IndexSearcher searcher = context.searcher();
+        IndexSearcher searcher = queryShardContext.searcher();
         // Important - need to use the doc count that includes deleted docs
         // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
         this.supersetNumDocs = filter == null
@@ -106,9 +114,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         if (termsEnum != null) {
             return termsEnum;
         }
-        IndexReader reader = context.searcher().getIndexReader();
+        IndexReader reader = queryShardContext.getIndexReader();
         if (numberOfAggregatorsCreated > 1) {
-            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, context.bigArrays());
+            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, queryShardContext.bigArrays());
         } else {
             termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
         }
@@ -116,7 +124,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
     }
 
     private long getBackgroundFrequency(String value) throws IOException {
-        Query query = fieldType.termQuery(value, context.getQueryShardContext());
+        Query query = fieldType.termQuery(value, queryShardContext);
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a caching terms
             // enum that will do a better job at reusing index inputs
@@ -135,7 +143,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
                     .add(filter, Occur.FILTER)
                     .build();
         }
-        return context.searcher().count(query);
+        return queryShardContext.searcher().count(query);
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
@@ -156,11 +164,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
     }
 
     @Override
-    protected Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
 
         numberOfAggregatorsCreated++;
@@ -183,7 +191,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        return new SignificantTextAggregator(name, factories, context, parent, pipelineAggregators, bucketCountThresholds,
+        return new SignificantTextAggregator(name, factories, searchContext, parent, pipelineAggregators, bucketCountThresholds,
                 incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
 
     }

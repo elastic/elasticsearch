@@ -38,38 +38,123 @@ import static com.github.tomakehurst.wiremock.client.WireMock.head;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 
 public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
+
     // TODO: check reuse of root task across projects MOVE TO UNIT TEST
     // TODO: future: check integ-test-zip to maven, snapshots to snapshot service for external project
 
     public void testCurrent() throws Exception {
         String projectName = ":distribution:archives:linux-tar";
-        assertExtractedDistro(VersionProperties.getElasticsearch(), "archive", "linux", null, null,
-            "tests.local_distro.config", "default",
-            "tests.local_distro.project", projectName);
+        assertExtractedDistro(
+            VersionProperties.getElasticsearch(),
+            "archive",
+            "linux",
+            null,
+            null,
+            "tests.local_distro.config",
+            "default",
+            "tests.local_distro.project",
+            projectName
+        );
+    }
+
+    public void testCurrentExternal() throws Exception {
+        checkService(
+            VersionProperties.getElasticsearch(),
+            "archive",
+            "linux",
+            null,
+            null,
+            "/downloads/elasticsearch/elasticsearch-" + VersionProperties.getElasticsearch() + "-linux-x86_64.tar.gz",
+            "tests.internal",
+            "false"
+        );
     }
 
     public void testBwc() throws Exception {
-        assertExtractedDistro("1.1.0", "archive", "linux", null, null,
-            "tests.local_distro.config", "linux-tar",
-            "tests.local_distro.project", ":distribution:bwc:minor",
-            "tests.current_version", "2.0.0");
+        assertExtractedDistro(
+            "8.1.0",
+            "archive",
+            "linux",
+            null,
+            null,
+            "tests.local_distro.config",
+            "linux-tar",
+            "tests.local_distro.project",
+            ":distribution:bwc:minor",
+            "tests.current_version",
+            "8.0.0"
+        );
+    }
+
+    public void testBwcExternal() throws Exception {
+        checkService(
+            "8.1.0-SNAPSHOT",
+            "archive",
+            "linux",
+            null,
+            null,
+            "/downloads/elasticsearch/elasticsearch-8.1.0-SNAPSHOT-linux-x86_64.tar.gz",
+            "tests.internal",
+            "false",
+            "tests.current_version",
+            "9.0.0"
+        );
     }
 
     public void testReleased() throws Exception {
+        checkService("7.0.0", "archive", "windows", null, null, "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip");
+        checkService("6.5.0", "archive", "windows", null, null, "/downloads/elasticsearch/elasticsearch-6.5.0.zip");
+    }
+
+    public void testReleasedExternal() throws Exception {
+        checkService(
+            "7.0.0",
+            "archive",
+            "windows",
+            null,
+            null,
+            "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip",
+            "tests.internal",
+            "false"
+        );
+        checkService(
+            "6.5.0",
+            "archive",
+            "windows",
+            null,
+            null,
+            "/downloads/elasticsearch/elasticsearch-6.5.0.zip",
+            "tests.internal",
+            "false"
+        );
+    }
+
+    private void checkService(
+        String version,
+        String type,
+        String platform,
+        String flavor,
+        Boolean bundledJdk,
+        String urlPath,
+        String... sysProps
+    ) throws IOException {
+        String suffix = urlPath.endsWith("zip") ? "zip" : "tar.gz";
+        String sourceFile = "src/testKit/distribution-download/distribution/files/fake_elasticsearch." + suffix;
         WireMockServer wireMock = new WireMockServer(0);
         try {
             final byte[] filebytes;
-            try (InputStream stream =
-                     Files.newInputStream(Paths.get("src/testKit/distribution-download/distribution/files/fake_elasticsearch.zip"))) {
+            try (InputStream stream = Files.newInputStream(Paths.get(sourceFile))) {
                 filebytes = stream.readAllBytes();
             }
-            String urlPath = "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip";
             wireMock.stubFor(head(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200)));
             wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
             wireMock.start();
 
-            assertExtractedDistro("7.0.0", "archive", "windows", null, null,
-                "tests.download_service", wireMock.baseUrl());
+            List<String> allSysProps = new ArrayList<>();
+            allSysProps.addAll(Arrays.asList(sysProps));
+            allSysProps.add("tests.download_service");
+            allSysProps.add(wireMock.baseUrl());
+            assertExtractedDistro(version, type, platform, flavor, bundledJdk, allSysProps.toArray(new String[0]));
         } catch (Exception e) {
             // for debugging
             System.err.println("missed requests: " + wireMock.findUnmatchedRequests().getRequests());
@@ -79,16 +164,16 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         }
     }
 
-    private void assertFileDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
-                                  String... sysProps) throws IOException {
+    private void assertFileDistro(String version, String type, String platform, String flavor, Boolean bundledJdk, String... sysProps)
+        throws IOException {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));
         runBuild(":subproj:assertDistroFile", finalSysProps.toArray(new String[0]));
     }
 
-    private void assertExtractedDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
-                                       String... sysProps) throws IOException {
+    private void assertExtractedDistro(String version, String type, String platform, String flavor, Boolean bundledJdk, String... sysProps)
+        throws IOException {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));
@@ -99,7 +184,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         assert sysProps.length % 2 == 0;
         List<String> args = new ArrayList<>();
         args.add(taskname);
-        args.add("-Dlocal.repo.path=" + getLocalTestRepoPath());
         for (int i = 0; i < sysProps.length; i += 2) {
             args.add("-D" + sysProps[i] + "=" + sysProps[i + 1]);
         }

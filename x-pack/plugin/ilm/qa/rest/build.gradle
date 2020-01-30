@@ -4,29 +4,29 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('ilm'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ilm'), configuration: 'runtime')
 }
 
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
-                          password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
+  password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
 task restTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-    runner {
-        systemProperty 'tests.rest.cluster.username', clusterCredentials.username
-        systemProperty 'tests.rest.cluster.password', clusterCredentials.password
-    }
+  mustRunAfter(precommit)
+  runner {
+    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
+  }
 }
 
 testClusters.restTest {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.ilm.enabled', 'true'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    user clusterCredentials
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ilm.enabled', 'true'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  user clusterCredentials
 }
 
 check.dependsOn restTest

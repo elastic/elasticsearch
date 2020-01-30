@@ -58,7 +58,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,13 +85,7 @@ public class DatafeedConfigProvider {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    public static final Map<String, String> TO_XCONTENT_PARAMS;
-    static {
-        Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
-        modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
-        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
-    }
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
@@ -133,7 +126,7 @@ public class DatafeedConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                     listener::onResponse,
                     e -> {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             // the dafafeed already exists
                             listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
                         } else {

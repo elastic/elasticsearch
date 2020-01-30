@@ -1,12 +1,13 @@
+[role="xpack"]
 [[condition-compare]]
-=== Compare Condition
+=== Compare condition
 
 Use the `compare` condition to perform a simple comparison against a value in 
 the watch payload. You can use the `compare` condition without enabling 
 dynamic scripting. 
 
 [[condition-compare-operators]]
-. Supported Comparison Operators
+.Supported comparison operators
 [options="header"]
 |======
 | Name      | Description
@@ -30,20 +31,20 @@ dynamic scripting.
               given one (applies to numeric and string values)
 |======
 
-==== Using a Compare Condition
+==== Using a compare condition
 
 To use the `compare` condition, you specify the value in the execution context
 that you want to evaluate, a <<condition-compare-operators,comparison operator>>, 
 and the value you want to compare against. For example, the following `compare` 
-condition returns `true` if the number of the total hits in the <<input-search, 
-search result>> is greater than or equal to 5:
+condition returns `true` if the number of the total hits in the
+<<input-search,search result>> is greater than or equal to 5:
 
 [source,js]
 --------------------------------------------------
 {
   "condition" : {
     "compare" : {
-      "ctx.payload.hits.total.value" : { <1>
+      "ctx.payload.hits.total" : { <1>
         "gte" : 5 <2>
       }
     }
@@ -92,7 +93,7 @@ to the `ctx.payload.aggregations.handled.buckets.true.doc_count`:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Accessing Values in the Execution Context
+==== Accessing values in the execution context
 
 You use "dot-notation" to access values in the execution context. Values loaded 
 into the execution context by the input are prefixed by `ctx.payload`. 

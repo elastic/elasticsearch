@@ -20,11 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -49,13 +50,6 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-        left.storeSettings(settings);
-        right.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
         left.extractVariables(variables);
@@ -63,10 +57,10 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
+        condition.analyze(scriptRoot, locals);
+        condition = condition.cast(scriptRoot, locals);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous conditional statement."));
@@ -80,8 +74,8 @@ public final class EConditional extends AExpression {
         right.internal = internal;
         actual = expected;
 
-        left.analyze(locals);
-        right.analyze(locals);
+        left.analyze(scriptRoot, locals);
+        right.analyze(scriptRoot, locals);
 
         if (expected == null) {
             Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
@@ -91,25 +85,25 @@ public final class EConditional extends AExpression {
             actual = promote;
         }
 
-        left = left.cast(locals);
-        right = right.cast(locals);
+        left = left.cast(scriptRoot, locals);
+        right = right.cast(scriptRoot, locals);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         Label fals = new Label();
         Label end = new Label();
 
-        condition.write(writer, globals);
-        writer.ifZCmp(Opcodes.IFEQ, fals);
+        condition.write(classWriter, methodWriter, globals);
+        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-        left.write(writer, globals);
-        writer.goTo(end);
-        writer.mark(fals);
-        right.write(writer, globals);
-        writer.mark(end);
+        left.write(classWriter, methodWriter, globals);
+        methodWriter.goTo(end);
+        methodWriter.mark(fals);
+        right.write(classWriter, methodWriter, globals);
+        methodWriter.mark(end);
     }
 
     @Override

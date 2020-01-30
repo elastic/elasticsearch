@@ -1,5 +1,8 @@
 [[analysis-synonym-graph-tokenfilter]]
-=== Synonym Graph Token Filter
+=== Synonym graph token filter
+++++
+<titleabbrev>Synonym graph</titleabbrev>
+++++
 
 The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
@@ -19,7 +22,7 @@ standard <<analysis-synonym-tokenfilter,synonym token filter>>.
 Synonyms are configured using a configuration file.
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -43,7 +46,6 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
@@ -55,7 +57,7 @@ Additional settings are:
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -84,7 +86,7 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
 being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
 mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
@@ -115,7 +117,7 @@ include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
 You can also define synonyms for the filter directly in the
 configuration file (note use of `synonyms` instead of `synonyms_path`):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -136,7 +138,6 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
@@ -147,7 +148,7 @@ However, it is recommended to define large synonyms set in a file using
 Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
 declared using `format`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -170,7 +171,6 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.

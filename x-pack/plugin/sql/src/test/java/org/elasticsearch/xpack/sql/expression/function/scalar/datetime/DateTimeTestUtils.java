@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
@@ -20,12 +23,17 @@ public class DateTimeTestUtils {
         return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, DateUtils.UTC);
     }
 
-    public static ZonedDateTime dateTime(long millisSinceEpoch) {
-        return DateUtils.asDateTime(millisSinceEpoch);
+    public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute, int seconds, int nanos) {
+        return dateTime(year, month, day, hour, minute, seconds, nanos, DateUtils.UTC);
     }
 
-    public static ZonedDateTime date(long millisSinceEpoch) {
-        return DateUtils.asDateOnly(millisSinceEpoch);
+    public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute, int seconds, int nanos,
+                                         ZoneId zoneId) {
+        return ZonedDateTime.of(year, month, day, hour, minute, seconds, nanos, zoneId);
+    }
+
+    public static ZonedDateTime dateTime(long millisSinceEpoch) {
+        return DateUtils.asDateTime(millisSinceEpoch);
     }
 
     public static OffsetTime time(long millisSinceEpoch) {
@@ -34,5 +42,10 @@ public class DateTimeTestUtils {
 
     public static OffsetTime time(int hour, int minute, int second, int nano) {
         return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
+    }
+
+    static ZonedDateTime nowWithMillisResolution() {
+        Clock millisResolutionClock = Clock.tick(Clock.systemUTC(), Duration.ofMillis(1));
+        return ZonedDateTime.now(millisResolutionClock);
     }
 }

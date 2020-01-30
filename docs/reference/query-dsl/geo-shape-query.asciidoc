@@ -25,7 +25,7 @@ http://www.geojson.org[GeoJSON] to represent shapes.
 
 Given the following index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
@@ -47,13 +47,12 @@ POST /example/_doc?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 The following query will find the point using the Elasticsearch's
 `envelope` GeoJSON extension:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /example/_search
 {
@@ -77,7 +76,6 @@ GET /example/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Pre-Indexed Shape
 
@@ -98,7 +96,7 @@ Defaults to 'shape'.
 The following is an example of using the Filter with a pre-indexed
 shape:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /shapes
 {
@@ -138,7 +136,6 @@ GET /example/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Spatial Relations
 
@@ -154,8 +151,7 @@ has nothing in common with the query geometry.
 * `WITHIN` - Return all documents whose `geo_shape` field
 is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry. Note: this is only supported using the
-`recursive` Prefix Tree Strategy deprecated[6.6]
+contains the query geometry.
 
 [float]
 ==== Ignore Unmapped

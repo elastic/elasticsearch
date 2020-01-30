@@ -147,8 +147,8 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         refresh();
 
         final Client client = internalCluster().smartClient();
-        SearchRequestBuilder request = client.prepareSearch("test")
-            .setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*"); // multiple wildchar  to cover multi-param usecase
+        // multiple wildchar to cover multi-param usecase
+        SearchRequestBuilder request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*");
         assertSearchOnRandomNodes(request);
 
         request = client.prepareSearch("test")

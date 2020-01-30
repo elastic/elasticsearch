@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -30,6 +32,8 @@ import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 import java.io.IOException;
 
 public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportRetryAction.class);
 
     IndexLifecycleService indexLifecycleService;
 
@@ -57,7 +61,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToFailedStep(currentState, request.indices());
+                    return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());
                 }
 
                 @Override

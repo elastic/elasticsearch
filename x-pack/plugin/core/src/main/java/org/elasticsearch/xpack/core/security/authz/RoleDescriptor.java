@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -539,6 +541,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} requires {} if {} is given",
                     roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS);
         }
+        checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields);
         return RoleDescriptor.IndicesPrivileges.builder()
                 .indices(names)
                 .privileges(privileges)
@@ -547,6 +550,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
                 .build();
+    }
+
+    private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
+        try {
+            FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, deniedFields);
+        } catch (ElasticsearchSecurityException e) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
+        }
     }
 
     private static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser)
@@ -772,6 +783,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             public Builder indices(String... indices) {
                 indicesPrivileges.indices = indices;
                 return this;
+            }
+
+            public Builder indices(Collection<String> indices) {
+                return indices(indices.toArray(new String[indices.size()]));
             }
 
             public Builder privileges(String... privileges) {

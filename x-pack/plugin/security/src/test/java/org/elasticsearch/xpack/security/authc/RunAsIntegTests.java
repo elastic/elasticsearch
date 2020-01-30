@@ -161,9 +161,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":"
                      + SecuritySettingsSourceField.TEST_PASSWORD).build())) {
             //ensure the client can connect
-            awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            });
+            assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()));
 
             try {
                 Map<String, String> headers = new HashMap<>();
@@ -193,9 +191,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" +
                      SecuritySettingsSourceField.TEST_PASSWORD).build())) {
             //ensure the client can connect
-            awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            });
+            assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()));
 
             try {
                 Map<String, String> headers = new HashMap<>();

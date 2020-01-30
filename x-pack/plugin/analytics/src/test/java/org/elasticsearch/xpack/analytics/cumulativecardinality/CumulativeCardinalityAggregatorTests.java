@@ -21,6 +21,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -39,11 +40,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.StubAggregatorFactory;
 
 import java.io.IOException;
@@ -116,13 +116,13 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testParentValidations() throws IOException {
-        ValuesSourceConfig<ValuesSource> valuesSourceConfig = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+        ValuesSourceConfig<ValuesSource> valuesSourceConfig = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
 
         // Histogram
         Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
         AggregatorFactory parent = new HistogramAggregatorFactory("name", valuesSourceConfig, 0.0d, 0.0d,
-            mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(SearchContext.class), null,
+            mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(QueryShardContext.class), null,
             new AggregatorFactories.Builder(), Collections.emptyMap());
         CumulativeCardinalityPipelineAggregationBuilder builder
             = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
@@ -131,21 +131,21 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         // Date Histogram
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        parent = new DateHistogramAggregatorFactory("name", valuesSourceConfig, 0L,
+        parent = new DateHistogramAggregatorFactory("name", valuesSourceConfig,
             mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
-            mock(ExtendedBounds.class), mock(SearchContext.class), mock(AggregatorFactory.class),
+            mock(ExtendedBounds.class), mock(QueryShardContext.class), mock(AggregatorFactory.class),
             new AggregatorFactories.Builder(), Collections.emptyMap());
         builder = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
         builder.validate(parent, Collections.emptySet(), aggBuilders);
 
         // Auto Date Histogram
-        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
         parent = new AutoDateHistogramAggregatorFactory("name", numericVS,
             1, roundings,
-            mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
+            mock(QueryShardContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
         builder = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
         builder.validate(parent, Collections.emptySet(), aggBuilders);
 
@@ -225,33 +225,5 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
     private static long asLong(String dateTime) {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
-    }
-
-
-    private static AggregatorFactory getRandomSequentiallyOrderedParentAgg() throws IOException {
-        AggregatorFactory factory;
-        ValuesSourceConfig<ValuesSource> valuesSourceConfig = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                factory = new HistogramAggregatorFactory("name", valuesSourceConfig, 0.0d, 0.0d,
-                    mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(SearchContext.class), null,
-                    new AggregatorFactories.Builder(), Collections.emptyMap());
-                break;
-            case 1:
-                factory = new DateHistogramAggregatorFactory("name", valuesSourceConfig, 0L,
-                    mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
-                    mock(ExtendedBounds.class), mock(SearchContext.class), mock(AggregatorFactory.class),
-                    new AggregatorFactories.Builder(), Collections.emptyMap());
-                break;
-            case 2:
-            default:
-                ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-                AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
-                factory = new AutoDateHistogramAggregatorFactory("name", numericVS,
-                    1, roundings,
-                    mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
-        }
-
-        return factory;
     }
 }

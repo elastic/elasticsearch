@@ -22,10 +22,8 @@ Removes roles in the native realm.
 [[security-api-delete-role-desc]]
 ==== {api-description-title}
 
-The Roles API is generally the preferred way to manage roles, rather than using
-file-based role management. For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
-
+The role management APIs are generally the preferred way to manage roles, rather than using
+<<roles-management-file,file-based role management>>. The delete roles API cannot remove roles that are defined in roles files.
 
 [[security-api-delete-role-path-params]]
 ==== {api-path-parms-title}

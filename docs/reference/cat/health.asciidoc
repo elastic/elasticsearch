@@ -45,11 +45,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 `ts` (timestamps)::
 (Optional, boolean) If `true`, returns `HH:MM:SS` and
@@ -67,11 +65,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 By default, the cat health API returns `HH:MM:SS` and
 https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/health?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
@@ -88,11 +85,10 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 ===== Example without a timestamp
 You can use the `ts` (timestamps) parameter to disable timestamps. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/health?v&ts=false
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:

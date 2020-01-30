@@ -26,17 +26,17 @@ esplugin {
 
 dependencies {
   // Upgrade to 2.10.0 or higher when jackson-core gets upgraded to 2.9.x. Blocked by #27032
-  compile ('com.maxmind.geoip2:geoip2:2.9.0')
+  compile('com.maxmind.geoip2:geoip2:2.9.0')
   // geoip2 dependencies:
   compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  compile("com.fasterxml.jackson.core:jackson-databind:2.8.11.3")
+  compile("com.fasterxml.jackson.core:jackson-databind:${versions.jacksondatabind}")
   compile('com.maxmind.db:maxmind-db:1.2.2')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20180911'
+  testCompile 'org.elasticsearch:geolite2-databases:20191119'
 }
 
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
-  from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')}) }
+  from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"
   include "*.mmdb"
 }
@@ -49,7 +49,7 @@ bundlePlugin {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
   'org.apache.http.HttpEntity',
   'org.apache.http.HttpHost',

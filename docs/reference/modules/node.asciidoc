@@ -47,7 +47,7 @@ A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
 default behavior in the {es} {default-dist}. If you want to use {ml-features},
 there must be at least one {ml} node in your cluster. For more information about
 {ml-features}, see
-{stack-ov}/xpack-ml.html[Machine learning in the {stack}].
+{ml-docs}/xpack-ml.html[Machine learning in the {stack}].
 +
 IMPORTANT: If you use the {oss-dist}, do not set `node.ml`. Otherwise, the node
 fails to start.
@@ -122,7 +122,7 @@ cluster.remote.connect: false <7>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable {ccs} (enabled by default).
+<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated master-eligible node in the {oss-dist}, set:
 
@@ -136,7 +136,7 @@ cluster.remote.connect: false <4>
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable {ccs} (enabled by default).
+<4> Disable remote cluster connections (enabled by default).
 
 [float]
 [[voting-only-node]]
@@ -201,7 +201,7 @@ cluster.remote.connect: false <7>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable {ccs} (enabled by default).
+<7> Disable remote cluster connections (enabled by default).
 
 [float]
 [[data-node]]
@@ -230,7 +230,7 @@ cluster.remote.connect: false <6>
 <3> The `node.data` role is enabled by default.
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable {ccs} (enabled by default).
+<6> Disable remote cluster connections (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
@@ -243,7 +243,7 @@ cluster.remote.connect: false <4>
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable {ccs} (enabled by default).
+<4> Disable remote cluster connections (enabled by default).
 
 [float]
 [[node-ingest-node]]
@@ -270,7 +270,7 @@ cluster.remote.connect: false <6>
 <3> Disable the `node.data` role (enabled by default).
 <4> The `node.ingest` role is enabled by default.
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable {ccs} (enabled by default).
+<6> Disable remote cluster connections (enabled by default).
 
 To create a dedicated ingest node in the {oss-dist}, set:
 
@@ -284,7 +284,7 @@ cluster.remote.connect: false <4>
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
-<4> Disable {ccs} (enabled by default).
+<4> Disable remote cluster connections (enabled by default).
 
 [float]
 [[coordinating-only-node]]
@@ -323,7 +323,7 @@ cluster.remote.connect: false <6>
 <3> Disable the `node.data` role (enabled by default).
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable {ccs} (enabled by default).
+<6> Disable remote cluster connections (enabled by default).
 
 To create a dedicated coordinating node in the {oss-dist}, set:
 
@@ -337,7 +337,7 @@ cluster.remote.connect: false <4>
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable {ccs} (enabled by default).
+<4> Disable remote cluster connections (enabled by default).
 
 [float]
 [[ml-node]]
@@ -371,7 +371,7 @@ cluster.remote.connect: false <7>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> The `node.ml` role is enabled by default.
 <6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable {ccs} (enabled by default).
+<7> Disable remote cluster connections (enabled by default).
 
 [float]
 [[change-node-role]]

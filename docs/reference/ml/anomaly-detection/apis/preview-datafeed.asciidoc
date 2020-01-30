@@ -20,7 +20,7 @@ Previews a {dfeed}.
 
 * If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
 `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-preview-datafeed-desc]]
 ==== {api-description-title}
@@ -41,19 +41,17 @@ it to ensure it is returning the expected data.
 ==== {api-path-parms-title}
 
 `<datafeed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-preview-datafeed-example]]
 ==== {api-examples-title}
 
-The following example obtains a preview of the `datafeed-farequote` {dfeed}:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-GET _ml/datafeeds/datafeed-farequote/_preview
+GET _ml/datafeeds/datafeed-high_sum_total_sales/_preview
 --------------------------------------------------
-// CONSOLE
-// TEST[skip:setup:farequote_datafeed]
+// TEST[skip:Kibana sample data]
 
 The data that is returned for this example is as follows:
 
@@ -61,22 +59,29 @@ The data that is returned for this example is as follows:
 ----
 [
   {
-    "time": 1454803200000,
-    "airline": "JZA",
-    "doc_count": 5,
-    "responsetime": 990.4628295898438
+    "order_date" : 1575504259000,
+    "category.keyword" : "Men's Clothing",
+    "customer_full_name.keyword" : "Sultan Al Benson",
+    "taxful_total_price" : 35.96875
   },
   {
-    "time": 1454803200000,
-    "airline": "JBU",
-    "doc_count": 23,
-    "responsetime": 877.5927124023438
+    "order_date" : 1575504518000,
+    "category.keyword" : [
+      "Women's Accessories",
+      "Women's Clothing"
+    ],
+    "customer_full_name.keyword" : "Pia Webb",
+    "taxful_total_price" : 83.0
   },
   {
-    "time": 1454803200000,
-    "airline": "KLM",
-    "doc_count": 42,
-    "responsetime": 1355.481201171875
-  }
+    "order_date" : 1575505382000,
+    "category.keyword" : [
+      "Women's Accessories",
+      "Women's Shoes"
+    ],
+    "customer_full_name.keyword" : "Brigitte Graham",
+    "taxful_total_price" : 72.0
+  },
+  ...
 ]
 ----

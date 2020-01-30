@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,7 +41,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -74,7 +75,7 @@ public interface SearchPlugin {
      * The new {@link SignificanceHeuristic}s defined by this plugin. {@linkplain SignificanceHeuristic}s are used by the
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
      */
-    default List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
+    default List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return emptyList();
     }
     /**
@@ -142,6 +143,19 @@ public interface SearchPlugin {
         }
 
         public ScoreFunctionSpec(String name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification of custom {@link SignificanceHeuristic}.
+     */
+    class SignificanceHeuristicSpec<T extends SignificanceHeuristic> extends SearchExtensionSpec<T, BiFunction<XContentParser, Void, T>> {
+        public SignificanceHeuristicSpec(ParseField name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
+            super(name, reader, parser);
+        }
+
+        public SignificanceHeuristicSpec(String name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
             super(name, reader, parser);
         }
     }
@@ -243,7 +257,7 @@ public interface SearchPlugin {
     /**
      * Specification for an {@link Aggregation}.
      */
-    class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
+    class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
 
         /**
@@ -256,7 +270,8 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public AggregationSpec(ParseField name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+        public <T extends AggregationBuilder> AggregationSpec(ParseField name, Writeable.Reader<T> reader,
+                ContextParser<String, T> parser) {
             super(name, reader, parser);
         }
 
@@ -269,8 +284,39 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public AggregationSpec(String name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+        public <T extends AggregationBuilder> AggregationSpec(String name, Writeable.Reader<T> reader, ContextParser<String, T> parser) {
             super(name, reader, parser);
+        }
+
+        /**
+         * Specification for an {@link Aggregation}.
+         *
+         * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the {@link AggregationBuilder} should return
+         *        from {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the aggregation builder from xcontent
+         * @deprecated Use the ctor that takes a {@link ContextParser} instead
+         */
+        @Deprecated
+        public AggregationSpec(ParseField name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+            super(name, reader, (p, aggName) -> parser.parse(aggName, p));
+        }
+
+        /**
+         * Specification for an {@link Aggregation}.
+         *
+         * @param name the name by which this aggregation might be parsed or deserialized. Make sure that the {@link AggregationBuilder}
+         *        returns this from {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the aggregation builder from xcontent
+         * @deprecated Use the ctor that takes a {@link ContextParser} instead
+         */
+        @Deprecated
+        public AggregationSpec(String name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+            super(name, reader, (p, aggName) -> parser.parse(aggName, p));
         }
 
         /**

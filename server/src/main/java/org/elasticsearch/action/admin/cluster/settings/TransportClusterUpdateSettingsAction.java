@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +47,8 @@ import java.io.IOException;
 
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportClusterUpdateSettingsAction.class);
 
     private final AllocationService allocationService;
 

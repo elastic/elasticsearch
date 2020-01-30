@@ -3,7 +3,7 @@
 
 [partintro]
 --
-Use an ingest node to pre-process documents before the actual document indexing happens. 
+Use an ingest node to pre-process documents before the actual document indexing happens.
 The ingest node intercepts bulk and index requests, it applies transformations, and it then
 passes the documents back to the index or bulk APIs.
 
@@ -23,12 +23,12 @@ another processor that renames a field. The <<cluster-state,cluster state>> then
 the configured pipelines.
 
 To use a pipeline, simply specify the `pipeline` parameter on an index or bulk request. This
-way, the ingest node knows which pipeline to use. 
+way, the ingest node knows which pipeline to use.
 
 For example:
 Create a pipeline
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/my_pipeline_id
 {
@@ -43,23 +43,21 @@ PUT _ingest/pipeline/my_pipeline_id
   ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 Index with defined pipeline
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 {
   "foo": "bar"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response：
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my-index",
@@ -80,6 +78,9 @@ Response：
 
 An index may also declare a <<dynamic-index-settings,default pipeline>> that will be used in the
 absence of the `pipeline` parameter.
+
+Finally, an index may also declare a <<dynamic-index-settings,final pipeline>>
+that will be executed after any request or default pipeline (if any).
 
 See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.
 

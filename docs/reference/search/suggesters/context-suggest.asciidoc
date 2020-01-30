@@ -19,7 +19,7 @@ NOTE: It is mandatory to provide a context when indexing and querying
 The following defines types, each with two context mappings for a completion
 field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place
 {
@@ -69,8 +69,8 @@ PUT place_path_category
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
+
 <1> Defines a `category` context named 'place_type' where the categories must be
     sent with the suggestions.
 <2> Defines a `geo` context named 'location' where the categories must be sent
@@ -94,7 +94,7 @@ The mappings are set up like the `place_type` fields above. If `path` is defined
 then the categories are read from that path in the document, otherwise they must
 be sent in the suggest field like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place/_doc/1
 {
@@ -106,13 +106,13 @@ PUT place/_doc/1
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> These suggestions will be associated with 'cafe' and 'food' category.
 
 If the mapping had a `path` then the following index request would be enough to
 add the categories:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place_path_category/_doc/1
 {
@@ -120,7 +120,7 @@ PUT place_path_category/_doc/1
     "cat": ["cafe", "food"] <1>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> These suggestions will be associated with 'cafe' and 'food' category.
 
 NOTE: If context mapping references another field and the categories
@@ -134,7 +134,7 @@ of categories.
 Suggestions can be filtered by one or more categories. The following
 filters suggestions by multiple categories:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search?pretty
 {
@@ -152,7 +152,6 @@ POST place/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: If multiple categories or category contexts are set on the query
@@ -163,7 +162,7 @@ Suggestions with certain categories can be boosted higher than others.
 The following filters suggestions by categories and additionally boosts
 suggestions associated with some categories:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search?pretty
 {
@@ -184,8 +183,8 @@ POST place/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> The context query filter suggestions associated with
     categories 'cafe' and 'restaurants' and boosts the
     suggestions associated with 'restaurants' by a
@@ -248,7 +247,7 @@ document via the `path` parameter, similar to `category` contexts. Associating m
 with a suggestion, will index the suggestion for every geo location. The following indexes a suggestion
 with two geo location contexts:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place/_doc/1
 {
@@ -269,7 +268,6 @@ PUT place/_doc/1
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ====== Geo location Query
@@ -278,7 +276,7 @@ Suggestions can be filtered and boosted with respect to how close they are to on
 more geo points. The following filters suggestions that fall within the area represented by
 the encoded geohash of a geo point:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search
 {
@@ -299,7 +297,6 @@ POST place/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: When a location with a lower precision at query time is specified, all suggestions
@@ -312,7 +309,7 @@ if they contain at least one of the provided context values.
 Suggestions that are within an area represented by a geohash can also be boosted higher
 than others, as shown by the following:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search?pretty
 {
@@ -343,8 +340,8 @@ POST place/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> The context query filters for suggestions that fall under
     the geo location represented by a geohash of '(43.662, -79.380)'
     with a precision of '2' and boosts suggestions

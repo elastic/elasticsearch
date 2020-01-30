@@ -16,7 +16,7 @@ Starts the {watcher} service if it is not already running.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 //[[watcher-api-start-desc]]
 //==== {api-description-title}
@@ -39,11 +39,10 @@ information, see {stack-ov}/security-privileges.html[Security privileges].
 [[watcher-api-start-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/_start
 --------------------------------------------------
-// CONSOLE
 
 {watcher} returns the following response if the request is successful:
 

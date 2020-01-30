@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Unfortunately H2 doesn't support INTERVAL type,
 // hence why all INTERVAL tests need to be done manually
@@ -189,6 +191,15 @@ SELECT 4 * -INTERVAL '2' HOURS AS result1, -5 * -INTERVAL '3' HOURS AS result2;
 -0 08:00:00.0  | +0 15:00:00.0
 ;
 
+intervalNullMath
+schema::null_multiply:string|null_sub1:string|null_sub2:string|null_add:string
+SELECT null * INTERVAL '1 23:45' DAY TO MINUTES AS null_multiply, INTERVAL '1' DAY - null AS null_sub1, null - INTERVAL '1' DAY AS null_sub2, INTERVAL 1 DAY + null AS null_add;
+
+  null_multiply  |  null_sub1  |  null_sub2  |  null_add  
+-----------------+-------------+-------------+-------------
+null             |null         |null         |null
+;
+
 intervalAndFieldMultiply
 schema::languages:byte|result:string
 SELECT languages, CAST (languages * INTERVAL '1 10:30' DAY TO MINUTES AS string) AS result FROM test_emp ORDER BY emp_no LIMIT 5;
@@ -308,4 +319,97 @@ SELECT birth_date, MAX(hire_date) - INTERVAL 1 YEAR AS f FROM test_emp GROUP BY 
 1952-05-15T00:00:00Z|1953           
 1952-06-13T00:00:00Z|1953           
 1952-07-08T00:00:00Z|1953   
+;
+
+monthOfDatePlusInterval_And_GroupBy
+SELECT WEEK_OF_YEAR(birth_date + INTERVAL 25 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 3 ORDER BY c DESC, x ASC;
+
+      x:i      |       c:l       
+---------------+---------------
+null           |10             
+22             |6              
+4              |4              
+16             |4              
+30             |4              
+40             |4              
+45             |4              
+8              |3
+21             |3              
+28             |3              
+32             |3              
+37             |3
+;
+
+dayOfWeekPlusInterval_And_GroupBy
+SELECT DOW(birth_date + INTERVAL 5 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 3 ORDER BY c DESC;
+
+      x:i      |       c:l       
+---------------+---------------
+2              |18             
+3              |15             
+5              |15             
+4              |12             
+6              |12             
+null           |10             
+7              |10             
+1              |8              
+;
+
+dayNamePlusInterval_And_GroupBy
+SELECT DAY_NAME(birth_date + INTERVAL 5 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 10 ORDER BY c DESC;
+
+      x:s      |       c:l       
+---------------+---------------
+Monday         |18             
+Thursday       |15             
+Tuesday        |15             
+Friday         |12             
+Wednesday      |12             
+null           |10             
+Saturday       |10          
+;
+
+monthNamePlusInterval_And_GroupBy
+SELECT MONTH_NAME(birth_date + INTERVAL 5 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 5 ORDER BY c DESC;
+
+      x:s      |       c:l       
+---------------+---------------
+null           |10             
+May            |10             
+September      |10             
+July           |9              
+October        |9              
+April          |8              
+February       |8              
+November       |8              
+December       |7              
+June           |7              
+August         |6              
+January        |6             
+;
+
+quarterPlusInterval_And_GroupBy
+SELECT QUARTER(birth_date + INTERVAL 5 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 5 ORDER BY x DESC;
+
+      x:i      |       c:l       
+---------------+---------------
+4              |24             
+3              |25             
+2              |25             
+1              |16             
+null           |10             
+;
+
+dayOfMonthPlusInterval_And_GroupBy
+SELECT DOM(birth_date + INTERVAL 5 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 5 ORDER BY x DESC;
+
+      x:i      |       c:l       
+---------------+---------------
+25             |5              
+23             |6              
+21             |5              
+19             |7              
+7              |5              
+1              |5              
+null           |10             
 ;

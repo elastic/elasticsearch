@@ -28,7 +28,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -37,7 +36,7 @@ public class StubbableConnectionManager extends ConnectionManager {
     private final ConnectionManager delegate;
     private final ConcurrentMap<TransportAddress, GetConnectionBehavior> getConnectionBehaviors;
     private volatile GetConnectionBehavior defaultGetConnectionBehavior = ConnectionManager::getConnection;
-    private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = ConnectionManager::connectedNodes;
+    private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
 
     public StubbableConnectionManager(ConnectionManager delegate, Settings settings, Transport transport) {
         super(settings, transport);
@@ -45,7 +44,7 @@ public class StubbableConnectionManager extends ConnectionManager {
         this.getConnectionBehaviors = new ConcurrentHashMap<>();
     }
 
-    public boolean addConnectBehavior(TransportAddress transportAddress, GetConnectionBehavior connectBehavior) {
+    public boolean addGetConnectionBehavior(TransportAddress transportAddress, GetConnectionBehavior connectBehavior) {
         return getConnectionBehaviors.put(transportAddress, connectBehavior) == null;
     }
 
@@ -64,7 +63,6 @@ public class StubbableConnectionManager extends ConnectionManager {
     public void clearBehaviors() {
         defaultGetConnectionBehavior = ConnectionManager::getConnection;
         getConnectionBehaviors.clear();
-        defaultNodeConnectedBehavior = ConnectionManager::connectedNodes;
     }
 
     public void clearBehavior(TransportAddress transportAddress) {
@@ -85,12 +83,7 @@ public class StubbableConnectionManager extends ConnectionManager {
 
     @Override
     public boolean nodeConnected(DiscoveryNode node) {
-        return defaultNodeConnectedBehavior.connectedNodes(delegate).contains(node);
-    }
-
-    @Override
-    public Set<DiscoveryNode> connectedNodes() {
-        return defaultNodeConnectedBehavior.connectedNodes(delegate);
+        return defaultNodeConnectedBehavior.connectedNodes(delegate, node);
     }
 
     @Override
@@ -132,6 +125,6 @@ public class StubbableConnectionManager extends ConnectionManager {
 
     @FunctionalInterface
     public interface NodeConnectedBehavior {
-        Set<DiscoveryNode> connectedNodes(ConnectionManager connectionManager);
+        boolean connectedNodes(ConnectionManager connectionManager, DiscoveryNode node);
     }
 }

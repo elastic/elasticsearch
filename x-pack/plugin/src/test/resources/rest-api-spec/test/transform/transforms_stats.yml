@@ -1,0 +1,262 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-stats"
+
+---
+teardown:
+  - do:
+      transform.stop_transform:
+        wait_for_checkpoint: false
+        transform_id: "airline-transform-stats"
+        wait_for_completion: true
+
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-stats"
+
+---
+"Test get transform stats":
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-stats"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  - lte: { transforms.0.checkpointing.last.checkpoint: 1 }
+  - lte: { transforms.0.stats.pages_processed: 1 }
+  - match: { transforms.0.stats.documents_processed: 0 }
+  - match: { transforms.0.stats.documents_indexed: 0 }
+  - lte: { transforms.0.stats.trigger_count: 1 }
+  - match: { transforms.0.stats.index_time_in_ms: 0 }
+  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.index_failures: 0 }
+  - gte: { transforms.0.stats.search_time_in_ms: 0 }
+  - lte: { transforms.0.stats.search_total: 1 }
+  - match: { transforms.0.stats.search_failures: 0 }
+
+---
+"Test get transform stats on missing transform":
+  - do:
+      transform.get_transform_stats:
+        transform_id: "missing-transform"
+  - match: { count: 0 }
+  - match: { transforms: [] }
+
+---
+"Test get multiple transform stats":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats-dos"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-dos" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats-the-third"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-the-third" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "*"
+  - match: { count: 3 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+  - match: { transforms.2.id: "airline-transform-stats-the-third" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "_all"
+  - match: { count: 3 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+  - match: { transforms.2.id: "airline-transform-stats-the-third" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-stats-dos,airline-transform-stats-the*"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats-dos" }
+  - match: { transforms.1.id: "airline-transform-stats-the-third" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "_all"
+        from: 0
+        size: 1
+  - match: { count: 3 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "_all"
+        from: 1
+        size: 2
+  - match: { count: 3 }
+  - match: { transforms.0.id: "airline-transform-stats-dos" }
+  - match: { transforms.1.id: "airline-transform-stats-the-third" }
+
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-stats-dos"
+
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-stats-the-third"
+
+
+---
+"Test get multiple transform stats where one does not have a task":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats-dos"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-dos" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "*"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "_all"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+
+---
+"Test get single transform stats when it does not have a task":
+
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats-dos"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-dos" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-stats-dos"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats-dos" }
+  - match: { transforms.0.checkpointing.last.checkpoint: 0 }
+  - is_false: transforms.0.checkpointing.next.progress
+  - match: { transforms.0.stats.pages_processed: 0 }
+  - match: { transforms.0.stats.documents_processed: 0 }
+  - match: { transforms.0.stats.documents_indexed: 0 }
+  - match: { transforms.0.stats.trigger_count: 0 }
+  - match: { transforms.0.stats.index_time_in_ms: 0 }
+  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.index_failures: 0 }
+  - match: { transforms.0.stats.search_time_in_ms: 0 }
+  - match: { transforms.0.stats.search_total: 0 }
+  - match: { transforms.0.stats.search_failures: 0 }
+---
+"Test get continuous transform stats":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats-continuous"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-continuous" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": { "time": { "field": "time", "delay": "1m" } }
+          }
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-stats-continuous"
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-stats-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats-continuous" }
+  # Since this is continuous, there is no worry of it automatically stopping
+  - match: { transforms.0.state: "/started|indexing/" }
+  - lte: { transforms.0.checkpointing.last.checkpoint: 1 }
+  # Since this is continuous, and _start does not return until it is assigned
+  # we should see a node assignment
+  - is_true: transforms.0.node
+  - is_true: transforms.0.node.id
+  - is_true: transforms.0.node.name
+  - is_true: transforms.0.node.ephemeral_id
+  - is_true: transforms.0.node.transport_address
+  - lte: { transforms.0.stats.pages_processed: 1 }
+  - match: { transforms.0.stats.documents_processed: 0 }
+  - match: { transforms.0.stats.documents_indexed: 0 }
+  - lte: { transforms.0.stats.trigger_count: 1 }
+  - match: { transforms.0.stats.index_time_in_ms: 0 }
+  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.index_failures: 0 }
+  - gte: { transforms.0.stats.search_time_in_ms: 0 }
+  - lte: { transforms.0.stats.search_total: 1 }
+  - match: { transforms.0.stats.search_failures: 0 }
+  - match: { transforms.0.stats.exponential_avg_checkpoint_duration_ms: 0.0 }
+  - match: { transforms.0.stats.exponential_avg_documents_indexed: 0.0 }
+  - match: { transforms.0.stats.exponential_avg_documents_processed: 0.0 }
+
+  - do:
+      transform.stop_transform:
+        wait_for_checkpoint: false
+        transform_id: "airline-transform-stats-continuous"
+        wait_for_completion: true
+
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-stats-continuous"

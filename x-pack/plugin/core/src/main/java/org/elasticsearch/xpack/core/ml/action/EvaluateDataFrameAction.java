@@ -105,28 +105,31 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             return indices;
         }
 
-        public final void setIndices(List<String> indices) {
+        public final Request setIndices(List<String> indices) {
             ExceptionsHelper.requireNonNull(indices, INDEX);
             if (indices.isEmpty()) {
                 throw ExceptionsHelper.badRequestException("At least one index must be specified");
             }
             this.indices = indices.toArray(new String[indices.size()]);
+            return this;
         }
 
         public QueryBuilder getParsedQuery() {
             return Optional.ofNullable(queryProvider).orElseGet(QueryProvider::defaultQuery).getParsedQuery();
         }
 
-        public final void setQueryProvider(QueryProvider queryProvider) {
+        public final Request setQueryProvider(QueryProvider queryProvider) {
             this.queryProvider = queryProvider;
+            return this;
         }
 
         public Evaluation getEvaluation() {
             return evaluation;
         }
 
-        public final void setEvaluation(Evaluation evaluation) {
+        public final Request setEvaluation(Evaluation evaluation) {
             this.evaluation = ExceptionsHelper.requireNonNull(evaluation, EVALUATION);
+            return this;
         }
 
         @Override
@@ -203,10 +206,18 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             this.metrics = Objects.requireNonNull(metrics);
         }
 
+        public String getEvaluationName() {
+            return evaluationName;
+        }
+
+        public List<EvaluationMetricResult> getMetrics() {
+            return metrics;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(evaluationName);
-            out.writeList(metrics);
+            out.writeNamedWriteableList(metrics);
         }
 
         @Override
@@ -214,7 +225,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             builder.startObject();
             builder.startObject(evaluationName);
             for (EvaluationMetricResult metric : metrics) {
-                builder.field(metric.getName(), metric);
+                builder.field(metric.getMetricName(), metric);
             }
             builder.endObject();
             builder.endObject();

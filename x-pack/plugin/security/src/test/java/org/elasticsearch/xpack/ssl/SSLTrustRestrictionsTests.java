@@ -223,6 +223,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private void tryConnect(CertificateInfo certificate, boolean shouldFail) throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
                 .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
                 .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())

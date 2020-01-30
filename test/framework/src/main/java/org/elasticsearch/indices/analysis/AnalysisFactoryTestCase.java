@@ -35,8 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -49,20 +47,7 @@ import static java.util.Collections.emptyMap;
  */
 public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
-    private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
-
-    private static String toCamelCase(String s) {
-        Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
-        StringBuffer sb = new StringBuffer();
-        while (m.find()) {
-            m.appendReplacement(sb, m.group(1).toUpperCase(Locale.ROOT));
-        }
-        m.appendTail(sb);
-        sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
-        return sb.toString();
-    }
-
-    static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
+    private static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
         .put("classic", MovedToAnalysisCommon.class)
         .put("edgengram", MovedToAnalysisCommon.class)
@@ -207,6 +192,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("protectedterm", Void.class)
         // LUCENE-8332
         .put("concatenategraph", Void.class)
+        // LUCENE-8936
+        .put("spanishminimalstem", Void.class)
 
         .immutableMap();
 

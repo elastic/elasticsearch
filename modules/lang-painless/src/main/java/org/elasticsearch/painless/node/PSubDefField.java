@@ -19,12 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.def;
 
 import java.time.ZonedDateTime;
@@ -45,28 +46,23 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
             org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
-        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
+        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
     @Override
@@ -85,26 +81,26 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
             org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
-        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
+        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
             org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), MethodWriter.getType(actual));
-        writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
+        methodWriter.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 
     @Override

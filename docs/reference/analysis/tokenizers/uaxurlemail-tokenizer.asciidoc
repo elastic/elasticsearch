@@ -7,7 +7,7 @@ recognises URLs and email addresses as single tokens.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -15,7 +15,6 @@ POST _analyze
   "text": "Email me at john.smith@global-international.com"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -89,7 +88,7 @@ The `uax_url_email` tokenizer accepts the following parameters:
 In this example, we configure the `uax_url_email` tokenizer to have a
 `max_token_length` of 5 (for demonstration purposes):
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -116,7 +115,6 @@ POST my_index/_analyze
   "text": "john.smith@global-international.com"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 

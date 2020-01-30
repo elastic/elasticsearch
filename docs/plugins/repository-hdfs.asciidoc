@@ -25,7 +25,7 @@ plugin folder and point `HADOOP_HOME` variable to it; this should minimize the a
 Once installed, define the configuration for the `hdfs` repository through the
 {ref}/modules-snapshots.html[REST API]:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
@@ -37,7 +37,6 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 The following settings are supported:
@@ -144,7 +143,7 @@ Once your keytab files are in place and your cluster is started, creating a secu
 add the name of the principal that you will be authenticating as in the repository settings under the
 `security.principal` option:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
@@ -156,13 +155,12 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 If you are using different service principals for each node, you can use the `_HOST` pattern in your principal
 name. Elasticsearch will automatically replace the pattern with the hostname of the node at runtime:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
@@ -174,7 +172,6 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 [[repository-hdfs-security-authorization]]

@@ -1,0 +1,90 @@
+[[snapshot-restore]]
+= Snapshot and restore
+
+[partintro]
+--
+
+// tag::snapshot-intro[]
+A _snapshot_ is a backup taken from a running {es} cluster. 
+You can take snapshots of individual indices or of the entire cluster. 
+Snapshots can be stored in either local or remote repositories. 
+Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
+and other platforms supported by a repository plugin.
+
+Snapshots are incremental: each snapshot of an index only stores data that 
+is not part of an earlier snapshot.  
+This enables you to take frequent snapshots with minimal overhead.
+// end::snapshot-intro[] 
+
+// tag::restore-intro[]
+You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>. 
+By default, all indices in the snapshot are restored. 
+Alternatively, you can restore specific indices or restore the cluster state from a snapshot. 
+When restoring indices, you can modify the index name and selected index settings. 
+// end::restore-intro[]
+
+You must <<snapshots-register-repository, register a snapshot repository>> 
+before you can <<snapshots-take-snapshot, take snapshots>>.
+
+You can use <<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>
+to automatically take and manage snapshots.
+
+// tag::backup-warning[]
+WARNING: You cannot back up an {es} cluster by simply copying
+the data directories of all of its nodes. {es} may be making changes to
+the contents of its data directories while it is running; copying its data
+directories cannot be expected to capture a consistent picture of their contents.
+If you try to restore a cluster from such a backup, it may fail and report
+corruption and/or missing files. Alternatively, it may appear to have succeeded
+though it silently lost some of its data. The only reliable way to back up a
+cluster is by using the snapshot and restore functionality.
+
+// end::backup-warning[]
+
+[float]
+=== Version compatibility
+
+IMPORTANT: Version compatibility refers to the underlying Lucene index
+compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
+when migrating between versions.
+
+A snapshot contains a copy of the on-disk data structures that make up an
+index. This means that snapshots can only be restored to versions of
+{es} that can read the indices:
+
+* A snapshot of an index created in 6.x can be restored to 7.x.
+* A snapshot of an index created in 5.x can be restored to 6.x.
+* A snapshot of an index created in 2.x can be restored to 5.x.
+* A snapshot of an index created in 1.x can be restored to 2.x.
+
+Conversely, snapshots of indices created in 1.x **cannot** be restored to 5.x
+or 6.x, snapshots of indices created in 2.x **cannot** be restored to 6.x
+or 7.x, and snapshots of indices created in 5.x **cannot** be restored to 7.x
+or 8.x.
+
+Each snapshot can contain indices created in various versions of {es},
+and when restoring a snapshot it must be possible to restore all of the indices
+into the target cluster. If any indices in a snapshot were created in an
+incompatible version, you will not be able restore the snapshot.
+
+IMPORTANT: When backing up your data prior to an upgrade, keep in mind that you
+won't be able to restore snapshots after you upgrade if they contain indices
+created in a version that's incompatible with the upgrade version.
+
+If you end up in a situation where you need to restore a snapshot of an index
+that is incompatible with the version of the cluster you are currently running,
+you can restore it on the latest compatible version and use
+<<reindex-from-remote,reindex-from-remote>> to rebuild the index on the current
+version. Reindexing from remote is only possible if the original index has
+source enabled. Retrieving and reindexing the data can take significantly
+longer than simply restoring a snapshot. If you have a large amount of data, we
+recommend testing the reindex from remote process with a subset of your data to
+understand the time requirements before proceeding.
+
+--
+
+include::register-repository.asciidoc[]
+include::take-snapshot.asciidoc[]
+include::restore-snapshot.asciidoc[]
+include::monitor-snapshot-restore.asciidoc[]
+

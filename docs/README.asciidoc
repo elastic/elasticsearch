@@ -3,24 +3,34 @@ Elasticsearch documentation build process.
 
 See: https://github.com/elastic/docs
 
+=== Backporting doc fixes
+
+* Doc changes should generally be made against master and backported through to the current version
+  (as applicable).  
+  
+* Changes can also be backported to the maintenance version of the previous major version. 
+  This is typically reserved for technical corrections, as it can require resolving more complex
+  merge conflicts, fixing test failures, and figuring out where to apply the change.
+
+* Avoid backporting to out-of-maintenance versions. 
+  Docs follow the same policy as code and fixes are not ordinarily merged to
+  versions that are out of maintenance.
+  
+* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
+
+=== Snippet testing
+
 Snippets marked with `[source,console]` are automatically annotated with
 "VIEW IN CONSOLE" and "COPY AS CURL" in the documentation and are automatically
 tested by the command `./gradlew -pdocs check`. To test just the docs from a
 single page, use e.g. `./gradlew -ddocs integTestRunner --tests "*rollover*"`.
 
-NOTE: Previously we use `// CONSOLE` instead of `[source,console]`. This worked
-well for a long time so you'll see it all over early branches but we're phasing
-it out because it requires some unpleasant hackery on the docs build side.
-
-NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch
-folder, you must temporarily rename it when you are testing 6.3 or later branches.
-
-By default each `// CONSOLE` snippet runs as its own isolated test. You can
-manipulate the test execution in the following ways:
+By default each `[source,console]` snippet runs as its own isolated test. You
+can manipulate the test execution in the following ways:
 
 * `// TEST`: Explicitly marks a snippet as a test. Snippets marked this way
-are tests even if they don't have `// CONSOLE` but usually `// TEST` is used
-for its modifiers:
+are tests even if they don't have `[source,console]` but usually `// TEST` is
+used for its modifiers:
   * `// TEST[s/foo/bar/]`: Replace `foo` with `bar` in the generated test. This
   should be used sparingly because it makes the snippet "lie". Sometimes,
   though, you can use it to make the snippet more clear. Keep in mind that

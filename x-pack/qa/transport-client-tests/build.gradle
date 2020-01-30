@@ -6,7 +6,8 @@ dependencies {
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 
-integTestCluster {
+testClusters.integTest {
+  testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }
@@ -16,7 +17,7 @@ testingConventions {
   naming.clear()
   naming {
     IT {
-      baseClass 'org.elasticsearch.xpack.ml.client.ESXPackSmokeClientTestCase'
+      baseClass 'org.elasticsearch.xpack.ESXPackSmokeClientTestCase'
     }
   }
 }

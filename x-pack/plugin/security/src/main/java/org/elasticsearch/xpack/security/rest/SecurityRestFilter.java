@@ -54,9 +54,15 @@ public class SecurityRestFilter implements RestHandler {
             }
             service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {
+                    if (authentication == null) {
+                        logger.trace("No authentication available for REST request [{}]", request.uri());
+                    } else {
+                        logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
+                    }
                     RemoteHostHeader.process(request, threadContext);
                     restHandler.handleRequest(request, channel, client);
                 }, e -> {
+                    logger.debug(new ParameterizedMessage("Authentication failed for REST request [{}]", request.uri()), e);
                     try {
                         channel.sendResponse(new BytesRestResponse(channel, e));
                     } catch (Exception inner) {
@@ -78,6 +84,11 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public boolean supportsContentStream() {
         return restHandler.supportsContentStream();
+    }
+
+    @Override
+    public boolean allowsUnsafeBuffers() {
+        return restHandler.allowsUnsafeBuffers();
     }
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {

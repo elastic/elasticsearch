@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.junit.Before;
 
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -96,6 +98,30 @@ public class ExportersTests extends ESTestCase {
         factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext);
+    }
+
+    public void testHostsMustBeSetIfTypeIsHttp() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings settings  = Settings.builder().put(prefix + ".type", "http").build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.TYPE_SETTING.getConcreteSetting(prefix + ".type").get(settings));
+        assertThat(e, hasToString(containsString("Failed to parse value [http] for setting [" + prefix + ".type]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
+    }
+
+    public void testIndexNameTimeFormatMustBeValid() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final String setting = ".index.name.time_format";
+        final String value = "yyyy.MM.dd.j";
+        final Settings settings = Settings.builder().put(prefix + setting, value).build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Exporter.INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSetting(prefix + setting).get(settings));
+        assertThat(e, hasToString(containsString("Invalid format: [" + value + "]: Unknown pattern letter: j")));
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
     }
 
     public void testExporterIndexPattern() {
@@ -241,7 +267,7 @@ public class ExportersTests extends ESTestCase {
         } else {
             when(state.version()).thenReturn(ClusterState.UNKNOWN_VERSION);
         }
-        
+
         final int nbExporters = randomIntBetween(1, 5);
         final Settings.Builder settings = Settings.builder();
 

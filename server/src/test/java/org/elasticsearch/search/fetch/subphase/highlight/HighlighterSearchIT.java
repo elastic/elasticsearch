@@ -57,6 +57,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -119,6 +120,48 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockAnalysisPlugin.class);
+    }
+
+    public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+                .startObject("tags")
+                    .field("type", "keyword")
+                .endObject()
+                .startObject("sort")
+                    .field("type", "long")
+                .endObject()
+            .endObject().endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        client().prepareIndex("test", "_doc").setId("1")
+            .setSource(jsonBuilder()
+                .startObject()
+                    .array("tags", "foo bar", "foo bar", "foo bar", "foo baz")
+                    .field("sort", 1)
+                .endObject())
+            .get();
+        client().prepareIndex("test", "_doc").setId("2")
+            .setSource(jsonBuilder()
+                .startObject()
+                    .array("tags", "foo baz", "foo baz", "foo baz", "foo bar")
+                    .field("sort", 2)
+                .endObject())
+            .get();
+        refresh();
+
+        for (BoundaryScannerType scanner : BoundaryScannerType.values()) {
+            SearchResponse search = client().prepareSearch()
+                .addSort(SortBuilders.fieldSort("sort"))
+                .setQuery(matchQuery("tags", "foo bar"))
+                .highlighter(new HighlightBuilder().field(new Field("tags")).numOfFragments(2).boundaryScannerType(scanner)).get();
+            assertHighlight(search, 0, "tags", 0, 2, equalTo("<em>foo bar</em>"));
+            assertHighlight(search, 0, "tags", 1, 2, equalTo("<em>foo bar</em>"));
+            assertHighlight(search, 1, "tags", 0, 1, equalTo("<em>foo bar</em>"));
+        }
     }
 
     public void testHighlightingWithStoredKeyword() throws IOException {

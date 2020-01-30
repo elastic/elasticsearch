@@ -435,6 +435,31 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/47276 which checks that the persisted metadata on a data node does not
+     * become inconsistent when using replicated closed indices.
+     */
+    public void testRelocatedClosedIndexIssue() throws Exception {
+        final String indexName = "closed-index";
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        // allocate shard to first data node
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", dataNodes.get(0))
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        assertAcked(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.ALL));
+        // move single shard to second node
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+            .put("index.routing.allocation.include._name", dataNodes.get(1))).get();
+        ensureGreen(indexName);
+        internalCluster().fullRestart();
+        ensureGreen(indexName);
+        assertIndexIsClosed(indexName);
+    }
+
     public void testResyncPropagatePrimaryTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         final String indexName = "closed_indices_promotion";

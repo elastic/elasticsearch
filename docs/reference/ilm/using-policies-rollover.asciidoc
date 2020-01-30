@@ -55,7 +55,7 @@ criteria specified for a phase is relative to the rollover time for indices. In
 this example, that means the index will be deleted 30 days after rollover, not
 30 days from when the index was created.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ilm/policy/my_policy
 {
@@ -78,13 +78,12 @@ PUT /_ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 To use an {ilm} policy, you need to specify it in the index template used to
 create the indices. For example, the following template associates `my_policy`
 with indices created from the template `my_template`.
 
-[source,js]
+[source,console]
 -----------------------
 PUT _template/my_template
 {
@@ -97,15 +96,25 @@ PUT _template/my_template
   }
 }
 -----------------------
-// CONSOLE
+
 <1> Template applies to all indices with the prefix test-
 <2> Associates my_policy with all indices created with this template
 <3> Rolls over the write alias test when the rollover action is triggered
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 To be able to start using the policy for these `test-*` indexes we need to
 bootstrap the process by creating the first index.
 
-[source,js]
+[source,console]
 -----------------------
 PUT test-000001 <1>
 {
@@ -116,7 +125,7 @@ PUT test-000001 <1>
   }
 }
 -----------------------
-// CONSOLE
+
 <1> Creates the index called test-000001. The rollover action increments the
 suffix number for each subsequent index.
 <2> Designates this index as the write index for this alias.

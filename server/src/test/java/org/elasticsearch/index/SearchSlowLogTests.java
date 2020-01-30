@@ -20,25 +20,20 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTask;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -59,103 +54,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
        return createSearchContext(indexService, new String[]{});
     }
+
     protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
+        final ShardSearchRequest request =
+            new ShardSearchRequest(new ShardId(indexService.index(), 0), new String[0], 0L, null);
         return new TestSearchContext(bigArrays, indexService) {
-            final ShardSearchRequest request = new ShardSearchRequest() {
-                private SearchSourceBuilder searchSourceBuilder;
-                @Override
-                public ShardId shardId() {
-                    return new ShardId(indexService.index(), 0);
-                }
-
-                @Override
-                public String[] types() {
-                    return new String[0];
-                }
-
-                @Override
-                public SearchSourceBuilder source() {
-                    return searchSourceBuilder;
-                }
-
-                @Override
-                public AliasFilter getAliasFilter() {
-                    return new AliasFilter(QueryBuilders.matchAllQuery(), "foo");
-                }
-
-                @Override
-                public void setAliasFilter(AliasFilter filter) {
-
-                }
-
-                @Override
-                public void source(SearchSourceBuilder source) {
-                    searchSourceBuilder = source;
-                }
-
-                @Override
-                public int numberOfShards() {
-                    return 0;
-                }
-
-                @Override
-                public SearchType searchType() {
-                    return null;
-                }
-
-                @Override
-                public float indexBoost() {
-                    return 1.0f;
-                }
-
-                @Override
-                public long nowInMillis() {
-                    return 0;
-                }
-
-                @Override
-                public Boolean requestCache() {
-                    return null;
-                }
-
-                @Override
-                public boolean allowPartialSearchResults() {
-                    return true;
-                }
-
-                @Override
-                public Scroll scroll() {
-                    return null;
-                }
-
-                @Override
-                public String[] indexRoutings() {
-                    return null;
-                }
-
-                @Override
-                public String preference() {
-                    return null;
-                }
-
-                @Override
-                public BytesReference cacheKey() {
-                    return null;
-                }
-
-                @Override
-                public Rewriteable getRewriteable() {
-                    return null;
-                }
-
-                @Override
-                public String getClusterAlias() {
-                    return null;
-                }
-            };
-
             @Override
             public List<String> groupStats() {
                 return Arrays.asList(groupStats);
@@ -173,7 +77,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
@@ -193,7 +97,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         searchContext.getQueryShardContext().setTypes("type1", "type2");
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
@@ -214,7 +118,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index,"group1");
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
 
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
@@ -223,7 +127,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext = createSearchContext(index, "group1", "group2");
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
@@ -234,7 +138,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
@@ -287,6 +191,25 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.DEBUG)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        SearchSlowLog debugLog = new SearchSlowLog(settings);
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.INFO)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        SearchSlowLog infoLog = new SearchSlowLog(settings);
+
+        assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
+        assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
     }
 
     public void testSetQueryLevels() {

@@ -618,7 +618,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     protected void onServerException(TcpServerChannel channel, Exception e) {
-        logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [channel={}]", channel), e);
+        if (e instanceof BindException) {
+            logger.trace(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+        } else {
+            logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+        }
     }
 
     protected void serverAcceptedChannel(TcpChannel channel) {
@@ -778,15 +782,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     private static boolean appearsToBeHTTPRequest(BytesReference headerBuffer) {
-        return bufferStartsWith(headerBuffer, "GET") ||
-            bufferStartsWith(headerBuffer, "POST") ||
-            bufferStartsWith(headerBuffer, "PUT") ||
-            bufferStartsWith(headerBuffer, "HEAD") ||
-            bufferStartsWith(headerBuffer, "DELETE") ||
+        return bufferStartsWith(headerBuffer, "GET")
+            || bufferStartsWith(headerBuffer, "POST")
+            || bufferStartsWith(headerBuffer, "PUT")
+            || bufferStartsWith(headerBuffer, "HEAD")
+            || bufferStartsWith(headerBuffer, "DELETE")
             // Actually 'OPTIONS'. But we are only guaranteed to have read six bytes at this point.
-            bufferStartsWith(headerBuffer, "OPTION") ||
-            bufferStartsWith(headerBuffer, "PATCH") ||
-            bufferStartsWith(headerBuffer, "TRACE");
+            || bufferStartsWith(headerBuffer, "OPTION")
+            || bufferStartsWith(headerBuffer, "PATCH")
+            || bufferStartsWith(headerBuffer, "TRACE");
     }
 
     private static boolean appearsToBeHTTPResponse(BytesReference headerBuffer) {

@@ -79,9 +79,13 @@ import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetScriptContextAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetScriptLanguageAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
@@ -206,6 +210,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -224,6 +229,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -243,6 +249,8 @@ import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetSnapshotsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
@@ -367,11 +375,12 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
+    private final ClusterService clusterService;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-            CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -379,13 +388,14 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
+        this.clusterService = clusterService;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
-        Set<String> headers = Stream.concat(
+        Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of(Task.X_OPAQUE_ID)
+            Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
@@ -523,6 +533,8 @@ public class ActionModule extends AbstractModule {
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
+        actions.register(GetScriptContextAction.INSTANCE, TransportGetScriptContextAction.class);
+        actions.register(GetScriptLanguageAction.INSTANCE, TransportGetScriptLanguageAction.class);
 
         actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
             TransportFieldCapabilitiesIndexAction.class);
@@ -624,7 +636,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpgradeStatusAction(restController));
         registerHandler.accept(new RestClearIndicesCacheAction(restController));
 
-        registerHandler.accept(new RestIndexAction(restController));
+        registerHandler.accept(new RestIndexAction(restController, clusterService));
         registerHandler.accept(new RestGetAction(restController));
         registerHandler.accept(new RestGetSourceAction(restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
@@ -652,6 +664,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetStoredScriptAction(restController));
         registerHandler.accept(new RestPutStoredScriptAction(restController));
         registerHandler.accept(new RestDeleteStoredScriptAction(restController));
+        registerHandler.accept(new RestGetScriptContextAction(restController));
+        registerHandler.accept(new RestGetScriptLanguageAction(restController));
 
         registerHandler.accept(new RestFieldCapabilitiesAction(restController));
 

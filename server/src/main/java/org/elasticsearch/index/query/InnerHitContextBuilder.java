@@ -47,6 +47,10 @@ public abstract class InnerHitContextBuilder {
         this.query = query;
     }
 
+    public InnerHitBuilder innerHitBuilder() {
+        return innerHitBuilder;
+    }
+
     public final void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
         long innerResultWindow = innerHitBuilder.getFrom() + innerHitBuilder.getSize();
         int maxInnerResultWindow = parentSearchContext.mapperService().getIndexSettings().getMaxInnerResultWindow();
@@ -89,14 +93,14 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
-                FieldScript.Factory factory = innerContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), fieldScript, field.ignoreFailure()));
             }
         }
         if (innerHitBuilder.getFetchSourceContext() != null) {
-            innerHitsContext.fetchSourceContext(innerHitBuilder.getFetchSourceContext() );
+            innerHitsContext.fetchSourceContext(innerHitBuilder.getFetchSourceContext());
         }
         if (innerHitBuilder.getSorts() != null) {
             Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(innerHitBuilder.getSorts(), queryShardContext);

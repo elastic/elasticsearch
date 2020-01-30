@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -15,10 +14,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -43,13 +40,13 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
-         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
+         * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
 
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.security.authc.realms.active_directory.ad.ssl.certificate_authorities", certPath)
+            .put("xpack.security.authc.realms.ldap.ad-as-ldap-test.ssl.certificate_authorities", certPath)
             .build();
         sslService = new SSLService(globalSettings, env);
         threadPool = new TestThreadPool("ADLdapUserSearchSessionFactoryTests");
@@ -60,15 +57,12 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         terminate(threadPool);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(
-                        new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL },
-                        Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE, null,
-                        true))
+                .put("url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                .put("group_search.base_dn", groupSearchBase)
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
@@ -79,13 +73,13 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
         settings.keySet().forEach(k -> {
-            builder.copy("xpack.security.authc.realms.ad-as-ldap-test." + k, k, settings);
+            builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings);
 
         });
         Settings fullSettings = builder.build();
         sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ad", "ad-as-ldap-test"), globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ad-as-ldap-test"), fullSettings,
+                TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";

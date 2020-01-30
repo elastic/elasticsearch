@@ -19,12 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -49,26 +50,20 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
         right.extractVariables(variables);
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         left.expected = boolean.class;
-        left.analyze(locals);
-        left = left.cast(locals);
+        left.analyze(scriptRoot, locals);
+        left = left.cast(scriptRoot, locals);
 
         right.expected = boolean.class;
-        right.analyze(locals);
-        right = right.cast(locals);
+        right.analyze(scriptRoot, locals);
+        right = right.cast(scriptRoot, locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -84,37 +79,37 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+            left.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
+            right.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-            writer.push(true);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(false);
-            writer.mark(end);
+            methodWriter.push(true);
+            methodWriter.goTo(end);
+            methodWriter.mark(fals);
+            methodWriter.push(false);
+            methodWriter.mark(end);
         } else if (operation == Operation.OR) {
             Label tru = new Label();
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFNE, tru);
-            right.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+            left.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFNE, tru);
+            right.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-            writer.mark(tru);
-            writer.push(true);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(false);
-            writer.mark(end);
+            methodWriter.mark(tru);
+            methodWriter.push(true);
+            methodWriter.goTo(end);
+            methodWriter.mark(fals);
+            methodWriter.push(false);
+            methodWriter.mark(end);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }

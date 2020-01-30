@@ -31,7 +31,7 @@ The fast vector highlighter requires `with_positions_offsets`.
 WARNING:  Setting `with_positions_offsets` will double the size of a field's
 index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -64,7 +64,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The fast vector highlighter will be used by default for the `text` field
     because term vectors are enabled.
 

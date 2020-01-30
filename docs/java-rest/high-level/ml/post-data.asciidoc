@@ -3,6 +3,7 @@
 :request: PostDataRequest
 :response: PostDataResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Post Data API
 

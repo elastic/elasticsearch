@@ -13,6 +13,8 @@ API.
 
 `GET /_cat/segments/<index>`
 
+`GET /_cat/segments`
+
 
 [[cat-segments-path-params]]
 ==== {api-path-parms-title}
@@ -102,11 +104,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-segments-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/segments?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT \/test\/test\/1?refresh\n{"test":"test"}\nPUT \/test1\/test\/1?refresh\n{"test":"test"}\n/]
 
 The API returns the following response:

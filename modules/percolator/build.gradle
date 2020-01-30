@@ -18,13 +18,13 @@
  */
 
 esplugin {
-    description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-    classname 'org.elasticsearch.percolator.PercolatorPlugin'
-    hasClientJar = true
+  description 'Percolator module adds capability to index queries and query these queries by specifying documents'
+  classname 'org.elasticsearch.percolator.PercolatorPlugin'
+  hasClientJar = true
 }
 
 dependencies {
-    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
 dependencyLicenses {

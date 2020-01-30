@@ -3,7 +3,7 @@
 :request: GetUserPrivilegesRequest
 :response: GetUserPrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get User Privileges API
 

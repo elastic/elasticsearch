@@ -82,11 +82,6 @@ enum DateFormat {
 
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId zoneId, Locale locale) {
-            // support the 6.x BWC compatible way of parsing java 8 dates
-            if (format.startsWith("8")) {
-                format = format.substring(1);
-            }
-
             boolean isUtc = ZoneOffset.UTC.equals(zoneId);
 
             DateFormatter dateFormatter = DateFormatter.forPattern(format)
@@ -98,9 +93,9 @@ enum DateFormat {
             final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
-                // if there is no year, we fall back to the current one and
+                // if there is no year nor year-of-era, we fall back to the current one and
                 // fill the rest of the date up with the parsed date
-                if (accessor.isSupported(ChronoField.YEAR) == false) {
+                if (accessor.isSupported(ChronoField.YEAR) == false && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false ) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {

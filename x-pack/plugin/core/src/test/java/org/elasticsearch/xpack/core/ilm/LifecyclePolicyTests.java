@@ -48,6 +48,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                     (in) -> TimeseriesLifecycleType.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
@@ -66,6 +67,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
                 (p) -> TimeseriesLifecycleType.INSTANCE),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(WaitForSnapshotAction.NAME), WaitForSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
@@ -110,6 +113,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return AllocateActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
+                case WaitForSnapshotAction.NAME:
+                    return  WaitForSnapshotActionTests.randomInstance();
                 case ForceMergeAction.NAME:
                     return ForceMergeActionTests.randomInstance();
                 case ReadOnlyAction.NAME:
@@ -160,6 +165,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             switch (action) {
                 case AllocateAction.NAME:
                     return AllocateActionTests.randomInstance();
+                case WaitForSnapshotAction.NAME:
+                    return WaitForSnapshotActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
                 case ForceMergeAction.NAME:

@@ -22,7 +22,7 @@ Starts one or more {dfeeds}.
 error occurs.
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-start-datafeed-desc]]
 ==== {api-description-title}
@@ -74,7 +74,8 @@ creation/update and runs the query using those same roles.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-request-body]]
 ==== {api-request-body-title}
@@ -94,16 +95,13 @@ creation/update and runs the query using those same roles.
 [[ml-start-datafeed-example]]
 ==== {api-examples-title}
 
-The following example starts the `datafeed-it-ops-kpi` {dfeed}:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-total-requests/_start
 {
   "start": "2017-04-07T18:22:16Z"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 When the {dfeed} starts, you receive the following results:

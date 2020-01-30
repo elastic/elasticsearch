@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
@@ -29,7 +28,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +38,9 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.junit.Assert.assertTrue;
 
 public class MockBigArrays extends BigArrays {
 
@@ -57,8 +58,9 @@ public class MockBigArrays extends BigArrays {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success = ESTestCase.awaitBusy(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()));
-            if (!success) {
+            try {
+                assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet())));
+            } catch (AssertionError ex) {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
                 if (!masterCopy.isEmpty()) {

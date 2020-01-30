@@ -22,6 +22,8 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
+import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -34,12 +36,14 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.RelativePath;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -56,13 +60,18 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static final String CONTAINER_NAME = "elasticsearch_distributions";
     private static final String FAKE_IVY_GROUP = "elasticsearch-distribution";
+    private static final String FAKE_SNAPSHOT_IVY_GROUP = "elasticsearch-distribution-snapshot";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
+    private static final String SNAPSHOT_REPO_NAME = "elasticsearch-snapshots";
 
     private BwcVersions bwcVersions;
     private NamedDomainObjectContainer<ElasticsearchDistribution> distributionsContainer;
 
     @Override
     public void apply(Project project) {
+        // this is needed for isInternal
+        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
@@ -72,9 +81,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         setupDownloadServiceRepo(project);
 
-        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-        this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-        // TODO: setup snapshot dependency instead of pointing to bwc distribution projects for external projects
+        if (BuildParams.isInternal()) {
+            ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+            this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        }
 
         project.afterEvaluate(this::setupDistributions);
     }
@@ -93,12 +103,14 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             // for the distribution as a file, just depend on the artifact directly
             dependencies.add(distribution.configuration.getName(), dependencyNotation(project, distribution));
 
-            // no extraction allowed for rpm or deb
-            if (distribution.getType() != Type.RPM && distribution.getType() != Type.DEB) {
+            // no extraction allowed for rpm, deb or docker
+            if (distribution.getType().shouldExtract()) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(distribution.getExtracted().configuration.getName(),
-                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution)));
+                dependencies.add(
+                    distribution.getExtracted().configuration.getName(),
+                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution))
+                );
                 // ensure a root level download task exists
                 setupRootDownload(project.getRootProject(), distribution);
             }
@@ -131,7 +143,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             TaskProvider<Sync> extractTask = rootProject.getTasks().register(extractTaskName, Sync.class, syncTask -> {
                 syncTask.dependsOn(downloadConfig);
                 syncTask.into(extractDir);
-                syncTask.from((Callable<FileTree>)() -> {
+                syncTask.from((Callable<FileTree>) () -> {
                     File archiveFile = archiveGetter.get();
                     String archivePath = archiveFile.toString();
                     if (archivePath.endsWith(".zip")) {
@@ -141,20 +153,28 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     }
                     throw new IllegalStateException("unexpected file extension on [" + archivePath + "]");
                 });
+
+                // Workaround for https://github.com/elastic/elasticsearch/issues/49417
+                syncTask.eachFile(details -> {
+                    String[] segments = details.getRelativePath().getSegments();
+                    if (segments[0].equals(".")) {
+                        details.setRelativePath(new RelativePath(true, Arrays.copyOfRange(segments, 1, segments.length)));
+                    }
+                });
             });
-            rootProject.getArtifacts().add(extractedConfigName,
-                rootProject.getLayout().getProjectDirectory().dir(extractDir),
-                artifact -> artifact.builtBy(extractTask));
+            rootProject.getArtifacts()
+                .add(
+                    extractedConfigName,
+                    rootProject.getLayout().getProjectDirectory().dir(extractDir),
+                    artifact -> artifact.builtBy(extractTask)
+                );
         }
     }
 
-    private static void setupDownloadServiceRepo(Project project) {
-        if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
-            return;
-        }
+    private static void addIvyRepo(Project project, String name, String url, String group) {
         project.getRepositories().ivy(ivyRepo -> {
-            ivyRepo.setName(DOWNLOAD_REPO_NAME);
-            ivyRepo.setUrl("https://artifacts.elastic.co");
+            ivyRepo.setName(name);
+            ivyRepo.setUrl(url);
             ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
             ivyRepo.credentials(HttpHeaderCredentials.class, creds -> {
@@ -163,15 +183,25 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             });
             ivyRepo.getAuthentication().create("header", HttpHeaderAuthentication.class);
             ivyRepo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
-            ivyRepo.content(content -> content.includeGroup(FAKE_IVY_GROUP));
+            ivyRepo.content(content -> content.includeGroup(group));
         });
         project.getRepositories().all(repo -> {
-            if (repo.getName().equals(DOWNLOAD_REPO_NAME) == false) {
+            if (repo.getName().equals(name) == false) {
                 // all other repos should ignore the special group name
-                repo.content(content -> content.excludeGroup(FAKE_IVY_GROUP));
+                repo.content(content -> content.excludeGroup(group));
             }
         });
-        // TODO: need maven repo just for integ-test-zip, but only in external cases
+    }
+
+    private static void setupDownloadServiceRepo(Project project) {
+        if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
+            return;
+        }
+        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.elastic.co", FAKE_IVY_GROUP);
+        if (BuildParams.isInternal() == false) {
+            // external, so add snapshot repo as well
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
+        }
     }
 
     /**
@@ -187,36 +217,52 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      */
     private Object dependencyNotation(Project project, ElasticsearchDistribution distribution) {
 
-        if (Version.fromString(VersionProperties.getElasticsearch()).equals(distribution.getVersion())) {
-            return projectDependency(project, distributionProjectPath(distribution), "default");
-            // TODO: snapshot dep when not in ES repo
-        }
-        BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(distribution.getVersion());
-        if (unreleasedInfo != null) {
-            assert distribution.getBundledJdk();
-            return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
+        if (BuildParams.isInternal()) {
+            // non-external project, so depend on local build
+
+            if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
+                return projectDependency(project, distributionProjectPath(distribution), "default");
+            }
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
+            if (unreleasedInfo != null) {
+                assert distribution.getBundledJdk();
+                return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
+            }
         }
 
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion();
+            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
 
+        Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
-        String classifier = "x86_64";
-        if (distribution.getVersion().before("7.0.0")) {
-            classifier = null; // no platform specific distros before 7.0
-        } else if (distribution.getType() == Type.ARCHIVE) {
+        String classifier = ":x86_64";
+        if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-            classifier = distribution.getPlatform() + "-" + classifier;
+            if (distroVersion.onOrAfter("7.0.0")) {
+                classifier = ":" + distribution.getPlatform() + "-x86_64";
+            } else {
+                classifier = "";
+            }
         } else if (distribution.getType() == Type.DEB) {
-            classifier = "amd64";
+            if (distroVersion.onOrAfter("7.0.0")) {
+                classifier = ":amd64";
+            } else {
+                classifier = "";
+            }
+        } else if (distribution.getType() == Type.RPM && distroVersion.before("7.0.0")) {
+            classifier = "";
         }
-        return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
-            + distribution.getVersion() + (classifier == null ? "" : ":" + classifier) + "@" + extension;
+        String flavor = "";
+        if (distribution.getFlavor() == Flavor.OSS && distroVersion.onOrAfter("6.3.0")) {
+            flavor = "-oss";
+        }
+
+        String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
+        return group + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 
     private static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
-
         if (project.findProject(projectPath) == null) {
             throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
         }
@@ -228,11 +274,20 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
         String projectPath = ":distribution";
-        if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            projectPath += ":archives:integ-test-zip";
-        } else {
-            projectPath += distribution.getType() == Type.ARCHIVE ? ":archives:" : ":packages:";
-            projectPath += distributionProjectName(distribution);
+        switch (distribution.getType()) {
+            case INTEG_TEST_ZIP:
+                projectPath += ":archives:integ-test-zip";
+                break;
+
+            case DOCKER:
+                projectPath += ":docker:";
+                projectPath += distributionProjectName(distribution);
+                break;
+
+            default:
+                projectPath += distribution.getType() == Type.ARCHIVE ? ":archives:" : ":packages:";
+                projectPath += distributionProjectName(distribution);
+                break;
         }
         return projectPath;
     }
@@ -245,9 +300,16 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
+
         if (distribution.getType() == Type.ARCHIVE) {
-            Platform platform = distribution.getPlatform();
-            projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+            if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
+                Platform platform = distribution.getPlatform();
+                projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+            } else {
+                projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ? "zip" : "oss-zip";
+            }
+        } else if (distribution.getType() == Type.DOCKER) {
+            projectName += "docker-export";
         } else {
             projectName += distribution.getType();
         }
@@ -255,9 +317,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private static String configName(String prefix, ElasticsearchDistribution distribution) {
-        return prefix + "_" + distribution.getVersion() + "_" + distribution.getType() + "_" +
-            (distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_")
-            + distribution.getFlavor() + (distribution.getBundledJdk() ? "" : "_nojdk");
+        return String.format(
+            "%s_%s_%s_%s%s%s",
+            prefix,
+            distribution.getVersion(),
+            distribution.getType(),
+            distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
+            distribution.getFlavor(),
+            distribution.getBundledJdk() ? "" : "_nojdk"
+        );
     }
 
     private static String capitalize(String s) {

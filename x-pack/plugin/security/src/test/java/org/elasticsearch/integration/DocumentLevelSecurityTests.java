@@ -608,6 +608,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public void testParentChild() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject("properties")
+                    .startObject("id")
+                        .field("type", "keyword")
+                    .endObject()
                     .startObject("join_field")
                         .field("type", "join")
                         .startObject("relations")
@@ -634,15 +637,18 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put("field2", "value2");
+        source.put("id", "c1");
         Map<String, Object> joinField = new HashMap<>();
         joinField.put("name", "child");
         joinField.put("parent", "p1");
         source.put("join_field", joinField);
         client().prepareIndex("test", "doc", "c1").setSource(source).setRouting("p1").get();
+        source.put("id", "c2");
         client().prepareIndex("test", "doc", "c2").setSource(source).setRouting("p1").get();
         source = new HashMap<>();
         source.put("field3", "value3");
         source.put("join_field", joinField);
+        source.put("id", "c3");
         client().prepareIndex("test", "doc", "c3").setSource(source).setRouting("p1").get();
         refresh();
         verifyParentChild();
@@ -657,7 +663,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(hasParentQuery("parent", matchAllQuery(), false))
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .get();
         assertHitCount(searchResponse, 3L);
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));

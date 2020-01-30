@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,6 +44,8 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     private IndicesOptions indicesOptions  = SearchRequest.DEFAULT_INDICES_OPTIONS;
     private String[] indices = Strings.EMPTY_ARRAY;
 
+    private SearchType searchType = SearchType.DEFAULT;
+
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
         indices(indices);
@@ -51,17 +54,10 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     RankEvalRequest(StreamInput in) throws IOException {
         super(in);
         rankingEvaluationSpec = new RankEvalSpec(in);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            // readStringArray uses readVInt for size, we used readInt in 6.2
-            int indicesSize = in.readInt();
-            String[] indices = new String[indicesSize];
-            for (int i = 0; i < indicesSize; i++) {
-                indices[i] = in.readString();
-            }
-            // no indices options yet
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            searchType = SearchType.fromId(in.readByte());
         }
     }
 
@@ -122,20 +118,28 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
     }
 
+    /**
+     * The search type to execute, defaults to {@link SearchType#DEFAULT}.
+     */
+    public void searchType(SearchType searchType) {
+        this.searchType = Objects.requireNonNull(searchType, "searchType must not be null");
+    }
+
+    /**
+     * The type of search to execute.
+     */
+    public SearchType searchType() {
+        return searchType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         rankingEvaluationSpec.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
-        } else {
-            // writeStringArray uses writeVInt for size, we used writeInt in 6.2
-            out.writeInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
-            // no indices options yet
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeByte(searchType.id());
         }
     }
 
@@ -150,11 +154,12 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         RankEvalRequest that = (RankEvalRequest) o;
         return Objects.equals(indicesOptions, that.indicesOptions) &&
                 Arrays.equals(indices, that.indices) &&
-                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec);
+                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec) &&
+                Objects.equals(searchType, that.searchType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indicesOptions, Arrays.hashCode(indices), rankingEvaluationSpec);
+        return Objects.hash(indicesOptions, Arrays.hashCode(indices), rankingEvaluationSpec, searchType);
     }
 }

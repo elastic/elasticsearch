@@ -1,23 +1,130 @@
+[[release-notes-7.4.2]]
+== {es} version 7.4.2
+
+[float]
+[[bug-7.4.2]]
+=== Bug fixes
+
+Transform::
+* Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
+
+[[release-notes-7.4.1]]
+== {es} version 7.4.1
+
+Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
+
+[[enhancement-7.4.1]]
+[float]
+=== Enhancements
+
+Engine::
+* Avoid unneeded refresh with concurrent realtime gets {pull}47895[#47895]
+* sync before trimUnreferencedReaders to improve index preformance {pull}47790[#47790] (issues: {issue}46201[#46201], {issue}46203[#46203])
+* Limit number of retaining translog files for peer recovery {pull}47414[#47414]
+
+Infra/Circuit Breakers::
+* Emit log message when parent circuit breaker trips {pull}47000[#47000]
+
+Machine Learning::
+* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003])
+* The {ml} native processes are now arranged in a `.app` directory structure on
+  macOS, to allow for notarization on macOS Catalina. {ml-pull}593[#593]
+
+
+
+[[bug-7.4.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* DocValueFormat implementation for date range fields {pull}47472[#47472] (issues: {issue}47323[#47323], {issue}47469[#47469])
+
+Allocation::
+* Dangling indices strip aliases {pull}47581[#47581]
+
+Analysis::
+* Reset Token position on reuse in `predicate_token_filter` {pull}47424[#47424] (issue: {issue}47197[#47197])
+
+Authentication::
+* Fix AD realm additional metadata {pull}47179[#47179] (issue: {issue}45848[#45848])
+
+Authorization::
+* Use 'should' clause instead of 'filter' when querying native privileges {pull}47019[#47019]
+
+CCR::
+* Do not auto-follow closed indices {pull}47721[#47721] (issue: {issue}47582[#47582])
+* Relax maxSeqNoOfUpdates assertion in FollowingEngine {pull}47188[#47188] (issue: {issue}47137[#47137])
+
+Cluster Coordination::
+* Omit writing index metadata for non-replicated closed indices on data-only node {pull}47285[#47285] (issue: {issue}47276[#47276])
+
+Features/ILM+SLM::
+* Throw error retrieving non-existent SLM policy {pull}47679[#47679] (issue: {issue}47664[#47664])
+
+Features/Indices APIs::
+* Fix Rollover error when alias has closed indices {pull}47148[#47148] (issue: {issue}47146[#47146])
+
+Features/Java High Level REST Client::
+* Fix ILM HLRC Javadoc->Documentation links {pull}48083[#48083]
+
+Features/Monitoring::
+* [Monitoring] Add new cluster privilege now necessary for the stack monitoring ui {pull}47871[#47871]
+
+Infra/Scripting::
+* Drop stored scripts with the old style-id {pull}48078[#48078] (issue: {issue}47593[#47593])
+
+Machine Learning::
+* Fix detection of syslog-like timestamp in find_file_structure {pull}47970[#47970]
+* Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
+* Fix possibility of crash when calculating forecasts that overflow to disk {ml-pull}688[#688]
+
+Network::
+* Fix es.http.cname_in_publish_address Deprecation Logging {pull}47451[#47451] (issue: {issue}47436[#47436])
+
+SQL::
+* SQL: Fix issue with negative literels and parentheses {pull}48113[#48113] (issue: {issue}48009[#48009])
+* SQL: add "format" for "full" date range queries {pull}48073[#48073] (issue: {issue}48033[#48033])
+* SQL: Allow whitespaces in escape patterns {pull}47577[#47577] (issue: {issue}47401[#47401])
+* SQL: fix multi full-text functions usage with aggregate functions {pull}47444[#47444] (issue: {issue}47365[#47365])
+* SQL: wrong number of values for columns {pull}42122[#42122]
+
+Search::
+* Fix alias field resolution in match query {pull}47369[#47369]
+
+Snapshot/Restore::
+* Fix Bug in Azure Repo Exception Handling {pull}47968[#47968]
+* Fix Snapshot Corruption in Edge Case {pull}47552[#47552] (issues: {issue}46250[#46250], {issue}47550[#47550])
+
+Store::
+* Allow truncation of clean translog {pull}47866[#47866]
+
+Transform::
+* Fix bwc serialization with 7.3 {pull}48021[#48021]
+
+
+
 [[release-notes-7.4.0]]
 == {es} version 7.4.0
 
-coming[7.4.0]
-
 Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
+
+[float]
+=== Known issues
+
+* Activating the <<search-slow-log, search slow log>> should be avoided in this version.
+Any attempt to log a slow search can throw an AIOOBE due to a bug that
+performs concurrent modifications on a shared byte array.
+(issue: {issue}/48358[#48358])
 
 [[breaking-7.4.0]]
 [float]
 === Breaking changes
 
-Data Frame::
-* [ML-DataFrame] Combine task_state and indexer_state in _stats {pull}45276[#45276] (issue: {issue}45201[#45201])
-* [ML] Improve response format of data frame stats endpoint {pull}44350[#44350] (issue: {issue}43767[#43767])
-
 Infra/REST API::
 * Update the schema for the REST API specification {pull}42346[#42346] (issue: {issue}35262[#35262])
 
 Machine Learning::
-* [ML] Improve progress reportings for DF analytics {pull}45856[#45856]
+* Improve progress reporting for data frame analytics {pull}45856[#45856]
 
 Ranking::
 * Forbid empty doc values on vector functions {pull}43944[#43944]
@@ -28,6 +135,9 @@ Search::
 Snapshot/Restore::
 * Provide an Option to Use Path-Style-Access with S3 Repo {pull}41966[#41966] (issue: {issue}41816[#41816])
 
+Transforms::
+* Combine task_state and indexer_state in _stats {pull}45276[#45276] (issue: {issue}45201[#45201])
+* Improve response format of transform stats endpoint {pull}44350[#44350] (issue: {issue}43767[#43767])
 
 
 [[breaking-java-7.4.0]]
@@ -35,7 +145,6 @@ Snapshot/Restore::
 === Breaking Java changes
 
 Geo::
-* Geo: Change order of parameter in Geometries to lon, lat 7.x {pull}45618[#45618] (issues: {issue}45048[#45048], {issue}45332[#45332])
 * Geo: Change order of parameter in Geometries to lon, lat {pull}45332[#45332] (issue: {issue}45048[#45048])
 
 Network::
@@ -51,6 +160,7 @@ Geo::
 * Geo: add Geometry-based query builders to QueryBuilders {pull}45058[#45058] (issues: {issue}44715[#44715], {issue}45048[#45048])
 
 Infra/Core::
+* Bundle AdoptOpenJDK 13 {pull}46860[#46860]
 * Add deprecation check for pidfile setting {pull}45939[#45939] (issues: {issue}45938[#45938], {issue}45940[#45940])
 * Deprecate the pidfile setting {pull}45938[#45938]
 * Add node.processors setting in favor of processors {pull}45855[#45855]
@@ -60,7 +170,7 @@ Infra/Settings::
 * Add deprecation check for processors {pull}45925[#45925] (issues: {issue}45855[#45855], {issue}45905[#45905])
 
 Machine Learning::
-* [ML] [7.x] Only emit deprecation warning if there was actual change of a datafeed's job_id. {pull}44755[#44755]
+* Only emit deprecation warning if there was actual change of a datafeed's job_id. {pull}44755[#44755]
 * Deprecate the ability to update datafeed's job_id. {pull}44691[#44691] (issue: {issue}44615[#44615])
 
 
@@ -93,10 +203,11 @@ Geo::
 * [SPATIAL] New ShapeQueryBuilder for querying indexed cartesian geometry {pull}45108[#45108] (issue: {issue}44980[#44980])
 * [GEO] New ShapeFieldMapper for indexing cartesian geometries {pull}44980[#44980]
 * Add Circle Processor {pull}43851[#43851] (issue: {issue}43554[#43554])
+* New `shape` field type for indexing Cartesian Geometries {pull}43644[#43644]
 
 Machine Learning::
 * Allow the user to specify 'query' in Evaluate Data Frame request {pull}45775[#45775] (issue: {issue}45729[#45729])
-* Call the new _estimate_memory_usage API endpoint on df analytics _start {pull}45536[#45536] (issues: {issue}44699[#44699], {issue}45544[#45544])
+* Call the new _estimate_memory_usage API endpoint on data frame analytics _start {pull}45536[#45536] (issues: {issue}44699[#44699], {issue}45544[#45544])
 * HLRC for memory usage estimation API {pull}45531[#45531] (issues: {issue}44699[#44699], {issue}45188[#45188])
 * Implement ml/data_frame/analytics/_estimate_memory_usage API endpoint {pull}45188[#45188] (issue: {issue}44699[#44699])
 
@@ -141,15 +252,6 @@ Cluster Coordination::
 * Ignore unknown fields if overriding node metadata {pull}44689[#44689]
 * Allow pending tasks before state recovery {pull}44685[#44685] (issue: {issue}44652[#44652])
 
-Data Frame::
-* [ML][Data Frame] Add update transform api endpoint {pull}45154[#45154] (issue: {issue}43438[#43438])
-* [ML][Data Frame] add support for bucket_selector {pull}44718[#44718] (issues: {issue}43744[#43744], {issue}44557[#44557])
-* [ML][Data Frame] adding force delete {pull}44590[#44590] (issue: {issue}43961[#43961])
-* [ML][Data Frame] adding dynamic cluster setting for failure retries {pull}44577[#44577]
-* [ML][Data Frame] Add optional defer_validation param to PUT {pull}44455[#44455] (issue: {issue}43439[#43439])
-* [ML][Data Frame] add support for geo_bounds aggregation {pull}44441[#44441]
-* [ML-DataFrame] Add a frequency option to transform config, default 1m {pull}44120[#44120]
-
 Distributed::
 * Do not create engine under IndexShard#mutex {pull}45263[#45263] (issue: {issue}43699[#43699])
 
@@ -163,10 +265,8 @@ Engine::
 * Async IO Processor release before notify {pull}43682[#43682]
 * Enable indexing optimization using sequence numbers on replicas {pull}43616[#43616] (issue: {issue}34099[#34099])
 
-Features/Features::
-* Disable String interning on field names for JSON parsing {pull}41039[#41039] (issue: {issue}39890[#39890])
-
 Features/ILM::
+* Add node setting for disabling SLM {pull}46794[#46794] (issue: {issue}38461[#38461])
 * Include in-progress snapshot for a policy with get SLM policy API {pull}45245[#45245]
 *  Add option to filter ILM explain response {pull}44777[#44777] (issue: {issue}44189[#44189])
 * Expose index age in ILM explain output {pull}44457[#44457] (issue: {issue}38988[#38988])
@@ -198,10 +298,12 @@ Features/Watcher::
 Geo::
 * Support WKT point conversion to geo_point type {pull}44107[#44107] (issue: {issue}41821[#41821])
 
+Infra/Circuit Breakers::
+* Fix G1 GC default IHOP {pull}46169[#46169]
+
 Infra/Core::
 * Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])
 * Use the full hash in build info {pull}45163[#45163] (issue: {issue}45162[#45162])
-* Set start of the week to Monday for root locale {pull}43652[#43652] (issues: {issue}41670[#41670], {issue}42588[#42588], {issue}43275[#43275])
 
 Infra/Packaging::
 * Remove redundant Java check from Sys V init {pull}45793[#45793] (issue: {issue}45593[#45593])
@@ -216,23 +318,24 @@ Infra/Scripting::
 * Remove stale permissions from untrusted policy {pull}44783[#44783]
 
 Infra/Settings::
+* Add more meaningful keystore version mismatch errors {pull}46291[#46291] (issue: {issue}44624[#44624])
 * Lift the restrictions that uppercase is not allowed in Setting Name. {pull}45222[#45222] (issue: {issue}43835[#43835])
 * Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
 
 Machine Learning::
-* [ML] Support boolean fields for DF analytics {pull}46037[#46037]
-* [ML] Add description to DF analytics {pull}45774[#45774]
-* [ML] Add regression analysis to DF analytics {pull}45292[#45292]
+* Support boolean fields for data frame analytics {pull}46037[#46037]
+* Add description to data frame analytics {pull}45774[#45774]
+* Add regression analysis to data frame analytics {pull}45292[#45292]
 * Introduce formal node ML role {pull}45174[#45174] (issues: {issue}29943[#29943], {issue}43175[#43175])
-* [ML] Improve CSV header row detection in find_file_structure {pull}45099[#45099] (issue: {issue}45047[#45047])
-* [ML] Outlier detection should only fetch docs that have the analyzed … {pull}44944[#44944]
+* Improve CSV header row detection in find_file_structure {pull}45099[#45099] (issue: {issue}45047[#45047])
+* Outlier detection should only fetch docs that have the analyzed fields {pull}44944[#44944]
 * Persist DatafeedTimingStats with RefreshPolicy.NONE by default {pull}44940[#44940] (issue: {issue}44792[#44792])
 * Add result_type field to TimingStats and DatafeedTimingStats documents {pull}44812[#44812]
 * Implement exponential average search time per hour statistics. {pull}44683[#44683] (issue: {issue}29857[#29857])
-* [ML] Add r_squared eval metric to regression {pull}44248[#44248]
-* [ML] Adds support for regression.mean_squared_error to eval API {pull}44140[#44140]
+* Add r_squared eval metric to regression {pull}44248[#44248]
+* Adds support for regression.mean_squared_error to eval API {pull}44140[#44140]
 * Add DatafeedTimingStats.average_search_time_per_bucket_ms and TimingStats.total_bucket_processing_time_ms stats {pull}44125[#44125] (issue: {issue}29857[#29857])
-* [ML] Add DatafeedTimingStats to datafeed GetDatafeedStatsAction.Response {pull}43045[#43045] (issue: {issue}29857[#29857])
+* Add DatafeedTimingStats to datafeed GetDatafeedStatsAction.Response {pull}43045[#43045] (issue: {issue}29857[#29857])
 
 Network::
 * Better logging for TLS message on non-secure transport channel {pull}45835[#45835] (issue: {issue}32688[#32688])
@@ -242,7 +345,6 @@ Network::
 * Move ConnectionManager to async APIs {pull}42636[#42636]
 
 Ranking::
-* Precompute vector length on indexing {pull}45390[#45390]
 * Search enhancement: pinned queries {pull}44345[#44345] (issue: {issue}44074[#44074])
 * Fix parameter value for calling data.advanceExact {pull}44205[#44205]
 * Add l1norm and l2norm distances for vectors {pull}44116[#44116] (issue: {issue}37947[#37947])
@@ -255,6 +357,7 @@ Recovery::
 * Make peer recovery send file chunks async {pull}44468[#44468] (issues: {issue}36195[#36195], {issue}44040[#44040])
 
 SQL::
+* SQL: Support queries with HAVING over SELECT {pull}46709[#46709] (issue: {issue}37051[#37051])
 * SQL: Break TextFormatter/Cursor dependency {pull}45613[#45613] (issue: {issue}45516[#45516])
 * SQL: remove deprecated use of "interval" from date_histogram usage {pull}45501[#45501] (issue: {issue}43922[#43922])
 * SQL: use hasValue() methods from Elasticsearch's InspectionHelper classes {pull}44745[#44745] (issue: {issue}35745[#35745])
@@ -267,9 +370,6 @@ Search::
 
 Security::
 * Set security index refresh interval to 1s {pull}45434[#45434] (issue: {issue}44934[#44934])
-*  Handle pwd protected keystores in all CLI tools  {pull}45289[#45289]
-* Reload secure settings with password {pull}43197[#43197]
-* Add passphrase support to elasticsearch-keystore {pull}38498[#38498] (issues: {issue}32691[#32691], {issue}37472[#37472])
 
 Snapshot/Restore::
 * add disable_chunked_encoding configuration {pull}44052[#44052]
@@ -280,6 +380,14 @@ Task Management::
 * TaskListener#onFailure to accept Exception instead of Throwable {pull}44946[#44946]
 * Move child task cancellation to TaskManager {pull}44573[#44573] (issue: {issue}44494[#44494])
 
+Transforms::
+* Add update transform api endpoint {pull}45154[#45154] (issue: {issue}43438[#43438])
+* Add support for bucket_selector {pull}44718[#44718] (issues: {issue}43744[#43744], {issue}44557[#44557])
+* Add force delete {pull}44590[#44590] (issue: {issue}43961[#43961])
+* Add dynamic cluster setting for failure retries {pull}44577[#44577]
+* Add optional defer_validation param to PUT {pull}44455[#44455] (issue: {issue}43439[#43439])
+* Add support for geo_bounds aggregation {pull}44441[#44441]
+* Add a frequency option to transform config, default 1m {pull}44120[#44120]
 
 
 [[bug-7.4.0]]
@@ -300,12 +408,16 @@ Analysis::
 * Fix AnalyzeAction response serialization {pull}44284[#44284] (issue: {issue}44078[#44078])
 
 Authentication::
+* Fallback to realm authc if ApiKey fails {pull}46538[#46538]
+* Enforce realm name uniqueness {pull}46253[#46253]
 * Allow empty token endpoint for implicit flow {pull}45038[#45038]
 * Do not use scroll when finding duplicate API key {pull}45026[#45026]
 * Fix broken short-circuit in getUnlicensedRealms {pull}44399[#44399]
 * Fix X509AuthenticationToken principal {pull}43932[#43932] (issues: {issue}34396[#34396], {issue}43796[#43796])
 
 Authorization::
+* Do not rewrite aliases on remove-index from aliases requests {pull}46989[#46989]
+* Give kibana user privileges to create APM agent config index {pull}46765[#46765] (issue: {issue}45610[#45610])
 *  Add `manage_own_api_key` cluster privilege {pull}45696[#45696] (issue: {issue}40031[#40031])
 * Sparse role queries can throw an NPE {pull}45053[#45053]
 
@@ -316,27 +428,17 @@ CCR::
 * Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
 
 CRUD::
+* Ignore replication for noop updates {pull}46458[#46458] (issues: {issue}41065[#41065], {issue}44603[#44603], {issue}46366[#46366])
 * Allow _update on write alias {pull}45318[#45318] (issue: {issue}31520[#31520])
 * Do not allow version in Rest Update API {pull}43516[#43516] (issue: {issue}42497[#42497])
 
 Cluster Coordination::
+* Assert no exceptions during state application {pull}47090[#47090] (issue: {issue}47038[#47038])
 * Avoid counting votes from master-ineligible nodes {pull}43688[#43688]
 
-Data Frame::
-* [ML][Data Frame] moves failure state transition for MT safety {pull}45676[#45676] (issue: {issue}45664[#45664])
-* [ML][Data Frame] fixing _start?force=true bug {pull}45660[#45660]
-* [ML][Data frame] fixing failure state transitions and race condition {pull}45627[#45627] (issues: {issue}45562[#45562], {issue}45609[#45609])
-* [ML-DataFrame] fix starting a batch data frame after stopping at runtime  {pull}45340[#45340] (issues: {issue}44219[#44219], {issue}45339[#45339])
-* [ML][Data Frames] Fix null aggregation handling in indexer {pull}45061[#45061] (issue: {issue}44906[#44906])
-* [ML][Data Frames] unify validation exceptions between PUT/_preview {pull}44983[#44983] (issue: {issue}44953[#44953])
-* [ML][Data Frame] treat bulk index failures as an indexing failure {pull}44351[#44351] (issue: {issue}44101[#44101])
-* [ML][Data Frame] prevent task from attempting to run when failed {pull}44239[#44239] (issue: {issue}44121[#44121])
-* [ML][Data Frame] responding with 409 status code when failing _stop {pull}44231[#44231] (issue: {issue}44103[#44103])
-* [ML][Data Frame] adds index validations to _start data frame transform {pull}44191[#44191] (issue: {issue}44104[#44104])
-* [ML] Data frame task failure do not make a 500 response {pull}44058[#44058] (issue: {issue}44011[#44011])
-* [ML-DataFrame] audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
-
 Distributed::
+* Fix false positive out of sync warning in synced-flush {pull}46576[#46576] (issues: {issue}28464[#28464], {issue}30244[#30244])
+* Suppress warning logs from background sync on relocated primary {pull}46247[#46247] (issues: {issue}40800[#40800], {issue}42241[#42241])
 * Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
 * Update translog checkpoint after marking operations as persisted {pull}45634[#45634] (issue: {issue}29161[#29161])
 * Fix clock used in update requests {pull}45262[#45262] (issue: {issue}45254[#45254])
@@ -351,6 +453,9 @@ Engine::
 * Fail engine if hit document failure on replicas {pull}43523[#43523] (issues: {issue}40435[#40435], {issue}43228[#43228])
 
 Features/ILM::
+* Handle partial failure retrieving segments in SegmentCountStep {pull}46556[#46556]
+* Fixes for API specification {pull}46522[#46522]
+* Fix SnapshotLifecycleMetadata xcontent serialization {pull}46500[#46500] (issue: {issue}46499[#46499])
 * Updated slm API spec parameters and URL {pull}44797[#44797]
 * Fix swapped variables in error message {pull}44300[#44300]
 
@@ -360,17 +465,28 @@ Features/Indices APIs::
 * Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
 * Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
 
+Features/Ingest::
+* Allow dropping documents with auto-generated ID {pull}46773[#46773] (issue: {issue}46678[#46678])
+
 Features/Java High Level REST Client::
+* [HLRC] Send min_score as query string parameter to the count API {pull}46829[#46829] (issue: {issue}46474[#46474])
+* HLRC multisearchTemplate forgot params {pull}46492[#46492] (issue: {issue}46488[#46488])
+* terminateAfter added to the RequestConverter {pull}46474[#46474] (issue: {issue}46446[#46446])
 * [Closes #44045] Added 'slices' parameter when submitting reindex request via Java high level REST client {pull}45690[#45690] (issue: {issue}44045[#44045])
 * HLRC: Fix '+' Not Correctly Encoded in GET Req. {pull}33164[#33164] (issue: {issue}33077[#33077])
 
 Features/Watcher::
+* Fix class used to initialize logger in Watcher {pull}46467[#46467]
+* Fix wrong URL encoding in watcher HTTP client {pull}45894[#45894] (issue: {issue}44970[#44970])
 * Fix watcher HttpClient URL creation {pull}45207[#45207] (issue: {issue}44970[#44970])
 * Log write failures for watcher history document. {pull}44129[#44129]
 
 Geo::
 * Geo: fix geo query decomposition {pull}44924[#44924] (issue: {issue}44891[#44891])
 * Geo: add validator that only checks altitude {pull}43893[#43893]
+
+Highlighting::
+* Fix highlighting for script_score query {pull}46507[#46507] (issue: {issue}46471[#46471])
 
 Infra/Core::
 * Always check that cgroup data is present {pull}45606[#45606] (issue: {issue}45396[#45396])
@@ -403,17 +519,22 @@ Infra/Settings::
 * bug fix about elasticsearch.common.settings.Settings.processSetting {pull}44047[#44047] (issue: {issue}43791[#43791])
 
 Machine Learning::
-* [ML] Throw an error when a datafeed needs CCS but it is not enabled for the node {pull}46044[#46044] (issue: {issue}46025[#46025])
+* Fix two datafeed flush lockup bugs {pull}46982[#46982]
+* Throw an error when a datafeed needs CCS but it is not enabled for the node {pull}46044[#46044] (issue: {issue}46025[#46025])
 * Handle "null" value of Estimate memory usage API response gracefully. {pull}45726[#45726] (issue: {issue}44699[#44699])
-* [ML] Remove timeout on waiting for DF analytics result processor to complete {pull}45724[#45724] (issue: {issue}45723[#45723])
-* [ML] Check dest index is empty when starting DF analytics {pull}45094[#45094]
-* [ML] Catch any error thrown while closing data frame analytics process {pull}44958[#44958]
+* Remove timeout on waiting for data frame analytics result processor to complete {pull}45724[#45724] (issue: {issue}45723[#45723])
+* Check dest index is empty when starting data frame analytics {pull}45094[#45094]
+* Catch any error thrown while closing data frame analytics process {pull}44958[#44958]
 * Treat PostDataActionResponse.DataCounts.bucketCount as incremental rather than absolute (total). {pull}44803[#44803] (issue: {issue}44792[#44792])
 * Treat big changes in searchCount as significant and persist the document after such changes {pull}44413[#44413] (issues: {issue}44196[#44196], {issue}44335[#44335])
-* Update .ml-config mappings before indexing job, datafeed or df analytics config {pull}44216[#44216] (issue: {issue}44263[#44263])
-* [ML] Wait for .ml-config primary before assigning persistent tasks {pull}44170[#44170] (issue: {issue}44156[#44156])
-* [ML] Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
-* [ML] Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
+* Update .ml-config mappings before indexing job, datafeed or data frame analytics config {pull}44216[#44216] (issue: {issue}44263[#44263])
+* Wait for .ml-config primary before assigning persistent tasks {pull}44170[#44170] (issue: {issue}44156[#44156])
+* Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
+* Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
+* Rename outlier detection method values `knn` and `tnn` to `distance_kth_nn` and `distance_knn`
+respectively to match the API. {ml-pull}598[#598]
+* Fix occasional (non-deterministic) reinitialisation of modeling for the `lat_long`
+function. {ml-pull}641[#641]
 
 Mapping::
 * Make sure to validate the type before attempting to merge a new mapping. {pull}45157[#45157] (issues: {issue}29316[#29316], {issue}43012[#43012])
@@ -431,13 +552,18 @@ Recovery::
 * Never release store using CancellableThreads {pull}45409[#45409] (issues: {issue}45136[#45136], {issue}45237[#45237])
 * Remove leniency in reset engine from translog {pull}44711[#44711]
 
-Reindex::
-* Fix issues with serializing BulkByScrollResponse {pull}45357[#45357]
-
 Rollup::
 * Fix Rollup job creation to work with templates {pull}43943[#43943]
 
 SQL::
+* SQL: Properly handle indices with no/empty mapping {pull}46775[#46775] (issue: {issue}46757[#46757])
+* SQL: improve ResultSet behavior when no rows are available {pull}46753[#46753] (issue: {issue}46750[#46750])
+* SQL: use the correct data type for types conversion {pull}46574[#46574] (issue: {issue}46090[#46090])
+* SQL: Fix issue with common type resolution {pull}46565[#46565] (issue: {issue}46551[#46551])
+* SQL: fix scripting for grouped by datetime functions {pull}46421[#46421] (issue: {issue}40241[#40241])
+* SQL: Use null schema response {pull}46386[#46386] (issue: {issue}46381[#46381])
+* SQL: Fix issue with IIF function when condition folds {pull}46290[#46290] (issue: {issue}46268[#46268])
+* SQL: Fix issue with DataType for CASE with NULL {pull}46173[#46173] (issue: {issue}46032[#46032])
 * SQL: adds format parameter to range queries for constant date comparisons {pull}45326[#45326] (issue: {issue}45139[#45139])
 * SQL: uniquely named inner_hits sections for each nested field condition {pull}45039[#45039] (issues: {issue}33080[#33080], {issue}44544[#44544])
 * SQL: fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
@@ -447,6 +573,7 @@ SQL::
 * SQL: handle SQL not being available in a more graceful way {pull}43665[#43665] (issue: {issue}41279[#41279])
 
 Search::
+* Multi-get requests should wait for search active {pull}46283[#46283] (issue: {issue}27500[#27500])
 * Ensure top docs optimization is fully disabled for queries with unbounded max scores. {pull}46105[#46105] (issue: {issue}45933[#45933])
 * Disallow partial results when shard unavailable {pull}45739[#45739] (issue: {issue}42612[#42612])
 * Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {pull}45500[#45500]
@@ -454,12 +581,15 @@ Search::
 * Don't use index_phrases on graph queries {pull}44340[#44340] (issue: {issue}43976[#43976])
 
 Security::
+* Initialize document subset bit set cache used for DLS {pull}46211[#46211] (issue: {issue}45147[#45147])
 * Fix .security-* indices auto-create {pull}44918[#44918]
 * SecurityIndexManager handle RuntimeException while reading mapping {pull}44409[#44409]
 * Do not swallow I/O exception getting authentication {pull}44398[#44398] (issues: {issue}44172[#44172], {issue}44397[#44397])
 * Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
 
 Snapshot/Restore::
+* Fix Bug in Snapshot Status Response Timestamps {pull}46919[#46919] (issue: {issue}46913[#46913])
+* GCS deleteBlobsIgnoringIfNotExists should catch StorageException {pull}46832[#46832] (issue: {issue}46772[#46772])
 * Fix TransportSnapshotsStatusAction ThreadPool Use {pull}45824[#45824]
 * Stop Executing SLM Policy Transport Action on Snapshot Pool {pull}45727[#45727] (issue: {issue}45594[#45594])
 * Check again on-going snapshots/restores of indices before closing {pull}43873[#43873]
@@ -468,6 +598,29 @@ Snapshot/Restore::
 
 Task Management::
 * Catch AllocatedTask registration failures {pull}45300[#45300]
+
+Transforms::
+* Use field_caps API for mapping deduction {pull}46703[#46703] (issue: {issue}46694[#46694])
+* Fix off-by-one error in checkpoint operations_behind {pull}46235[#46235]
+* Moves failure state transition for MT safety {pull}45676[#45676] (issue: {issue}45664[#45664])
+* Fix _start?force=true bug {pull}45660[#45660]
+* Fix failure state transitions and race condition {pull}45627[#45627] (issues: {issue}45562[#45562], {issue}45609[#45609])
+* Fix starting a batch data frame after stopping at runtime  {pull}45340[#45340] (issues: {issue}44219[#44219], {issue}45339[#45339])
+* Fix null aggregation handling in indexer {pull}45061[#45061] (issue: {issue}44906[#44906])
+* Unify validation exceptions between PUT and _preview {pull}44983[#44983] (issue: {issue}44953[#44953])
+* Treat bulk index failures as an indexing failure {pull}44351[#44351] (issue: {issue}44101[#44101])
+* Prevent task from attempting to run when failed {pull}44239[#44239] (issue: {issue}44121[#44121])
+* Respond with 409 status code when failing _stop {pull}44231[#44231] (issue: {issue}44103[#44103])
+* Add index validations to _start data frame transform {pull}44191[#44191] (issue: {issue}44104[#44104])
+* Data frame task failure does not make a 500 response {pull}44058[#44058] (issue: {issue}44011[#44011])
+* Audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
+
+[[regression-7.4.0]]
+[float]
+=== Regressions
+
+Aggregations::
+* Implement rounding optimization for fixed offset timezones {pull}46670[#46670] (issue: {issue}45702[#45702])
 
 
 
@@ -486,6 +639,3 @@ Network::
 
 Search::
 * Upgrade to lucene snapshot 8.3.0-snapshot-8dd116a6158 {pull}45604[#45604] (issue: {issue}43976[#43976])
-
-
-

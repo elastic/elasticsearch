@@ -14,24 +14,31 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Deletes all model snapshots that have expired the configured retention time
@@ -54,18 +61,67 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
-    private final Client client;
+    private final OriginSettingClient client;
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool) {
+    public ExpiredModelSnapshotsRemover(OriginSettingClient client, ThreadPool threadPool) {
         super(client);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
     @Override
-    protected Long getRetentionDays(Job job) {
+    Long getRetentionDays(Job job) {
         return job.getModelSnapshotRetentionDays();
+    }
+
+    @Override
+    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
+        ThreadedActionListener<Long> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
+                MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
+
+        latestSnapshotTimeStamp(jobId, ActionListener.wrap(
+                latestTime -> {
+                    if (latestTime == null) {
+                        threadedActionListener.onResponse(null);
+                    } else {
+                        long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+                        threadedActionListener.onResponse(cutoff);
+                    }
+                },
+                listener::onFailure
+        ));
+    }
+
+    private void latestSnapshotTimeStamp(String jobId, ActionListener<Long> listener) {
+        SortBuilder<?> sortBuilder = new FieldSortBuilder(ModelSnapshot.TIMESTAMP.getPreferredName()).order(SortOrder.DESC);
+        QueryBuilder snapshotQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()));
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.sort(sortBuilder);
+        searchSourceBuilder.query(snapshotQuery);
+        searchSourceBuilder.size(1);
+        searchSourceBuilder.trackTotalHits(false);
+
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.source(searchSourceBuilder);
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+
+        client.search(searchRequest, ActionListener.wrap(
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    if (hits.length == 0) {
+                        // no snapshots found
+                        listener.onResponse(null);
+                    } else {
+                        ModelSnapshot snapshot = ModelSnapshot.fromJson(hits[0].getSourceRef());
+                        listener.onResponse(snapshot.getTimestamp().getTime());
+                    }
+                },
+                listener::onFailure)
+        );
     }
 
     @Override
@@ -88,7 +144,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                 .mustNot(activeSnapshotFilter)
                 .mustNot(retainFilter);
 
-        searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE));
+        searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE).sort(ElasticsearchMappings.ES_DOC));
 
         client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), listener), false));

@@ -20,9 +20,9 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -67,6 +67,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collections.emptySet());
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
             transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+        repositoriesService.start();
     }
 
     public void testRegisterInternalRepository() {
@@ -149,8 +150,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public RepositoryData getRepositoryData() {
-            return null;
+        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+            listener.onResponse(null);
         }
 
         @Override
@@ -159,14 +160,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
-                                             int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                             boolean includeGlobalState, Map<String, Object> userMetadata) {
-            return null;
+        public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
+                                     int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                     boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+            listener.onResponse(null);
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 
@@ -202,19 +204,24 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit
-            snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+                                  snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                                  Map<String, Object> userMetadata, ActionListener<String> listener) {
 
         }
 
         @Override
-        public void restoreShard(Store store, SnapshotId snapshotId,
-                                 Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                                 RecoveryState recoveryState, ActionListener<Void> listener) {
 
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
+        }
+
+        @Override
+        public void updateState(final ClusterState state) {
         }
 
         @Override

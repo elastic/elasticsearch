@@ -58,7 +58,7 @@ GET news/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,

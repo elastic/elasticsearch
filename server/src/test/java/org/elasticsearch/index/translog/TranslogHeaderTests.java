@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class TranslogHeaderTests extends ESTestCase {
 
@@ -58,17 +59,15 @@ public class TranslogHeaderTests extends ESTestCase {
         }
         final TranslogCorruptedException mismatchUUID = expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                TranslogHeader.read(UUIDs.randomBase64UUID(), translogFile, channel);
+                TranslogHeader.read(randomValueOtherThan(translogUUID, UUIDs::randomBase64UUID), translogFile, channel);
             }
         });
         assertThat(mismatchUUID.getMessage(), containsString("this translog file belongs to a different translog"));
-        int corruptions = between(1, 10);
-        for (int i = 0; i < corruptions && Files.size(translogFile) > 0; i++) {
-            TestTranslog.corruptFile(logger, random(), translogFile, false);
-        }
-        expectThrows(TranslogCorruptedException.class, () -> {
+        TestTranslog.corruptFile(logger, random(), translogFile, false);
+        final TranslogCorruptedException corruption = expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                final TranslogHeader translogHeader = TranslogHeader.read(outHeader.getTranslogUUID(), translogFile, channel);
+                final TranslogHeader translogHeader = TranslogHeader.read(
+                    randomBoolean() ? outHeader.getTranslogUUID() : UUIDs.randomBase64UUID(), translogFile, channel);
                 // succeeds if the corruption corrupted the version byte making this look like a v2 translog, because we don't check the
                 // checksum on this version
                 assertThat("version " + TranslogHeader.VERSION_CHECKPOINTS + " translog",
@@ -82,6 +81,7 @@ public class TranslogHeaderTests extends ESTestCase {
                 throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version", e);
             }
         });
+        assertThat(corruption.getMessage(), not(containsString("this translog file belongs to a different translog")));
     }
 
     public void testHeaderWithoutPrimaryTerm() throws Exception {

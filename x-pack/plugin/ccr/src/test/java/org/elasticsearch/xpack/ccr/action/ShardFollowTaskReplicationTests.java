@@ -18,6 +18,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -67,6 +68,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -451,11 +453,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(primary.routingEntry(),
                     new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
                 primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
+                final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(Store store, SnapshotId snapshotId,
-                                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-                        try {
+                    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                                             RecoveryState recoveryState, ActionListener<Void> listener) {
+                        ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();
                             Lucene.cleanLuceneIndex(primary.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
@@ -465,11 +468,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                         leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
                             }
-                        } catch (Exception ex) {
-                            throw new AssertionError(ex);
-                        }
+                            return null;
+                        });
                     }
-                });
+                }, future);
+                try {
+                    future.actionGet();
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
+                }
             }
         };
     }
@@ -663,26 +670,32 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
-            ActionListener.completeWith(listener, () -> {
-                final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-                primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
-                final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
-                try (Releasable ignored = permitFuture.get()) {
-                    ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
-                        request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
-                }
-                return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
-                    @Override
-                    public void respond(ActionListener<BulkShardOperationsResponse> listener) {
-                        ccrResult.respond(listener);
-                    }
-                };
-            });
+            final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+            final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+            try (Releasable ignored = permitFuture.get()) {
+                ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
+                    request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+                TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
+            } catch (InterruptedException | ExecutionException | IOException e) {
+                throw new AssertionError(e);
+            }
+            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
+        }
+
+        @Override
+        protected void adaptResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+            TransportBulkShardOperationsAction.adaptBulkShardOperationsResponse(response, indexShard);
         }
 
         @Override
         protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
-            TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger);
+            try (Releasable ignored = PlainActionFuture.get(f -> replica.acquireReplicaOperationPermit(
+                getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getLastKnownGlobalCheckpoint(),
+                getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), f, ThreadPool.Names.SAME, request))) {
+                Translog.Location location = TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger).location;
+                TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
+            }
         }
     }
 

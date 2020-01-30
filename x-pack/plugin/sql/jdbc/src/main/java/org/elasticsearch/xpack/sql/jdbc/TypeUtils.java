@@ -94,6 +94,7 @@ final class TypeUtils {
         types.put(EsType.INTERVAL_MINUTE_TO_SECOND, Duration.class);
         types.put(EsType.GEO_POINT, String.class);
         types.put(EsType.GEO_SHAPE, String.class);
+        types.put(EsType.SHAPE, String.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
 

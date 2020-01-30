@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -89,6 +91,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJobAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteJobAction.class);
 
     private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
 
@@ -423,7 +427,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 response -> finishedHandler.onResponse(true),
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         finishedHandler.onResponse(true);
                     } else {
                         finishedHandler.onFailure(e);
@@ -467,7 +471,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 },
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         finishedHandler.onResponse(true);
                     } else {
                         finishedHandler.onFailure(e);
@@ -537,7 +541,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     normalDeleteJob(parentTaskClient, request, listener);
                 } else {
                     listener.onFailure(e);
@@ -550,7 +554,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ActionListener<KillProcessAction.Response> killJobListener = ActionListener.wrap(
                 response -> removePersistentTask(request.getJobId(), state, removeTaskListener),
                 e -> {
-                    if (e instanceof ElasticsearchStatusException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ElasticsearchStatusException) {
                         // Killing the process marks the task as completed so it
                         // may have disappeared when we get here
                         removePersistentTask(request.getJobId(), state, removeTaskListener);

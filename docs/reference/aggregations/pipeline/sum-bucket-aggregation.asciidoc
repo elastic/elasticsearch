@@ -1,7 +1,7 @@
 [[search-aggregations-pipeline-sum-bucket-aggregation]]
 === Sum Bucket Aggregation
 
-A sibling pipeline aggregation which calculates the sum across all bucket of a specified metric in a sibling aggregation.
+A sibling pipeline aggregation which calculates the sum across all buckets of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
 ==== Syntax
@@ -66,7 +66,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

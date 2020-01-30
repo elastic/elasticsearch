@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -135,6 +135,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -420,7 +421,7 @@ public final class TokenService {
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
                     getTokenDocumentId(userTokenId)).request();
-            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
+            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -440,8 +441,10 @@ public final class TokenService {
                                     listener.onResponse(UserToken.fromSourceMap(userTokenSource));
                                 }
                             } else {
-                                onFailure.accept(
-                                    new IllegalStateException("token document is missing and must be present"));
+                                // The chances of a random token string decoding to something that we can read is minimal, so
+                                // we assume that this was a token we have created but is now expired/revoked and deleted
+                                logger.trace("The access token [{}] is expired and already deleted", userTokenId);
+                                listener.onResponse(null);
                             }
                         }, e -> {
                             // if the index or the shard is not there / available we assume that
@@ -523,7 +526,7 @@ public final class TokenService {
                     listener.onResponse(null);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // could happen with a token that is not ours
             if (logger.isDebugEnabled()) {
                logger.debug("built in token service unable to decode token", e);
@@ -1240,17 +1243,20 @@ public final class TokenService {
                                                 - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
                                         )
                                 );
-                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(boolQuery)
-                        .setVersion(false)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, filter));
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                            .setQuery(boolQuery)
+                            .setVersion(false)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                            (SearchHit hit) -> filterAndParseHit(hit, filter));
+                }
             }
         }, listener::onFailure));
-
     }
 
     /**
@@ -1284,14 +1290,18 @@ public final class TokenService {
                                                 - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
                                         )
                                 );
-                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(boolQuery)
-                        .setVersion(false)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username)));
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                            .setQuery(boolQuery)
+                            .setVersion(false)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                            (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username)));
+                }
             }
         }, listener::onFailure));
     }
@@ -2011,7 +2021,7 @@ public final class TokenService {
 
             if (state.nodes().isLocalNodeElectedMaster()) {
                 if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state.metaData());
+                    installTokenMetadata(state);
                 } else {
                     logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
                         () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
@@ -2034,8 +2044,8 @@ public final class TokenService {
     // to prevent too many cluster state update tasks to be queued for doing the same update
     private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
 
-    private void installTokenMetadata(MetaData metaData) {
-        if (metaData.custom(TokenMetaData.TYPE) == null) {
+    private void installTokenMetadata(ClusterState state) {
+        if (state.custom(TokenMetaData.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
                 clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override

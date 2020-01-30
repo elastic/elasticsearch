@@ -160,7 +160,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
-    protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(0L);
+    protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -751,7 +751,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
-        return new Engine.Get(realtime, false, doc.type(), doc.id(), newUid(doc));
+        return new Engine.Get(realtime, realtime, doc.type(), doc.id(), newUid(doc));
     }
 
     protected Engine.Index indexForDoc(ParsedDocument doc) {
@@ -803,9 +803,6 @@ public abstract class EngineTestCase extends ESTestCase {
                     break;
                 case EXTERNAL_GTE:
                     version = randomBoolean() ? Math.max(i - 1, 0) : i;
-                    break;
-                case FORCE:
-                    version = randomNonNegativeLong();
                     break;
                 default:
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
@@ -1014,7 +1011,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
             List<DocIdSeqNoAndSource> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
                 LeafReader reader = leafContext.reader();

@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -47,15 +48,22 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -70,6 +78,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class FlushIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(InternalSettingsPlugin.class);
+    }
 
     public void testWaitIfOngoing() throws InterruptedException {
         createIndex("test");
@@ -309,7 +322,7 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(partialResult.totalShards(), equalTo(numberOfReplicas + 1));
         assertThat(partialResult.successfulShards(), equalTo(numberOfReplicas));
         assertThat(partialResult.shardResponses().get(outOfSyncReplica.routingEntry()).failureReason, equalTo(
-            "out of sync replica; num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
+            "ongoing indexing operations: num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
         // Index extra documents to all shards - synced-flush should be ok.
         for (IndexShard indexShard : indexShards) {
             // Do reindex documents to the out of sync replica to avoid trigger merges
@@ -368,5 +381,30 @@ public class FlushIT extends ESIntegTestCase {
         final ShardsSyncedFlushResult forthSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(forthSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(forthSeal.syncId(), not(equalTo(thirdSeal.syncId())));
+    }
+
+    public void testFlushOnInactive() throws Exception {
+        final String indexName = "flush_on_inactive";
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()
+            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms")).build());
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
+            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+            .build()));
+        ensureGreen(indexName);
+        int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex(indexName, "_doc").setSource("f", "v").get();
+        }
+        if (randomBoolean()) {
+            internalCluster().restartNode(randomFrom(dataNodes), new InternalTestCluster.RestartCallback());
+            ensureGreen(indexName);
+        }
+        assertBusy(() -> {
+            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+                assertThat(shardStats.getStats().getTranslog().getUncommittedOperations(), equalTo(0));
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 }

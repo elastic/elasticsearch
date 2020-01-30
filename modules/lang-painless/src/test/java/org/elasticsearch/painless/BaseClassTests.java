@@ -396,15 +396,15 @@ public class BaseClassTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitiveint", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract int execute();
     }
     public void testReturnsPrimitiveInt() throws Exception {
-        assertEquals(1, 
+        assertEquals(1,
                 scriptEngine.compile("testReturnsPrimitiveInt0", "1", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
-        assertEquals(1, 
+        assertEquals(1,
                 scriptEngine.compile("testReturnsPrimitiveInt1", "(int) 1L", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals(1, scriptEngine.compile("testReturnsPrimitiveInt2", "(int) 1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap())
@@ -460,7 +460,7 @@ public class BaseClassTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitivefloat", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract float execute();
     }
@@ -509,7 +509,7 @@ public class BaseClassTests extends ScriptTestCase {
        }
 
        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitivedouble", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract double execute();
     }

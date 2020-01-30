@@ -6,10 +6,15 @@
 package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
+import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 
 public class AnalyticsAggregationBuilders {
 
-    public static CumulativeCardinalityPipelineAggregationBuilder cumulativeCaardinality(String name, String bucketsPath) {
+    public static CumulativeCardinalityPipelineAggregationBuilder cumulativeCardinality(String name, String bucketsPath) {
         return new CumulativeCardinalityPipelineAggregationBuilder(name, bucketsPath);
+    }
+
+    public static StringStatsAggregationBuilder stringStats(String name) {
+        return new StringStatsAggregationBuilder(name);
     }
 }

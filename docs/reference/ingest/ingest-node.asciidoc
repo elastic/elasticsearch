@@ -167,7 +167,7 @@ For example the following processor will <<drop-processor,drop>> the document
 (i.e. not index it) if the input document has a field named `network_name`
 and it is equal to `Guest`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/drop_guests_network
 {
@@ -180,18 +180,16 @@ PUT _ingest/pipeline/drop_guests_network
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Using that pipeline for an index request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=drop_guests_network
 {
   "network_name" : "Guest"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Results in nothing indexed since the conditional evaluated to `true`.
@@ -226,7 +224,7 @@ To help protect against NullPointerExceptions, null safe operations should be us
 Fortunately, Painless makes {painless}/painless-operators-reference.html#null-safe-operator[null safe]
 operations easy with the `?.` operator.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/drop_guests_network
 {
@@ -239,11 +237,10 @@ PUT _ingest/pipeline/drop_guests_network
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The following document will get <<drop-processor,dropped>> correctly:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=drop_guests_network
 {
@@ -252,33 +249,30 @@ POST test/_doc/1?pipeline=drop_guests_network
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Thanks to the `?.` operator the following document will not throw an error.
 If the pipeline used a `.` the following document would throw a NullPointerException
 since the `network` object is not part of the source document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/2?pipeline=drop_guests_network
 {
   "foo" : "bar"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 ////
 Hidden example assertion:
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test/_doc/2
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -322,7 +316,7 @@ The source document may have the nested fields flattened as such:
 If this is the case, use the <<dot-expand-processor, Dot Expand Processor>>
 so that the nested fields may be used in a conditional.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/drop_guests_network
 {
@@ -340,18 +334,16 @@ PUT _ingest/pipeline/drop_guests_network
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Now the following input document can be used with a conditional in the pipeline.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/3?pipeline=drop_guests_network
 {
   "network.name": "Guest"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The `?.` operators works well for use in the `if` conditional
@@ -386,13 +378,13 @@ The `if` condition can be more then a simple equality check.
 The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
 running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
 
-IMPORTANT: The value of ctx is read-only in `if` conditions. 
+IMPORTANT: The value of ctx is read-only in `if` conditions.
 
 A more complex `if` condition that drops the document (i.e. not index it)
 unless it has a multi-valued tag field with at least one value that contains the characters
 `prod` (case insensitive).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/not_prod_dropper
 {
@@ -405,7 +397,6 @@ PUT _ingest/pipeline/not_prod_dropper
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The conditional needs to be all on one line since JSON does not
 support new line characters. However, Kibana's console supports
@@ -438,14 +429,13 @@ PUT _ingest/pipeline/not_prod_dropper
 // NOTCONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=not_prod_dropper
 {
   "tags": ["application:myapp", "env:Stage"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The document is <<drop-processor,dropped>> since `prod` (case insensitive)
@@ -454,26 +444,24 @@ is not found in the tags.
 The following document is indexed (i.e. not dropped) since
 `prod` (case insensitive) is found in the tags.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/2?pipeline=not_prod_dropper
 {
   "tags": ["application:myapp", "env:Production"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 ////
 Hidden example assertion:
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test/_doc/2
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -509,7 +497,7 @@ The combination of the `if` conditional and the <<pipeline-processor>> can resul
 yet powerful means to process heterogeneous input. For example, you can define a single pipeline
 that delegates to other pipelines based on some criteria.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/logs_pipeline
 {
@@ -530,13 +518,13 @@ PUT _ingest/pipeline/logs_pipeline
     },
     {
       "fail": {
+        "if": "ctx.service?.name != 'apache_httpd' && ctx.service?.name != 'syslog'",
         "message": "This pipeline requires service.name to be either `syslog` or `apache_httpd`"
       }
     }
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The above example allows consumers to point to a single pipeline for all log based index requests.
 Based on the conditional, the correct pipeline will be called to process that type of data.
@@ -555,7 +543,8 @@ expressions in the `if` condition.
 If regular expressions are enabled, operators such as `=~` can be used against a `/pattern/` for conditions.
 
 For example:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/check_url
 {
@@ -570,9 +559,8 @@ PUT _ingest/pipeline/check_url
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=check_url
 {
@@ -581,22 +569,20 @@ POST test/_doc/1?pipeline=check_url
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Results in:
 
 ////
 Hidden example assertion:
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -623,7 +609,7 @@ alternatives exist.
 For example in this case `startsWith` can be used to get the same result
 without using a regular expression:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/check_url
 {
@@ -638,7 +624,6 @@ PUT _ingest/pipeline/check_url
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 [[handling-failure-in-pipelines]]
 == Handling Failures in Pipelines
@@ -737,8 +722,9 @@ The `ignore_failure` can be set on any processor and defaults to `false`.
 
 You may want to retrieve the actual error message that was thrown
 by a failed processor. To do so you can access metadata fields called
-`on_failure_message`, `on_failure_processor_type`, and `on_failure_processor_tag`. These fields are only accessible
-from within the context of an `on_failure` block.
+`on_failure_message`, `on_failure_processor_type`, `on_failure_processor_tag` and
+`on_failure_pipeline` (in case an error occurred inside a pipeline processor).
+These fields are only accessible from within the context of an `on_failure` block.
 
 Here is an updated version of the example that you
 saw earlier. But instead of setting the error message manually, the example leverages the `on_failure_message`
@@ -767,6 +753,10 @@ metadata field to provide the error message.
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+
+include::enrich.asciidoc[]
+
 
 [[ingest-processors]]
 == Processors
@@ -839,17 +829,20 @@ include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/circle.asciidoc[]
 include::processors/convert.asciidoc[]
+include::processors/csv.asciidoc[]
 include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
 include::processors/dot-expand.asciidoc[]
 include::processors/drop.asciidoc[]
+include::processors/enrich.asciidoc[]
 include::processors/fail.asciidoc[]
 include::processors/foreach.asciidoc[]
 include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/html_strip.asciidoc[]
+include::processors/inference.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -139,7 +140,7 @@ public final class IndicesPermission {
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
-            if (false == allowRestrictedIndices && false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(forIndexPattern)) {
+            if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, RestrictedIndicesNames.NAMES_AUTOMATON);
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
@@ -268,6 +269,13 @@ public final class IndicesPermission {
         return unmodifiableMap(indexPermissions);
     }
 
+    private boolean isConcreteRestrictedIndex(String indexPattern) {
+        if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
+            return false;
+        }
+        return RestrictedIndicesNames.isRestricted(indexPattern);
+    }
+
     public static class Group {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -316,7 +324,7 @@ public final class IndicesPermission {
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && indexNameMatcher.test(index)
-                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
+                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.isRestricted(index)));
         }
 
         boolean hasQuery() {
@@ -351,13 +359,13 @@ public final class IndicesPermission {
             final Predicate<String> predicate;
             if (restrictedIndices.isEmpty()) {
                 predicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index));
+                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
             } else if (ordinaryIndices.isEmpty()) {
                 predicate = indexMatcher(restrictedIndices);
             } else {
                 predicate = indexMatcher(restrictedIndices)
                     .or(indexMatcher(ordinaryIndices)
-                         .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
+                         .and(index -> false == RestrictedIndicesNames.isRestricted(index)));
             }
             return predicate;
         }

@@ -79,6 +79,7 @@ public class DatafeedUpdate implements ToXContentObject {
         PARSER.declareObject(Builder::setDelayedDataCheckConfig,
             DelayedDataCheckConfig.PARSER,
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG);
+        PARSER.declareInt(Builder::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
     }
 
     private static BytesReference parseBytes(XContentParser parser) throws IOException {
@@ -98,10 +99,12 @@ public class DatafeedUpdate implements ToXContentObject {
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
+    private final Integer maxEmptySearches;
 
     private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, BytesReference query,
                            BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize,
-                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
+                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig,
+                           Integer maxEmptySearches) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -113,6 +116,7 @@ public class DatafeedUpdate implements ToXContentObject {
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
+        this.maxEmptySearches = maxEmptySearches;
     }
 
     /**
@@ -152,6 +156,7 @@ public class DatafeedUpdate implements ToXContentObject {
         }
         addOptionalField(builder, DatafeedConfig.SCROLL_SIZE, scrollSize);
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
+        addOptionalField(builder, DatafeedConfig.MAX_EMPTY_SEARCHES, maxEmptySearches);
         builder.endObject();
         return builder;
     }
@@ -202,6 +207,10 @@ public class DatafeedUpdate implements ToXContentObject {
         return delayedDataCheckConfig;
     }
 
+    public Integer getMaxEmptySearches() {
+        return maxEmptySearches;
+    }
+
     private static Map<String, Object> asMap(BytesReference bytesReference) {
         return bytesReference == null ? null : XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
     }
@@ -237,7 +246,8 @@ public class DatafeedUpdate implements ToXContentObject {
             && Objects.equals(asMap(this.aggregations), asMap(that.aggregations))
             && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
             && Objects.equals(this.scriptFields, that.scriptFields)
-            && Objects.equals(this.chunkingConfig, that.chunkingConfig);
+            && Objects.equals(this.chunkingConfig, that.chunkingConfig)
+            && Objects.equals(this.maxEmptySearches, that.maxEmptySearches);
     }
 
     /**
@@ -248,7 +258,7 @@ public class DatafeedUpdate implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, asMap(query), scrollSize, asMap(aggregations), scriptFields,
-            chunkingConfig, delayedDataCheckConfig);
+            chunkingConfig, delayedDataCheckConfig, maxEmptySearches);
     }
 
     public static Builder builder(String id) {
@@ -268,6 +278,7 @@ public class DatafeedUpdate implements ToXContentObject {
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
         private DelayedDataCheckConfig delayedDataCheckConfig;
+        private Integer maxEmptySearches;
 
         public Builder(String id) {
             this.id = Objects.requireNonNull(id, DatafeedConfig.ID.getPreferredName());
@@ -285,6 +296,7 @@ public class DatafeedUpdate implements ToXContentObject {
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
             this.delayedDataCheckConfig = config.delayedDataCheckConfig;
+            this.maxEmptySearches = config.maxEmptySearches;
         }
 
         @Deprecated
@@ -364,9 +376,14 @@ public class DatafeedUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setMaxEmptySearches(int maxEmptySearches) {
+            this.maxEmptySearches = maxEmptySearches;
+            return this;
+        }
+
         public DatafeedUpdate build() {
             return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
-                chunkingConfig, delayedDataCheckConfig);
+                chunkingConfig, delayedDataCheckConfig, maxEmptySearches);
         }
 
         private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

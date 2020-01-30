@@ -20,7 +20,7 @@ include::common-options.asciidoc[]
 
 image:images/spatial/error_distance.png[]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT circles
 {
@@ -47,7 +47,6 @@ PUT _ingest/pipeline/polygonize_circles
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Using the above pipeline, we can attempt to index a document into the `circles` index.
 The circle can be represented as either a WKT circle or a GeoJSON circle. The resulting
@@ -58,7 +57,7 @@ be translated to a WKT polygon, and GeoJSON circles will be translated to GeoJSO
 
 In this example a circle defined in WKT format is indexed
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT circles/_doc/1?pipeline=polygonize_circles
 {
@@ -67,12 +66,11 @@ PUT circles/_doc/1?pipeline=polygonize_circles
 
 GET circles/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -83,7 +81,7 @@ The response from the above index request:
   "_seq_no": 22,
   "_primary_term": 1,
   "_source": {
-    "circle": "polygon ((30.000365257263184 10.0, 30.000111397193788 10.00034284530941, 29.999706043744222 10.000213571721195, 29.999706043744222 9.999786428278805, 30.000111397193788 9.99965715469059, 30.000365257263184 10.0))"
+    "circle": "POLYGON ((30.000365257263184 10.0, 30.000111397193788 10.00034284530941, 29.999706043744222 10.000213571721195, 29.999706043744222 9.999786428278805, 30.000111397193788 9.99965715469059, 30.000365257263184 10.0))"
   }
 }
 --------------------------------------------------
@@ -93,7 +91,7 @@ The response from the above index request:
 
 In this example a circle defined in GeoJSON format is indexed
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT circles/_doc/2?pipeline=polygonize_circles
 {
@@ -106,12 +104,11 @@ PUT circles/_doc/2?pipeline=polygonize_circles
 
 GET circles/_doc/2
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -133,7 +130,7 @@ The response from the above index request:
           [30.000365257263184, 10.0]
         ]
       ],
-      "type": "polygon"
+      "type": "Polygon"
     }
   }
 }

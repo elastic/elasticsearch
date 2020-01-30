@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-x-pack-watcher-delete-watch]]
 === Delete watch API
 

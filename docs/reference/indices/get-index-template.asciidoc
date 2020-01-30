@@ -1,13 +1,13 @@
 [[indices-get-template]]
 === Get index template API
 ++++
-<titleabbrev>Get template index</titleabbrev>
+<titleabbrev>Get index template</titleabbrev>
 ++++
 
 Returns information about one or more index templates.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _template/template_1
 {
@@ -17,15 +17,20 @@ PUT _template/template_1
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _template/template_1
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_template/template_1
 --------------------------------------------------
-// CONSOLE
 
 
 [[get-template-api-request]]
@@ -62,28 +67,25 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[get-template-api-multiple-ex]]
 ===== Get multiple index templates
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_template/template_1,template_2
 --------------------------------------------------
-// CONSOLE
 
 
 [[get-template-api-wildcard-ex]]
 ===== Get index templates using a wildcard expression
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_template/temp*
 --------------------------------------------------
-// CONSOLE
 
 
 [[get-template-api-all-ex]]
 ===== Get all index templates
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_template
 --------------------------------------------------
-// CONSOLE

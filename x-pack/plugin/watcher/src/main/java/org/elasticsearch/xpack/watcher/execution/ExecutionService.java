@@ -436,7 +436,14 @@ public class ExecutionService {
                             "Error storing watch history record for watch [{}] after thread pool rejection",
                             triggeredWatch.id()), exc);
                 }
-                deleteTrigger(triggeredWatch.id());
+                try {
+                    deleteTrigger(triggeredWatch.id());
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage(
+                            "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()), exc);
+                }
             }));
         }
     }

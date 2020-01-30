@@ -1,155 +1,123 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(':x-pack:qa')
+  testCompile project(':x-pack:qa')
 }
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
+tasks.register("bwcTest") {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
-String outputDir = "${buildDir}/generated-resources/${project.name}"
-
-for (Version version : bwcVersions.wireCompatible) {
-    String baseName = "v${version}"
-
-    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-        mustRunAfter(precommit)
-    }
-
-    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        if (version.before('6.3.0')) {
-            String depVersion = version;
-            if (project.bwcVersions.unreleased.contains(version)) {
-                depVersion += "-SNAPSHOT"
-            }
-            mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
-
-        }
-        bwcVersion = version
-        numBwcNodes = 3
-        numNodes = 3
-        clusterName = 'rolling-upgrade-basic'
-        setting 'xpack.security.enabled', 'false'
-        setting 'xpack.monitoring.enabled', 'false'
-        setting 'xpack.ml.enabled', 'false'
-        setting 'xpack.watcher.enabled', 'false'
-        setting 'xpack.license.self_generated.type', 'basic'
-    }
-
-    Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
-    oldClusterTestRunner.configure {
-        systemProperty 'tests.rest.suite', 'old_cluster'
-    }
-
-    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
-        configure(extensions.findByName("${baseName}#${name}")) {
-            dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
-            clusterName = 'rolling-upgrade-basic'
-            otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-            minimumMasterNodes = { 2 }
-            autoSetInitialMasterNodes = false
-            /* Override the data directory so the new node always gets the node we
-            * just stopped's data directory. */
-            dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
-            setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-            setting 'xpack.security.enabled', 'false'
-            setting 'xpack.monitoring.enabled', 'false'
-            setting 'xpack.ml.enabled', 'false'
-            setting 'xpack.watcher.enabled', 'false'
-            setting 'xpack.license.self_generated.type', 'basic'
-            setting 'node.name', "upgraded-node-${stopNode}"
-        }
-    }
-
-    Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
-
-    configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
-        // Use all running nodes as seed nodes so there is no race between pinging and the tests
-        { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
-
-    Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
-    oneThirdUpgradedTestRunner.configure {
-        systemProperty 'tests.rest.suite', 'mixed_cluster'
-        systemProperty 'tests.first_round', 'true'
-        finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
-    }
-
-    Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
-
-    configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
-        // Use all running nodes as seed nodes so there is no race between pinging and the tests
-        { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
-
-    Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
-    twoThirdsUpgradedTestRunner.configure {
-        systemProperty 'tests.rest.suite', 'mixed_cluster'
-        systemProperty 'tests.first_round', 'false'
-        finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
-    }
-
-    Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
-
-    configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
-        // Use all running nodes as seed nodes so there is no race between pinging and the tests
-        { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
-
-    Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
-    upgradedClusterTestRunner.configure {
-        systemProperty 'tests.rest.suite', 'upgraded_cluster'
-        /*
-         * Force stopping all the upgraded nodes after the test runner
-         * so they are alive during the test.
-         */
-        finalizedBy "${baseName}#oneThirdUpgradedTestCluster#stop"
-        finalizedBy "${baseName}#twoThirdsUpgradedTestCluster#stop"
-    }
-
-    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-        dependsOn = [upgradedClusterTest]
-    }
-
-    if (project.bwc_tests_enabled) {
-        bwcTest.dependsOn(versionBwcTest)
-    }
+configurations {
+  restSpec
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+dependencies {
+  restSpec project(':rest-api-spec')
+}
 
-// basic integ tests includes testing bwc against the most recent version
+processTestResources {
+  dependsOn configurations.restSpec
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
+  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
+    include 'rest-api-spec/api/**'
+  }
+}
+
+
+for (Version bwcVersion : bwcVersions.wireCompatible) {
+  String baseName = "v${bwcVersion}"
+
+  testClusters {
+    "${baseName}" {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 3
+
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.monitoring.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'basic'
+      javaHome = BuildParams.runtimeJavaHome
+    }
+  }
+
+  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
+
+
+  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'true'
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  }
+
+  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#oneThirdUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'false'
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  }
+
+  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+    dependsOn "${baseName}#twoThirdsUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+  }
+
+  tasks.register("${baseName}#bwcTest") {
+    dependsOn "${baseName}#upgradedClusterTest"
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn("${baseName}#bwcTest")
+  }
+}
+
 task bwcTestSnapshots {
-    if (project.bwc_tests_enabled) {
-        for (final def version : bwcVersions.unreleasedWireCompatible) {
-            dependsOn "v${version}#bwcTest"
-        }
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
+      dependsOn "v${version}#bwcTest"
     }
+  }
 }
 check.dependsOn(bwcTestSnapshots)
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
-// copy x-pack plugin info so it is on the classpath and security manager has the right permissions
-task copyXPackRestSpec(type: Copy) {
-    dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(xpackProject('plugin').path).sourceSets.test.resources
-    include 'rest-api-spec/api/**'
-    into project.sourceSets.test.output.resourcesDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)
-
-repositories {
-    maven {
-        name "elastic"
-        url "https://artifacts.elastic.co/maven"
-    }
-    maven {
-        name "elastic-snapshots"
-        url "https://snapshots.elastic.co/maven"
-    }
-}
+test.enabled = false

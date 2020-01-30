@@ -3,6 +3,7 @@
 :request: DeleteCalendarRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete calendar API
 Delete a {ml} calendar.

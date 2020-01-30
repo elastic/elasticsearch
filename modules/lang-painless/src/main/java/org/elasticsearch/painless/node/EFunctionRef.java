@@ -19,12 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 
 import java.util.Objects;
@@ -48,36 +49,31 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // do nothing
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // do nothing
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (expected == null) {
             ref = null;
             actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location, expected, type, call, 0);
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, expected, type, call, 0);
             actual = expected;
         }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (ref != null) {
-            writer.writeDebugInfo(location);
-            writer.invokeLambdaCall(ref);
+            methodWriter.writeDebugInfo(location);
+            methodWriter.invokeLambdaCall(ref);
         } else {
             // TODO: don't do this: its just to cutover :)
-            writer.push((String)null);
+            methodWriter.push((String)null);
         }
     }
 

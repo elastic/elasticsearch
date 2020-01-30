@@ -182,7 +182,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
     private static final ParseField LEASES_FIELD = new ParseField("leases");
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
             "retention_leases",
             (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (Collection<RetentionLease>) a[2]));
 

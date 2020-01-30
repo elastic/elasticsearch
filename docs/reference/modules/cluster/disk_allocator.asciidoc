@@ -20,8 +20,7 @@ file or updated dynamically on a live cluster with the
     85% disk used. It can also be set to an absolute byte value (like `500mb`)
     to prevent Elasticsearch from allocating shards if less than the specified
     amount of space is available. This setting has no effect on the primary
-    shards of newly-created indices or, specifically, any shards that have
-    never previously been allocated.
+    shards of newly-created indices but will prevent their replicas from being allocated.
 
 `cluster.routing.allocation.disk.watermark.high`::
 
@@ -52,14 +51,13 @@ threshold).
 
 An example of resetting the read-only index block on the `twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
   "index.blocks.read_only_allow_delete": null
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 --
 
@@ -70,6 +68,7 @@ PUT /twitter/_settings
 
 `cluster.routing.allocation.disk.include_relocations`::
 
+    deprecated:[7.5.0, Future versions will always account for relocations.]
     Defaults to +true+, which means that Elasticsearch will take into account
     shards that are currently being relocated to the target node when computing
     a node's disk usage. Taking relocating shards' sizes into account may,
@@ -88,7 +87,7 @@ An example of updating the low watermark to at least 100 gigabytes free, a high
 watermark of at least 50 gigabytes free, and a flood stage watermark of 10
 gigabytes free, and updating the information about the cluster every minute:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -100,4 +99,3 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE

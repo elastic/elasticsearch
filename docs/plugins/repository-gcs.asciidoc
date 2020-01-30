@@ -64,7 +64,7 @@ Here is a summary of the steps:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
 2. Select your project.
-3. Got to the https://console.cloud.google.com/permissions[Permission] tab.
+3. Go to the https://console.cloud.google.com/permissions[Permission] tab.
 4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab.
 5. Click *Create service account*.
 6. After the account is created, select it and download a JSON key file.
@@ -101,7 +101,7 @@ For example, if you added a `gcs.client.my_alternate_client.credentials_file`
 setting in the keystore, you can configure a repository to use those credentials
 like this:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -112,7 +112,6 @@ PUT _snapshot/my_gcs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
 
 The `credentials_file` settings are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
@@ -133,7 +132,7 @@ called `default`, but can be customized with the repository setting `client`.
 
 For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -144,7 +143,6 @@ PUT _snapshot/my_gcs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
 
 Some settings are sensitive and must be stored in the
@@ -199,7 +197,7 @@ is stored in Google Cloud Storage.
 
 These can be specified when creating the repository. For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -210,7 +208,6 @@ PUT _snapshot/my_gcs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have gcs set up while testing this]
 
 The following settings are supported:

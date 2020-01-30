@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -20,35 +22,40 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Regression implements DataFrameAnalysis {
 
     public static final ParseField NAME = new ParseField("regression");
 
     public static final ParseField DEPENDENT_VARIABLE = new ParseField("dependent_variable");
-    public static final ParseField LAMBDA = new ParseField("lambda");
-    public static final ParseField GAMMA = new ParseField("gamma");
-    public static final ParseField ETA = new ParseField("eta");
-    public static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
-    public static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     public static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
+    public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
+
+    private static final String STATE_DOC_ID_SUFFIX = "_regression_state#1";
 
     private static final ConstructingObjectParser<Regression, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Regression, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<Regression, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<Regression, Void> parser = new ConstructingObjectParser<>(NAME.getPreferredName(), lenient,
-            a -> new Regression((String) a[0], (Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (String) a[6],
-                (Double) a[7]));
-        parser.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
-        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LAMBDA);
-        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), GAMMA);
-        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA);
-        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
-        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
-        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
+        ConstructingObjectParser<Regression, Void> parser = new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            lenient,
+            a -> new Regression(
+                (String) a[0],
+                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6]),
+                (String) a[7],
+                (Double) a[8],
+                (Long) a[9]));
+        parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
+        BoostedTreeParams.declareFields(parser);
+        parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
+        parser.declareDouble(optionalConstructorArg(), TRAINING_PERCENT);
+        parser.declareLong(optionalConstructorArg(), RANDOMIZE_SEED);
         return parser;
     }
 
@@ -57,73 +64,61 @@ public class Regression implements DataFrameAnalysis {
     }
 
     private final String dependentVariable;
-    private final Double lambda;
-    private final Double gamma;
-    private final Double eta;
-    private final Integer maximumNumberTrees;
-    private final Double featureBagFraction;
+    private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
     private final double trainingPercent;
+    private final long randomizeSeed;
 
-    public Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                      @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName,
-                      @Nullable Double trainingPercent) {
-        this.dependentVariable = Objects.requireNonNull(dependentVariable);
-
-        if (lambda != null && lambda < 0) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", LAMBDA.getPreferredName());
-        }
-        this.lambda = lambda;
-
-        if (gamma != null && gamma < 0) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", GAMMA.getPreferredName());
-        }
-        this.gamma = gamma;
-
-        if (eta != null && (eta < 0.001 || eta > 1)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double in [0.001, 1]", ETA.getPreferredName());
-        }
-        this.eta = eta;
-
-        if (maximumNumberTrees != null && (maximumNumberTrees <= 0 || maximumNumberTrees > 2000)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [1, 2000]", MAXIMUM_NUMBER_TREES.getPreferredName());
-        }
-        this.maximumNumberTrees = maximumNumberTrees;
-
-        if (featureBagFraction != null && (featureBagFraction <= 0 || featureBagFraction > 1.0)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double in (0, 1]", FEATURE_BAG_FRACTION.getPreferredName());
-        }
-        this.featureBagFraction = featureBagFraction;
-
-        this.predictionFieldName = predictionFieldName;
-
+    public Regression(String dependentVariable,
+                      BoostedTreeParams boostedTreeParams,
+                      @Nullable String predictionFieldName,
+                      @Nullable Double trainingPercent,
+                      @Nullable Long randomizeSeed) {
         if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
         }
+        this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
+        this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
+        this.predictionFieldName = predictionFieldName == null ? dependentVariable + "_prediction" : predictionFieldName;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
+        this.randomizeSeed = randomizeSeed == null ? Randomness.get().nextLong() : randomizeSeed;
     }
 
     public Regression(String dependentVariable) {
-        this(dependentVariable, null, null, null, null, null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null);
     }
 
     public Regression(StreamInput in) throws IOException {
         dependentVariable = in.readString();
-        lambda = in.readOptionalDouble();
-        gamma = in.readOptionalDouble();
-        eta = in.readOptionalDouble();
-        maximumNumberTrees = in.readOptionalVInt();
-        featureBagFraction = in.readOptionalDouble();
+        boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
         trainingPercent = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            randomizeSeed = in.readOptionalLong();
+        } else {
+            randomizeSeed = Randomness.get().nextLong();
+        }
     }
 
     public String getDependentVariable() {
         return dependentVariable;
     }
 
+    public BoostedTreeParams getBoostedTreeParams() {
+        return boostedTreeParams;
+    }
+
+    public String getPredictionFieldName() {
+        return predictionFieldName;
+    }
+
     public double getTrainingPercent() {
         return trainingPercent;
+    }
+
+    @Nullable
+    public Long getRandomizeSeed() {
+        return randomizeSeed;
     }
 
     @Override
@@ -134,61 +129,37 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(dependentVariable);
-        out.writeOptionalDouble(lambda);
-        out.writeOptionalDouble(gamma);
-        out.writeOptionalDouble(eta);
-        out.writeOptionalVInt(maximumNumberTrees);
-        out.writeOptionalDouble(featureBagFraction);
+        boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
         out.writeDouble(trainingPercent);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalLong(randomizeSeed);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Version version = Version.fromString(params.param("version", Version.CURRENT.toString()));
+
         builder.startObject();
         builder.field(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
-        if (lambda != null) {
-            builder.field(LAMBDA.getPreferredName(), lambda);
-        }
-        if (gamma != null) {
-            builder.field(GAMMA.getPreferredName(), gamma);
-        }
-        if (eta != null) {
-            builder.field(ETA.getPreferredName(), eta);
-        }
-        if (maximumNumberTrees != null) {
-            builder.field(MAXIMUM_NUMBER_TREES.getPreferredName(), maximumNumberTrees);
-        }
-        if (featureBagFraction != null) {
-            builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
-        }
+        boostedTreeParams.toXContent(builder, params);
         if (predictionFieldName != null) {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
+        if (version.onOrAfter(Version.V_7_6_0)) {
+            builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
-    public Map<String, Object> getParams() {
+    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
         Map<String, Object> params = new HashMap<>();
         params.put(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
-        if (lambda != null) {
-            params.put(LAMBDA.getPreferredName(), lambda);
-        }
-        if (gamma != null) {
-            params.put(GAMMA.getPreferredName(), gamma);
-        }
-        if (eta != null) {
-            params.put(ETA.getPreferredName(), eta);
-        }
-        if (maximumNumberTrees != null) {
-            params.put(MAXIMUM_NUMBER_TREES.getPreferredName(), maximumNumberTrees);
-        }
-        if (featureBagFraction != null) {
-            params.put(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
-        }
+        params.putAll(boostedTreeParams.getParams());
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
@@ -201,8 +172,25 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public Set<String> getAllowedCategoricalTypes(String fieldName) {
+        return Types.categorical();
+    }
+
+    @Override
     public List<RequiredField> getRequiredFields() {
         return Collections.singletonList(new RequiredField(dependentVariable, Types.numerical()));
+    }
+
+    @Override
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        // Prediction field should be always mapped as "double" rather than "float" in order to increase precision in case of
+        // high (over 10M) values of dependent variable.
+        return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, Collections.singletonMap("type", "double"));
     }
 
     @Override
@@ -211,9 +199,18 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
-            trainingPercent);
+    public boolean persistsState() {
+        return true;
+    }
+
+    @Override
+    public String getStateDocId(String jobId) {
+        return jobId + STATE_DOC_ID_SUFFIX;
+    }
+
+    public static String extractJobIdFromStateDoc(String stateDocId) {
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 
     @Override
@@ -222,12 +219,14 @@ public class Regression implements DataFrameAnalysis {
         if (o == null || getClass() != o.getClass()) return false;
         Regression that = (Regression) o;
         return Objects.equals(dependentVariable, that.dependentVariable)
-            && Objects.equals(lambda, that.lambda)
-            && Objects.equals(gamma, that.gamma)
-            && Objects.equals(eta, that.eta)
-            && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
-            && Objects.equals(featureBagFraction, that.featureBagFraction)
+            && Objects.equals(boostedTreeParams, that.boostedTreeParams)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
-            && trainingPercent == that.trainingPercent;
+            && trainingPercent == that.trainingPercent
+            && randomizeSeed == randomizeSeed;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed);
     }
 }

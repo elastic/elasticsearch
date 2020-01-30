@@ -239,10 +239,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 // new cluster state, notify all listeners
                 final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
-                    String nodeSummary = nodesDelta.shortSummary();
-                    if (nodeSummary.length() > 0) {
-                        logger.info("{}, term: {}, version: {}, reason: {}",
-                            summary, newClusterState.term(), newClusterState.version(), nodeSummary);
+                    String nodesDeltaSummary = nodesDelta.shortSummary();
+                    if (nodesDeltaSummary.length() > 0) {
+                        logger.info("{}, term: {}, version: {}, delta: {}",
+                            summary, newClusterState.term(), newClusterState.version(), nodesDeltaSummary);
                     }
                 }
 

@@ -1,5 +1,8 @@
 [[analysis-keyword-marker-tokenfilter]]
-=== Keyword Marker Token Filter
+=== Keyword marker token filter
+++++
+<titleabbrev>Keyword marker</titleabbrev>
+++++
 
 Protects words from being modified by stemmers. Must be placed before
 any stemming filters.
@@ -21,7 +24,7 @@ in the text.
 
 You can configure it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /keyword_marker_example
 {
@@ -49,11 +52,10 @@ PUT /keyword_marker_example
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 And test it with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /keyword_marker_example/_analyze
 {
@@ -61,7 +63,6 @@ POST /keyword_marker_example/_analyze
   "text" : "I like cats"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:
@@ -97,7 +98,7 @@ And it'd respond:
 
 As compared to the `normal` analyzer which has `cats` stemmed to `cat`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /keyword_marker_example/_analyze
 {
@@ -105,7 +106,6 @@ POST /keyword_marker_example/_analyze
   "text" : "I like cats"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response:

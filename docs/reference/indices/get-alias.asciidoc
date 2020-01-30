@@ -6,13 +6,12 @@
 
 Returns information about one or more index aliases.
 
-include::alias-exists.asciidoc[tag=index-alias-def]
+include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
 
-[source,js]
+[source,console]
 ----
 GET /twitter/_alias/alias1
 ----
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT twitter\/_alias\/alias1\n/]
 
@@ -71,7 +70,7 @@ with two aliases:
 in the `logs_20302801` index
 with a `year` field value of `2030`
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs_20302801
 {
@@ -85,16 +84,14 @@ PUT /logs_20302801
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following get index alias API request returns all aliases
 for the index `logs_20302801`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /logs_20302801/_alias/*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -124,11 +121,10 @@ The API returns the following response:
 
 The following index alias API request returns the `2030` alias:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_alias/2030
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -156,11 +152,10 @@ The API returns the following response:
 
 The following index alias API request returns any alias that begin with `20`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_alias/20*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:

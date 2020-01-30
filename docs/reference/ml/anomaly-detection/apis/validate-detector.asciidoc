@@ -18,26 +18,26 @@ Validates detector configuration information.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-valid-detector-desc]]
 ==== {api-description-title}
 
-This API enables you validate the detector configuration
+This API enables you to validate the detector configuration
 before you create an {anomaly-job}.
 
 [[ml-valid-detector-request-body]]
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-detectorconfig,detector configuration objects>>.
+see detector configuration objects.
 
 [[ml-valid-detector-example]]
 ==== {api-examples-title}
 
 The following example validates detector configuration information:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate/detector
 {
@@ -46,7 +46,6 @@ POST _ml/anomaly_detectors/_validate/detector
   "by_field_name": "airline"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 When the validation completes, you receive the following results:

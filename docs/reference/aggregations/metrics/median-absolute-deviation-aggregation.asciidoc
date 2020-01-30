@@ -50,7 +50,7 @@ The resulting median absolute deviation of `2` tells us that there is a fair
 amount of variability in the ratings. Reviewers must have diverse opinions about
 this product.
 
-[source,js]
+[source,console-result]
 ---------------------------------------------------------
 {
   ...

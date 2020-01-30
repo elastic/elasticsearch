@@ -22,13 +22,14 @@ Deletes an existing {dfeed}.
 can delete it.
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-delete-datafeed-query-parms]]
 ==== {api-query-parms-title}
@@ -40,13 +41,10 @@ can delete it.
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}
 
-The following example deletes the `datafeed-total-requests` {dfeed}:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]
 
 When the {dfeed} is deleted, you receive the following results:

@@ -223,13 +223,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexMetaData firstMetaData = clusterService.state().metaData().index("test");
         assertTrue(test.hasShard(0));
+        ShardPath firstPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
+            test.getIndexSettings().customDataPath());
 
-        try {
-            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
-            fail();
-        } catch (IllegalStateException ex) {
-            // all good
-        }
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetaData));
+        assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
         MetaData meta = gwMetaState.getMetaData();
@@ -237,36 +235,25 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
+        assertFalse(firstPath.exists());
+
         meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
-
 
         test = createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
-        assertAcked(client().admin().indices().prepareClose("test"));
-        ShardPath path = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
-        assertTrue(path.exists());
+        assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(1));
+        ShardPath secondPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
+            test.getIndexSettings().customDataPath());
+        assertTrue(secondPath.exists());
 
-        try {
-            indicesService.deleteIndexStore("boom", secondMetaData, clusterService.state());
-            fail();
-        } catch (IllegalStateException ex) {
-            // all good
-        }
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetaData));
+        assertTrue(secondPath.exists());
 
-        assertTrue(path.exists());
-
-        // now delete the old one and make sure we resolve against the name
-        try {
-            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
-            fail();
-        } catch (IllegalStateException ex) {
-            // all good
-        }
         assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen("test");
     }
@@ -281,7 +268,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(indexShard.routingEntry().started());
 
         final ShardPath shardPath = indexShard.shardPath();
-        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings), shardPath);
+        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings.customDataPath()),
+            shardPath);
 
         final IndicesService indicesService = getIndicesService();
         expectThrows(ShardLockObtainFailedException.class, () ->
@@ -402,6 +390,28 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetaData().index(alias));
+    }
+
+    public void testDanglingIndicesWithLaterVersion() throws Exception {
+        final String indexNameLater = "test-idxnewer";
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final ClusterState originalState = clusterService.state();
+
+        //import an index with minor version incremented by one over cluster master version, it should be ignored
+        final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
+        final Settings idxSettingsLater = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+                                                                Version.fromId(Version.CURRENT.id + 10000))
+                                                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                                            .build();
+        final IndexMetaData indexMetaDataLater = new IndexMetaData.Builder(indexNameLater)
+                                                             .settings(idxSettingsLater)
+                                                             .numberOfShards(1)
+                                                             .numberOfReplicas(0)
+                                                             .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaDataLater), ActionListener.wrap(latch::countDown));
+        latch.await();
+        assertThat(clusterService.state(), equalTo(originalState));
     }
 
     /**
@@ -539,7 +549,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), false);
             if (value != null && value) {
                 assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
             } else {
@@ -565,14 +575,14 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final IndicesService indicesService = getIndicesService();
         final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList()));
+                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList(), false));
         final String pattern =
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
 
     public void testOverShardLimit() {
-        int nodesInCluster = randomIntBetween(1,100);
+        int nodesInCluster = randomIntBetween(1,90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
 
         Settings clusterSettings = Settings.builder()
@@ -594,7 +604,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUnderShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2,90);
         // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
 
@@ -651,7 +661,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), false);
         assertNotNull(indexService);
 
         final Index index2 = new Index("bar-index", UUIDs.randomBase64UUID());
@@ -665,7 +675,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> indicesService.createIndex(indexMetaData2, Collections.emptyList()));
+            () -> indicesService.createIndex(indexMetaData2, Collections.emptyList(), false));
         assertEquals("Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0",
             ex.getMessage());
 
@@ -679,7 +689,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        IndexService indexService2 = indicesService.createIndex(indexMetaData3, Collections.emptyList());
+        IndexService indexService2 = indicesService.createIndex(indexMetaData3, Collections.emptyList(), false);
         assertNotNull(indexService2);
     }
 

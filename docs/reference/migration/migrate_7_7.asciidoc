@@ -1,0 +1,33 @@
+[[breaking-changes-7.7]]
+== Breaking changes in 7.7
+++++
+<titleabbrev>7.7</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 7.7.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming[7.7.0]
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+//end::notable-breaking-changes[]
+
+[discrete]
+[[breaking_77_logging_changes]]
+=== Logging changes
+
+[discrete]
+==== Loggers under `org.elasticsearch.action` now log at `INFO` level by default
+
+The default log level for most loggers is `INFO`, but in earlier versions
+loggers in the `org.elasticsearch.action.*` hierarchy emitted log messages at
+`DEBUG` level by default. This sometimes resulted in a good deal of unnecessary
+log noise. From 7.7 onwards the default log level for logger in this hierarchy
+is now `INFO`, in line with most other loggers. If needed, you can recover the
+pre-7.7 default behaviour by adjusting your <<logging>>.

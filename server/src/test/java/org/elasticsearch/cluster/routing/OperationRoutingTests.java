@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,14 +45,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.elasticsearch.cluster.routing.OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class OperationRoutingTests extends ESTestCase{
-
+public class OperationRoutingTests extends ESTestCase {
     public void testGenerateShardId() {
         int[][] possibleValues = new int[][] {
             {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}
@@ -604,6 +605,16 @@ public class OperationRoutingTests extends ESTestCase{
 
         IOUtils.close(clusterService);
         terminate(threadPool);
+    }
+
+    public void testAllocationAwarenessDeprecation() {
+        OperationRouting routing = new OperationRouting(
+            Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "foo")
+                .build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        assertWarnings(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
     }
 
 }

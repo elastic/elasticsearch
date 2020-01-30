@@ -18,26 +18,26 @@ Validates {anomaly-job} configuration information.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-valid-job-desc]]
 ==== {api-description-title}
 
-This API enables you validate the {anomaly-job} configuration before you
+This API enables you to validate the {anomaly-job} configuration before you
 create the job.
 
 [[ml-valid-job-request-body]]
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-job-resource>>.
+see <<ml-put-job>>.
 
 [[ml-valid-job-example]]
 ==== {api-examples-title}
 
 The following example validates job configuration information:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate
 {
@@ -57,7 +57,6 @@ POST _ml/anomaly_detectors/_validate
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 When the validation is complete, you receive the following results:

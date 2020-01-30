@@ -38,6 +38,13 @@ public abstract class Step {
         return nextStepKey;
     }
 
+    /**
+     * Indicates if the step can be automatically retried when it encounters an execution error.
+     */
+    public boolean isRetryable() {
+        return false;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(key, nextStepKey);

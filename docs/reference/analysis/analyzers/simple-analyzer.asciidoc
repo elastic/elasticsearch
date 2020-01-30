@@ -7,7 +7,7 @@ character which is not a letter. All terms are lower cased.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -15,7 +15,6 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -132,7 +131,7 @@ it as a `custom` analyzer and modify it, usually by adding token filters.
 This would recreate the built-in `simple` analyzer and you can use it as
 a starting point for further customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /simple_example
 {
@@ -149,6 +148,5 @@ PUT /simple_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: simple_example, first: simple, second: rebuilt_simple}\nendyaml\n/]
 <1> You'd add any token filters here.

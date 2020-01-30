@@ -26,30 +26,34 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.PivotExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.TopHitsAggExtractor;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
+import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
@@ -62,25 +66,28 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
     private final Configuration cfg;
@@ -134,17 +141,38 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
             String... indices) {
         return client.prepareSearch(indices)
                 // always track total hits accurately
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(false)
-                .setSource(source)
-                .setTimeout(timeout)
+                .setTrackTotalHits(true).setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
                 .setIndicesOptions(
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
+    }
+    
+    protected static void logSearchResponse(SearchResponse response, Logger logger) {
+        List<Aggregation> aggs = Collections.emptyList();
+        if (response.getAggregations() != null) {
+            aggs = response.getAggregations().asList();
+        }
+        StringBuilder aggsNames = new StringBuilder();
+        for (int i = 0; i < aggs.size(); i++) {
+            aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
+        }
+        
+        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]",
+                response.getHits().getTotalHits().relation.toString(),
+                response.getHits().getTotalHits().value,
+                aggs.size(),
+                aggsNames,
+                response.getFailedShards(),
+                response.getSkippedShards(),
+                response.getSuccessfulShards(),
+                response.getTotalShards(),
+                response.getTook(),
+                response.isTimedOut());
     }
 
     /**
@@ -221,7 +249,7 @@ public class Querier {
                 // if the queue overflows and no limit was specified, throw an error
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
                     onFailure(new SqlIllegalArgumentException(
-                        "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
                 }
             }
         }
@@ -276,6 +304,10 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+            
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -314,27 +346,37 @@ public class Querier {
         }
     }
 
-        
+
     /**
      * Dedicated listener for composite aggs/group-by results.
      */
     static class CompositeActionListener extends BaseAggActionListener {
 
-        CompositeActionListener(ActionListener<Page> listener, Client client, Configuration cfg,
-                List<Attribute> output, QueryContainer query, SearchRequest request) {
+        private final boolean isPivot;
+
+        CompositeActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+                QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
+
+            isPivot = query.fields().stream().anyMatch(t -> t.v1() instanceof PivotColumnRef);
         }
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
-            
-            CompositeAggregationCursor.handle(response, request.source(),
-                    ba -> new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), mask, response,
-                            query.sortingColumns().isEmpty() ? query.limit() : -1, ba),
-                    () -> client.search(request, this),
-                    p -> listener.onResponse(p),
-                    e -> listener.onFailure(e),
-                    schema, query.shouldIncludeFrozen(), request.indices());
+
+            Supplier<CompositeAggRowSet> makeRowSet = isPivot ? () -> new PivotRowSet(schema, initBucketExtractors(response), mask,
+                    response, query.sortingColumns().isEmpty() ? query.limit() : -1, null) : () -> new SchemaCompositeAggRowSet(schema,
+                            initBucketExtractors(response), mask, response, query.sortingColumns().isEmpty() ? query.limit() : -1);
+
+            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
+                Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
+                return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), query.shouldIncludeFrozen(),
+                        request.indices());
+            } : (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
+                    request.indices());
+
+            CompositeAggCursor.handle(response, request.source(), makeRowSet, makeCursor, () -> client.search(request, this), listener,
+                    schema);
         }
     }
 
@@ -343,8 +385,8 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
-                QueryContainer query, SearchRequest request) {
+        BaseAggActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output, QueryContainer query,
+                SearchRequest request) {
             super(listener, client, cfg, output);
 
             this.query = query;
@@ -354,11 +396,11 @@ public class Querier {
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
+            List<Tuple<FieldExtraction, String>> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+            for (Tuple<FieldExtraction, String> ref : refs) {
                 exts.add(createExtractor(ref.v1(), totalCount));
             }
             return exts;
@@ -378,6 +420,11 @@ public class Querier {
             if (ref instanceof TopHitsAggRef) {
                 TopHitsAggRef r = (TopHitsAggRef) ref;
                 return new TopHitsAggExtractor(r.name(), r.fieldDataType(), cfg.zoneId());
+            }
+
+            if (ref instanceof PivotColumnRef) {
+                PivotColumnRef r = (PivotColumnRef) ref;
+                return new PivotExtractor(createExtractor(r.pivot(), totalCount), createExtractor(r.agg(), totalCount), r.value());
             }
 
             if (ref == GlobalCountRef.INSTANCE) {
@@ -408,8 +455,8 @@ public class Querier {
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<Page> listener, Client client, Configuration cfg,
-                List<Attribute> output, QueryContainer query) {
+        ScrollActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+                QueryContainer query) {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
@@ -419,24 +466,23 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
+            List<Tuple<FieldExtraction, String>> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+            for (Tuple<FieldExtraction, String> ref : refs) {
                 exts.add(createExtractor(ref.v1()));
             }
 
             ScrollCursor.handle(response, () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
                     p -> listener.onResponse(p),
-                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
-                    schema);
+                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)), schema);
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(),
-                    f.useDocValue(), f.hitName(), multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(),
+                        multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef) {
@@ -512,11 +558,11 @@ public class Querier {
         protected final void cleanup(SearchResponse response, Exception ex) {
             if (response != null && response.getScrollId() != null) {
                 client.prepareClearScroll().addScrollId(response.getScrollId())
-                    // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                    .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
-                        ex.addSuppressed(e);
-                        listener.onFailure(ex);
-                    }));
+                        // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
+                        .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
+                            ex.addSuppressed(e);
+                            listener.onFailure(ex);
+                        }));
             } else {
                 listener.onFailure(ex);
             }
@@ -524,10 +570,8 @@ public class Querier {
 
         protected final void clear(String scrollId, ActionListener<Boolean> listener) {
             if (scrollId != null) {
-                client.prepareClearScroll().addScrollId(scrollId).execute(
-                        ActionListener.wrap(
-                                clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
-                                listener::onFailure));
+                client.prepareClearScroll().addScrollId(scrollId).execute(ActionListener
+                        .wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure));
             } else {
                 listener.onResponse(false);
             }

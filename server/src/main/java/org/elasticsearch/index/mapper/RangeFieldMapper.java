@@ -44,11 +44,13 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -266,6 +268,23 @@ public class RangeFieldMapper extends FieldMapper {
             } else {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            if (rangeType == RangeType.DATE) {
+                DateFormatter dateTimeFormatter = this.dateTimeFormatter;
+                if (format != null) {
+                    dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+                }
+                if (timeZone == null) {
+                    timeZone = ZoneOffset.UTC;
+                }
+                // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
+                // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+                return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, DateFieldMapper.Resolution.MILLISECONDS);
+            }
+            return super.docValueFormat(format, timeZone);
         }
 
         @Override

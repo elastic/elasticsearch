@@ -1093,6 +1093,62 @@
               }
             }
           }
+        },
+        "enrich_coordinator_stats" : {
+          "properties": {
+            "node_id": {
+              "type": "keyword"
+            },
+            "queue_size": {
+              "type": "integer"
+            },
+            "remote_requests_current" : {
+              "type": "long"
+            },
+            "remote_requests_total" : {
+              "type": "long"
+            },
+            "executed_searches_total" : {
+              "type": "long"
+            }
+          }
+        },
+        "enrich_executing_policy_stats": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "task": {
+              "type": "object",
+              "properties": {
+                "node": {
+                  "type": "keyword"
+                },
+                "id": {
+                  "type": "long"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "action": {
+                  "type": "keyword"
+                },
+                "description": {
+                  "type": "keyword"
+                },
+                "start_time_in_millis": {
+                  "type": "date",
+                  "format": "epoch_millis"
+                },
+                "running_time_in_nanos": {
+                  "type": "long"
+                },
+                "cancellable": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         }
       }
     }

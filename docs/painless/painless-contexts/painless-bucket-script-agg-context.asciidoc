@@ -38,7 +38,7 @@ and adds the user-specified base_cost to the result:
 
 Note that the values are extracted from the `params` map.  In context, the aggregation looks like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
@@ -79,8 +79,8 @@ GET /seats/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]
+
 <1> The `buckets_path` points to two aggregations (`min_cost`, `max_cost`) and adds `min`/`max` variables
 to the `params` map
 <2> The user-specified `base_cost` is also added to the script's `params` map

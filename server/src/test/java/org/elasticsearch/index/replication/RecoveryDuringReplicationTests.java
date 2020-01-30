@@ -195,6 +195,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
+                    remainingReplica.getOperationPrimaryTerm(),
                     1,
                     randomNonNegativeLong(),
                     false,
@@ -212,7 +213,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
                         new SourceToParse("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, randomNonNegativeLong(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                         false);
             }
             final IndexShard recoveredReplica =
@@ -619,7 +620,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             phaseTwoStartLatch.countDown();
 
             // wait for the translog phase to complete and the recovery to block global checkpoint advancement
-            awaitBusy(() -> shards.getPrimary().pendingInSync());
+            assertBusy(() -> assertTrue(shards.getPrimary().pendingInSync()));
             {
                 shards.index(new IndexRequest(index.getName(), "type", "last").source("{}", XContentType.JSON));
                 final long expectedDocs = docs + 3L;
@@ -802,6 +803,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.assertAllEqual(initDocs + inFlightOpsOnNewPrimary + moreDocsAfterRollback);
             done.set(true);
             thread.join();
+
+            for (IndexShard shard : shards) {
+                shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+                assertThat(shard.translogStats().getUncommittedOperations(), equalTo(0));
+            }
         }
     }
 

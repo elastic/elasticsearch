@@ -3,9 +3,13 @@
 
 [partintro]
 --
-This section summarizes the most important changes in each release. For the 
-full list, see <<es-release-notes>> and <<breaking-changes>>. 
+This section summarizes the most important changes in each release. For the
+full list, see <<es-release-notes>> and <<breaking-changes>>.
 
+* <<release-highlights-7.7.0>>
+* <<release-highlights-7.6.0>>
+* <<release-highlights-7.5.0>>
+* <<release-highlights-7.4.0>>
 * <<release-highlights-7.3.0>>
 * <<release-highlights-7.2.0>>
 * <<release-highlights-7.1.0>>
@@ -13,6 +17,10 @@ full list, see <<es-release-notes>> and <<breaking-changes>>.
 
 --
 
+include::highlights-7.7.0.asciidoc[]
+include::highlights-7.6.0.asciidoc[]
+include::highlights-7.5.0.asciidoc[]
+include::highlights-7.4.0.asciidoc[]
 include::highlights-7.3.0.asciidoc[]
 include::highlights-7.2.0.asciidoc[]
 include::highlights-7.1.0.asciidoc[]

@@ -35,13 +35,13 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -51,8 +51,10 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
+import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -324,6 +326,14 @@ final class IndicesRequestConverters {
     }
 
     static Request split(ResizeRequest resizeRequest) throws IOException {
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(resizeRequest.getSettings()) == false) {
+            throw new IllegalArgumentException("index.number_of_shards is required for split operations");
+        }
+        return resize(resizeRequest, ResizeType.SPLIT);
+    }
+
+    @Deprecated
+    static Request split(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SPLIT) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices split request");
         }
@@ -331,6 +341,11 @@ final class IndicesRequestConverters {
     }
 
     static Request shrink(ResizeRequest resizeRequest) throws IOException {
+        return resize(resizeRequest, ResizeType.SHRINK);
+    }
+
+    @Deprecated
+    static Request shrink(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SHRINK) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices shrink request");
         }
@@ -338,16 +353,37 @@ final class IndicesRequestConverters {
     }
 
     static Request clone(ResizeRequest resizeRequest) throws IOException {
+        return resize(resizeRequest, ResizeType.CLONE);
+    }
+
+    @Deprecated
+    static Request clone(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.CLONE) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices clone request");
         }
         return resize(resizeRequest);
     }
 
-    private static Request resize(ResizeRequest resizeRequest) throws IOException {
+    private static Request resize(ResizeRequest resizeRequest, ResizeType type) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
-                .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
-                .addPathPart(resizeRequest.getTargetIndexRequest().index()).build();
+                .addPathPartAsIs("_" + type.name().toLowerCase(Locale.ROOT))
+                .addPathPart(resizeRequest.getTargetIndex()).build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withTimeout(resizeRequest.timeout());
+        params.withMasterTimeout(resizeRequest.masterNodeTimeout());
+        params.withWaitForActiveShards(resizeRequest.getWaitForActiveShards());
+        request.addParameters(params.asMap());
+        request.setEntity(RequestConverters.createEntity(resizeRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    @Deprecated
+    private static Request resize(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
+            .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
+            .addPathPart(resizeRequest.getTargetIndexRequest().index()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
@@ -660,6 +696,19 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withIndicesOptions(reloadAnalyzersRequest.indicesOptions());
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
+    static Request deleteAlias(DeleteAliasRequest deleteAliasRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(deleteAliasRequest.getIndex())
+            .addPathPartAsIs("_alias")
+            .addPathPart(deleteAliasRequest.getAlias()).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withTimeout(deleteAliasRequest.timeout());
+        parameters.withMasterTimeout(deleteAliasRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

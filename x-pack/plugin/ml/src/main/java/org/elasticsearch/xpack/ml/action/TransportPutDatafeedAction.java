@@ -132,7 +132,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                 },
                 e -> {
-                    if (e instanceof IndexNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         indicesPrivilegesBuilder.privileges(SearchAction.NAME);
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);

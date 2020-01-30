@@ -18,9 +18,9 @@ experimental[]
 [[rollup-get-job-prereqs]]
 ==== {api-prereq-title}
 
-* You must have `monitor`, `monitor_rollup`, `manage` or `manage_rollup` cluster
-privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+* If the {es} {security-features} are enabled, you must have `monitor`,
+`monitor_rollup`, `manage` or `manage_rollup` cluster privileges to use this API.
+For more information, see <<security-privileges>>.
 
 [[rollup-get-job-desc]]
 ==== {api-description-title}
@@ -79,11 +79,10 @@ state is set, the job will remove itself from the cluster.
 If we have already created a rollup job named `sensor`, the details about the
 job can be retrieved with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _rollup/job/sensor
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 The API yields the following response:
@@ -154,7 +153,7 @@ The API yields the following response:
 The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL. 
 If we add another job, we can see how multi-job responses are handled:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor2 <1>
 {
@@ -186,7 +185,6 @@ PUT _rollup/job/sensor2 <1>
 
 GET _rollup/job/_all <2>
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 <1> We create a second job with name `sensor2`
 <2> Then request all jobs by using `_all` in the GetJobs API

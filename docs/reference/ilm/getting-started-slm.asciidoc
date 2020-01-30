@@ -5,8 +5,9 @@
 
 Let's get started with snapshot lifecycle management (SLM) by working through a
 hands-on scenario. The goal of this example is to automatically back up {es}
-indices using the <<modules-snapshots,snapshots>> every day at a particular
-time.
+indices using the <<snapshot-restore,snapshots>> every day at a particular
+time. Once these snapshots have been created, they are kept for a configured
+amount of time and then deleted per a configured retention policy.
 
 [float]
 [[slm-and-security]]
@@ -14,16 +15,17 @@ time.
 Before starting, it's important to understand the privileges that are needed
 when configuring SLM if you are using the security plugin. There are two
 built-in cluster privileges that can be used to assist: `manage_slm` and
-`read_slm`. It's also good to note that the `create_snapshot` permission
-allows taking snapshots even for indices the role may not have access to.
+`read_slm`. It's also good to note that the `cluster:admin/snapshot/*`
+permission allows taking and deleting snapshots even for indices the role may
+not have access to.
 
 An example of configuring an administrator role for SLM follows:
 
-[source,js]
+[source,console]
 -----------------------------------
 POST /_security/role/slm-admin
 {
-  "cluster": ["manage_slm", "create_snapshot"],
+  "cluster": ["manage_slm", "cluster:admin/snapshot/*"],
   "indices": [
     {
       "names": [".slm-history-*"],
@@ -32,13 +34,12 @@ POST /_security/role/slm-admin
   ]
 }
 -----------------------------------
-// CONSOLE
 // TEST[skip:security is not enabled here]
 
 Or, for a read-only role that can retrieve policies (but not update, execute, or
 delete them), as well as only view the history index:
 
-[source,js]
+[source,console]
 -----------------------------------
 POST /_security/role/slm-read-only
 {
@@ -51,7 +52,6 @@ POST /_security/role/slm-read-only
   ]
 }
 -----------------------------------
-// CONSOLE
 // TEST[skip:security is not enabled here]
 
 [float]
@@ -59,12 +59,12 @@ POST /_security/role/slm-read-only
 === Setting up a repository
 
 Before we can set up an SLM policy, we'll need to set up a
-<<snapshots-repositories,snapshot repository>> where the snapshots will be
+snapshot repository where the snapshots will be
 stored. Repositories can use {plugins}/repository.html[many different backends],
 including cloud storage providers. You'll probably want to use one of these in
 production, but for this example we'll use a shared file system repository:
 
-[source,js]
+[source,console]
 -----------------------------------
 PUT /_snapshot/my_repository
 {
@@ -74,8 +74,6 @@ PUT /_snapshot/my_repository
   }
 }
 -----------------------------------
-// CONSOLE
-// TEST
 
 [float]
 === Setting up a policy
@@ -86,7 +84,11 @@ snapshots, what the snapshots should be named, and which indices should be
 included, among other things.  We'll use the <<slm-api-put,Put Policy>> API
 to create the policy.
 
-[source,js]
+When configurating a policy, retention can also optionally be configured. See
+the <<slm-retention,SLM retention>> documentation for the full documentation of
+how retention works.
+
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/nightly-snapshots
 {
@@ -95,13 +97,17 @@ PUT /_slm/policy/nightly-snapshots
   "repository": "my_repository", <3>
   "config": { <4>
     "indices": ["*"] <5>
+  },
+  "retention": { <6>
+    "expire_after": "30d", <7>
+    "min_count": 5, <8>
+    "max_count": 50 <9>
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 <1> when the snapshot should be taken, using 
-    {xpack-ref}/trigger-schedule.html#schedule-cron[Cron syntax], in this 
+    <<schedule-cron,Cron syntax>>, in this 
     case at 1:30AM each day
 <2> whe name each snapshot should be given, using 
     <<date-math-index-names,date math>> to include the current date in the name
@@ -109,6 +115,10 @@ PUT /_slm/policy/nightly-snapshots
 <3> the repository the snapshot should be stored in
 <4> the configuration to be used for the snapshot requests (see below)
 <5> which indices should be included in the snapshot, in this case, every index
+<6> Optional retention configuration
+<7> Keep snapshots for 30 days
+<8> Always keep at least 5 successful snapshots
+<9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
 This policy will take a snapshot of every index each day at 1:30AM UTC.
 Snapshots are incremental, allowing frequent snapshots to be stored efficiently,
@@ -127,18 +137,17 @@ While snapshots taken by SLM policies can be viewed through the standard snapsho
 API, SLM also keeps track of policy successes and failures in ways that are a bit
 easier to use to make sure the policy is working.  Once a policy has executed at
 least once, when you view the policy using the <<slm-api-get,Get Policy API>>, 
-some metadata will be returned indicating whether the snapshot was sucessfully 
+some metadata will be returned indicating whether the snapshot was successfully 
 initiated or not.
 
 Instead of waiting for our policy to run, let's tell SLM to take a snapshot
 as using the configuration from our policy right now instead of waiting for
 1:30AM.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /_slm/policy/nightly-snapshots/_execute
+POST /_slm/policy/nightly-snapshots/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
 This request will kick off a snapshot for our policy right now, regardless of
@@ -147,18 +156,17 @@ a configuration change, upgrading, or for our purposes, making sure our policy
 is going to work successfully. The policy will continue to run on its configured
 schedule after this execution of the policy.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_slm/policy/nightly-snapshots?human
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This request will return a response that includes the policy, as well as
 information about the last time the policy succeeded and failed, as well as the
 next time the policy will be executed.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nightly-snapshots" : {
@@ -171,6 +179,11 @@ next time the policy will be executed.
       "repository": "my_repository",
       "config": {
         "indices": ["*"],
+      },
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
       }
     },
     "last_success": { <1>
@@ -190,6 +203,7 @@ next time the policy will be executed.
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
+
 <1> information about the last time the policy successfully initated a snapshot
 <2> the name of the snapshot that was successfully initiated
 <3> information about the last time the policy failed to initiate a snapshot
@@ -205,7 +219,7 @@ field - it's included above only as an example. You should, however, see a
 `last_success` field and a snapshot name. If you do, you've successfully taken
 your first snapshot using SLM!
 
-While only the most recent sucess and failure are available through the Get Policy 
+While only the most recent success and failure are available through the Get Policy 
 API, all policy executions are recorded to a history index, which may be queried
 by searching the index pattern `.slm-history*`.
 

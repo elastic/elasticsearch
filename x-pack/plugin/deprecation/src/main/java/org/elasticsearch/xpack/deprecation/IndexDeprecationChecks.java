@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -183,6 +184,21 @@ public class IndexDeprecationChecks {
             }
         }
         return false;
+    }
+
+    /**
+     * warn about existing explicit "_field_names" settings in existing mappings
+     */
+    static DeprecationIssue fieldNamesDisabledCheck(IndexMetaData indexMetaData) {
+        MappingMetaData mapping = indexMetaData.mapping();
+        if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Index mapping contains explicit `_field_names` enabling settings.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                            "#fieldnames-enabling",
+                    "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.");
+        }
+        return null;
     }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;

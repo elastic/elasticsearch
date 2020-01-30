@@ -272,7 +272,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
-                    awaitBusy(() -> shouldBlock.get() == false);
+                    assertBusy(() -> assertFalse(shouldBlock.get()));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

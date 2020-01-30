@@ -6,9 +6,9 @@
 
 Adds or removes index aliases.
 
-include::alias-exists.asciidoc[tag=index-alias-def]
+include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
 
-[source,js]
+[source,console]
 ----
 POST /_aliases
 {
@@ -17,7 +17,6 @@ POST /_aliases
     ]
 }
 ----
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -153,7 +152,7 @@ See <<aliases-routing>> for an example.
 
 The following request adds the `alias1` alias to the `test1` index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -162,7 +161,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 [[indices-aliases-api-remove-alias-ex]]
@@ -170,7 +168,7 @@ POST /_aliases
 
 The following request removes the `alias1` alias.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -179,7 +177,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[indices-aliases-api-rename-alias-ex]]
@@ -189,7 +186,7 @@ Renaming an alias is a simple `remove` then `add` operation within the
 same API. This operation is atomic, no need to worry about a short
 period of time where the alias does not point to an index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -199,7 +196,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[indices-aliases-api-add-multi-alias-ex]]
@@ -208,7 +204,7 @@ POST /_aliases
 Associating an alias with more than one index is simply several `add`
 actions:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -218,12 +214,11 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 Multiple indices can be specified for an action with the `indices` array syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -232,7 +227,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 To specify multiple aliases in one action, the corresponding `aliases` array
@@ -241,7 +235,7 @@ syntax exists as well.
 For the example above, a glob pattern can also be used to associate an alias to
 more than one index that share a common name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -250,7 +244,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 In this case, the alias is a point-in-time alias that will group all
@@ -261,7 +254,7 @@ It is an error to index to an alias which points to more than one index.
 
 It is also possible to swap an index with an alias in one operation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test     <1>
 PUT test_2   <2>
@@ -273,7 +266,7 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> An index we've added by mistake
 <2> The index we should have added
 <3> `remove_index` is just like <<indices-delete-index>>
@@ -289,7 +282,7 @@ this alias.
 To create a filtered alias, first we need to ensure that the fields already
 exist in the mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test1
 {
@@ -302,11 +295,10 @@ PUT /test1
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Now we can create an alias that uses a filter on field `user`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -321,7 +313,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[aliases-routing]]
@@ -335,7 +326,7 @@ The following command creates a new alias `alias1` that points to index
 `test`. After `alias1` is created, all operations with this alias are
 automatically modified to use value `1` for routing:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -350,13 +341,12 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 It's also possible to specify different routing values for searching
 and indexing operations:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -372,7 +362,6 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 As shown in the example above, search routing may contain several values
@@ -383,11 +372,10 @@ intersection of both search alias routing and routing specified in the
 parameter is used. For example the following command will use "2" as a
 routing value:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /alias2/_search?q=user:kimchy&routing=2,3
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[aliases-write-index]]
@@ -405,7 +393,7 @@ and index creation API.
 Setting an index to be the write index with an alias also affects how the alias is manipulated during
 Rollover (see <<indices-rollover-index, Rollover With Write Index>>).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -426,36 +414,33 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\nPUT test2\n/]
 
 In this example, we associate the alias `alias1` to both `test` and `test2`, where
 `test` will be the index chosen for writing to.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /alias1/_doc/1
 {
     "foo": "bar"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The new document that was indexed to `/alias1/_doc/1` will be indexed as if it were
 `/test/_doc/1`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 To swap which index is the write index for an alias, the Aliases API can be leveraged to
 do an atomic swap. The swap is not dependent on the ordering of the actions.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_aliases
 {
@@ -476,5 +461,4 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\nPUT test2\n/]

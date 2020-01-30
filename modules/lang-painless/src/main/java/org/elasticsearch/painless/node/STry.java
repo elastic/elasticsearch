@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 
 import java.util.Collections;
@@ -48,17 +49,6 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-
-        for (SCatch ctch : catches) {
-            ctch.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         if (block != null) {
             block.extractVariables(variables);
@@ -69,7 +59,7 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
@@ -78,7 +68,7 @@ public final class STry extends AStatement {
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
 
-        block.analyze(Locals.newLocalScope(locals));
+        block.analyze(scriptRoot, Locals.newLocalScope(locals));
 
         methodEscape = block.methodEscape;
         loopEscape = block.loopEscape;
@@ -93,7 +83,7 @@ public final class STry extends AStatement {
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
 
-            catc.analyze(Locals.newLocalScope(locals));
+            catc.analyze(scriptRoot, Locals.newLocalScope(locals));
 
             methodEscape &= catc.methodEscape;
             loopEscape &= catc.loopEscape;
@@ -108,34 +98,34 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
         block.continu = continu;
         block.brake = brake;
-        block.write(writer, globals);
+        block.write(classWriter, methodWriter, globals);
 
         if (!block.allEscape) {
-            writer.goTo(exception);
+            methodWriter.goTo(exception);
         }
 
-        writer.mark(end);
+        methodWriter.mark(end);
 
         for (SCatch catc : catches) {
             catc.begin = begin;
             catc.end = end;
             catc.exception = catches.size() > 1 ? exception : null;
-            catc.write(writer, globals);
+            catc.write(classWriter, methodWriter, globals);
         }
 
         if (!block.allEscape || catches.size() > 1) {
-            writer.mark(exception);
+            methodWriter.mark(exception);
         }
     }
 

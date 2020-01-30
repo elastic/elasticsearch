@@ -26,7 +26,9 @@ operations, but you can still explore and navigate results.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
+* Before you can close an {anomaly-job}, you must stop its {dfeed}. See
+<<ml-stop-datafeed>>.
 
 [[ml-close-job-desc]]
 ==== {api-description-title}
@@ -58,33 +60,23 @@ results the job might have recently produced or might produce in the future.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}. It can be a job
-  identifier, a group name, or a wildcard expression.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no jobs that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches.
-
-The default value is `true`, which returns an empty `jobs` array 
-when there are no matches and the subset of results when there are partial 
-matches. If this parameter is `false`, the request returns a `404` status code
-when there are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `force`::
-  (Optional, boolean) Use to close a failed job, or to forcefully close a job
-  which has not responded to its initial close request.
+(Optional, boolean) Use to close a failed job, or to forcefully close a job
+which has not responded to its initial close request.
 
 `timeout`::
-  (Optional, <<time-units, time units>>) Controls the time to wait until a job 
-  has closed. The default value is 30 minutes.
+(Optional, <<time-units, time units>>) Controls the time to wait until a job 
+has closed. The default value is 30 minutes.
 
 [[ml-close-job-response-codes]]
 ==== {api-response-codes-title}
@@ -96,14 +88,11 @@ when there are no matches or only partial matches.
 [[ml-close-job-example]]
 ==== {api-examples-title}
 
-The following example closes the `total-requests` job:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_close
+POST _ml/anomaly_detectors/low_request_rate/_close
 --------------------------------------------------
-// CONSOLE
-// TEST[skip:setup:server_metrics_openjob]
+// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325 - on unmuting use setup:server_metrics_openjob-raw]
 
 When the job is closed, you receive the following results:
 

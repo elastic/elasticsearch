@@ -82,17 +82,10 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(sum, is(0));
         });
 
-        logger.info("Ensured no more watches are being executed");
         refresh();
         long count1 = docCount(".watcher-history*", matchAllQuery());
 
-        logger.info("Sleeping for 5 seconds, watch history count [{}]", count1);
-        Thread.sleep(5000);
 
-        refresh();
-        long count2 = docCount(".watcher-history*", matchAllQuery());
-
-        assertThat(count2, is(count1));
 
         // lets activate it again
         logger.info("Activating watch again");

@@ -21,8 +21,11 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -59,6 +63,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
 
     private final SnapshotsService snapshotsService;
 
@@ -94,10 +100,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     protected void masterOperation(final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         List<SnapshotsInProgress.Entry> currentSnapshots =
-            snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
+            SnapshotsService.currentSnapshots(snapshotsInProgress, request.repository(), Arrays.asList(request.snapshots()));
         if (currentSnapshots.isEmpty()) {
-            listener.onResponse(buildResponse(request, currentSnapshots, null));
+            buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
             return;
         }
 
@@ -119,20 +126,21 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             transportNodesSnapshotsStatus.execute(
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout()),
-                ActionListener.wrap(
-                    nodeSnapshotStatuses -> threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                        ActionRunnable.wrap(listener, l -> l.onResponse(buildResponse(request, snapshotsService.currentSnapshots(
-                            request.repository(), Arrays.asList(request.snapshots())), nodeSnapshotStatuses)))), listener::onFailure));
+                ActionListener.wrap(nodeSnapshotStatuses -> threadPool.generic().execute(
+                    ActionRunnable.wrap(listener,
+                        l -> buildResponse(snapshotsInProgress, request, currentSnapshots, nodeSnapshotStatuses, l))
+                ), listener::onFailure));
         } else {
             // We don't have any in-progress shards, just return current stats
-            listener.onResponse(buildResponse(request, currentSnapshots, null));
+            buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
         }
 
     }
 
-    private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshotEntries,
-                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses)
-                                                  throws IOException {
+    private void buildResponse(@Nullable SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
+                               List<SnapshotsInProgress.Entry> currentSnapshotEntries,
+                               TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
+                               ActionListener<SnapshotsStatusResponse> listener) {
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();
@@ -192,8 +200,19 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
-            final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
-            final RepositoryData repositoryData = snapshotsService.getRepositoryData(repositoryName);
+            loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, listener);
+        } else {
+            listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
+        }
+    }
+
+    private void loadRepositoryData(@Nullable SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
+                                    List<SnapshotStatus> builder, Set<String> currentSnapshotNames, String repositoryName,
+                                    ActionListener<SnapshotsStatusResponse> listener) {
+        final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
+        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        snapshotsService.getRepositoryData(repositoryName, repositoryDataListener);
+        repositoryDataListener.whenComplete(repositoryData -> {
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
@@ -214,7 +233,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         throw new SnapshotMissingException(repositoryName, snapshotName);
                     }
                 }
-                SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
+                SnapshotInfo snapshotInfo = snapshotsService.snapshot(snapshotsInProgress, repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 if (snapshotInfo.state().completed()) {
                     Map<ShardId, IndexShardSnapshotStatus> shardStatuses =
@@ -238,14 +257,18 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
                     final long startTime = snapshotInfo.startTime();
+                    final long endTime = snapshotInfo.endTime();
+                    assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
+                        : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
                         Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),
-                        startTime, snapshotInfo.endTime() - startTime));
+                        startTime,
+                        // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
+                        (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime));
                 }
             }
-        }
-
-        return new SnapshotsStatusResponse(Collections.unmodifiableList(builder));
+            listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
+        }, listener::onFailure);
     }
 
 }

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -77,6 +79,8 @@ import java.util.function.Predicate;
  The start datafeed api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -174,7 +178,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof ResourceAlreadyExistsException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                             logger.debug("datafeed already started", e);
                             e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
                                     "] because it has already been started", RestStatus.CONFLICT);

@@ -18,6 +18,7 @@
  */
 
 esplugin {
-    description 'Adds advanced field mappers'
-    classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
+  description 'Adds advanced field mappers'
+  classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
+  hasClientJar = true
 }

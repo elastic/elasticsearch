@@ -191,7 +191,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
-        assertThat(query, containsString("{\"bool\":{\"filter\":[{\"terms\":{\"application\":[\"yourapp\"]"));
+        assertThat(query, containsString("{\"bool\":{\"should\":[{\"terms\":{\"application\":[\"yourapp\"]"));
         assertThat(query, containsString("{\"prefix\":{\"application\":{\"value\":\"myapp-\""));
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
@@ -283,7 +283,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ));
         }
 
-        awaitBusy(() -> requests.size() > 0, 1, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
 
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(ClearRolesCacheRequest.class));
@@ -324,7 +324,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ));
         }
 
-        awaitBusy(() -> requests.size() > 0, 1, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
 
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(ClearRolesCacheRequest.class));

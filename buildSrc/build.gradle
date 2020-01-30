@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.gradle.util.GradleVersion
 
-import java.util.regex.Matcher
+import org.gradle.internal.jvm.Jvm
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -29,7 +29,7 @@ group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
 if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-    throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
+   throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
 if (project == rootProject) {
@@ -67,8 +67,8 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
 }
 
 sourceSets {
-    // We have a few classes that need to be compiled for older java versions
-    minimumRuntime { }
+  // We have a few classes that need to be compiled for older java versions
+  minimumRuntime {}
 }
 
 configurations {
@@ -76,16 +76,16 @@ configurations {
 }
 
 compileMinimumRuntimeJava {
-    targetCompatibility = 8
-    sourceCompatibility = 8
+  targetCompatibility = 8
+  sourceCompatibility = 8
 }
 
 jar {
-    from sourceSets.minimumRuntime.output
+  from sourceSets.minimumRuntime.output
 }
 
 javadoc {
-    source sourceSets.minimumRuntime.allSource
+  source sourceSets.minimumRuntime.allSource
 }
 
 /*****************************************************************************
@@ -103,22 +103,25 @@ dependencies {
   }
 
   compile localGroovy()
-  
+
   compile 'commons-codec:commons-codec:1.12'
+  compile 'org.apache.commons:commons-compress:1.19'
 
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
+  compile 'com.netflix.nebula:gradle-info-plugin:5.1.0'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:5.5.0.201909110433-r'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
-  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
-  compile 'com.github.jengelman.gradle.plugins:shadow:4.0.3'
-  compile 'de.thetaphi:forbiddenapis:2.6'
+  compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
+  compile 'de.thetaphi:forbiddenapis:2.7'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testCompile 'org.mockito:mockito-core:1.9.5'
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
   minimumRuntimeCompile gradleApi()
@@ -169,6 +172,9 @@ if (project != rootProject) {
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){
+    test.enabled = false
+  }
 
   configurations {
     distribution
@@ -184,48 +190,14 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
   }
-    
+
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
   processResources {
-      exclude 'buildSrc.marker'
-      into('META-INF') {
-          from configurations.reaper
-      }
-  }
-
-  String localDownloads = "${rootProject.buildDir}/local-downloads"
-  task setupLocalDownloads(type:Copy) {
-    from configurations.distribution
-    into localDownloads
-  }
-    
-  task integTest(type: Test) {
-    // integration test requires the local testing repo for example plugin builds
-    dependsOn project.rootProject.allprojects.collect {
-      it.tasks.matching { it.name == 'publishNebulaPublicationToTestRepository'}
+    exclude 'buildSrc.marker'
+    into('META-INF') {
+      from configurations.reaper
     }
-    dependsOn setupLocalDownloads
-    exclude "**/*Tests.class"
-    inputs.dir(file("src/testKit"))
-    // tell BuildExamplePluginsIT where to find the example plugins
-    systemProperty (
-            'test.build-tools.plugin.examples',
-            files(
-                    project(':example-plugins').subprojects.collect { it.projectDir }
-            ).asPath,
-    )
-    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
-    systemProperty 'test.local-test-downloads-path', localDownloads
-    systemProperty 'test.version_under_test', version
-    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ versions.lucene)
-    if (isLuceneSnapshot) {
-      systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
-    }
-    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
-    // These tests run Gradle which doesn't have FIPS support
-    onlyIf { project.inFipsJvm == false }
   }
-  check.dependsOn(integTest)
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
@@ -235,6 +207,7 @@ if (project != rootProject) {
     exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
+    exclude '**/*.bcfks'
   }
 
   testingConventions {
@@ -249,8 +222,21 @@ if (project != rootProject) {
     }
   }
 
+  task integTest(type: Test) {
+    inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty 'test.version_under_test', version
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
+    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+  }
+  check.dependsOn(integTest)
+
+  // for now we hardcode the tests for our build to use the gradle jvm.
+  tasks.withType(Test).configureEach {
+    it.executable = Jvm.current().getJavaExecutable()
+  }
+
   /*
-   * We alread configure publication and we don't need or want this one that
+   * We already configure publication and we don't need or want this one that
    * comes from the java-gradle-plugin.
    */
   afterEvaluate {
@@ -279,8 +265,8 @@ class VersionPropertiesLoader {
     }
     if (elasticsearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
       throw new IllegalStateException(
-              "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
-                      elasticsearch
+        "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
+          elasticsearch
       )
     }
     String qualifier = systemProperties.getProperty("build.version_qualifier", "");
@@ -290,8 +276,17 @@ class VersionPropertiesLoader {
       }
       elasticsearch += "-" + qualifier
     }
-    if ("true".equals(systemProperties.getProperty("build.snapshot", "true"))) {
-      elasticsearch += "-SNAPSHOT"
+    final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+    switch (buildSnapshotSystemProperty) {
+      case "true":
+        elasticsearch += "-SNAPSHOT"
+        break;
+      case "false":
+        // do nothing
+        break;
+      default:
+        throw new IllegalArgumentException(
+          "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
     }
     loadedProps.put("elasticsearch", elasticsearch)
   }

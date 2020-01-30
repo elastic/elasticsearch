@@ -14,13 +14,15 @@ be available but will not use the `_field_names` field.
 [[disable-field-names]]
 ==== Disabling `_field_names`
 
-Disabling `_field_names` is often not necessary because it no longer
+NOTE: Disabling `_field_names` has been deprecated and will be removed in a future major version.
+
+Disabling `_field_names` is usually not necessary because it no longer
 carries the index overhead it once did. If you have a lot of fields
 which have `doc_values` and `norms` disabled and you do not need to
 execute `exists` queries using those fields you might want to disable
-`_field_names` be adding the following to the mappings:
+`_field_names` by adding the following to the mappings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT tweets
 {
@@ -31,4 +33,4 @@ PUT tweets
   }
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[warning:Index [tweets] uses the deprecated `enabled` setting for `_field_names`. Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for this setting will be removed in a future major version. Please remove it from your mappings and templates.]

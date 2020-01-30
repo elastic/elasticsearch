@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -122,13 +123,13 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected final Result result;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this.shardId = shardId;
-        this.type = type;
-        this.id = id;
+        this.shardId = Objects.requireNonNull(shardId);
+        this.type = Objects.requireNonNull(type);
+        this.id = Objects.requireNonNull(id);
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.version = version;
-        this.result = result;
+        this.result = Objects.requireNonNull(result);
     }
 
     // needed for deserialization

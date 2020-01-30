@@ -112,7 +112,7 @@ new {ref}/sql-index-frozen.html[`FROZEN`] keyword.
 [float]
 ==== Fixed memory leak when using templates in document-level security
 
-{stack-ov}/document-level-security.html[Document-level security] was using an
+{ref}/document-level-security.html[Document-level security] was using an
 unbounded cache for the set of visible documents. This could lead to a memory
 leak when using a templated query as a role query. The cache has been fixed to
 evict based on memory usage and has a limit of 50MB.
@@ -138,7 +138,7 @@ similar level as what you could have on pre-6.0 releases.
 [[release-highlights-7.3.0-transforms]]
 ==== {dataframes-cap}: transform and pivot your streaming data
 
-beta[] {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}] are a core new
+beta[] {ref}/transforms.html[{dataframe-transforms-cap}] are a core new
 feature in {es} that enable you to transform an existing index to a secondary,
 summarized index. {dataframe-transforms-cap} enable you to pivot your data and
 create entity-centric indices that can summarize the behavior of an entity. This
@@ -159,7 +159,7 @@ visualizations and custom types of analysis.
 [[release-highlights-7.3.0-outlier-detection]]
 ==== Discover your most unusual data using {oldetection}
 
-The goal of {stack-ov}/dfa-outlier-detection.html[{oldetection}] is to find 
+The goal of {ml-docs}/dfa-outlier-detection.html[{oldetection}] is to find 
 the most unusual data points in an index. We analyse the numerical fields of 
 each data point (document in an index) and annotate them with how unusual they 
 are.

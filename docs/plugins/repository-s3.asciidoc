@@ -21,7 +21,7 @@ http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
 IAM Role] credentials for authentication. The only mandatory setting is the
 bucket name:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_s3_repository
 {
@@ -31,7 +31,6 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have s3 setup while testing this]
 
 
@@ -43,7 +42,7 @@ The settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. By default,
 `s3` repositories use a client named `default`, but this can be modified using
 the <<repository-s3-repository,repository setting>> `client`. For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_s3_repository
 {
@@ -54,7 +53,6 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have S3 setup while testing this]
 
 Most client settings can be added to the `elasticsearch.yml` configuration file
@@ -210,7 +208,7 @@ or supported.
 The `s3` repository type supports a number of settings to customize how data is
 stored in S3. These can be specified when creating the repository. For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_s3_repository
 {
@@ -221,7 +219,6 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have S3 set up while testing this]
 
 The following settings are supported:
@@ -287,7 +284,7 @@ include::repository-shared-settings.asciidoc[]
 `storage_class`::
 
     Sets the S3 storage class for objects stored in the snapshot repository.
-    Values may be `standard`, `reduced_redundancy`, `standard_ia`
+    Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia`
     and `intelligent_tiering`. Defaults to `standard`.
     Changing this setting on an existing repository only affects the
     storage class for newly created objects, resulting in a mixed usage of
@@ -310,7 +307,7 @@ by the repository settings taking precedence over client settings.
 
 For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_s3_repository
 {
@@ -322,7 +319,6 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have s3 set up while testing this]
 
 This sets up a repository that uses all client settings from the client

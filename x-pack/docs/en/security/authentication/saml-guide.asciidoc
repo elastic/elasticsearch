@@ -90,7 +90,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
+<<tls-http>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -111,9 +111,10 @@ SAML authentication is enabled by configuring a SAML realm within the
 authentication chain for {es}.
 
 This realm has a few mandatory settings, and a number of optional settings.
-The available settings are described in detail in the
-<<saml-settings, SAML realm documentation>>, this guide will walk you through
-the most common settings.
+The available settings are described in detail in <<security-settings>>. For
+example, <<ref-saml-settings>>, <<ref-saml-signing-settings>>,
+<<ref-saml-encryption-settings>>, <<ref-saml-ssl-settings>>.
+This guide will walk you through the most common settings.
 
 Create a realm by adding the following to your `elasticsearch.yml`
 configuration file. Each configuration value is explained below.
@@ -240,6 +241,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   in your IdP. In the example above, we have configured the `principal` and
   `groups` attributes.
 
+[[saml-attribute-mapping-nameid]]
 ===== Special attribute names
 
 In general, {es} expects that the configured value for an attribute will be a
@@ -374,7 +376,7 @@ successfully authenticated, the Authentication Statement of the SAML Response
 contains an indication of the restrictions that were satisfied.
 
 You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
-{ref}/security-settings.html#ref-saml-settings[SAML realm settings]. 
+<<ref-saml-settings>>. 
 
 {es} supports only the `exact` comparison method for the Authentication Context. 
 When it receives the Authentication Response from the IdP, {es} examines the 
@@ -394,6 +396,7 @@ services it offers.
 By default the Elastic Stack will support SAML SLO if the following are true:
 
 - Your IdP metadata specifies that the IdP offers a SLO service
+- Your IdP releases a NameID in the subject of the SAML assertion that it issues for your users
 - You configure `sp.logout`
 - The setting `idp.use_single_logout` is not `false`
 
@@ -492,7 +495,7 @@ You should consult the documentation for your IdP to determine what formats they
 support. Since PEM format is the most commonly supported format, the examples
 below will generate certificates in that format.
 
-Using the {ref}/certutil.html[`elasticsearch-certutil`] tool, you can generate a
+Using the <<certutil,`elasticsearch-certutil` tool>>, you can generate a
 signing certificate with the following command:
 
 [source, sh]
@@ -532,7 +535,7 @@ The path to the PEM formatted key file. e.g. `saml/saml-sign.key`
 
 `signing.secure_key_passphrase`::
 The passphrase for the key, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to use *PKCS#12 formatted* files or a *Java Keystore* for
@@ -546,7 +549,7 @@ The alias of the key within the keystore. e.g. `signing-key`
 
 `signing.keystore.secure_password`::
 The passphrase for the keystore, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to sign some, but not all outgoing *SAML messages*, then you
@@ -583,7 +586,7 @@ The path to the PEM formatted key file. e.g. `saml/saml-crypt.key`
 
 `encryption.secure_key_passphrase`::
 The passphrase for the key, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 If you wish to use *PKCS#12 formatted* files or a *Java Keystore* for SAML
@@ -597,7 +600,7 @@ The alias of the key within the keystore. e.g. `encryption-key`
 
 `encryption.keystore.secure_password`::
 The passphrase for the keystore, if the file is encrypted. This is a
-{ref}/secure-settings.html[secure setting] that must be set with the
+<<secure-settings,secure setting>> that must be set with the
 `elasticsearch-keystore` tool.
 
 [[saml-sp-metadata]]
@@ -610,7 +613,7 @@ between the IdP and the SP.
 The Elastic Stack supports generating such a metadata file using the
 `bin/elasticsearch-saml-metadata` command in your {es} directory.
 
-The {ref}/saml-metadata.html[documentation for the elasticsearch-saml-metadata utility]
+The <<saml-metadata,documentation for the elasticsearch-saml-metadata utility>>
 describes how to run it, and the available command line options.
 
 [[saml-role-mapping]]
@@ -622,29 +625,31 @@ access any data.
 
 Your SAML users cannot do anything until they are assigned roles. This can be done
 through either the
-{ref}/security-api-put-role-mapping.html[add role mapping API], or with
-<<authorization_realms, authorization realms>>.
+<<security-api-put-role-mapping,add role mapping API>> or with
+<<authorization_realms,authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
-This is an example of a simple role mapping that grants the `kibana_user` role
+This is an example of a simple role mapping that grants the `example_role` role
 to any user who authenticates against the `saml1` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /_security/role_mapping/saml-kibana
+PUT /_security/role_mapping/saml-example
 {
-  "roles": [ "kibana_user" ],
+  "roles": [ "example_role" ], <1>
   "enabled": true,
   "rules": {
     "field": { "realm.name": "saml1" }
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
+<1> The `example_role` role is *not* a builtin Elasticsearch role.
+This example assumes that you have created a custom role of your own, with
+appropriate access to your <<roles-indices-priv,indices>> and
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana features].
 
 The attributes that are mapped via the realm configuration are used to process
 role mapping rules, and these rules determine which roles a user is granted.
@@ -658,7 +663,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-{ref}/security-api.html#security-role-mapping-apis[role mapping APIs]. 
+<<security-role-mapping-apis>>. 
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in
@@ -668,7 +673,7 @@ below.
 This mapping grants the {es} `finance_data` role, to any users who authenticate
 via the `saml1` realm with the `finance-team` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-finance
 {
@@ -680,8 +685,6 @@ PUT /_security/role_mapping/saml-finance
   ] }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use
@@ -838,6 +841,7 @@ It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
 
+[[saml-troubleshooting]]
 === Troubleshooting SAML Realm Configuration
 
 The SAML 2.0 specification offers a lot of options and flexibility for the implementers
@@ -847,5 +851,169 @@ Additionally, different security domains have different security requirements th
 specific configuration to be satisfied.
 A conscious effort has been made to mask this complexity with sane defaults and the detailed
 documentation above but in case you encounter issues while configuring a SAML realm, you can
-look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+look through our <<trb-security-saml,SAML troubleshooting documentation>> that has
 suggestions and resolutions for common issues.
+
+[[saml-no-kibana]]
+=== SAML without {kib}
+
+The SAML realm in {es} is designed to allow users to authenticate to {kib} and as
+such, most of the parts of the guide above make the assumption that {kib} is used.
+This section describes how a custom web application could use the relevant SAML
+REST APIs in order to authenticate the users to {es} with SAML.
+
+NOTE: This section assumes that the reader is familiar with the SAML 2.0 standard
+and more specifically with the SAML 2.0 Web Browser Single Sign On profile.
+
+Single sign-on realms such as OpenID Connect and SAML make use of the Token Service in
+{es} and in principle exchange a SAML or OpenID Connect Authentication response for
+an {es} access token and a refresh token. The access token is used as credentials
+for subsequent calls to {es}. The refresh token enables the user to get new {es}
+access tokens after the current one expires.
+
+[[saml-no-kibana-realm]]]
+==== SAML realm
+
+You must create a SAML realm and configure it accordingly
+in {es}. See <<saml-guide-authentication>>
+
+[[saml-no-kibana-user]]
+==== Service Account user for accessing the APIs
+
+The realm is designed with the assumption that there needs to be a privileged entity
+acting as an authentication proxy. In this case, the custom web application is the
+authentication proxy handling the authentication of end users ( more correctly,
+"delegating" the authentication to the SAML Identity Provider ). The SAML related
+APIs require authentication and the necessary authorization level for the authenticated
+user. For this reason, you must create a Service Account user and assign it a role
+that gives it the `manage_saml` cluster privilege. The use of the `manage_token`
+cluster privilege will be necessary after the authentication takes place, so that the
+the service account user can maintain access in order refresh access tokens on
+behalf of the authenticated users or to subsequently log them out.
+
+[source,console]
+--------------------------------------------------
+POST /_security/role/saml-service-role
+{
+  "cluster" : ["manage_saml", "manage_token"]
+}
+--------------------------------------------------
+
+[source,console]
+--------------------------------------------------
+POST /_security/user/saml-service-user
+{
+  "password" : "<somePasswordHere>",
+  "roles"    : ["saml-service-role"]
+}
+--------------------------------------------------
+
+[[saml-no-kibana-sp-init-sso]]
+==== Handling the SP-initiated authentication flow
+
+On a high level, the custom web application would need to perform the
+following steps in order to authenticate a user with SAML against {es}:
+
+. Make an HTTP POST request to `_security/saml/prepare`, authenticating as
+the `saml-service-user` user. Use either the name of the SAML realm in the {es} configuration or the value for
+the Assertion Consumer Service URL in the request body.
+See the <<security-api-saml-prepare-authentication,SAML prepare authentication API>> for more details.
++
+[source,console]
+--------------------------------------------------
+POST /_security/saml/prepare
+{
+  "realm" : "saml1"
+}
+--------------------------------------------------
+
+. Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
+  `redirect`, `realm` and `id`. The custom web application would need to store the value for `id`
+ in the user's session (client side in a cookie or server side if session information is
+persisted this way). It must also redirect the user's browser to the URL that  was returned in the 
+  `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in
+order to mitigate against replay attacks.
+. Handle a subsequent response from the SAML IdP. After the user is successfully authenticated with the
+Identity Provider they will be redirected back to the Assertion Consumer Service URL. This `sp.acs` needs to be
+defined as a URL which the custom web application handles. When it receives this HTTP POST request, the
+custom web application must parse it and make an HTTP POST request itself to the
+`_security/saml/authenticate` API. It must authenticate as the `saml-service-user` user and pass
+the Base64 encoded SAML Response that was sent as the body of the request. It must also pass the value for `id` that it had saved in the user's session previously.
++
+See <<security-api-saml-authenticate,SAML authenticate API>> for more details.
++
+[source,console]
+-----------------------------------------------------------------------
+POST /_security/saml/authenticate
+{
+  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD.....",
+  "ids" : ["4fee3b046395c4e751011e97f8900b5273d56685"]
+}
+-----------------------------------------------------------------------
+// TEST[skip:handled in IT]
++
+Elasticsearch will validate this and if all is correct will respond with an access token that can be used
+as a `Bearer` token for subsequent requests. It also supplies a refresh token that can be later used to refresh the given
+access token as described in <<security-api-get-token,get token API>>.
+. The response to calling `/_security/saml/authenticate` will contain only the username of the authenticated
+user. If you need to get the values for the SAML Attributes that were contained in the SAML
+Response for that user, you can call the Authenticate API `/_security/_authenticate/` using the access token as a `Bearer` token
+and the SAML attribute values will be contained in the response as part of the <<saml-user-metadata>>.
+
+[[saml-no-kibana-idp-init-sso]]
+==== Handling the IdP-initiated authentication flow
+
+{es} can also handle the IdP-initiated Single Sign On flow of the SAML 2 Web Browser SSO profile. In this
+case the authentication starts with an unsolicited authentication response from the SAML Identity
+Provider. The difference with the <<saml-no-kibana-sp-init-sso, SP initiated SSO>> is that the web application needs to handle
+requests to the `sp.acs` that will not come as responses to previous redirections. As such, it will not have a session
+for the user already, and it will not have any stored values for the `id` parameter. The request to the
+`_security/saml/authenticate` API will look like the one below in this case:
+
+
+[source,console]
+-----------------------------------------------------------------------
+POST /_security/saml/authenticate
+{
+  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD.....",
+  "ids" : []
+}
+-----------------------------------------------------------------------
+// TEST[skip:handled in IT]
+
+[[saml-no-kibana-slo]]
+==== Handling the logout flow
+. At some point, if necessary, the custom web application can log the user out by using the
+  <<security-api-saml-logout,SAML logout API>> and passing the access token and refresh token as parameters. For example:
++
+[source,console]
+--------------------------------------------------
+POST /_security/saml/logout
+{
+  "token" : "46ToAxZVaXVVZTVKOVF5YU04ZFJVUDVSZlV3",
+  "refresh_token": "mJdXLtmvTUSpoLwMvdBt_w"
+}
+--------------------------------------------------
+// TEST[skip:handled in IT]
++
+If the SAML realm is configured accordingly and the IdP supports it (see <<saml-logout>>), this request will trigger a SAML
+SP-initiated Single Logout. In this case, the response will include a `redirect`
+parameter indicating where the user needs to be redirected at the IdP in order to complete the logout.
+. Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this, 
+the Logout URL (`sp.logout`) needs to be handled by the custom web app. The query part of the URL that the
+user will be redirected to will contain a SAML Logout request and this query part needs to be relayed to {es}
+using the <<security-api-saml-invalidate,SAML invalidate API>> 
++
+[source,console]
+--------------------------------------------------
+POST /_security/saml/invalidate
+{
+  "query" : "SAMLRequest=nZFda4MwFIb%2FiuS%2BmviRpqFaClKQdbvo2g12M2KMraCJ9cRR9utnW4Wyi13sMie873MeznJ1aWrnS3VQGR0j4mLkKC1NUeljjA77zYyhVbIE0dR%2By7fmaHq7U%2BdegXWGpAZ%2B%2F4pR32luBFTAtWgUcCv56%2Fp5y30X87Yz1khTIycdgpUW9kY7WdsC9zxoXTvMvWuVV98YyMnSGH2SYE5pwALBIr9QKiwDGpW0oGVUznGeMyJZKFkQ4jBf5HnhUymjIhzCAL3KNFihbYx8TBYzzGaY7EnIyZwHzCWMfiDnbRIftkSjJr%2BFu0e9v%2B0EgOquRiiZjKpiVFp6j50T4WXoyNJ%2FEWC9fdqc1t%2F1%2B2F3aUpjzhPiXpqMz1%2FHSn4A&SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256&Signature=MsAYz2NFdovMG2mXf6TSpu5vlQQyEJAg%2B4KCwBqJTmrb3yGXKUtIgvjqf88eCAK32v3eN8vupjPC8LglYmke1ZnjK0%2FKxzkvSjTVA7mMQe2AQdKbkyC038zzRq%2FYHcjFDE%2Bz0qISwSHZY2NyLePmwU7SexEXnIz37jKC6NMEhus%3D",
+  "realm" : "saml1"
+}
+--------------------------------------------------
+// TEST[skip:handled in IT]
++
+The custom web application will then need to also handle the response, which will include a `redirect`
+parameter with a URL in the IdP that contains the SAML Logout response. The application should redirect the user
+there to complete the logout. 

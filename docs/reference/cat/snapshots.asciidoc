@@ -20,10 +20,9 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 `<repository>`::
 +
 --
-(Optional, string) Comma-separated list of snapshot repositories used to limit
-the request. Accepts wildcard expressions. `_all` returns all repositories.
+(Required, string) Snapshot repository used to limit the request.
 
-If any repository fails during the request, {es} returns an error.
+If the repository fails during the request, {es} returns an error.
 --
 
 
@@ -93,8 +92,6 @@ Reason for any snapshot failures.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
 `ignore_unavailable`::
 (Optional, boolean) If `true`, the response does not include information from
 unavailable snapshots. Defaults to `false`.
@@ -103,17 +100,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-snapshots-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/snapshots/repo1?v&s=id
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap1?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap2?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]

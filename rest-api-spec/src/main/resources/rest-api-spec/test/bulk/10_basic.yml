@@ -62,6 +62,50 @@
   - match: { count: 2 }
 
 ---
+"Empty _id with op_type create":
+  - skip:
+      version: " - 7.4.99"
+      reason: "auto id + op type create only supported since 7.5"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id: ''
+          - f: 1
+          - index:
+              _index: test
+              _id: id
+          - f: 2
+          - index:
+              _index: test
+          - f: 3
+          - create:
+              _index: test
+          - f: 4
+          - index:
+              _index: test
+              op_type: create
+          - f: 5
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: illegal_argument_exception }
+  - match: { items.0.index.error.reason: if _id is specified it must not be empty }
+  - match: { items.1.index.result: created }
+  - match: { items.2.index.result: created }
+  - match: { items.3.create.result: created }
+  - match: { items.4.create.result: created }
+
+  - do:
+      count:
+        index: test
+
+  - match: { count: 4 }
+
+
+---
 "empty action":
 
   - skip:

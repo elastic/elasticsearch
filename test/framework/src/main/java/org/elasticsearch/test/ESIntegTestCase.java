@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -124,8 +125,8 @@ import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.ScriptMetaData;
-import org.elasticsearch.rest.action.search.HttpChannelTaskHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
@@ -157,7 +158,6 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -175,8 +175,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -199,6 +197,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -537,9 +536,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             restClient.close();
             restClient = null;
         }
-        assertBusy(() -> assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
-                    HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
-                HttpChannelTaskHandler.INSTANCE.getNumChannels()));
+        assertBusy(() -> {
+            int numChannels = RestCancellableNodeClient.getNumChannels();
+            assertEquals( numChannels+ " channels still being tracked in " + RestCancellableNodeClient.class.getSimpleName()
+                + " while there should be none", 0, numChannels);
+        });
     }
 
     private void afterInternal(boolean afterClass) throws Exception {
@@ -918,10 +919,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("{} timed out, cluster state:\n{}\n{}",
+            final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setIgnoreIdleThreads(false).get().getNodes()
+                .stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
+            logger.info("{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
                 client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get());
+                client().admin().cluster().preparePendingClusterTasks().get(),
+                hotThreads);
             fail("timed out waiting for " + color + " state");
         }
         assertThat("Expected at least " + clusterHealthStatus + " but got " + actionGet.getStatus(),
@@ -963,67 +967,50 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits until at least a give number of document is visible for searchers
      *
      * @param numDocs number of documents to wait for
-     * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. If supplied it will be first checked for documents indexed.
+     * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. It will be first checked for documents indexed.
      *                This saves on unneeded searches.
-     * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) throws InterruptedException {
+    public void waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws Exception {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
-        return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
-    }
+        final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
 
-    /**
-     * Waits until at least a give number of document is visible for searchers
-     *
-     * @param numDocs         number of documents to wait for
-     * @param maxWaitTime     if not progress have been made during this time, fail the test
-     * @param maxWaitTimeUnit the unit in which maxWaitTime is specified
-     * @param indexer         If supplied it will be first checked for documents indexed.
-     *                        This saves on unneeded searches.
-     * @return the actual number of docs seen.
-     */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, @Nullable final BackgroundIndexer indexer)
-        throws InterruptedException {
-        final AtomicLong lastKnownCount = new AtomicLong(-1);
-        long lastStartCount = -1;
-        BooleanSupplier testDocs = () -> {
-            if (indexer != null) {
-                lastKnownCount.set(indexer.totalIndexedDocs());
-            }
-            if (lastKnownCount.get() >= numDocs) {
-                try {
+        assertBusy(
+            () -> {
+                long lastKnownCount = indexer.totalIndexedDocs();
 
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
-                        .setSize(0)
-                        .setQuery(matchAllQuery())
-                        .get()
-                        .getHits().getTotalHits().value;
+                if (lastKnownCount >= numDocs) {
+                    try {
+                        long count = client().prepareSearch()
+                            .setTrackTotalHits(true)
+                            .setSize(0)
+                            .setQuery(matchAllQuery())
+                            .get()
+                            .getHits().getTotalHits().value;
 
-                    if (count == lastKnownCount.get()) {
-                        // no progress - try to refresh for the next time
-                        client().admin().indices().prepareRefresh().get();
+                        if (count == lastKnownCount) {
+                            // no progress - try to refresh for the next time
+                            client().admin().indices().prepareRefresh().get();
+                        }
+                        lastKnownCount = count;
+                    } catch (Exception e) { // count now acts like search and barfs if all shards failed...
+                        logger.debug("failed to executed count", e);
+                        throw e;
                     }
-                    lastKnownCount.set(count);
-                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
-                    logger.debug("failed to executed count", e);
-                    return false;
                 }
-                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
-            } else {
-                logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
-            }
-            return lastKnownCount.get() >= numDocs;
-        };
 
-        while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
-            if (lastStartCount == lastKnownCount.get()) {
-                // we didn't make any progress
-                fail("failed to reach " + numDocs + "docs");
-            }
-            lastStartCount = lastKnownCount.get();
-        }
-        return lastKnownCount.get();
+                if (logger.isDebugEnabled()) {
+                    if (lastKnownCount < numDocs) {
+                        logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount, numDocs);
+                    } else {
+                        logger.debug("[{}] docs visible for search (needed [{}])", lastKnownCount, numDocs);
+                    }
+                }
+
+                assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
+            },
+            maxWaitTimeMs,
+            TimeUnit.MILLISECONDS
+        );
     }
 
     /**
@@ -1300,7 +1287,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
-    protected boolean indexExists(String index) {
+    protected static boolean indexExists(String index) {
         IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
         return actionGet.isExists();
     }
@@ -2128,19 +2115,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        if (!runTestScopeLifecycle()) {
-            try {
+        try {
+            if (runTestScopeLifecycle()) {
+                clearClusters();
+            } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
-            } finally {
-                INSTANCE = null;
             }
-        } else {
-            clearClusters();
+        } finally {
+            SUITE_SEED = null;
+            currentCluster = null;
+            INSTANCE = null;
         }
-        SUITE_SEED = null;
-        currentCluster = null;
     }
 
     private static void initializeSuiteScope() throws Exception {
@@ -2267,6 +2254,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 }

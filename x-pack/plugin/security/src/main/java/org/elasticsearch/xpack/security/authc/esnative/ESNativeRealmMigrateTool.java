@@ -323,7 +323,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             }
             terminal.println("importing roles from [" + rolesFile + "]...");
             Logger logger = getTerminalLogger(terminal);
-            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, Settings.EMPTY);
+            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, Settings.EMPTY, null);
             Set<String> existingRoles;
             try {
                 existingRoles = getRolesThatExist(terminal, env.settings(), env, options);

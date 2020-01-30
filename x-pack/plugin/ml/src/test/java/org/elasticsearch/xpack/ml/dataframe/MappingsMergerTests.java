@@ -10,7 +10,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,7 +50,7 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(getMappingsResponse);
+        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         assertThat(mergedMappings.size(), equalTo(1));
         assertThat(mergedMappings.containsKey("_doc"), is(true));
@@ -76,7 +78,7 @@ public class MappingsMergerTests extends ESTestCase {
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(getMappingsResponse));
+            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("source indices contain mappings for different types:"));
         assertThat(e.getMessage(), containsString("type_1"));
@@ -104,7 +106,7 @@ public class MappingsMergerTests extends ESTestCase {
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(getMappingsResponse));
+            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("cannot merge mappings because of differences for field [field_1]"));
     }
@@ -133,7 +135,7 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(getMappingsResponse);
+        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         assertThat(mergedMappings.size(), equalTo(1));
         assertThat(mergedMappings.containsKey("_doc"), is(true));
@@ -149,5 +151,42 @@ public class MappingsMergerTests extends ESTestCase {
         assertThat(fieldMappings.get("field_1"), equalTo("field_1_mappings"));
         assertThat(fieldMappings.get("field_2"), equalTo("field_2_mappings"));
         assertThat(fieldMappings.get("field_3"), equalTo("field_3_mappings"));
+    }
+
+    public void testMergeMappings_GivenSourceFiltering() throws IOException {
+        Map<String, Object> indexProperties = new HashMap<>();
+        indexProperties.put("field_1", "field_1_mappings");
+        indexProperties.put("field_2", "field_2_mappings");
+        Map<String, Object> index1Mappings = Collections.singletonMap("properties", indexProperties);
+        MappingMetaData indexMappingMetaData = new MappingMetaData("_doc", index1Mappings);
+
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappingsMap = ImmutableOpenMap.builder();
+        indexMappingsMap.put("_doc", indexMappingMetaData);
+
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", indexMappingsMap.build());
+
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+
+        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(
+            newSourceWithExcludes("field_1"), getMappingsResponse);
+
+        assertThat(mergedMappings.size(), equalTo(1));
+        assertThat(mergedMappings.containsKey("_doc"), is(true));
+        Map<String, Object> mappingsAsMap = mergedMappings.valuesIt().next().getSourceAsMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fieldMappings = (Map<String, Object>) mappingsAsMap.get("properties");
+
+        assertThat(fieldMappings.size(), equalTo(1));
+        assertThat(fieldMappings.containsKey("field_2"), is(true));
+    }
+
+    private static DataFrameAnalyticsSource newSource() {
+        return new DataFrameAnalyticsSource(new String[] {"index"}, null, null);
+    }
+
+    private static DataFrameAnalyticsSource newSourceWithExcludes(String... excludes) {
+        return new DataFrameAnalyticsSource(new String[] {"index"}, null,
+            new FetchSourceContext(true, null, excludes));
     }
 }

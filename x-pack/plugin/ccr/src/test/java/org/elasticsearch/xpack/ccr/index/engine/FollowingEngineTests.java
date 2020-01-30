@@ -131,7 +131,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -139,7 +138,7 @@ public class FollowingEngineTests extends ESTestCase {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final VersionType versionType =
-                        randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE);
+                        randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
                 final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, 2, 2, 20, "id");
                 ops.stream().mapToLong(op -> op.seqNo()).max().ifPresent(followingEngine::advanceMaxSeqNoOfUpdatesOrDeletes);
                 EngineTestCase.assertOpsOnReplica(ops, followingEngine, true, logger);
@@ -157,7 +156,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -192,7 +190,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -224,7 +221,6 @@ public class FollowingEngineTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
                 .put("index.xpack.ccr.following_index", true)
-                .put("index.soft_deletes.enabled", true)
                 .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -484,7 +480,7 @@ public class FollowingEngineTests extends ESTestCase {
                 for (Thread thread : threads) {
                     thread.join();
                 }
-                assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
+                assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
                 EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService("test"));
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
@@ -493,7 +489,7 @@ public class FollowingEngineTests extends ESTestCase {
 
         Settings leaderSettings = Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.soft_deletes.enabled", true).build();
+            .put("index.version.created", Version.CURRENT).build();
         IndexMetaData leaderIndexMetaData = IndexMetaData.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetaData, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
@@ -535,7 +531,12 @@ public class FollowingEngineTests extends ESTestCase {
                     try (Translog.Snapshot snapshot =
                              shuffleSnapshot(leader.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
-                        translogHandler.run(follower, snapshot);
+                        Translog.Operation op;
+                        while ((op = snapshot.next()) != null) {
+                            EngineTestCase.applyOperation(follower,
+                                translogHandler.convertToEngineOp(op, randomFrom(Engine.Operation.Origin.values())));
+                        }
+                        follower.syncTranslog();
                     }
                 }
             }
@@ -574,8 +575,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
@@ -669,8 +669,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testMaxSeqNoInCommitUserData() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {

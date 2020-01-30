@@ -1,5 +1,8 @@
 [[analysis-minhash-tokenfilter]]
-=== MinHash Token Filter
+=== MinHash token filter
+++++
+<titleabbrev>MinHash</titleabbrev>
+++++
 
 The `min_hash` token filter hashes each token of the token stream and divides
 the resulting hashes into buckets, keeping the lowest-valued hashes per
@@ -123,8 +126,8 @@ POST /index1
   },
   "mappings": {
     "properties": {
-      "text": {
-        "fingerprint": "text",
+      "fingerprint": {
+        "type": "text",
         "analyzer": "my_analyzer"
       }
     }

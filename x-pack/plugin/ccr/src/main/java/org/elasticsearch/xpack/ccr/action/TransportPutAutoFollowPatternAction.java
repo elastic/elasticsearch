@@ -160,6 +160,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
+            true,
             request.getParameters().getMaxReadRequestOperationCount(),
             request.getParameters().getMaxWriteRequestOperationCount(),
             request.getParameters().getMaxOutstandingReadRequests(),

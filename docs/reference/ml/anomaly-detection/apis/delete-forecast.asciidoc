@@ -22,7 +22,7 @@ Deletes forecasts from a {ml} job.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-forecast-desc]]
 ==== {api-description-title}
@@ -35,18 +35,19 @@ one or more forecasts before they expire.
 NOTE: When you delete a job, its associated forecasts are deleted. 
 
 For more information, see
-{stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
+{ml-docs}/ml-overview.html#ml-forecasting[Forecasting the future].
 
 [[ml-delete-forecast-path-parms]]
 ==== {api-path-parms-title}
 
 `<forecast_id>`::
-  (Optional, string) A comma-separated list of forecast identifiers. 
-  If you do not specify this optional parameter or if you specify `_all`, the 
-  API deletes all forecasts from the job. 
+(Optional, string) A comma-separated list of forecast identifiers. If you do not
+specify this optional parameter or if you specify `_all`, the API deletes all
+forecasts from the job. 
   
 `<job_id>`::
-  (Required, string) Required. Identifier for the job.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-forecast-query-parms]]
 ==== {api-query-parms-title}
@@ -65,16 +66,14 @@ For more information, see
 [[ml-delete-forecast-example]]
 ==== {api-examples-title}
 
-The following example deletes all forecasts from the `total-requests` job:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests/_forecast/_all
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 If the request does not encounter errors, you receive the following result:
+
 [source,js]
 ----
 {

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Set;
 
@@ -40,17 +41,12 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw new IllegalStateException("illegal tree structure");
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (constant instanceof String) {
             actual = String.class;
         } else if (constant instanceof Double) {
@@ -75,16 +71,16 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        if      (actual == String.class) writer.push((String)constant);
-        else if (actual == double.class) writer.push((double)constant);
-        else if (actual == float.class) writer.push((float)constant);
-        else if (actual == long.class) writer.push((long)constant);
-        else if (actual == int.class) writer.push((int)constant);
-        else if (actual == char.class) writer.push((char)constant);
-        else if (actual == short.class) writer.push((short)constant);
-        else if (actual == byte.class) writer.push((byte)constant);
-        else if (actual == boolean.class) writer.push((boolean)constant);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        if      (actual == String.class) methodWriter.push((String)constant);
+        else if (actual == double.class) methodWriter.push((double)constant);
+        else if (actual == float.class) methodWriter.push((float)constant);
+        else if (actual == long.class) methodWriter.push((long)constant);
+        else if (actual == int.class) methodWriter.push((int)constant);
+        else if (actual == char.class) methodWriter.push((char)constant);
+        else if (actual == short.class) methodWriter.push((short)constant);
+        else if (actual == byte.class) methodWriter.push((byte)constant);
+        else if (actual == boolean.class) methodWriter.push((boolean)constant);
         else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }

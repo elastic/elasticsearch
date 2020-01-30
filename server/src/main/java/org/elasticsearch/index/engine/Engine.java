@@ -66,6 +66,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -628,7 +629,7 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            return new GetResult(searcher, docIdAndVersion, false);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -670,6 +671,7 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
+            assert assertSearcherIsWarmedUp(source, scope);
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             final ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
@@ -705,6 +707,10 @@ public abstract class Engine implements Closeable {
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
 
+    boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+        return true;
+    }
+
     public enum SearcherScope {
         EXTERNAL, INTERNAL
     }
@@ -724,7 +730,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireRetentionLock();
+    public abstract Closeable acquireHistoryRetentionLock(HistorySource historySource);
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
@@ -737,19 +743,20 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract Translog.Snapshot readHistoryOperations(String source,
-                                                                MapperService mapperService, long startingSeqNo) throws IOException;
+    public abstract Translog.Snapshot readHistoryOperations(String reason, HistorySource historySource,
+                                                            MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
      * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
      */
-    public abstract int estimateNumberOfHistoryOperations(String source,
-                                                                MapperService mapperService, long startingSeqNo) throws IOException;
+    public abstract int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
+                                                          MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
      */
-    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+    public abstract boolean hasCompleteOperationHistory(String reason, HistorySource historySource,
+                                                        MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
      * Gets the minimum retained sequence number for this engine.
@@ -1157,7 +1164,6 @@ public abstract class Engine implements Closeable {
             maybeDie(reason, failure);
         }
         if (failEngineLock.tryLock()) {
-            store.incRef();
             try {
                 if (failedEngine.get() != null) {
                     logger.warn(() ->
@@ -1179,11 +1185,19 @@ public abstract class Engine implements Closeable {
                     // on the same node that we don't see the corrupted marker file when
                     // the shard is initializing
                     if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])",
-                                ExceptionsHelper.unwrapCorruption(failure)));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't mark store corrupted", e);
+                        if (store.tryIncRef()) {
+                            try {
+                                store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])",
+                                    ExceptionsHelper.unwrapCorruption(failure)));
+                            } catch (IOException e) {
+                                logger.warn("Couldn't mark store corrupted", e);
+                            } finally {
+                                store.decRef();
+                            }
+                        } else {
+                            logger.warn(() ->
+                                    new ParameterizedMessage("tried to mark store as corrupted but store is already closed. [{}]", reason),
+                                failure);
                         }
                     }
                     eventListener.onFailedEngine(reason, failure);
@@ -1192,8 +1206,6 @@ public abstract class Engine implements Closeable {
                 if (failure != null) inner.addSuppressed(failure);
                 // don't bubble up these exceptions up
                 logger.warn("failEngine threw exception", inner);
-            } finally {
-                store.decRef();
             }
         } else {
             logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should " +
@@ -1640,21 +1652,20 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        /**
-         * Build a non-realtime get result from the searcher.
-         */
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
         }
 
         public boolean exists() {
@@ -1663,6 +1674,10 @@ public abstract class Engine implements Closeable {
 
         public long version() {
             return this.version;
+        }
+
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public Engine.Searcher searcher() {
@@ -1806,7 +1821,8 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public void onSettingsChanged() {
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+
     }
 
     /**
@@ -1875,13 +1891,6 @@ public abstract class Engine implements Closeable {
     public abstract void skipTranslogRecovery();
 
     /**
-     * Returns <code>true</code> iff this engine is currently recovering from translog.
-     */
-    public boolean isRecovering() {
-        return false;
-    }
-
-    /**
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
@@ -1947,4 +1956,11 @@ public abstract class Engine implements Closeable {
      * to advance this marker to at least the given sequence number.
      */
     public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
+
+    /**
+     * Whether we should read history operations from translog or Lucene index
+     */
+    public enum HistorySource {
+        TRANSLOG, INDEX
+    }
 }

@@ -33,7 +33,7 @@ following example.
 * `production_date`, a <<date, `date`>> field
 * `location`, a <<geo-point,`geo_point`>> field
 
-[source,js]
+[source,console]
 ----
 PUT /items
 {
@@ -52,14 +52,13 @@ PUT /items
   }
 }
 ----
-// CONSOLE
 // TESTSETUP
 --
 
 . Index several documents to this index.
 +
 --
-[source,js]
+[source,console]
 ----
 PUT /items/_doc/1?refresh
 {
@@ -83,7 +82,6 @@ PUT /items/_doc/3?refresh
   "location": [-71.3, 41.12]
 }
 ----
-// CONSOLE
 --
 
 
@@ -96,7 +94,7 @@ The following `bool` search returns documents with a `name` value of
 `chocolate`. The search also uses the `distance_feature` query to increase the
 relevance score of documents with a `production_date` value closer to `now`.
 
-[source,js]
+[source,console]
 ----
 GET /items/_search
 {
@@ -118,7 +116,6 @@ GET /items/_search
   }
 }
 ----
-// CONSOLE
 
 [[distance-feature-query-distance-ex]]
 ====== Boost documents based on location
@@ -126,7 +123,7 @@ The following `bool` search returns documents with a `name` value of
 `chocolate`. The search also uses the `distance_feature` query to increase the
 relevance score of documents with a `location` value closer to `[-71.3, 41.15]`.
 
-[source,js]
+[source,console]
 ----
 GET /items/_search
 {
@@ -148,7 +145,6 @@ GET /items/_search
   }
 }
 ----
-// CONSOLE
 
 
 [[distance-feature-top-level-params]]

@@ -13,6 +13,8 @@ in the cluster.
 
 `GET /_cat/fielddata/<field>`
 
+`GET /_cat/fielddata`
+
 
 [[cat-fielddata-api-path-params]]
 ==== {api-path-parms-title}
@@ -29,10 +31,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
@@ -47,7 +45,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 ////
 Hidden setup snippet to build an index with fielddata so our results are real:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -78,7 +77,6 @@ POST test/_doc?refresh
 # Perform a search to load the field data
 POST test/_search?sort=body,soul,mind
 --------------------------------------------------
-// CONSOLE
 ////
 
 [[cat-fielddata-api-example-ind]]
@@ -88,11 +86,10 @@ You can specify an individual field in the request body or URL path. The
 following `fieldata` API request retrieves heap memory size information for the
 `body` field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/fielddata?v&fields=body
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -113,11 +110,10 @@ path. The following `fieldata` API request retrieves heap memory size
 information for the `body` and `soul` fields.
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/fielddata/body,soul?v
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -140,11 +136,10 @@ one row per field per node.
 The following `fieldata` API request retrieves heap memory size
 information all fields.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/fielddata?v
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:

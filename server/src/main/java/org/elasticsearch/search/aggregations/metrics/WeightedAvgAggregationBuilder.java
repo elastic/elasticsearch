@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -37,7 +38,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelpe
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -98,12 +98,12 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context,
-                                                                    Map<String, ValuesSourceConfig<Numeric>> configs,
-                                                                    DocValueFormat format,
-                                                                    AggregatorFactory parent,
-                                                                    Builder subFactoriesBuilder) throws IOException {
-        return new WeightedAvgAggregatorFactory(name, configs, format, context, parent, subFactoriesBuilder, metaData);
+    protected MultiValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
+                                                                     Map<String, ValuesSourceConfig<Numeric>> configs,
+                                                                     DocValueFormat format,
+                                                                     AggregatorFactory parent,
+                                                                     Builder subFactoriesBuilder) throws IOException {
+        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

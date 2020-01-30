@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
@@ -128,6 +129,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     @BeforeClass
     public static void init() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49742",System.getProperty("java.vendor", "").contains("Azul"));
         // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
         SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
@@ -209,13 +211,30 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     public void testParseContentWithNoAssertionsIsRejected() throws Exception {
         Instant now = clock.instant();
-        SamlToken token = token("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                "<saml2p:Response Destination=\"" + SP_ACS_URL + "\" ID=\"" + randomId() + "\" InResponseTo=\"" + requestId +
-                "\" IssueInstant=\"" + now + "\" Version=\"2.0\" xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\">" +
-                "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">" +
-                IDP_ENTITY_ID + "</saml2:Issuer>" +
-                "<saml2p:Status><saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\"/></saml2p:Status>" +
-            "</saml2p:Response>");
+        final String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<saml2p:Response"
+            + "    Destination=\"%(SP_ACS_URL)\""
+            + "    ID=\"%(randomId)\""
+            + "    InResponseTo=\"%(requestId)\""
+            + "    IssueInstant=\"%(now)\""
+            + "    Version=\"2.0\""
+            + "    xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\">"
+            + "  <saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">"
+            + "    %(IDP_ENTITY_ID)"
+            + "  </saml2:Issuer>"
+            + "  <saml2p:Status>"
+            + "     <saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\"/>"
+            + "  </saml2p:Status>"
+            + "</saml2p:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("now", now);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+
+        SamlToken token = token(NamedFormatter.format(xml, replacements));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("No assertions found in SAML response"));
         assertThat(exception.getCause(), nullValue());
@@ -227,38 +246,59 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant validUntil = now.plusSeconds(30);
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID Format='" + TRANSIENT + "'>" + nameId + "</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response "
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#'>"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status>"
+            + "    <proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/>"
+            + "  </proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID Format='%(TRANSIENT)'>%(nameId)</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("nameId", nameId);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(1));
@@ -409,38 +449,56 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "xxx" + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response "
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)' Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)xxx</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("Issuer"));
         assertThat(exception.getCause(), nullValue());
@@ -451,38 +509,56 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "_" + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)' Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)_</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("Issuer"));
         assertThat(exception.getCause(), nullValue());
@@ -493,38 +569,61 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "/fake" + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = randomBoolean() ? token(signDoc(xml)) : token(signAssertions(xml, idpSigningCertificatePair));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)/fake'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        final String xmlWithReplacements = NamedFormatter.format(xml, replacements);
+
+        SamlToken token = randomBoolean()
+            ? token(signDoc(xmlWithReplacements))
+            : token(signAssertions(xmlWithReplacements, idpSigningCertificatePair));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("destination"));
         assertThat(exception.getCause(), nullValue());
@@ -535,38 +634,56 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-            "<proto:Response ID='" + randomId() + "' InResponseTo='" + requestId +
-            "' IssueInstant='" + now + "' Version='2.0'" +
-            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<assert:Subject>" +
-            "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-            "   InResponseTo='" + requestId + "'/>" +
-            "</assert:SubjectConfirmation>" +
-            "</assert:Subject>" +
-            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-            "' SessionIndex='" + sessionindex + "'>" +
-            "<assert:AuthnContext>" +
-            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-            "</assert:AuthnContext>" +
-            "</assert:AuthnStatement>" +
-            "<assert:AttributeStatement><assert:Attribute " +
-            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-            "</assert:Attribute></assert:AttributeStatement>" +
-            "</assert:Assertion>" +
-            "</proto:Response>";
-        SamlToken token = token(signAssertions(xml, idpSigningCertificatePair));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signAssertions(NamedFormatter.format(xml, replacements), idpSigningCertificatePair));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(1));
@@ -582,38 +699,58 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
         final String incorrectId = "_012345";
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + incorrectId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(incorrectId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("incorrectId", incorrectId);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("in-response-to"));
         assertThat(exception.getMessage(), containsString(requestId));
@@ -626,38 +763,60 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "/fake" + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "     Destination='%(SP_ACS_URL)'"
+            + "     ID='%(randomId)'"
+            + "     InResponseTo='%(requestId)'"
+            + "     IssueInstant='%(now)'"
+            + "     Version='2.0'"
+            + "     xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "     xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "     xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "     xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "     xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "      <assert:SubjectConfirmationData"
+            + "          NotOnOrAfter='%(validUntil)'"
+            + "          Recipient='%(SP_ACS_URL)/fake'"
+            + "          InResponseTo='%(requestId)' />"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("SAML Assertion SubjectConfirmationData Recipient"));
         assertThat(exception.getMessage(), containsString(SP_ACS_URL + "/fake"));
@@ -667,25 +826,45 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     public void testAssertionWithoutSubjectIsRejected() throws Exception {
         Instant now = clock.instant();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + randomId() + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "     Destination='%(SP_ACS_URL)'"
+            + "     ID='%(randomId)'"
+            + "     InResponseTo='%(requestId)' "
+            + "     IssueInstant='%(now)'"
+            + "     Version='2.0'"
+            + "     xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "     xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "     xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "     xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "     xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(randomId2)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute"
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("randomId2", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("has no Subject"));
         assertThat(exception.getCause(), nullValue());
@@ -695,32 +874,52 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testAssertionWithoutAuthnStatementIsRejected() throws Exception {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-            "' IssueInstant='" + now + "' Version='2.0'" +
-            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-            "<assert:Assertion ID='" + randomId() + "' IssueInstant='" + now + "' Version='2.0'>" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<assert:Subject>" +
-            "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-            "   InResponseTo='" + requestId + "'/>" +
-            "</assert:SubjectConfirmation>" +
-            "</assert:Subject>" +
-            "<assert:AttributeStatement><assert:Attribute " +
-            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-            "</assert:Attribute></assert:AttributeStatement>" +
-            "</assert:Assertion>" +
-            "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(randomId2)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("randomId2", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("Authn Statements while exactly one was expected."));
         assertThat(exception.getCause(), nullValue());
@@ -733,39 +932,59 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant sessionValidUntil = now.plusSeconds(60);
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-            "' IssueInstant='" + now + "' Version='2.0'" +
-            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<assert:Subject>" +
-            "<assert:NameID Format='" + TRANSIENT + "'>" + nameId + "</assert:NameID>" +
-            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-            "   InResponseTo='" + requestId + "'/>" +
-            "</assert:SubjectConfirmation>" +
-            "</assert:Subject>" +
-            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + sessionValidUntil +
-            "' SessionIndex='" + sessionindex + "'>" +
-            "<assert:AuthnContext>" +
-            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-            "</assert:AuthnContext>" +
-            "</assert:AuthnStatement>" +
-            "<assert:AttributeStatement><assert:Attribute " +
-            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-            "</assert:Attribute></assert:AttributeStatement>" +
-            "</assert:Assertion>" +
-            "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID Format='%(TRANSIENT)'>%(nameId)</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(sessionValidUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("nameId", nameId);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("sessionValidUntil", sessionValidUntil);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
         // check that the content is valid "now"
-        final SamlToken token = token(signDoc(xml));
+        final SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance partway through the session expiry time
@@ -790,40 +1009,59 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant validUntil = now.plusSeconds(30);
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-            "' IssueInstant='" + now + "' Version='2.0'" +
-            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<assert:Subject>" +
-            "<assert:NameID Format='" + TRANSIENT + "'>" + nameId + "</assert:NameID>" +
-            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-            "   InResponseTo='" + requestId + "'/>" +
-            "</assert:SubjectConfirmation>" +
-            "</assert:Subject>" +
-            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-            "' SessionIndex='" + sessionindex + "'>" +
-            "<assert:AuthnContext>" +
-            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-            "</assert:AuthnContext>" +
-            "</assert:AuthnStatement>" +
-            "<assert:AttributeStatement><assert:Attribute " +
-            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-            "</assert:Attribute></assert:AttributeStatement>" +
-            "</assert:Assertion>" +
-            "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID Format='%(TRANSIENT)'>%(nameId)</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("nameId", nameId);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
         SamlAuthenticator authenticatorWithReqAuthnCtx = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair),
             Arrays.asList(X509_AUTHN_CTX, KERBEROS_AUTHN_CTX));
-        SamlToken token = token(signDoc(xml));
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticatorWithReqAuthnCtx.authenticate(token));
         assertThat(exception.getMessage(), containsString("Rejecting SAML assertion as the AuthnContextClassRef"));
         assertThat(SamlUtils.isSamlException(exception), is(true));
@@ -831,59 +1069,96 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     public void testAssertionWithoutSubjectConfirmationIsRejected() throws Exception {
         Instant now = clock.instant();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + randomId() + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "</assert:Subject>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(randomId2)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "    </assert:Subject>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("now", now);
+        replacements.put("randomId", randomId());
+        replacements.put("randomId2", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getMessage(), containsString("SAML Assertion subject contains 0 bearer SubjectConfirmation"));
+        assertThat(exception.getMessage(), containsString("SAML Assertion subject contains [0] bearer SubjectConfirmation"));
         assertThat(exception.getCause(), nullValue());
         assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssertionWithoutSubjectConfirmationDataIsRejected() throws Exception {
         Instant now = clock.instant();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + randomId() + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'/>" +
-                "</assert:Subject>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(randomId2)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'/>"
+            + "    </assert:Subject>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("randomId", randomId());
+        replacements.put("randomId2", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("bearer SubjectConfirmation, while exactly one was expected."));
         assertThat(exception.getCause(), nullValue());
@@ -894,38 +1169,57 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_ATTRIB_NAME + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_ATTRIB_NAME)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_ATTRIB_NAME", METHOD_ATTRIB_NAME);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("bearer SubjectConfirmation, while exactly one was expected."));
         assertThat(exception.getCause(), nullValue());
@@ -937,38 +1231,61 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant validUntil = now.plusSeconds(30);
         final String incorrectId = "_123456";
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + incorrectId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)' "
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData"
+            + "            NotOnOrAfter='%(validUntil)'"
+            + "            Recipient='%(SP_ACS_URL)'"
+            + "            InResponseTo='%(incorrectId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("incorrectId", incorrectId);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("SAML Assertion SubjectConfirmationData is in-response-to"));
         assertThat(exception.getMessage(), containsString(requestId));
@@ -981,40 +1298,58 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(120);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
 
         // check that the content is valid "now"
-        final SamlToken token = token(signDoc(xml));
+        final SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance partway through the expiry time
@@ -1043,37 +1378,56 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
-        final SamlToken token = token(signDoc(xml));
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        final SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), iterableWithSize(1));
@@ -1084,45 +1438,67 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        final String xmlWithReplacements = NamedFormatter.format(xml, replacements);
 
         // check that the content is valid when signed by the correct key-pair
-        assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
+        assertThat(authenticator.authenticate(token(signer.transform(xmlWithReplacements, idpSigningCertificatePair))), notNullValue());
 
         // check is rejected when signed by a different key-pair
         final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
-        final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
-                () -> authenticator.authenticate(token(signer.transform(xml, wrongKey))));
+        final ElasticsearchSecurityException exception = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authenticator.authenticate(token(signer.transform(xmlWithReplacements, wrongKey)))
+        );
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         assertThat(exception.getCause(), nullValue());
@@ -1149,40 +1525,58 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
 
         // check that the original signed content is valid
-        final String signed = signer.transform(xml, idpSigningCertificatePair);
+        final String signed = signer.transform(NamedFormatter.format(xml, replacements), idpSigningCertificatePair);
         assertThat(authenticator.authenticate(token(signed)), notNullValue());
 
         // but altered content is rejected
@@ -1208,41 +1602,61 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        final String xmlWithReplacements = NamedFormatter.format(xml, replacements);
 
         // check that the content is valid when signed by the each of the key-pairs
         for (Tuple<X509Certificate, PrivateKey> key : keys) {
-            assertThat(authenticator.authenticate(token(signer.transform(xml, key))), notNullValue());
+            assertThat(authenticator.authenticate(token(signer.transform(xmlWithReplacements, key))), notNullValue());
         }
     }
 
@@ -1305,41 +1719,59 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(120);
         final String sessionindex = randomId();
-        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:Conditions NotBefore='" + now + "' NotOnOrAfter='" + validUntil + "'></assert:Conditions>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID SPNameQualifier='%(SP_ENTITY_ID)' Format='%(TRANSIENT)'>randomopaquestring</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:Conditions NotBefore='%(now)' NotOnOrAfter='%(validUntil)'></assert:Conditions>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "          NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "          Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
 
         // check that the content is valid "now"
-        final SamlToken token = token(signDoc(xml));
+        final SamlToken token = token(signDoc(NamedFormatter.format(xml, replacements)));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance partway through the expiry time
@@ -2079,19 +2511,31 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     private String getStatusFailedResponse() {
         final Instant now = clock.instant();
-        return "<?xml version='1.0' encoding='UTF-8'?>\n" +
-            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-            "' IssueInstant='" + now + "' Version='2.0'" +
-            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Requester'>" +
-            "<proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy'/></proto:StatusCode>" +
-            "</proto:Status>" +
-            "</proto:Response>";
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)' ID='%(randomId)' "
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Requester'>"
+            + "    <proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy'/></proto:StatusCode>"
+            + "  </proto:Status>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("now", now);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+
+        return NamedFormatter.format(xml, replacements);
     }
 
     private String getSimpleResponse(Instant now) {
@@ -2101,43 +2545,66 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     private String getSimpleResponse(Instant now, String nameId, String sessionindex) {
 
         Instant validUntil = now.plusSeconds(30);
-        return "<?xml version='1.0' encoding='UTF-8'?>\n" +
-                "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
-                "' IssueInstant='" + now + "' Version='2.0'" +
-                " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
-                " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
-                " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
-                " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-                " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
-                "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
-                "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
-                "<assert:Subject>" +
-                "<assert:NameID  Format='" + TRANSIENT + "'" +
-                " NameQualifier='" + IDP_ENTITY_ID + "'" + " SPNameQualifier='" + SP_ENTITY_ID + "'>" + nameId + "</assert:NameID>" +
-                "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
-                "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
-                "   InResponseTo='" + requestId + "'/>" +
-                "</assert:SubjectConfirmation>" +
-                "</assert:Subject>" +
-                "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
-                "' SessionIndex='" + sessionindex + "'>" +
-                "<assert:AuthnContext>" +
-                "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
-                "</assert:AuthnContext>" +
-                "</assert:AuthnStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "<assert:AttributeStatement><assert:Attribute " +
-                "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:1.3.6.1.4.1.5923.1.5.1.1'>" +
-                "<assert:AttributeValue xsi:type='xs:string'>defenders</assert:AttributeValue>" +
-                "<assert:AttributeValue xsi:type='xs:string'>netflix</assert:AttributeValue>" +
-                "</assert:Attribute></assert:AttributeStatement>" +
-                "</assert:Assertion>" +
-                "</proto:Response>";
+        String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<proto:Response"
+            + "    Destination='%(SP_ACS_URL)'"
+            + "    ID='%(randomId)'"
+            + "    InResponseTo='%(requestId)'"
+            + "    IssueInstant='%(now)'"
+            + "    Version='2.0'"
+            + "    xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'"
+            + "    xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'"
+            + "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+            + "    xmlns:xs='http://www.w3.org/2001/XMLSchema'"
+            + "    xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >"
+            + "  <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "  <proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>"
+            + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
+            + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
+            + "    <assert:Subject>"
+            + "      <assert:NameID  Format='%(TRANSIENT)'"
+            + "        NameQualifier='%(IDP_ENTITY_ID)'"
+            + "        SPNameQualifier='%(SP_ENTITY_ID)'>%(nameId)</assert:NameID>"
+            + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
+            + "        <assert:SubjectConfirmationData NotOnOrAfter='%(validUntil)' Recipient='%(SP_ACS_URL)' InResponseTo='%(requestId)'/>"
+            + "      </assert:SubjectConfirmation>"
+            + "    </assert:Subject>"
+            + "    <assert:AuthnStatement AuthnInstant='%(now)' SessionNotOnOrAfter='%(validUntil)' SessionIndex='%(sessionindex)'>"
+            + "      <assert:AuthnContext>"
+            + "        <assert:AuthnContextClassRef>%(PASSWORD_AUTHN_CTX)</assert:AuthnContextClassRef>"
+            + "      </assert:AuthnContext>"
+            + "    </assert:AuthnStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "         NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
+            + "         Name='urn:oid:0.9.2342.19200300.100.1.1'>"
+            + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute "
+            + "         NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:1.3.6.1.4.1.5923.1.5.1.1'>"
+            + "      <assert:AttributeValue xsi:type='xs:string'>defenders</assert:AttributeValue>"
+            + "      <assert:AttributeValue xsi:type='xs:string'>netflix</assert:AttributeValue>"
+            + "    </assert:Attribute></assert:AttributeStatement>"
+            + "  </assert:Assertion>"
+            + "</proto:Response>";
+
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
+        replacements.put("METHOD_BEARER", METHOD_BEARER);
+        replacements.put("nameId", nameId);
+        replacements.put("now", now);
+        replacements.put("PASSWORD_AUTHN_CTX", PASSWORD_AUTHN_CTX);
+        replacements.put("randomId", randomId());
+        replacements.put("requestId", requestId);
+        replacements.put("sessionindex", sessionindex);
+        replacements.put("SP_ACS_URL", SP_ACS_URL);
+        replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
+        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("validUntil", validUntil);
+
+        return NamedFormatter.format(xml, replacements);
     }
 
     private String getResponseWithAudienceRestrictions(String... requiredAudiences) {

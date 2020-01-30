@@ -14,6 +14,8 @@ Returns information about a cluster's nodes.
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
@@ -40,10 +42,12 @@ Valid columns are:
 (Default) Used file descriptors percentage, such as `1`.
 
 `node.role`, `r`, `role`, `nodeRole`::
-(Default) Roles of the node. Returned values include `m` (master-eligible node),
-`d` (data node), `i` (ingest node), and `-` (coordinating node only).
+(Default) Roles of the node. Returned values include `d` (data node), `i`
+(ingest node), `m` (master-eligible node), `l` (machine learning node), `v`
+(voting-only node), and `-` (coordinating node only).
 +
-For example, `mdi` indicates a master-eligible data and ingest node.
+For example, `dim` indicates a master-eligible data and ingest node. See
+<<modules-node>>.
 
 `master`, `m`::
 (Default) Indicates whether the node is the elected master node. Returned values
@@ -281,11 +285,20 @@ Number of suggest operations, such as `0`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+`local`::
+(Optional, boolean) 
+deprecated:[7.6.0,This parameter does not cause this API to act locally. It will be removed in version 8.0.]
+If `true`, the request computes the list of selected nodes from the local
+cluster state. Defaults to `false`, which means the list of selected nodes is
+computed from the cluster state on the master node. In either case the
+coordinating node sends a request for further information to each selected
+node.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
@@ -296,11 +309,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-nodes-api-ex-default]]
 ===== Example with default columns
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodes?v
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 
@@ -325,11 +337,10 @@ monitoring an entire cluster, particularly large ones.
 The following API request returns the `id`, `ip`, `port`, `v` (version), and `m`
 (master) columns.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodes?v&h=id,ip,port,v,m
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 

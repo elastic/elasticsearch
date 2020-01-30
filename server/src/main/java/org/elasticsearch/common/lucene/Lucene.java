@@ -24,8 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -105,16 +103,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
-    public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene80";
-
-    static {
-        Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
-        assert annotation == null : "PostingsFromat " + LATEST_POSTINGS_FORMAT + " is deprecated" ;
-        annotation = DocValuesFormat.forName(LATEST_DOC_VALUES_FORMAT).getClass().getAnnotation(Deprecated.class);
-        assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
-    }
+    public static final String LATEST_CODEC = "Lucene84";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -256,7 +245,8 @@ public class Lucene {
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // force creation - don't append...
+        ))
         {
             // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         }
@@ -816,16 +806,27 @@ public class Lucene {
     }
 
     /**
-     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
-     * all documents contained in the set. Note that the returned {@link Bits}
-     * instance MUST be consumed in order.
+     * Return a {@link Bits} view of the provided scorer.
+     * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
+     * @see #asSequentialAccessBits(int, ScorerSupplier, long)
      */
     public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier) throws IOException {
+        return asSequentialAccessBits(maxDoc, scorerSupplier, 0L);
+    }
+
+    /**
+     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
+     * all documents contained in the set.
+     * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
+     * @param estimatedGetCount an estimation of the number of times that {@link Bits#get} will get called
+     */
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier,
+            long estimatedGetCount) throws IOException {
         if (scorerSupplier == null) {
             return new Bits.MatchNoBits(maxDoc);
         }
         // Since we want bits, we need random-access
-        final Scorer scorer = scorerSupplier.get(Long.MAX_VALUE); // this never returns null
+        final Scorer scorer = scorerSupplier.get(estimatedGetCount); // this never returns null
         final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
         final DocIdSetIterator iterator;
         if (twoPhase == null) {

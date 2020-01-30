@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -641,14 +642,17 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 assertThat(log.containsKey("user.name"), is(true));
                                 List<String> indices = new ArrayList<>();
                                 if (log.containsKey("indices")) {
-                                    indices = (ArrayList<String>) log.get("indices");
+                                    @SuppressWarnings("unchecked")
+                                    List<String> castIndices = (ArrayList<String>) log.get("indices");
+                                    indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
-                                        indices.removeAll(RestrictedIndicesNames.RESTRICTED_NAMES);
+                                        indices = indices.stream().filter(
+                                                idx -> false == RestrictedIndicesNames.isRestricted(idx)).collect(Collectors.toList());
                                     }
                                 }
                                 // Use a sorted list for indices for consistent error reporting

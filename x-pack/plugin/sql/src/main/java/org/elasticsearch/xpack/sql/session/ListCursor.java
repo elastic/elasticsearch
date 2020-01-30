@@ -11,7 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +21,7 @@ import static java.util.Collections.emptyList;
 
 public class ListCursor implements Cursor {
 
-    public static final String NAME = "p";
+    public static final String NAME = "l";
 
     private final List<List<?>> data;
     private final int columnCount;

@@ -19,11 +19,12 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,6 +37,30 @@ import java.util.function.DoubleSupplier;
  * A script used for adjusting the score on a per document basis.
  */
 public abstract class ScoreScript {
+
+    /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
+    public static class ExplanationHolder {
+        private String description;
+
+        /**
+         * Explain the current score.
+         *
+         * @param description A textual description of how the score was calculated
+         */
+        public void set(String description) {
+            this.description = description;
+        }
+
+        public Explanation get(double score, Explanation subQueryExplanation) {
+            if (description == null) {
+                return null;
+            }
+            if (subQueryExplanation != null) {
+                return Explanation.match(score, description, subQueryExplanation);
+            }
+            return Explanation.match(score, description);
+        }
+    }
 
     private static final Map<String, String> DEPRECATIONS;
     static {
@@ -53,7 +78,7 @@ public abstract class ScoreScript {
         DEPRECATIONS = Collections.unmodifiableMap(deprecations);
     }
 
-    public static final String[] PARAMETERS = new String[]{};
+    public static final String[] PARAMETERS = new String[]{ "explanation" };
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -86,7 +111,7 @@ public abstract class ScoreScript {
         }
     }
 
-    public abstract double execute();
+    public abstract double execute(ExplanationHolder explanation);
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
@@ -94,7 +119,7 @@ public abstract class ScoreScript {
     }
 
     /** The doc lookup for the Lucene segment this script was created for. */
-    public final Map<String, ScriptDocValues<?>> getDoc() {
+    public Map<String, ScriptDocValues<?>> getDoc() {
         return leafLookup.doc();
     }
 
@@ -214,7 +239,7 @@ public abstract class ScoreScript {
     }
 
     /** A factory to construct stateful {@link ScoreScript} factories for a specific index. */
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
 
         ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
 

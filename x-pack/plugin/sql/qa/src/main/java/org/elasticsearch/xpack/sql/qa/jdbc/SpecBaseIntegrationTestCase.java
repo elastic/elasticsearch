@@ -66,7 +66,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadEmpDatasetIntoEs(client);
+        DataLoader.loadDatasetIntoEs(client);
     }
 
     @Override
@@ -90,8 +90,8 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         try {
             assumeFalse("Test marked as Ignored", testName.endsWith("-Ignore"));
             doTest();
-        } catch (AssertionError ae) {
-            throw reworkException(ae);
+        } catch (Exception e) {
+            throw reworkException(e);
         }
     }
 

@@ -38,16 +38,22 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -60,22 +66,25 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportDeleteDataFrameAnalyticsAction
     extends TransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportDeleteDataFrameAnalyticsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteDataFrameAnalyticsAction.class);
 
     private final Client client;
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsConfigProvider configProvider;
+    private final DataFrameAnalyticsAuditor auditor;
 
     @Inject
     public TransportDeleteDataFrameAnalyticsAction(TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                                   MlMemoryTracker memoryTracker, DataFrameAnalyticsConfigProvider configProvider) {
+                                                   MlMemoryTracker memoryTracker, DataFrameAnalyticsConfigProvider configProvider,
+                                                   DataFrameAnalyticsAuditor auditor) {
         super(DeleteDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeleteDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.memoryTracker = memoryTracker;
         this.configProvider = configProvider;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -98,6 +107,32 @@ public class TransportDeleteDataFrameAnalyticsAction
     protected void masterOperation(Task task, DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
+
+        if (request.isForce()) {
+            forceDelete(parentTaskClient, id, listener);
+        } else {
+            normalDelete(parentTaskClient, state, id, listener);
+        }
+    }
+
+    private void forceDelete(ParentTaskAssigningClient parentTaskClient, String id,
+                             ActionListener<AcknowledgedResponse> listener) {
+        logger.debug("[{}] Force deleting data frame analytics job", id);
+
+        ActionListener<StopDataFrameAnalyticsAction.Response> stopListener = ActionListener.wrap(
+            stopResponse -> normalDelete(parentTaskClient, clusterService.state(), id, listener),
+            listener::onFailure
+        );
+
+        StopDataFrameAnalyticsAction.Request request = new StopDataFrameAnalyticsAction.Request(id);
+        request.setForce(true);
+        executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, StopDataFrameAnalyticsAction.INSTANCE, request, stopListener);
+    }
+
+    private void normalDelete(ParentTaskAssigningClient parentTaskClient, ClusterState state, String id,
+                              ActionListener<AcknowledgedResponse> listener) {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
@@ -106,23 +141,20 @@ public class TransportDeleteDataFrameAnalyticsAction
             return;
         }
 
-        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
-
         // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
 
-        // Step 2. Delete the config
+        // Step 3. Delete the config
         ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
             bulkByScrollResponse -> {
                 if (bulkByScrollResponse.isTimedOut()) {
-                    LOGGER.warn("[{}] DeleteByQuery for state timed out", id);
+                    logger.warn("[{}] DeleteByQuery for state timed out", id);
                 }
                 if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                    LOGGER.warn("[{}] {} failures and {} conflicts encountered while runnint DeleteByQuery for state", id,
+                    logger.warn("[{}] {} failures and {} conflicts encountered while runnint DeleteByQuery for state", id,
                         bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
                     for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                        LOGGER.warn("[{}] DBQ failure: {}", id, failure);
+                        logger.warn("[{}] DBQ failure: {}", id, failure);
                     }
                 }
                 deleteConfig(parentTaskClient, id, listener);
@@ -130,9 +162,9 @@ public class TransportDeleteDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        // Step 1. Delete state
+        // Step 2. Delete state
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> deleteState(parentTaskClient, id, deleteStateHandler),
+            config -> deleteState(parentTaskClient, config, deleteStateHandler),
             listener::onFailure
         );
 
@@ -151,18 +183,24 @@ public class TransportDeleteDataFrameAnalyticsAction
                     return;
                 }
                 assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                LOGGER.info("[{}] Deleted", id);
+                logger.info("[{}] Deleted", id);
+                auditor.info(id, Messages.DATA_FRAME_ANALYTICS_AUDIT_DELETED);
                 listener.onResponse(new AcknowledgedResponse(true));
             },
             listener::onFailure
         ));
     }
 
-    private void deleteState(ParentTaskAssigningClient parentTaskClient, String analyticsId,
+    private void deleteState(ParentTaskAssigningClient parentTaskClient,
+                             DataFrameAnalyticsConfig config,
                              ActionListener<BulkByScrollResponse> listener) {
+        List<String> ids = new ArrayList<>();
+        ids.add(StoredProgress.documentId(config.getId()));
+        if (config.getAnalysis().persistsState()) {
+            ids.add(config.getAnalysis().getStateDocId(config.getId()));
+        }
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
-        request.setQuery(QueryBuilders.idsQuery().addIds(
-            DataFrameAnalyticsTask.progressDocId(analyticsId)));
+        request.setQuery(QueryBuilders.idsQuery().addIds(ids.toArray(new String[0])));
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);

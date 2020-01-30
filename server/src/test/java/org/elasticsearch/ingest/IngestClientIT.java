@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -39,12 +40,14 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -68,7 +71,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestTestPlugin.class);
+        return Collections.singleton(ExtendedIngestTestPlugin.class);
     }
 
     public void testSimulate() throws Exception {
@@ -272,4 +275,178 @@ public class IngestClientIT extends ESIntegTestCase {
         GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id2").get();
         assertFalse(response.isFound());
     }
+
+    public void testWithDedicatedMaster() throws Exception {
+        String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
+            .field("description", "my_pipeline")
+            .startArray("processors")
+            .startObject()
+            .startObject("test")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject());
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        BulkItemResponse item = client(masterOnlyNode).prepareBulk().add(
+            client().prepareIndex("test", "type").setSource("field", "value2", "drop", true).setPipeline("_id")).get()
+            .getItems()[0];
+        assertFalse(item.isFailed());
+        assertEquals("auto-generated", item.getResponse().getId());
+    }
+
+    public void testPipelineOriginHeader() throws Exception {
+        {
+            XContentBuilder source = jsonBuilder().startObject();
+            {
+                source.startArray("processors");
+                source.startObject();
+                {
+                    source.startObject("pipeline");
+                    source.field("name", "2");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            source.endObject();
+            PutPipelineRequest putPipelineRequest =
+                new PutPipelineRequest("1", BytesReference.bytes(source), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        }
+        {
+            XContentBuilder source = jsonBuilder().startObject();
+            {
+                source.startArray("processors");
+                source.startObject();
+                {
+                    source.startObject("pipeline");
+                    source.field("name", "3");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            source.endObject();
+            PutPipelineRequest putPipelineRequest =
+                new PutPipelineRequest("2", BytesReference.bytes(source), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        }
+        {
+            XContentBuilder source = jsonBuilder().startObject();
+            {
+                source.startArray("processors");
+                source.startObject();
+                {
+                    source.startObject("fail");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            source.endObject();
+            PutPipelineRequest putPipelineRequest =
+                new PutPipelineRequest("3", BytesReference.bytes(source), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        }
+
+        Exception e = expectThrows(Exception.class, () -> {
+            IndexRequest indexRequest = new IndexRequest("test");
+            indexRequest.source("{}", XContentType.JSON);
+            indexRequest.setPipeline("1");
+            client().index(indexRequest).get();
+        });
+        IngestProcessorException ingestException = (IngestProcessorException) ExceptionsHelper.unwrap(e, IngestProcessorException.class);
+        assertThat(ingestException.getHeader("processor_type"), equalTo(Collections.singletonList("fail")));
+        assertThat(ingestException.getHeader("pipeline_origin"), equalTo(Arrays.asList("3", "2", "1")));
+    }
+
+    public void testPipelineProcessorOnFailure() throws Exception {
+        {
+            XContentBuilder source = jsonBuilder().startObject();
+            {
+                source.startArray("processors");
+                source.startObject();
+                {
+                    source.startObject("pipeline");
+                    source.field("name", "2");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            {
+                source.startArray("on_failure");
+                source.startObject();
+                {
+                    source.startObject("onfailure_processor");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            source.endObject();
+            PutPipelineRequest putPipelineRequest =
+                new PutPipelineRequest("1", BytesReference.bytes(source), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        }
+        {
+            XContentBuilder source = jsonBuilder().startObject();
+            {
+                source.startArray("processors");
+                source.startObject();
+                {
+                    source.startObject("pipeline");
+                    source.field("name", "3");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            source.endObject();
+            PutPipelineRequest putPipelineRequest =
+                new PutPipelineRequest("2", BytesReference.bytes(source), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        }
+        {
+            XContentBuilder source = jsonBuilder().startObject();
+            {
+                source.startArray("processors");
+                source.startObject();
+                {
+                    source.startObject("fail");
+                    source.endObject();
+                }
+                source.endObject();
+                source.endArray();
+            }
+            source.endObject();
+            PutPipelineRequest putPipelineRequest =
+                new PutPipelineRequest("3", BytesReference.bytes(source), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        }
+
+        client().prepareIndex("test", "_doc").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        Map<String, Object> inserted = client().prepareGet("test", "_doc", "1")
+            .get().getSourceAsMap();
+        assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
+    }
+
+    public static class ExtendedIngestTestPlugin extends IngestTestPlugin {
+
+        @Override
+        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+            Map<String, Processor.Factory> factories = new HashMap<>(super.getProcessors(parameters));
+            factories.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
+            factories.put("fail", (processorFactories, tag, config) -> new TestProcessor(tag, "fail", new RuntimeException()));
+            factories.put("onfailure_processor", (processorFactories, tag, config) -> new TestProcessor(tag, "fail", document -> {
+                String onFailurePipeline = document.getFieldValue("_ingest.on_failure_pipeline", String.class);
+                document.setFieldValue("readme", "pipeline with id [" + onFailurePipeline + "] is a bad pipeline");
+            }));
+            return factories;
+        }
+    }
+
 }

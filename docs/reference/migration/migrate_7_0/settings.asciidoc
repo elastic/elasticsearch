@@ -147,7 +147,64 @@ used.
 TLS version 1.0 is now disabled by default as it suffers from
 https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet#Rule_-_Only_Support_Strong_Protocols[known security issues].
 The default protocols are now TLSv1.3 (if supported), TLSv1.2 and TLSv1.1.
-You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` setting to include `"TLSv1"`, for example:
+
+You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols`
+setting to include `"TLSv1"`.
+Depending on your local configuration and the TLS protocols that are in use
+on your network, you may need to enable TLS v1.0 support in any or all of the
+following places:
+
+`xpack.security.http.ssl.supported_protocols`::
+For incoming HTTP connections to Elasticsearch's HTTP (Rest) interface.
+If there are clients that connect to {es} and do not support newer TLS versions,
+you must update this setting. 
+
+`xpack.http.ssl.supported_protocols`::
+For outgoing HTTP connections from {watcher}.
+If you have watches that connect to external HTTP servers and do not support
+newer TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.ldap.{name}.ssl.supported_protocols`::
+For outgoing LDAP connections from {es} {security-features}.
+If you have an LDAP realm enabled and the LDAP directory to which that realm
+connects does not support newer TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.active_directory.{name}.ssl.supported_protocols`::
+For outgoing Active Directory (LDAP) connections from {es} {security-features}.
+If you have an AD realm enabled and the directory server to which that realm
+connects does not support newer TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.saml.{name}.ssl.supported_protocols`::
+For outgoing HTTP connections to retrieve SAML metadata.
+If you have a SAML realm enabled and the realm is configured to retrieve
+metadata over HTTPS (that is, `idp.metadata.path` is a URL starting with
+`https://`) and the web server which hosts the metadata does not support newer
+TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.oidc.{name}.ssl.supported_protocols`::
+For outgoing HTTP connections to an OpenId Connect Provider.
+If you have an OpenId Connect ("oidc") realm enabled and the realm is configured
+to connect to a remote OpenID Connect Provider which does not support newer TLS
+versions, you must update this setting.
+
+`xpack.monitoring.exporters.{name}.ssl.supported_protocols`::
+For remote monitoring data.
+If your monitoring data is exported to a remote monitoring cluster and that
+cluster is configured to only support TLSv1, you must update this setting.
+
+`reindex.ssl.supported_protocols`::
+For reindex from remote. 
+If you reindex data from a remote {es} cluster which has SSL enabled on the
+`http` interface and that cluster is configured to only support TLSv1, you must
+update this setting.
+
+`xpack.security.transport.ssl.supported_protocols`::
+For incoming connections between {es} nodes. If you have specialized network
+equipment which inspects TLS packets between your nodes, and that equipment
+enforces TLSv1 you must update this setting.
+
+
+The following is an example that enables TLS v1.0 for incoming HTTP connections:
 [source,yaml]
 --------------------------------------------------
 xpack.security.http.ssl.supported_protocols: [ "TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1" ]

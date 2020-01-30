@@ -52,9 +52,12 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Provides the infrastructure for Lucene expressions as a scripting language for Elasticsearch.
@@ -65,13 +68,107 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
     public static final String NAME = "expression";
 
+    private static Map<ScriptContext<?>, Function<Expression,Object>> contexts;
+
+    static {
+        Map<ScriptContext<?>, Function<Expression,Object>> contexts = new HashMap<ScriptContext<?>, Function<Expression,Object>>();
+        contexts.put(BucketAggregationScript.CONTEXT,
+            ExpressionScriptEngine::newBucketAggregationScriptFactory);
+
+        contexts.put(BucketAggregationSelectorScript.CONTEXT,
+            (Expression expr) -> {
+                BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
+                BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
+                    @Override
+                    public boolean execute() {
+                        return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
+                    }
+                };
+                return wrappedFactory; });
+
+        contexts.put(FilterScript.CONTEXT,
+            (Expression expr) -> new FilterScript.Factory() {
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+
+                @Override
+                public FilterScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newFilterScript(expr, lookup, params);
+                }
+            });
+
+        contexts.put(ScoreScript.CONTEXT,
+            (Expression expr) -> new ScoreScript.Factory() {
+                @Override
+                public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newScoreScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
+
+        contexts.put(TermsSetQueryScript.CONTEXT,
+            (Expression expr) -> (TermsSetQueryScript.Factory) (p, lookup) -> newTermsSetQueryScript(expr, lookup, p));
+
+        contexts.put(AggregationScript.CONTEXT,
+            (Expression expr) -> new AggregationScript.Factory() {
+                @Override
+                public AggregationScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newAggregationScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
+
+        contexts.put(NumberSortScript.CONTEXT,
+            (Expression expr) -> new NumberSortScript.Factory() {
+                @Override
+                public NumberSortScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newSortScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
+
+        contexts.put(FieldScript.CONTEXT,
+            (Expression expr) -> new FieldScript.Factory() {
+                @Override
+                public FieldScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newFieldScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
+
+            ExpressionScriptEngine.contexts = Collections.unmodifiableMap(contexts);
+        }
+
     @Override
     public String getType() {
         return NAME;
     }
 
     @Override
-    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+    public <T> T compile(
+        String scriptName,
+        String scriptSource,
+        ScriptContext<T> context,
+        Map<String, String> params
+    ) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
@@ -102,37 +199,15 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 }
             }
         });
-        if (context.instanceClazz.equals(BucketAggregationScript.class)) {
-            return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
-        } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
-            BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
-            BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
-                @Override
-                public boolean execute() {
-                    return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
-                }
-            };
-            return context.factoryClazz.cast(wrappedFactory);
-        } else if (context.instanceClazz.equals(FilterScript.class)) {
-            FilterScript.Factory factory = (p, lookup) -> newFilterScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ScoreScript.class)) {
-            ScoreScript.Factory factory = (p, lookup) -> newScoreScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(TermsSetQueryScript.class)) {
-            TermsSetQueryScript.Factory factory = (p, lookup) -> newTermsSetQueryScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(AggregationScript.class)) {
-            AggregationScript.Factory factory = (p, lookup) -> newAggregationScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(NumberSortScript.class)) {
-            NumberSortScript.Factory factory = (p, lookup) -> newSortScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(FieldScript.class)) {
-            FieldScript.Factory factory = (p, lookup) -> newFieldScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
+        if (contexts.containsKey(context) == false) {
+            throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
         }
-        throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
+        return context.factoryClazz.cast(contexts.get(context).apply(expr));
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return contexts.keySet();
     }
 
     private static BucketAggregationScript.Factory newBucketAggregationScriptFactory(Expression expr) {
@@ -166,7 +241,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         };
     }
 
-    private NumberSortScript.LeafFactory newSortScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    private static NumberSortScript.LeafFactory newSortScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
@@ -193,7 +268,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         return new ExpressionNumberSortScript(expr, bindings, needsScores);
     }
 
-    private TermsSetQueryScript.LeafFactory newTermsSetQueryScript(Expression expr, SearchLookup lookup,
+    private static TermsSetQueryScript.LeafFactory newTermsSetQueryScript(Expression expr, SearchLookup lookup,
         @Nullable Map<String, Object> vars) {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
@@ -216,7 +291,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         return new ExpressionTermSetQueryScript(expr, bindings);
     }
 
-    private AggregationScript.LeafFactory newAggregationScript(Expression expr, SearchLookup lookup,
+    private static AggregationScript.LeafFactory newAggregationScript(Expression expr, SearchLookup lookup,
         @Nullable Map<String, Object> vars) {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
@@ -252,7 +327,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         return new ExpressionAggregationScript(expr, bindings, needsScores, specialValue);
     }
 
-    private FieldScript.LeafFactory newFieldScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    private static FieldScript.LeafFactory newFieldScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         SimpleBindings bindings = new SimpleBindings();
         for (String variable : expr.variables) {
             try {
@@ -273,14 +348,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
      * This is a hack for filter scripts, which must return booleans instead of doubles as expression do.
      * See https://github.com/elastic/elasticsearch/issues/26429.
      */
-    private FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    private static FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         ScoreScript.LeafFactory searchLeafFactory = newScoreScript(expr, lookup, vars);
         return ctx -> {
             ScoreScript script = searchLeafFactory.newInstance(ctx);
             return new FilterScript(vars, lookup, ctx) {
                 @Override
                 public boolean execute() {
-                    return script.execute() != 0.0;
+                    return script.execute(null) != 0.0;
                 }
                 @Override
                 public void setDocument(int docid) {
@@ -290,7 +365,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         };
     }
 
-    private ScoreScript.LeafFactory newScoreScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    private static ScoreScript.LeafFactory newScoreScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
@@ -327,7 +402,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
     /**
      * converts a ParseException at compile-time or link-time to a ScriptException
      */
-    private ScriptException convertToScriptException(String message, String source, String portion, Throwable cause) {
+    private static ScriptException convertToScriptException(String message, String source, String portion, Throwable cause) {
         List<String> stack = new ArrayList<>();
         stack.add(portion);
         StringBuilder pointer = new StringBuilder();

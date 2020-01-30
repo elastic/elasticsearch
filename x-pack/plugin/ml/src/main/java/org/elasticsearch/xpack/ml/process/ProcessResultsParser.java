@@ -32,15 +32,17 @@ public class ProcessResultsParser<T> {
     private static final Logger logger = LogManager.getLogger(ProcessResultsParser.class);
 
     private final ConstructingObjectParser<T, Void> resultParser;
+    private final NamedXContentRegistry namedXContentRegistry;
 
-    public ProcessResultsParser(ConstructingObjectParser<T, Void> resultParser) {
+    public ProcessResultsParser(ConstructingObjectParser<T, Void> resultParser, NamedXContentRegistry namedXContentRegistry) {
         this.resultParser = Objects.requireNonNull(resultParser);
+        this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
     }
 
     public Iterator<T> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, in);
+                    .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in);
             XContentParser.Token token = parser.nextToken();
             // if start of an array ignore it, we expect an array of results
             if (token != XContentParser.Token.START_ARRAY) {

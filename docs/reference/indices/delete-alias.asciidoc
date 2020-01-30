@@ -6,13 +6,12 @@
 
 Deletes an existing index alias.
 
-include::alias-exists.asciidoc[tag=index-alias-def]
+include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
 
-[source,js]
+[source,console]
 ----
 DELETE /twitter/_alias/alias1
 ----
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT twitter\/_alias\/alias1\n/]
 

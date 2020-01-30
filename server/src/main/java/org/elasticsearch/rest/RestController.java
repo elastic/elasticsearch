@@ -52,6 +52,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -73,10 +74,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final CircuitBreakerService circuitBreakerService;
 
     /** Rest headers that are copied to internal requests made during a rest request. */
-    private final Set<String> headersToCopy;
+    private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
 
-    public RestController(Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
+    public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
             NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -219,6 +220,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            // TODO: Count requests double in the circuit breaker if they need copying?
+            if (handler.allowsUnsafeBuffers() == false) {
+                request.ensureSafeBuffers();
+            }
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
@@ -257,10 +262,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        for (String key : headersToCopy) {
-            String httpHeader = request.header(key);
-            if (httpHeader != null) {
-                threadContext.putHeader(key, httpHeader);
+        for (final RestHeaderDefinition restHeader : headersToCopy) {
+            final String name = restHeader.getName();
+            final List<String> headerValues = request.getAllHeaderValues(name);
+            if (headerValues != null && headerValues.isEmpty() == false) {
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
+                    channel.sendResponse(
+                        BytesRestResponse.
+                            createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
+                    return;
+                } else {
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                }
             }
         }
         // error_trace cannot be used when we disable detailed errors

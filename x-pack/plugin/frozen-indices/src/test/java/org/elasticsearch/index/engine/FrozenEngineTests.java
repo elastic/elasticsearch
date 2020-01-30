@@ -33,6 +33,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class FrozenEngineTests extends EngineTestCase {
 
     public void testAcquireReleaseReset() throws IOException {
@@ -324,6 +326,32 @@ public class FrozenEngineTests extends EngineTestCase {
                         DirectoryReader unwrap = FilterDirectoryReader.unwrap(searcher.getDirectoryReader());
                         assertThat(unwrap, Matchers.instanceOf(RewriteCachingDirectoryReader.class));
                     }
+                }
+            }
+        }
+    }
+
+    public void testSearchers() throws Exception {
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, null,
+                globalCheckpoint::get, new NoneCircuitBreakerService());
+            final int totalDocs;
+            try (InternalEngine engine = createEngine(config)) {
+                applyOperations(engine, generateHistoryOnReplica(between(10, 1000), false, randomBoolean(), randomBoolean()));
+                globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+                engine.syncTranslog();
+                engine.flush();
+                engine.refresh("test");
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;
+                }
+            }
+            try (FrozenEngine frozenEngine = new FrozenEngine(config)) {
+                try (Engine.Searcher searcher = frozenEngine.acquireSearcher("test")) {
+                    TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+                    assertThat(topDocs.scoreDocs.length, equalTo(totalDocs));
                 }
             }
         }

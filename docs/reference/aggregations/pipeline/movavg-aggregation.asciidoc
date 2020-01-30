@@ -51,7 +51,7 @@ A `moving_avg` aggregation looks like this in isolation:
 `moving_avg` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
 embedded like any other metric aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -74,7 +74,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -154,7 +153,7 @@ The `simple` model calculates the sum of all values in the window, then divides 
 a simple arithmetic mean of the window.  The simple model does not perform any time-dependent weighting, which means
 the values from a `simple` moving average tend to "lag" behind the real data.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -181,7 +180,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -208,7 +206,7 @@ The `linear` model assigns a linear weighting to points in the series, such that
 the beginning of the window) contribute a linearly less amount to the total average.  The linear weighting helps reduce
 the "lag" behind the data's mean, since older points have less influence.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -235,7 +233,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -268,7 +265,7 @@ The default value of `alpha` is `0.3`, and the setting accepts any float from 0-
 
 The EWMA model can be <<movavg-minimizer, Minimized>>
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -298,7 +295,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -327,7 +323,7 @@ The default value of `alpha` is `0.3` and `beta` is `0.1`. The settings accept a
 
 The Holt-Linear model can be <<movavg-minimizer, Minimized>>
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -358,7 +354,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -416,7 +411,7 @@ The default value of `period` is `1`.
 
 The additive Holt-Winters model can be <<movavg-minimizer, Minimized>>
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -450,7 +445,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -477,7 +471,7 @@ the result, but only minimally.  If your data is non-zero, or you prefer to see 
 you can disable this behavior with `pad: false`
 ======
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -512,7 +506,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -527,7 +520,7 @@ Predictions are enabled by adding a `predict` parameter to any moving average ag
 predictions you would like appended to the end of the series.  These predictions will be spaced out at the same interval
 as your buckets:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -555,7 +548,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
@@ -606,7 +598,7 @@ models.
 
 Minimization is enabled/disabled via the `minimize` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -637,7 +629,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 

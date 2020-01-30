@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -37,23 +38,32 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     private final MultiValueMode multiValueMode;
 
     MatrixStatsAggregatorFactory(String name,
-            Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, MultiValueMode multiValueMode,
-            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, configs, context, parent, subFactoriesBuilder, metaData);
+                                    Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs,
+                                    MultiValueMode multiValueMode,
+                                    QueryShardContext queryShardContext,
+                                    AggregatorFactory parent,
+                                    AggregatorFactories.Builder subFactoriesBuilder,
+                                    Map<String, Object> metaData) throws IOException {
+        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.multiValueMode = multiValueMode;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, context, parent, multiValueMode, pipelineAggregators, metaData);
+        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent,
-                                          boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
-        return new MatrixStatsAggregator(name, valuesSources, context, parent, multiValueMode, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new MatrixStatsAggregator(name, valuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
     }
 }

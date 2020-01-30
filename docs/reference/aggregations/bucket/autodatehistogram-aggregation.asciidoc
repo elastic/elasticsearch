@@ -57,7 +57,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -150,7 +150,7 @@ GET my_index/_search?size=0
 UTC is used if no time zone is specified, three 1-hour buckets are returned 
 starting at midnight UTC on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -205,7 +205,7 @@ Now three 1-hour buckets are still returned but the first bucket starts at
 11:00pm on 30 September 2015 since that is the local time for the bucket in 
 the specified time zone.
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...

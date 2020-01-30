@@ -23,6 +23,7 @@ import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 
 import java.nio.file.Files
@@ -31,7 +32,7 @@ import java.nio.file.Path
 /**
  * Generates REST tests for each snippet marked // TEST.
  */
-public class RestTestsFromSnippetsTask extends SnippetsTask {
+class RestTestsFromSnippetsTask extends SnippetsTask {
     /**
      * These languages aren't supported by the syntax highlighter so we
      * shouldn't use them.
@@ -58,7 +59,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
-    public RestTestsFromSnippetsTask() {
+    @Internal
+    Set<String> names = new HashSet<>()
+
+    RestTestsFromSnippetsTask() {
         project.afterEvaluate {
             // Wait to set this so testRoot can be customized
             project.sourceSets.test.output.dir(testRoot, builtBy: this)
@@ -206,8 +210,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.console ||
-                    snippet.language == 'console') {
+            if ((snippet.language == 'js') && (snippet.console)) {
+                throw new InvalidUserDataException(
+                        "$snippet: Use `[source,console]` instead of `// CONSOLE`.")
+            }
+            if (snippet.test || snippet.language == 'console') {
                 test(snippet)
                 previousTest = snippet
                 return

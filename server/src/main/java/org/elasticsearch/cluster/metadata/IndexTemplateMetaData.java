@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -50,6 +52,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexTemplateMetaData.class));
 
     private final String name;
 
@@ -97,6 +101,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         this.patterns = patterns;
         this.settings = settings;
         this.mappings = mappings;
+        if (this.mappings.size() > 1) {
+            deprecationLogger.deprecatedAndMaybeLog("index-templates",
+                "Index template {} contains multiple typed mappings; templates in 8x will only support a single mapping",
+                name);
+        }
         this.aliases = aliases;
     }
 

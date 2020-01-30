@@ -80,6 +80,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 */
 public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportOpenJobAction.class);
+
     static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
             new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
 
@@ -162,10 +164,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
     }
 
-    private static boolean jobHasRules(Job job) {
-        return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
-    }
-
     public static String nodeFilter(DiscoveryNode node, Job job) {
 
         String jobId = job.getId();
@@ -236,7 +234,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         e = new ElasticsearchStatusException("Cannot open job [" + jobParams.getJobId() +
                                 "] because it has already been opened", RestStatus.CONFLICT, e);
                     }
@@ -376,7 +374,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // If the task parameters do not have a job field then the job
             // was first opened on a pre v6.6 node and has not been migrated
-            if (params.getJob() == null) {
+            Job job = params.getJob();
+            if (job == null) {
                 return AWAITING_MIGRATION;
             }
 
@@ -405,9 +404,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 }
             }
 
-            Job job = params.getJob();
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, jobId, MlTasks.JOB_TASK_NAME, memoryTracker,
-                maxLazyMLNodes, node -> nodeFilter(node, job));
+                job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, job));
             return jobNodeSelector.selectNode(
                 maxOpenJobs, maxConcurrentJobAllocations, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
         }
@@ -558,6 +556,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 }
             }
             switch (jobState) {
+                // The OPENING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
+                // its task state is still in-flight.  (The long-lived OPENING case when a lazy node needs to
+                // be added to the cluster to accommodate the job was dealt with higher up this method when the
+                // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
                 case OPENING:
                 case CLOSED:
                     return false;

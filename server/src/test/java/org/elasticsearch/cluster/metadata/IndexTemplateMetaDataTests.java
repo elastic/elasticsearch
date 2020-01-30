@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -167,5 +168,16 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
             IndexTemplateMetaData parsed = IndexTemplateMetaData.Builder.fromXContent(parser, templateName);
             assertThat(parsed, equalTo(template));
         }
+    }
+
+    public void testDeprecationWarningsOnMultipleMappings() throws IOException {
+        IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder("my-template");
+        builder.patterns(Arrays.asList("a", "b"));
+        builder.putMapping("type1", "{\"type1\":{}}");
+        builder.putMapping("type2", "{\"type2\":{}}");
+        builder.build();
+
+        assertWarnings("Index template my-template contains multiple typed mappings; " +
+            "templates in 8x will only support a single mapping");
     }
 }

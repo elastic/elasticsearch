@@ -21,20 +21,18 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -45,6 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -71,6 +70,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -79,6 +79,7 @@ import org.mockito.ArgumentCaptor;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -92,6 +93,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -217,15 +219,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         results2.forEach((k, v) -> assertFalse(v));
     }
 
-    public void testCreateUpdateAliasRequest() {
+    public void testRolloverAliasActions() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
-        List<AliasAction> actions = updateRequest.actions();
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, false);
         assertThat(actions, hasSize(2));
         boolean foundAdd = false;
         boolean foundRemove = false;
@@ -244,15 +244,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertTrue(foundRemove);
     }
 
-    public void testCreateUpdateAliasRequestWithExplicitWriteIndex() {
+    public void testRolloverAliasActionsWithExplicitWriteIndex() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, true);
 
-        List<AliasAction> actions = updateRequest.actions();
         assertThat(actions, hasSize(2));
         boolean foundAddWrite = false;
         boolean foundRemoveWrite = false;
@@ -362,13 +360,33 @@ public class TransportRolloverActionTests extends ESTestCase {
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName));
+            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomBoolean()));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
-    public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() {
+    public void testHiddenAffectsResolvedTemplates() {
+        final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
+            .patterns(Collections.singletonList("*"))
+            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
+            .build();
+        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+
+        // hidden shouldn't throw
+        TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, Boolean.TRUE);
+        // not hidden will throw
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
         final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
+        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+        when(mockNode.getId()).thenReturn("mocknode");
+        when(mockClusterService.localNode()).thenReturn(mockNode);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         final MetaDataCreateIndexService mockCreateIndexService = mock(MetaDataCreateIndexService.class);
         final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
@@ -377,31 +395,23 @@ public class TransportRolloverActionTests extends ESTestCase {
         final MetaDataIndexAliasesService mdIndexAliasesService = mock(MetaDataIndexAliasesService.class);
 
         final Client mockClient = mock(Client.class);
-        final AdminClient mockAdminClient = mock(AdminClient.class);
-        final IndicesAdminClient mockIndicesAdminClient = mock(IndicesAdminClient.class);
-        when(mockClient.admin()).thenReturn(mockAdminClient);
-        when(mockAdminClient.indices()).thenReturn(mockIndicesAdminClient);
 
-        final IndicesStatsRequestBuilder mockIndicesStatsBuilder = mock(IndicesStatsRequestBuilder.class);
-        when(mockIndicesAdminClient.prepareStats(any())).thenReturn(mockIndicesStatsBuilder);
         final Map<String, IndexStats> indexStats = new HashMap<>();
         int total = randomIntBetween(500, 1000);
         indexStats.put("logs-index-000001", createIndexStats(200L, total));
         indexStats.put("logs-index-000002", createIndexStats(300L, total));
         final IndicesStatsResponse statsResponse = createAliasToMultipleIndicesStatsResponse(indexStats);
-        when(mockIndicesStatsBuilder.clear()).thenReturn(mockIndicesStatsBuilder);
-        when(mockIndicesStatsBuilder.setDocs(true)).thenReturn(mockIndicesStatsBuilder);
-
-        assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
-        assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
-            assert args.length == 1;
-            ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[0];
+            assert args.length == 3;
+            ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[2];
             listener.onResponse(statsResponse);
             return null;
-        }).when(mockIndicesStatsBuilder).execute(any(ActionListener.class));
+        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), any(ActionListener.class));
+
+        assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
+        assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
         final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("logs-index-000001")
                 .putAlias(AliasMetaData.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
@@ -422,7 +432,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(500L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
 
         RolloverResponse response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -438,7 +448,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(300L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
 
         response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));

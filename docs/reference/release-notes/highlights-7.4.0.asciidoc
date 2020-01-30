@@ -1,0 +1,156 @@
+[[release-highlights-7.4.0]]
+== 7.4.0 release highlights
+++++
+<titleabbrev>7.4.0</titleabbrev>
+++++
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[float]
+==== Results pinning
+
+You can use the new {ref}/query-dsl-pinned-query.html[pinned query]
+to define the first records
+(and the order in which they are returned)
+in a result set directly within {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== New `shape` field type
+
+A new {ref}/shape.html[`shape`] field type has been added,
+which allows you to position and query shapes
+in a geometry of your choosing.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Circle ingest processor
+
+A new {ref}/ingest-circle-processor.html[circle ingest processor] has been added,
+which translates circles into regular polygons (bounded by the circles).
+This makes ingesting, indexing, searching, and aggregating circles both easy and efficient.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Aggregations on range fields
+
+The {ref}/search-aggregations-bucket-histogram-aggregation.html[histogram]
+and {ref}/search-aggregations-bucket-datehistogram-aggregation.html[date histogram]
+aggregations now support the {ref}/range.html[`range`] field type.
+
+Range aggregations are useful
+when counting ranges that overlap with specific buckets
+(e.g. the number of phone calls that took place during a specific minute).
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Cumulative cardinality aggregation
+
+A new {ref}/search-aggregations-pipeline-cumulative-cardinality-aggregation.html[cumulative cardinality aggregation]
+has been added
+as part of our ongoing effort to provide advanced aggregations.
+
+You can use this new pipeline aggregation
+to calculate a net-new total of document occurrences
+within a given time range.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Snapshot lifecycle management
+
+We’re introducing {ref}/getting-started-snapshot-lifecycle-management.html[snapshot lifecycle management (SLM)],
+which allows an administrator to define policies, 
+via API or {kibana-ref}/index-lifecycle-policies.html[{kib} UI],
+that manage when and how often snapshots are taken.
+You can use SLM
+to ensure that appropriate, recent backups are ready
+if disaster strikes
+or you need to restore {es} data. 
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== API key management
+
+New {ref}/security-privileges.html[cluster privileges] to manage API keys have been added,
+allowing cluster administrators to manage everything,
+and regular users to manage their own keys.
+Users can create API keys
+and use them to provide long-term credentials
+while interacting with {es}. 
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== TLS settings for email notifications
+
+Notifications may contain sensitive information that must be protected over the wire. This requires that communication with the mail server is encrypted and authenticated properly.
+{es} now supports custom {ref}/notification-settings.html#ssl-notification-smtp-settings[TLS settings] for email notifications,
+allowing secure connections to servers with custom security configuration.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Automatic query cancellation
+
+{es} now automatically terminates queries
+sent through the `_search` endpoint
+when the initiating connection is closed.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Support for AdoptOpenJDK
+
+AdoptOpenJDK 13 is now supported and shipped with {es} as the pre-bundled JDK.
+
+If you want to use your own JDK,
+you can still do so by setting `JAVA_HOME` before starting Elasticsearch.
+
+The availability of a notarized AdoptOpenJDK package
+(per the new requirements for software running on macOS Catalina)
+facilitates notarization of {es} for continued support on macOS. 
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Regression analysis - Experimental
+
+{ml-docs}/dfa-regression.html[Regression analysis] is an experimental machine learning process
+for estimating the relationships among a number of feature variables and a dependent variable,
+then making further predictions based on the described relationship.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== New vector distance functions for document script scoring - Experimental
+
+Two experimential similarity measurements—
+Manhattan distance (L1 norm)
+and Euclidean distance (L2 norm)—
+have been added.
+Like the dot product and cosine similarity,
+the Euclidean and Manhattan distances are provided as {ref}/query-dsl-script-score-query.html#vector-functions[predefined Painless functions]
+so that they may be incorporated with other query elements
+as part of a {ref}/query-dsl-script-score-query.html[script_score] query.
+
+// end::notable-highlights[]
+

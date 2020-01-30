@@ -45,7 +45,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
@@ -116,7 +116,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         } else {
             types = new String[] { request.type() };
         }
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId,
                 types, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;

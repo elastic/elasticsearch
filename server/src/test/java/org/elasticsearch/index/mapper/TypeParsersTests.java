@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -39,11 +40,14 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
@@ -208,5 +212,76 @@ public class TypeParsersTests extends ESTestCase {
         };
         return new CustomAnalyzer(null, new CharFilterFactory[0],
                 new TokenFilterFactory[] { tokenFilter  });
+    }
+
+    public void testParseMeta() {
+        FieldMapper.Builder<?, ?> builder = new KeywordFieldMapper.Builder("foo");
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null);
+
+        {
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", 3));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("veryloooooooooooongkey", 3L)));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, String> meta = new HashMap<>();
+            meta.put("foo1", "3");
+            meta.put("foo2", "3");
+            meta.put("foo3", "3");
+            meta.put("foo4", "3");
+            meta.put("foo5", "3");
+            meta.put("foo6", "3");
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", meta));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("foo", ImmutableMap.of("bar", "baz"))));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] values can only be strings, but got SingletonImmutableBiMap[{bar=baz}] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("bar", "baz", "foo", 3)));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, String> meta = new HashMap<>();
+            meta.put("foo", null);
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", meta));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] values can't be null (field [foo])",
+                    e.getMessage());
+        }
+
+        {
+            String longString = IntStream.range(0, 51)
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining());
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("foo", longString)));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
+        }
     }
 }

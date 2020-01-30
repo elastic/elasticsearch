@@ -28,7 +28,9 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -36,6 +38,9 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.elasticsearch.index.mapper.IdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE;
+import static org.hamcrest.Matchers.containsString;
 
 public class IdFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -69,6 +74,33 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
         assertTrue(fields[0].fieldType().stored());
         assertEquals(Uid.encodeId("id"), fields[0].binaryValue());
+    }
+
+    public void testEnableFieldData() throws IOException {
+        IndexService service = createIndex("test", Settings.EMPTY);
+        MapperService mapperService = service.mapperService();
+        mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
+        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fullName("_id");
+
+        ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
+            ft, null, null, mapperService);
+        assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
+
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), false))
+            .get();
+        try {
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+                () -> ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
+                    ft, null, null, mapperService));
+            assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
+        } finally {
+            // unset cluster setting
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
+                .get();
+        }
+
     }
 
 }

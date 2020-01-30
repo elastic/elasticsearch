@@ -73,5 +73,4 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }
-
 }

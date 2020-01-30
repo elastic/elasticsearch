@@ -14,7 +14,7 @@ The `script_score` query is useful if, for example, a scoring function is expens
 ==== Example request
 The following `script_score` query assigns each returned document a score equal to the `likes` field value divided by `10`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -30,7 +30,6 @@ GET /_search
      }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[script-score-top-level-params]]
@@ -282,7 +281,7 @@ as described in <<random-score-function, random score function>>.
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10(doc['field'].value * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -298,7 +297,7 @@ a value `1` if a document doesn't have a field `field`:
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10((doc['field'].size() == 0 ? 1 : doc['field'].value()) * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -330,3 +329,34 @@ The `script_score` query has equivalent <<decay-functions, decay functions>>
 that can be used in script.
 
 include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
+
+[[score-explanation]]
+====== Explain request
+Using an <<search-explain, explain request>> provides an explanation of how the parts of a score were computed. The `script_score` query can add its own explanation by setting the `explanation` parameter:
+
+[source,console]
+--------------------------------------------------
+GET /twitter/_explain/0
+{
+    "query" : {
+        "script_score" : {
+            "query" : {
+                "match": { "message": "elasticsearch" }
+            },
+            "script" : {
+                "source" : """
+                  long likes = doc['likes'].value;
+                  double normalizedLikes = likes / 10;
+                  if (explanation != null) {
+                    explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
+                  }
+                  return normalizedLikes;
+                """
+            }
+        }
+     }
+}
+--------------------------------------------------
+// TEST[setup:twitter]
+
+Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.

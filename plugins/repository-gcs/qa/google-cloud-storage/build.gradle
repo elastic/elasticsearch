@@ -19,8 +19,9 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.AntFixture
+import org.elasticsearch.gradle.info.BuildParams
 
+import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 
@@ -28,7 +29,14 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
+// TODO think about flattening qa:google-cloud-storage project into parent
+dependencies {
+  testCompile project(path: ':plugins:repository-gcs')
+}
+
+testFixtures.useFixture(':test:fixtures:gcs-fixture')
 boolean useFixture = false
 
 String gcsServiceAccount = System.getenv("google_storage_service_account")
@@ -37,70 +45,100 @@ String gcsBasePath = System.getenv("google_storage_base_path")
 
 File serviceAccountFile = null
 if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-    serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
-    gcsBucket = 'bucket_test'
-    gcsBasePath = 'integration_test'
-    useFixture = true
+  serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
 } else {
-    serviceAccountFile = new File(gcsServiceAccount)
-    if (serviceAccountFile.exists() == false || serviceAccountFile.canRead() == false) {
-        throw new FileNotFoundException(gcsServiceAccount, "Google Storage service account file does not exist or is not readable")
-    }
+  serviceAccountFile = new File(gcsServiceAccount)
 }
 
-/** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
-task googleCloudStorageFixture(type: AntFixture) {
-    dependsOn testClasses
-    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
+def encodedCredentials = {
+  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
+}
+
+def fixtureAddress = { fixture ->
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:gcs-fixture').postProcessFixture.ext."test.fixtures.${fixture}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
-    doLast {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-        keyPairGenerator.initialize(1024)
-        KeyPair keyPair = keyPairGenerator.generateKeyPair()
-        String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
+  doLast {
+    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(1024)
+    KeyPair keyPair = keyPairGenerator.generateKeyPair()
+    String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
-        serviceAccountFile.parentFile.mkdirs()
-        serviceAccountFile.setText("{\n" +
-                '  "type": "service_account",\n' +
-                '  "project_id": "integration_test",\n' +
-                '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
-                '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
-                '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
-                '  "client_id": "123456789101112130594"\n' +
-                '}', 'UTF-8')
-    }
+    serviceAccountFile.parentFile.mkdirs()
+    serviceAccountFile.setText("{\n" +
+      '  "type": "service_account",\n' +
+      '  "project_id": "integration_test",\n' +
+      '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
+      '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
+      '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
+      '  "client_id": "123456789101112130594"\n' +
+      '}', 'UTF-8')
+  }
 }
 
+task thirdPartyTest(type: Test) {
+  if (useFixture) {
+    thirdPartyTest.dependsOn createServiceAccountFile
+    nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureAddress('gcs-fixture-third-party')}"
+    nonInputProperties.systemProperty 'test.google.tokenURI', "${-> fixtureAddress('gcs-fixture-third-party')}/o/oauth2/token"
+
+    gradle.taskGraph.whenReady {
+      if (it.hasTask(gcsThirdPartyTests)) {
+        throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables " +
+          "'google_storage_service_account', 'google_storage_bucket', 'google_storage_base_path' are set.")
+      }
+    }
+  }
+
+  include '**/GoogleCloudStorageThirdPartyTests.class'
+  systemProperty 'tests.security.manager', false
+  systemProperty 'test.google.bucket', gcsBucket
+  systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
+}
+
+task gcsThirdPartyTests {
+  dependsOn check
+}
+
+integTest.mustRunAfter(thirdPartyTest)
+check.dependsOn thirdPartyTest
+
 Map<String, Object> expansions = [
-        'bucket': gcsBucket,
-        'base_path': gcsBasePath
+  'bucket': gcsBucket,
+  'base_path': gcsBasePath + "_integration_tests"
 ]
 
 processTestResources {
-    inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
 }
 
 integTest {
-    dependsOn project(':plugins:repository-gcs').bundlePlugin
+  dependsOn project(':plugins:repository-gcs').bundlePlugin
 }
 
 testClusters.integTest {
-    plugin file(project(':plugins:repository-gcs').bundlePlugin.archiveFile)
+  plugin file(project(':plugins:repository-gcs').bundlePlugin.archiveFile)
 
-    keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
+  keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 
-    if (useFixture) {
-        tasks.integTest.dependsOn createServiceAccountFile, googleCloudStorageFixture
-        /* Use a closure on the string to delay evaluation until tests are executed */
-        setting 'gcs.client.integration_test.endpoint', { "http://${googleCloudStorageFixture.addressAndPort}" }, IGNORE_VALUE
-        setting 'gcs.client.integration_test.token_uri', { "http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token" }, IGNORE_VALUE
-    } else {
-        println "Using an external service to test the repository-gcs plugin"
-    }
+  if (useFixture) {
+    tasks.integTest.dependsOn createServiceAccountFile
+    /* Use a closure on the string to delay evaluation until tests are executed */
+    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture')}" }, IGNORE_VALUE
+    setting 'gcs.client.integration_test.token_uri', { "${-> fixtureAddress('gcs-fixture')}/o/oauth2/token" }, IGNORE_VALUE
+  } else {
+    println "Using an external service to test the repository-gcs plugin"
+  }
 }

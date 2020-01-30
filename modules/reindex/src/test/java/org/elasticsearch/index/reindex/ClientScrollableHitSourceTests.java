@@ -117,7 +117,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             client.awaitOperation();
             ++expectedSearchRetries;
         }
-
+        client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
         SearchResponse searchResponse = createSearchResponse();
         client.respond(SearchAction.INSTANCE, searchResponse);
 

@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalEnumBinaryProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Arithmetics;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -19,7 +19,7 @@ import java.util.function.BiFunction;
 /**
  * Binary math operations. Sister class to {@link MathOperation}.
  */
-public class BinaryMathProcessor extends FunctionalBinaryProcessor<Number, Number, Number, BinaryMathOperation> {
+public class BinaryMathProcessor extends FunctionalEnumBinaryProcessor<Number, Number, Number, BinaryMathOperation> {
 
     public enum BinaryMathOperation implements BiFunction<Number, Number, Number> {
 

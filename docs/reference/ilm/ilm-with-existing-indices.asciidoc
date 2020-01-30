@@ -19,7 +19,7 @@ log message and a timestamp.
 
 First, we need to create a template for these indices:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _template/mylogs_template
 {
@@ -42,12 +42,10 @@ PUT _template/mylogs_template
   }
 }
 -----------------------
-// CONSOLE
-// TEST
 
 And we'll ingest a few documents to create a few daily indices:
 
-[source,js]
+[source,console]
 -----------------------
 POST mylogs-pre-ilm-2019.06.24/_doc
 {
@@ -55,10 +53,9 @@ POST mylogs-pre-ilm-2019.06.24/_doc
   "message": "this is one log message"
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console]
 -----------------------
 POST mylogs-pre-ilm-2019.06.25/_doc
 {
@@ -66,8 +63,17 @@ POST mylogs-pre-ilm-2019.06.25/_doc
   "message": "this is another log message"
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 Now that we have these indices, we'll look at a few different ways of migrating
 these indices to ILM.
@@ -117,7 +123,8 @@ action.
 
 For example, if you created a policy for your new indices with each phase
 like so:
-[source,js]
+
+[source,console]
 -----------------------
 PUT _ilm/policy/mylogs_policy
 {
@@ -154,14 +161,13 @@ PUT _ilm/policy/mylogs_policy
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
 You can create a policy for pre-existing indices by removing the `rollover`
 action, and in this case, the `hot` phase is now empty so we can remove that
 too:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _ilm/policy/mylogs_policy_existing
 {
@@ -191,7 +197,6 @@ PUT _ilm/policy/mylogs_policy_existing
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
 Creating a separate policy for existing indices will also allow using different
@@ -204,7 +209,7 @@ the index name when calling the <<indices-update-settings,Update Settings API>>
 to set the policy name, but be careful that you don't include any indices that
 you don't want to change the policy for:
 
-[source,js]
+[source,console]
 -----------------------
 PUT mylogs-pre-ilm*/_settings <1>
 {
@@ -215,7 +220,6 @@ PUT mylogs-pre-ilm*/_settings <1>
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
 <1> This pattern will match all indices with names that start with
@@ -247,7 +251,7 @@ set up. For this section, we'll be using the same setup described in
 First, we'll set up a policy with rollover, and can include any additional
 phases required. For simplicity, we'll just use rollover:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _ilm/policy/sample_policy
 {
@@ -265,13 +269,12 @@ PUT _ilm/policy/sample_policy
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
 And now we'll update the index template for our indices to include the relevant
 {ilm-init} settings:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _template/mylogs_template
 {
@@ -300,8 +303,8 @@ PUT _template/mylogs_template
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
+
 <1> The new index pattern has a prefix compared to the old one, this will
     make it easier to reindex later
 <2> The name of the policy we defined above
@@ -310,7 +313,7 @@ PUT _template/mylogs_template
 And create the first index with the alias specified in the `rollover_alias`
 setting in the index template:
 
-[source,js]
+[source,console]
 -----------------------
 PUT ilm-mylogs-000001
 {
@@ -321,8 +324,17 @@ PUT ilm-mylogs-000001
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 All new documents should be indexed via the `mylogs` alias at this point. Adding
 new data to the old indices during the reindexing process can cause data to be
@@ -340,7 +352,7 @@ can grow very, very quickly. We'll need to set the poll interval to something
 shorter to ensure that the new indices don't grow too large while waiting for
 the rollover check:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _cluster/settings
 {
@@ -349,8 +361,8 @@ PUT _cluster/settings
   }
 }
 -----------------------
-// CONSOLE
 // TEST[skip:don't want to overwrite this setting for other tests]
+
 <1> This tells ILM to check for rollover conditions every minute
 
 We're now ready to reindex our data using the <<docs-reindex,reindex API>>. If
@@ -360,6 +372,10 @@ will mean that all documents in `ilm-mylogs-000001` come before all documents in
 `ilm-mylogs-000002`, and so on. However, if this is not a requirement, omitting
 the sort will allow the data to be reindexed more quickly.
 
+NOTE: Sorting in reindex is deprecated, see
+<<docs-reindex-api-request-body,reindex request body>>. Instead use timestamp
+ranges to partition data in separate reindex runs.
+
 IMPORTANT: If your data uses document IDs generated by means other than
 Elasticsearch's automatic ID generation, you may need to do additional
 processing to ensure that the document IDs don't conflict during the reindex, as
@@ -367,7 +383,7 @@ documents will retain their original IDs. One way to do this is to use a
 <<reindex-scripts,script>> in the reindex call to append the original index name
 to the document ID.
 
-[source,js]
+[source,console]
 -----------------------
 POST _reindex
 {
@@ -381,8 +397,8 @@ POST _reindex
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
+
 <1> This index pattern matches our existing indices. Using the prefix for
     the new indices makes using this index pattern much easier.
 <2> The alias set up above
@@ -397,7 +413,7 @@ be queried using that alias as well. We should also be sure to set the
 {ilm-init} poll interval back to its default value, because keeping it set too
 low can cause unnecessary load on the current master node:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _cluster/settings
 {
@@ -407,7 +423,6 @@ PUT _cluster/settings
 }
 
 -----------------------
-// CONSOLE
 // TEST[skip:don't want to overwrite this setting for other tests]
 
 All of the reindexed data should now be accessible via the alias set up above,

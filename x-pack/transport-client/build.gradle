@@ -6,36 +6,36 @@ group = 'org.elasticsearch.client'
 archivesBaseName = 'x-pack-transport'
 
 dependencies {
-    // this "api" dependency looks weird, but it is correct, as it contains
-    // all of x-pack for now, and transport client will be going away in the future.
-    compile project(xpackModule('core'))
-    compile project(':client:transport')
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  // this "api" dependency looks weird, but it is correct, as it contains
+  // all of x-pack for now, and transport client will be going away in the future.
+  compile project(xpackModule('core'))
+  compile project(':client:transport')
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 dependencyLicenses.enabled = false
 
 forbiddenApisTest {
-    // we don't use the core test-framework, no lucene classes present so we don't want the es-test-signatures to
-    // be pulled in
-    replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
+  // we don't use the core test-framework, no lucene classes present so we don't want the es-test-signatures to
+  // be pulled in
+  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
 }
 
 testingConventions {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
-        }
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
     }
+  }
 }
 
 publishing {
-    publications {
-        nebula(MavenPublication) {
-            artifactId = archivesBaseName
-        }
+  publications {
+    nebula(MavenPublication) {
+      artifactId = archivesBaseName
     }
+  }
 }

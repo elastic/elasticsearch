@@ -31,7 +31,7 @@ Either the `mappings` or `mappings_path` parameter must be provided.
 In this example, we configure the `mapping` character filter to replace Arabic
 numerals with their Latin equivalents:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -72,7 +72,6 @@ POST my_index/_analyze
   "text": "My license plate is ٢٥٠١٥"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -104,7 +103,7 @@ The above example produces the following term:
 Keys and values can be strings with multiple characters.  The following
 example replaces the `:)` and `:(` emoticons with a text equivalent:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -137,7 +136,6 @@ POST my_index/_analyze
   "text": "I'm delighted about it :("
 }
 ----------------------------
-// CONSOLE
 
 
 /////////////////////

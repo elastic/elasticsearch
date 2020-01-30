@@ -23,7 +23,7 @@ Alternatively, use the
 {ref}/cluster-update-settings.html[cluster update settings API] to dynamically
 configure the logger:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -32,7 +32,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: If you overwrite the `log4j2.properties` and do not specify appenders for
 any of the audit trails, audit events are forwarded to the root appender, which

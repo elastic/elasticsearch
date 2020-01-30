@@ -17,28 +17,30 @@
  * under the License.
  */
 
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.tool.Boilerplate
-import org.gradle.util.GradleVersion
-import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.gradle.util.DistributionLocator
+import org.gradle.util.GradleVersion
 
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
-    id 'com.gradle.build-scan' version '2.4'
-    id 'lifecycle-base'
-    id 'elasticsearch.global-build-info'
+  id 'lifecycle-base'
+  id 'elasticsearch.global-build-info'
+  id "com.diffplug.gradle.spotless" version "3.24.2" apply false
 }
 
 apply plugin: 'nebula.info-scm'
 apply from: 'gradle/build-scan.gradle'
+apply from: 'gradle/build-complete.gradle'
+apply from: 'gradle/runtime-jdk-provision.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -98,6 +100,42 @@ subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
+
+    // Projects that should be formatted and checked with Spotless are
+    // listed here, by project path. Once the number of formatted projects
+    // is greater than the number of unformatted projects, this can be
+    // switched to an exclude list, and eventualy removed completely.
+    def projectPathsToFormat = [
+      ':build-tools',
+      ':distribution:tools:java-version-checker',
+      ':distribution:tools:launchers',
+      ':distribution:tools:plugin-cli',
+      ':x-pack:plugin:autoscaling',
+      ':x-pack:plugin:enrich'
+    ]
+
+    if (projectPathsToFormat.contains(project.path)) {
+      project.apply plugin: "com.diffplug.gradle.spotless"
+
+      spotless {
+        java {
+          // Normally this isn't necessary, but we have Java sources in
+          // non-standard places
+          target '**/*.java'
+
+          removeUnusedImports()
+          eclipse().configFile rootProject.file('.eclipseformat.xml')
+          trimTrailingWhitespace()
+
+          // See CONTRIBUTING.md for details of when to enabled this.
+          if (System.getProperty('spotless.paddedcell') != null) {
+            paddedCell()
+          }
+        }
+      }
+
+      precommit.dependsOn 'spotlessJavaCheck'
+    }
   }
 }
 
@@ -110,14 +148,14 @@ subprojects {
 BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
 
 task updateCIBwcVersions() {
-    doLast {
-        File yml = file(".ci/bwcVersions")
-        yml.text = ""
-        yml << "BWC_VERSION:\n"
-        versions.indexCompatible.each {
-            yml << "  - \"$it\"\n"
-        }
+  doLast {
+    File yml = file(".ci/bwcVersions")
+    yml.text = ""
+    yml << "BWC_VERSION:\n"
+    versions.indexCompatible.each {
+      yml << "  - \"$it\"\n"
     }
+  }
 }
 
 // build metadata from previous build, contains eg hashes for bwc builds
@@ -135,9 +173,9 @@ allprojects {
   project.ext {
     // for ide hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
-            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
-            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-            gradle.startParameter.taskNames.contains('cleanEclipse')
+      System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+      gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
@@ -152,22 +190,22 @@ task verifyVersions {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
     }
-    // Read the list from maven central. 
-    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here 
+    // Read the list from maven central.
+    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
       bwcVersions.compareToAuthoritative(
-              new XmlParser().parse(s)
-                      .versioning.versions.version
-                      .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
-                      .collect { Version.fromString(it) }
+        new XmlParser().parse(s)
+          .versioning.versions.version
+          .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+          .collect { Version.fromString(it) }
       )
     }
     String ciYml = file(".ci/bwcVersions").text
     bwcVersions.indexCompatible.each {
-        if (ciYml.contains("\"$it\"\n") == false) {
-            throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
-        }
+      if (ciYml.contains("\"$it\"\n") == false) {
+        throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
+      }
     }
   }
 }
@@ -221,7 +259,7 @@ allprojects {
     // the "value" -quiet is added, separated by a space. This is ok since the javadoc
     // command already adds -quiet, so we are just duplicating it
     // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-    javadoc.options.encoding='UTF8'
+    javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
   }
 
@@ -262,18 +300,19 @@ allprojects {
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
       project.configurations.compile.dependencies
-          .findAll()
-          .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(false, c) })
+        .findAll()
+        .toSorted(sortClosure)
+        .each({ c -> depJavadocClosure(hasShadow, c) })
       project.configurations.compileOnly.dependencies
+        .findAll()
+        .toSorted(sortClosure)
+        .each({ c -> depJavadocClosure(false, c) })
+      if (hasShadow) {
+        // include any dependencies for shadow JAR projects that are *not* bundled in the shadow JAR
+        project.configurations.shadow.dependencies
           .findAll()
           .toSorted(sortClosure)
           .each({ c -> depJavadocClosure(false, c) })
-      if (hasShadow) {
-        project.configurations.bundle.dependencies
-            .findAll()
-            .toSorted(sortClosure)
-            .each({ c -> depJavadocClosure(true, c) })
       }
     }
   }
@@ -333,7 +372,7 @@ allprojects {
   }
 
   tasks.named('cleanIdea') {
-      delete 'build-idea'
+    delete 'build-idea'
   }
 }
 
@@ -355,36 +394,26 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
-    File eclipseBuild = project.file('build-eclipse')
-    eclipse.classpath.defaultOutputDir = eclipseBuild
-    if (isEclipse) {
-      // set this so generated dirs will be relative to eclipse build
-      project.buildDir = eclipseBuild
-      // Work around https://docs.gradle.org/current/userguide/java_gradle_plugin.html confusing Eclipse by the metadata
-      // it adds to the  classpath
-      project.file("$buildDir/pluginUnderTestMetadata").mkdirs()
-    }
+    eclipse.classpath.defaultOutputDir = file('build-eclipse')
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
-        // this is *NOT* a path or a file.
         folder.output = "build-eclipse/" + i
       }
     }
   }
 
-  File licenseHeaderFile;
-  String prefix = ':x-pack';
-
+  File licenseHeaderFile
+  String prefix = ':x-pack'
   if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     prefix = prefix.replace(':', '_')
   }
   if (eclipse.project.name.startsWith(prefix)) {
-      licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
   } else {
-      licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
   }
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
@@ -394,7 +423,7 @@ allprojects {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
-    filter{ it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader)}
+    filter { it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader) }
   }
   // otherwise .settings is not nuked entirely
   tasks.register('wipeEclipseSettings', Delete) {
@@ -405,37 +434,28 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-allprojects {
-  /*
-   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
-   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
-   * regular "compile" dependencies. This isn't needed for the project
-   * itself because the IDE configuration is done by SourceSets but it is
-   * *is* needed for projects that depends on the project doing the shadowing.
-   * Without this they won't properly depend on the shadowed project.
-   */
-  if (isEclipse || isIdea) {
-    project.plugins.withType(ShadowPlugin).whenPluginAdded {
-      project.afterEvaluate {
-        project.configurations.compile.extendsFrom project.configurations.bundle
-      }
-    }
-  }
-}
-
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {
   boolean debug = false
 
   @Option(
-        option = "debug-jvm",
-        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+    option = "debug-jvm",
+    description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
   )
   public void setDebug(boolean enabled) {
-    project.project(':distribution').run.clusterConfig.debug = enabled
+    project.project(':distribution').run.debug = enabled
+  }
+
+  @Option(
+    option = "data-dir",
+    description = "Override the base data directory used by the testcluster"
+  )
+  public void setDataDir(String dataDirStr) {
+    project.project(':distribution').run.dataDir = dataDirStr
   }
 }
+
 task run(type: Run) {
   dependsOn ':distribution:run'
   description = 'Runs elasticsearch in the foreground'
@@ -444,20 +464,20 @@ task run(type: Run) {
 }
 
 wrapper {
-    distributionType = 'ALL'
-    doLast {
-        final DistributionLocator locator = new DistributionLocator()
-        final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-        final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-        final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-        final String sha256Sum = new String(sha256Uri.toURL().bytes)
-        wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-        println "Added checksum to wrapper properties"
-        // Update build-tools to reflect the Gradle upgrade
-        // TODO: we can remove this once we have tests to make sure older versions work.
-        project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
-        println "Updated minimum Gradle Version"
-    }
+  distributionType = 'ALL'
+  doLast {
+    final DistributionLocator locator = new DistributionLocator()
+    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
+    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
+    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
+    final String sha256Sum = new String(sha256Uri.toURL().bytes)
+    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+    println "Added checksum to wrapper properties"
+    // Update build-tools to reflect the Gradle upgrade
+    // TODO: we can remove this once we have tests to make sure older versions work.
+    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+    println "Updated minimum Gradle Version"
+  }
 }
 
 gradle.projectsEvaluated {
@@ -483,10 +503,10 @@ gradle.projectsEvaluated {
     String coords = "${p.group}:${p.name}"
     if (false == coordsToProject.putIfAbsent(coords, p)) {
       throw new GradleException(
-              "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
-                      "have the same name and group: ${coords}. " +
-                      "This doesn't currently work correctly in Gradle, see: " +
-                      "https://github.com/gradle/gradle/issues/847"
+        "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+          "have the same name and group: ${coords}. " +
+          "This doesn't currently work correctly in Gradle, see: " +
+          "https://github.com/gradle/gradle/issues/847"
       )
     }
   }
@@ -494,10 +514,10 @@ gradle.projectsEvaluated {
 
 allprojects {
   tasks.register('resolveAllDependencies') {
-      dependsOn tasks.matching { it.name == "pullFixture"}
-      doLast {
-        configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
-      }
+    dependsOn tasks.matching { it.name == "pullFixture" }
+    doLast {
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+    }
   }
 
   // helper task to print direct dependencies of a single task
@@ -526,10 +546,10 @@ allprojects {
   def checkPart1 = tasks.register('checkPart1')
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
-      if (project.path.startsWith(":x-pack:")) {
-          checkPart2.configure { dependsOn 'check' }
-      } else {
-          checkPart1.configure { dependsOn 'check' }
-      }
+    if (project.path.startsWith(":x-pack:")) {
+      checkPart2.configure { dependsOn 'check' }
+    } else {
+      checkPart1.configure { dependsOn 'check' }
+    }
   }
 }

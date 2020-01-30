@@ -4,7 +4,7 @@
 Individual fields can be _boosted_ automatically -- count more towards the relevance score
 -- at query time, with the `boost` parameter as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -21,7 +21,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Matches on the `title` field will have twice the weight as those on the
     `content` field, which has the default `boost` of `1.0`.
@@ -30,7 +29,7 @@ NOTE: The boost is applied only for term queries (prefix, range and fuzzy querie
 
 You can achieve the same effect by using the boost parameter directly in the query, for instance the following query (with field time boost):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -43,11 +42,10 @@ POST _search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 is equivalent to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -61,7 +59,6 @@ POST _search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 deprecated[5.0.0, "Index time boost is deprecated.  Instead, the field mapping boost is applied at query time. For indices created before 5.0.0, the boost will still be applied at index time."]

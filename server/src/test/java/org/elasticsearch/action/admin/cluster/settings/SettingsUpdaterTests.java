@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -508,14 +509,17 @@ public class SettingsUpdaterTests extends ESTestCase {
     private static Setting<String> invalidInIsolationSetting(int index) {
         return Setting.simpleString("invalid.setting" + index,
             new Setting.Validator<String>() {
+
                 @Override
-                public void validate(String value) {
+                public void validate(final String value) {
                     throw new IllegalArgumentException("Invalid in isolation setting");
                 }
 
                 @Override
-                public void validate(String value, Map<Setting<String>, String> settings) {
+                public void validate(final String value, final Map<Setting<?>, Object> settings) {
+
                 }
+
             },
             Property.NodeScope);
     }
@@ -523,52 +527,61 @@ public class SettingsUpdaterTests extends ESTestCase {
     private static Setting<String> invalidWithDependenciesSetting(int index) {
         return Setting.simpleString("invalid.setting" + index,
             new Setting.Validator<String>() {
+
                 @Override
-                public void validate(String value) {
+                public void validate(final String value) {
                 }
 
                 @Override
-                public void validate(String value, Map<Setting<String>, String> settings) {
+                public void validate(final String value, final Map<Setting<?>, Object> settings) {
                     throw new IllegalArgumentException("Invalid with dependencies setting");
                 }
+
             },
             Property.NodeScope);
     }
 
     private static class FooLowSettingValidator implements Setting.Validator<Integer> {
+
         @Override
-        public void validate(Integer value) {
+        public void validate(final Integer value) {
         }
 
         @Override
-        public void validate(Integer low, Map<Setting<Integer>, Integer> settings) {
-            if (settings.containsKey(SETTING_FOO_HIGH) && low > settings.get(SETTING_FOO_HIGH)) {
+        public void validate(final Integer low, final Map<Setting<?>, Object> settings) {
+            if (settings.containsKey(SETTING_FOO_HIGH) && low > (int) settings.get(SETTING_FOO_HIGH)) {
                 throw new IllegalArgumentException("[low]=" + low + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
             }
         }
 
         @Override
-        public Iterator<Setting<Integer>> settings() {
-            return asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(SETTING_FOO_HIGH);
+            return settings.iterator();
         }
+
     }
 
     private static class FooHighSettingValidator implements Setting.Validator<Integer> {
+
         @Override
-        public void validate(Integer value) {
+        public void validate(final Integer value) {
+
         }
 
         @Override
-        public void validate(Integer high, Map<Setting<Integer>, Integer> settings) {
-            if (settings.containsKey(SETTING_FOO_LOW) && high < settings.get(SETTING_FOO_LOW)) {
+        public void validate(final Integer high, final Map<Setting<?>, Object> settings) {
+            if (settings.containsKey(SETTING_FOO_LOW) && high < (int) settings.get(SETTING_FOO_LOW)) {
                 throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
             }
         }
 
         @Override
-        public Iterator<Setting<Integer>> settings() {
-            return asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(SETTING_FOO_LOW);
+            return settings.iterator();
         }
+
     }
 
     private static final Setting<Integer> SETTING_FOO_LOW = new Setting<>("foo.low", "10",

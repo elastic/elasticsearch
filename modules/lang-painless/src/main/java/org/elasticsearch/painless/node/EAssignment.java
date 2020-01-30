@@ -21,13 +21,14 @@ package org.elasticsearch.painless.node;
 
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 
@@ -64,15 +65,6 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
-
-        if (rhs != null) {
-            rhs.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         lhs.extractVariables(variables);
 
@@ -82,26 +74,26 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        analyzeLHS(locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        analyzeLHS(scriptRoot, locals);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(locals);
+            analyzeCompound(scriptRoot, locals);
         } else if (rhs != null) {
-            analyzeSimple(locals);
+            analyzeSimple(scriptRoot, locals);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
     }
 
-    private void analyzeLHS(Locals locals) {
+    private void analyzeLHS(ScriptRoot scriptRoot, Locals locals) {
         if (lhs instanceof AStoreable) {
             AStoreable lhs = (AStoreable)this.lhs;
 
             lhs.read = read;
             lhs.write = true;
-            lhs.analyze(locals);
+            lhs.analyze(scriptRoot, locals);
         } else {
             throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
         }
@@ -145,9 +137,8 @@ public final class EAssignment extends AExpression {
         }
     }
 
-    private void analyzeCompound(Locals locals) {
-        rhs.analyze(locals);
-
+    private void analyzeCompound(ScriptRoot scriptRoot, Locals locals) {
+        rhs.analyze(scriptRoot, locals);
         boolean shift = false;
 
         if (operation == Operation.MUL) {
@@ -209,7 +200,7 @@ public final class EAssignment extends AExpression {
             rhs.expected = promote;
         }
 
-        rhs = rhs.cast(locals);
+        rhs = rhs.cast(scriptRoot, locals);
 
         there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
         back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
@@ -218,12 +209,12 @@ public final class EAssignment extends AExpression {
         this.actual = read ? lhs.actual : void.class;
     }
 
-    private void analyzeSimple(Locals locals) {
+    private void analyzeSimple(ScriptRoot scriptRoot, Locals locals) {
         AStoreable lhs = (AStoreable)this.lhs;
 
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
-            rhs.analyze(locals);
+            rhs.analyze(scriptRoot, locals);
 
             if (rhs.actual == void.class) {
                 throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -234,10 +225,10 @@ public final class EAssignment extends AExpression {
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
             rhs.expected = lhs.actual;
-            rhs.analyze(locals);
+            rhs.analyze(scriptRoot, locals);
         }
 
-        rhs = rhs.cast(locals);
+        rhs = rhs.cast(scriptRoot, locals);
 
         this.statement = true;
         this.actual = read ? lhs.actual : void.class;
@@ -250,8 +241,8 @@ public final class EAssignment extends AExpression {
      * also read from.
      */
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         // For the case where the assignment represents a String concatenation
         // we must, depending on the Java version, write a StringBuilder or
@@ -261,84 +252,87 @@ public final class EAssignment extends AExpression {
         int catElementStackSize = 0;
 
         if (cat) {
-            catElementStackSize = writer.writeNewStrings();
+            catElementStackSize = methodWriter.writeNewStrings();
         }
 
         // Cast the lhs to a storeable to perform the necessary operations to store the rhs.
         AStoreable lhs = (AStoreable)this.lhs;
-        lhs.setup(writer, globals); // call the setup method on the lhs to prepare for a load/store operation
+        lhs.setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
 
         if (cat) {
             // Handle the case where we are doing a compound assignment
             // representing a String concatenation.
 
-            writer.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
+            methodWriter.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
                                                                             // before concat helper on stack
-            lhs.load(writer, globals);                                      // read the current lhs's value
-            writer.writeAppendStrings(lhs.actual);  // append the lhs's value using the StringBuilder
+            lhs.load(classWriter, methodWriter, globals);                                      // read the current lhs's value
+            methodWriter.writeAppendStrings(lhs.actual);  // append the lhs's value using the StringBuilder
 
-            rhs.write(writer, globals); // write the bytecode for the rhs
+            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
 
             if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
-                writer.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
+                methodWriter.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
             }
 
-            writer.writeToStrings(); // put the value for string concat onto the stack
-            writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
+            methodWriter.writeToStrings(); // put the value for string concat onto the stack
+            methodWriter.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
             if (lhs.read) {
-                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // if this lhs is also read
+                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // if this lhs is also read
                                                                                                        // from dup the value onto the stack
             }
 
-            lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
         } else if (operation != null) {
             // Handle the case where we are doing a compound assignment that
             // does not represent a String concatenation.
 
-            writer.writeDup(lhs.accessElementCount(), 0); // if necessary, dup the previous lhs's value
-                                                          // to be both loaded from and stored to
-            lhs.load(writer, globals);                    // load the current lhs's value
+            methodWriter.writeDup(lhs.accessElementCount(), 0); // if necessary, dup the previous lhs's value
+                                                                // to be both loaded from and stored to
+            lhs.load(classWriter, methodWriter, globals); // load the current lhs's value
 
             if (lhs.read && post) {
-                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
-                                                                                 // read from and is a post increment
+                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the
+                                                                                                             // lhs is also
+                                                                                                             // read from and is a post
+                                                                                                             // increment
             }
 
-            writer.writeCast(there);    // if necessary cast the current lhs's value
-                                        // to the promotion type between the lhs and rhs types
-            rhs.write(writer, globals); // write the bytecode for the rhs
+            methodWriter.writeCast(there); // if necessary cast the current lhs's value
+                                           // to the promotion type between the lhs and rhs types
+            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
 
         // XXX: fix these types, but first we need def compound assignment tests.
         // its tricky here as there are possibly explicit casts, too.
         // write the operation instruction for compound assignment
             if (promote == def.class) {
-                writer.writeDynamicBinaryInstruction(
+                methodWriter.writeDynamicBinaryInstruction(
                     location, promote, def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
-                writer.writeBinaryInstruction(location, promote, operation);
+                methodWriter.writeBinaryInstruction(location, promote, operation);
             }
 
-            writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
+            methodWriter.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
 
             if (lhs.read && !post) {
-                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
-                                                                                                       // read from and is not a post
-                                                                                                       // increment
+                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
+                                                                                                             // is also
+                                                                                                             // read from and is not a post
+                                                                                                             // increment
             }
 
-            lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
         } else {
             // Handle the case for a simple write.
 
-            rhs.write(writer, globals); // write the bytecode for the rhs rhs
+            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
 
             if (lhs.read) {
-                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
+                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
                                                                                                        // is also read from
             }
 
-            lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
         }
     }
 

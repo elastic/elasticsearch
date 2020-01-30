@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-x-pack-graph-explore]]
 === X-Pack Graph explore API
 

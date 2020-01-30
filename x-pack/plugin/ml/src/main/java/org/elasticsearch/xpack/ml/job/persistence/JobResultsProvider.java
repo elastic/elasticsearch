@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -132,7 +133,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class JobResultsProvider {
@@ -304,7 +304,7 @@ public class JobResultsProvider {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     LOGGER.info("Index already exists");
                                     // Add the term field mappings and alias.  The complication is that the state at the
                                     // beginning of the operation doesn't have any knowledge of the index, as it's only
@@ -720,7 +720,7 @@ public class JobResultsProvider {
      * @return a bucket {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
-        return new BatchedBucketsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedBucketsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -732,7 +732,7 @@ public class JobResultsProvider {
      * @return a record {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<AnomalyRecord> newBatchedRecordsIterator(String jobId) {
-        return new BatchedRecordsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedRecordsIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -929,7 +929,7 @@ public class JobResultsProvider {
      * @return an influencer {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
-        return new BatchedInfluencersIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
+        return new BatchedInfluencersIterator(new OriginSettingClient(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -1189,7 +1189,7 @@ public class JobResultsProvider {
                 .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
                 .includeInterim(false);
         bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
-            if (e instanceof ResourceNotFoundException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 handler.accept(0L);
             } else {
                 errorHandler.accept(e);
@@ -1437,7 +1437,7 @@ public class JobResultsProvider {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
                 } else {
                     listener.onFailure(e);

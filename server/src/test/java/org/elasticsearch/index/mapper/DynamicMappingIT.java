@@ -21,8 +21,14 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -34,6 +40,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -117,6 +125,41 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
         for (int i = 0; i < indexThreads.length; ++i) {
             assertTrue(client().prepareGet("index", "type", Integer.toString(i)).get().isExists());
+        }
+    }
+
+    public void testPreflightCheckAvoidsMaster() throws InterruptedException {
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
+        ensureGreen("index");
+        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
+
+        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
+        final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
+
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).submitStateUpdateTask("block-state-updates",
+            new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                masterBlockedLatch.countDown();
+                indexingCompletedLatch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError("unexpected", e);
+            }
+        });
+
+        masterBlockedLatch.await();
+        final IndexRequestBuilder indexRequestBuilder
+            = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("field2", "value2");
+        try {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
+                Matchers.containsString("Limit of total fields [2] in index [index] has been exceeded"));
+        } finally {
+            indexingCompletedLatch.countDown();
         }
     }
 }

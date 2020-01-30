@@ -138,26 +138,27 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
             final String indexName = orgReplica.shardId().getIndexName();
+            final long primaryTerm = orgReplica.getOperationPrimaryTerm();
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "type", "id");
             getTranslog(orgReplica).rollGeneration(); // isolate the delete in it's own generation
             // index #0
-            orgReplica.applyIndexOperationOnReplica(0, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(0, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));
             // index #3
-            orgReplica.applyIndexOperationOnReplica(3, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(3, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON));
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
-            orgReplica.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(2, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
-            orgReplica.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(5, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-5", new BytesArray("{}"), XContentType.JSON));
 
             final int translogOps;
@@ -203,26 +204,27 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
             final String indexName = orgReplica.shardId().getIndexName();
+            final long primaryTerm = orgReplica.getOperationPrimaryTerm();
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "type", "id");
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
-            orgReplica.applyIndexOperationOnReplica(0, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(0, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));
             // index #3
-            orgReplica.applyIndexOperationOnReplica(3, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(3, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON));
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
-            orgReplica.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(2, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
-            orgReplica.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            orgReplica.applyIndexOperationOnReplica(5, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-5", new BytesArray("{}"), XContentType.JSON));
 
             if (randomBoolean()) {
@@ -243,7 +245,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
-            try (Translog.Snapshot snapshot = newReplica.getHistoryOperations("test", 0)) {
+            try (Translog.Snapshot snapshot = newReplica.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
                 assertThat(snapshot, SnapshotMatchers.size(6));
             }
         }

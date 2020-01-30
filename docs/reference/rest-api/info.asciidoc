@@ -41,14 +41,14 @@ The information provided by this API includes:
 
 The following example queries the info API:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
    "build" : {
@@ -67,11 +67,11 @@ Example response:
         "available" : true,
         "enabled" : true
       },
-      "data_frame" : {
+      "analytics" : {
           "available" : true,
           "enabled" : true
       },
-      "analytics" : {
+      "enrich" : {
           "available" : true,
           "enabled" : true
       },
@@ -88,6 +88,10 @@ Example response:
          "enabled" : true
       },
       "ilm" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "index" : {
          "available" : true,
          "enabled" : true
       },
@@ -115,11 +119,19 @@ Example response:
          "available" : true,
          "enabled" : false
       },
+      "slm" : {
+         "available" : true,
+         "enabled" : true
+      },
       "spatial" : {
          "available" : true,
          "enabled" : true
       },
       "sql" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "transform" : {
          "available" : true,
          "enabled" : true
       },
@@ -149,16 +161,14 @@ Example response:
 
 The following example only returns the build and features information:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?categories=build,features
 ------------------------------------------------------------
-// CONSOLE
 
 The following example removes the descriptions from the response:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?human=false
 ------------------------------------------------------------
-// CONSOLE

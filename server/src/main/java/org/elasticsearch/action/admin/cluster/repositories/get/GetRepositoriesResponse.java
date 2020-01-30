@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -66,7 +67,8 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        repositories.toXContent(builder, params);
+        repositories.toXContent(builder,
+            new DelegatingMapParams(Collections.singletonMap(RepositoriesMetaData.HIDE_GENERATIONS_PARAM, "true"), params));
         builder.endObject();
         return builder;
     }

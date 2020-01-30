@@ -67,11 +67,11 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -93,6 +93,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Settings SETTINGS =
         Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
 
+    private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
+
     /** Services needed by bulk action */
     TransportService transportService;
     ClusterService clusterService;
@@ -101,9 +103,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
-    ArgumentCaptor<BiConsumer<IndexRequest, Exception>> failureHandler;
+    ArgumentCaptor<BiConsumer<Integer, Exception>> failureHandler;
     @Captor
-    ArgumentCaptor<Consumer<Exception>> completionHandler;
+    ArgumentCaptor<BiConsumer<Thread, Exception>> completionHandler;
     @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
     @Captor
@@ -187,6 +189,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
             .fPut("node1", remoteNode1).fPut("node2", remoteNode2).build();
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
+        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         MetaData metaData = MetaData.builder().indices(ImmutableOpenMap.<String, IndexMetaData>builder()
@@ -265,15 +268,16 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
-        completionHandler.getValue().accept(exception);
+        verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
+            failureHandler.capture(), completionHandler.capture(), any());
+        completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
         // now check success
         Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
-        failureHandler.getValue().accept((IndexRequest)req.next(), exception); // have an exception for our one index request
+        failureHandler.getValue().accept(0, exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(null);
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyZeroInteractions(transportService);
@@ -299,13 +303,14 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
-        completionHandler.getValue().accept(exception);
+        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
+            completionHandler.capture(), any());
+        completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(null);
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyZeroInteractions(transportService);
@@ -331,7 +336,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         action.execute(null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -375,7 +380,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         singleItemBulkWriteAction.execute(null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -459,18 +464,19 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
+        verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
+            failureHandler.capture(), completionHandler.capture(), any());
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
         assertEquals(indexRequest3.getPipeline(), "default_pipeline");
-        completionHandler.getValue().accept(exception);
+        completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
         // now check success of the transport bulk action
         indexRequest1.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest3.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(null);
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyZeroInteractions(transportService);
@@ -497,14 +503,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.indexCreated); // no index yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
-        completionHandler.getValue().accept(exception);
+        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
+            completionHandler.capture(), any());
+        completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(null);
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertTrue(action.indexCreated); // now the index is created since we skipped the ingest node path.
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
@@ -561,7 +568,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             }));
 
         assertEquals("pipeline2", indexRequest.getPipeline());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
+        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
+            completionHandler.capture(), any());
     }
 
     private void validateDefaultPipeline(IndexRequest indexRequest) {
@@ -583,14 +591,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
+        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
+            completionHandler.capture(), any());
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
-        completionHandler.getValue().accept(exception);
+        completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(null);
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyZeroInteractions(transportService);

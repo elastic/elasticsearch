@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -51,6 +53,8 @@ import java.util.stream.Collectors;
 
 public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<AddVotingConfigExclusionsRequest,
     AddVotingConfigExclusionsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportAddVotingConfigExclusionsAction.class);
 
     public static final Setting<Integer> MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING
         = Setting.intSetting("cluster.max_voting_config_exclusions", 10, 1, Property.Dynamic, Property.NodeScope);

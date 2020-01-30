@@ -5,8 +5,7 @@
 <titleabbrev>Activate watch</titleabbrev>
 ++++
 
-A watch can be either
-{stack-ov}/how-watcher-works.html#watch-active-state[active or inactive]. This
+A watch can be either <<watch-active-state,active or inactive>>. This
 API enables you to activate a currently inactive watch.
 
 [[watcher-api-activate-watch-request]]
@@ -18,7 +17,7 @@ API enables you to activate a currently inactive watch.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 //[[watcher-api-activate-watch-desc]]
 //==== {api-description-title}
@@ -47,14 +46,13 @@ information, see {stack-ov}/security-privileges.html[Security privileges].
 The status of an inactive watch is returned with the watch definition when you
 call the <<watcher-api-get-watch,get watch API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_inactive_watch]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -80,16 +78,15 @@ GET _watcher/watch/my_watch
 
 You can activate the watch by executing the following API call:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/my_watch/_activate
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_inactive_watch]
 
 The new state of the watch is returned as part of its overall status:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "status": {

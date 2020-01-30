@@ -10,6 +10,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
@@ -92,7 +94,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     @Before
     public void setup() {
-        globalSettings = Settings.builder().put("path.home", createTempDir())
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        globalSettings = builder.put("path.home", createTempDir())
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate").build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
@@ -971,7 +977,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         } else if (type.equals("ES")) {
             hashSize = randomFrom(256, 384, 512);
-            ECKey.Curve curve = curveFromHashSize(hashSize);
+            Curve curve = curveFromHashSize(hashSize);
             KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
             gen.initialize(curve.toECParameterSpec());
             KeyPair keyPair = gen.generateKeyPair();
@@ -986,13 +992,13 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         return new Tuple(key, new JWKSet(jwk));
     }
 
-    private ECKey.Curve curveFromHashSize(int size) {
+    private Curve curveFromHashSize(int size) {
         if (size == 256) {
-            return ECKey.Curve.P_256;
+            return Curve.P_256;
         } else if (size == 384) {
-            return ECKey.Curve.P_384;
+            return Curve.P_384;
         } else if (size == 512) {
-            return ECKey.Curve.P_521;
+            return Curve.P_521;
         } else {
             throw new IllegalArgumentException("Invalid hash size:" + size);
         }

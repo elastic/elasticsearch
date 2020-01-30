@@ -67,3 +67,4 @@ include::bucket/significanttext-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
 
+include::bucket/range-field-note.asciidoc[]

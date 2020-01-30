@@ -1,16 +1,17 @@
 [[search-aggregations-bucket-datehistogram-aggregation]]
-=== Date Histogram Aggregation
+=== Date histogram aggregation
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can
-only be used with date values. Because dates are represented internally in 
+only be used with date or date range values. Because dates are represented internally in 
 Elasticsearch as long values, it is possible, but not as accurate, to use the
 normal `histogram` on dates as well. The main difference in the two APIs is
 that here the interval can be specified using date/time expressions. Time-based
 data requires special support because time-based intervals are not always a
 fixed length.
 
-==== Calendar and Fixed intervals
+[[calendar_and_fixed_intervals]]
+==== Calendar and fixed intervals
 
 When configuring a date histogram aggregation, the interval can be specified
 in two manners: calendar-aware time intervals, and fixed time intervals.
@@ -42,7 +43,8 @@ are clear to the user immediately and there is no ambiguity.  The old `interval`
 will be removed in the future.
 ==================================
 
-===== Calendar Intervals
+[[calendar_intervals]]
+===== Calendar intervals
 
 Calendar-aware intervals are configured with the `calendar_interval` parameter.
 Calendar intervals can only be specified in "singular" quantities of the unit
@@ -58,7 +60,7 @@ seconds of the following minute in the specified timezone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the
 hour is the same at the start and end.
 
-hours (`h`, `1h`) ::
+hour (`h`, `1h`) ::
 All hours begin at 00 minutes and 00 seconds.
 
 One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
@@ -67,7 +69,7 @@ intervening leap seconds, so that the number of minutes and seconds past the hou
 is the same at the start and end.
 
 
-days (`d`, `1d`) ::
+day (`d`, `1d`) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 
@@ -100,7 +102,8 @@ One year (1y) is the interval between the start day of the month and time of
 day and the same day of the month and time of day the following year in the
 specified timezone, so that the date and time are the same at the start and end. +
 
-===== Calendar Interval Examples
+[[calendar_interval_examples]]
+===== Calendar interval examples
 As an example, here is an aggregation requesting bucket intervals of a month in calendar time:
 
 [source,console]
@@ -157,7 +160,8 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // NOTCONSOLE
 
-===== Fixed Intervals
+[[fixed_intervals]]
+===== Fixed intervals
 
 Fixed intervals are configured with the `fixed_interval` parameter.
 
@@ -192,7 +196,8 @@ All days begin at the earliest possible time, which is usually 00:00:00
 
 Defined as 24 hours (86,400,000 milliseconds)
 
-===== Fixed Interval Examples
+[[fixed_interval_examples]]
+===== Fixed interval examples
 
 If we try to recreate the "month" `calendar_interval` from earlier, we can approximate that with
 30 fixed days:
@@ -307,7 +312,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -377,7 +382,7 @@ If you don't specify a timezone, UTC is used. This would result in both of these
 documents being placed into the same day bucket, which starts at midnight UTC
 on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -419,7 +424,7 @@ GET my_index/_search?size=0
 Now the first document falls into the bucket for 30 September 2015, while the
 second document falls into the bucket for 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -456,16 +461,19 @@ the bucket covering that day will only hold data for 23 hours instead of the usu
 where you'll have only a 11h bucket on the morning of 27 March when the DST shift
 happens.
 
+[[search-aggregations-bucket-datehistogram-offset]]
 ===== Offset
 
+// tag::offset-explanation[]
 Use the `offset` parameter to change the start value of each bucket by the
 specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
 an hour, or `1d` for a day. See <<time-units>> for more possible time
 duration options.
 
 For example, when using an interval of `day`, each bucket runs from midnight
-to midnight.  Setting the `offset` parameter to `+6h` changes each bucket
+to midnight. Setting the `offset` parameter to `+6h` changes each bucket
 to run from 6am to 6am:
+// end::offset-explanation[]
 
 [source,console]
 -----------------------------
@@ -493,10 +501,12 @@ GET my_index/_search?size=0
 }
 -----------------------------
 
+// tag::offset-result-intro[]
 Instead of a single bucket starting at midnight, the above request groups the
 documents into buckets starting at 6am:
+// end::offset-result-intro[]
 
-[source,js]
+[source,console-result]
 -----------------------------
 {
   ...
@@ -520,8 +530,10 @@ documents into buckets starting at 6am:
 -----------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+// tag::offset-note[]
 NOTE: The start `offset` of each bucket is calculated after `time_zone`
 adjustments have been made.
+// end::offset-note[]
 
 ===== Keyed Response
 
@@ -548,7 +560,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -650,7 +662,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...

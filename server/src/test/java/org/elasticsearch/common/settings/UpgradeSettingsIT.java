@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -145,15 +146,16 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
         assertThat(
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").get(settings),
                 equalTo(skipUnavailable));
-        assertFalse(RemoteClusterService.SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
-        assertTrue(RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
+        assertFalse(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
+        assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
         assertThat(
-                RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
+                SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
                 equalTo(Collections.singletonList("localhost:9200")));
-        assertFalse(RemoteClusterService.SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
-        assertTrue(RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+        assertFalse(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+        assertTrue(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
         assertThat(
-                RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings), equalTo("localhost:9200"));
+                SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings),
+                equalTo("localhost:9200"));
     }
 
 }

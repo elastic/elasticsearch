@@ -430,7 +430,7 @@ public class GrokTests extends ESTestCase {
             });
             t.start();
         };
-        Grok grok = new Grok(basePatterns, grokPattern, ThreadWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler));
+        Grok grok = new Grok(basePatterns, grokPattern, MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler));
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));

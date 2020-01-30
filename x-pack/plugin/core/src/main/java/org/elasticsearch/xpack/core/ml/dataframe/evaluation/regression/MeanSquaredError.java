@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -15,22 +16,28 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * Calculates the mean squared error between two known numerical fields.
  *
  * equation: mse = 1/n * Σ(y - y´)^2
  */
-public class MeanSquaredError implements RegressionMetric {
+public class MeanSquaredError implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("mean_squared_error");
 
@@ -48,33 +55,41 @@ public class MeanSquaredError implements RegressionMetric {
         return PARSER.apply(parser, null);
     }
 
-    public MeanSquaredError(StreamInput in) {
+    private EvaluationMetricResult result;
 
-    }
+    public MeanSquaredError(StreamInput in) {}
 
-    public MeanSquaredError() {
-
-    }
+    public MeanSquaredError() {}
 
     @Override
-    public String getMetricName() {
+    public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
-    public List<AggregationBuilder> aggs(String actualField, String predictedField) {
-        return Collections.singletonList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField))));
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+        if (result != null) {
+            return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
+        }
+        return Tuple.tuple(
+            Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField)))),
+            Collections.emptyList());
     }
 
     @Override
-    public EvaluationMetricResult evaluate(Aggregations aggs) {
+    public void process(Aggregations aggs) {
         NumericMetricsAggregation.SingleValue value = aggs.get(AGG_NAME);
-        return value == null ? new Result(0.0) : new Result(value.value());
+        result = value == null ? new Result(0.0) : new Result(value.value());
+    }
+
+    @Override
+    public Optional<EvaluationMetricResult> getResult() {
+        return Optional.ofNullable(result);
     }
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Regression.NAME, NAME);
     }
 
     @Override
@@ -117,11 +132,11 @@ public class MeanSquaredError implements RegressionMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Regression.NAME, NAME);
         }
 
         @Override
-        public String getName() {
+        public String getMetricName() {
             return NAME.getPreferredName();
         }
 

@@ -43,6 +43,14 @@ supports a remote debugging option:
 ./gradlew run --debug-jvm
 ---------------------------------------------------------------------------
 
+This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users)
+to suspend and initiate a debug connection on port incrementing from `5005`.
+As such the IDE needs to be instructed to listen for connections on this port.
+Since we might run multiple JVMs as part of configuring and starting the cluster it's
+recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
+is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting
+needs to be configured with a greater value (ie 10 or more).
+
 ==== Distribution
 
 By default a node is started with the zip distribution.
@@ -159,7 +167,7 @@ Default value provided below in [brackets].
 
 === Load balancing and caches.
 
-By default the tests run on multiple processes using all the available cores on all 
+By default the tests run on multiple processes using all the available cores on all
 available CPUs. Not including hyper-threading.
 If you want to explicitly specify the number of JVMs you can do so on the command
 line:
@@ -313,9 +321,17 @@ the http addresses of the nodes so that REST requests can be sent to them.
 
 == Testing packaging
 
-The packaging tests use Vagrant virtual machines to verify that installing
-and running elasticsearch distributions works correctly on supported operating systems.
-These tests should really only be run in vagrant vms because they're destructive.
+The packaging tests use Vagrant virtual machines or cloud instances to verify
+that installing and running Elasticsearch distributions works correctly on
+supported operating systems. These tests should really only be run on ephemeral
+systems because they're destructive; that is, these tests install and remove
+packages and freely modify system settings, so you will probably regret it if
+you execute them on your development machine.
+
+When you run a packaging test, Gradle will set up the target VM and mount your
+repository directory in the VM. Once this is done, a Gradle task will issue a
+Vagrant command to run a *nested* Gradle task on the VM. This nested Gradle
+runs the actual "destructive" test classes.
 
 . Install Virtual Box and Vagrant.
 +
@@ -326,40 +342,29 @@ a bit more performance out of the process:
 vagrant plugin install vagrant-cachier
 --------------------------------------
 +
-. Validate your installed dependencies:
+. You can run all of the OS packaging tests with `./gradlew packagingTest`.
+This task includes our legacy `bats` tests. To run only the OS tests that are
+written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar,
+zip, and deb packages and all the plugins.  It will then run the tests on every
+available system. This will take a very long time.
 +
--------------------------------------
-./gradlew :qa:vagrant:vagrantCheckVersion
--------------------------------------
+Fortunately, the various systems under test have their own Gradle tasks under
+`qa/os`. To find out what packaging combinations can be tested on a system, run
+the `tasks` task.  For example:
 +
-. Download and smoke test the VMs with `./gradlew vagrantSmokeTest` or
-`./gradlew -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
-download the base images and provision the boxes and immediately quit. Downloading all
-the images may take a long time. After the images are already on your machine, they won't
-be downloaded again unless they have been updated to a new version.
+----------------------------------
+./gradlew :qa:os:ubuntu-1804:tasks
+----------------------------------
 +
-. Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
-the tar, zip, and deb packages and all the plugins. It will then run the tests
-on ubuntu-1604 and centos-7. We chose those two distributions as the default
-because they cover deb and rpm packaging and SyvVinit and systemd.
+If you want a quick test of the tarball and RPM packagings for Centos 7, you
+would run:
++
+-------------------------------------------------------------------------------------------------
+./gradlew :qa:os:centos-7:distroTest.default-rpm :qa:os:centos-7:distroTest.default-linux-archive
+-------------------------------------------------------------------------------------------------
 
-You can choose which boxes to test by setting the `-Pvagrant.boxes` project property. All of
-the valid options for this property are:
-
-* `sample` - The default, only chooses ubuntu-1604 and centos-7
-* List of box names, comma separated (e.g. `oel-7,fedora-28`) - Chooses exactly the boxes listed.
-* `linux-all` - All linux boxes.
-* `windows-all` - All Windows boxes. If there are any Windows boxes which do not
-have images available when this value is provided, the build will fail.
-* `all` - All boxes we test. If there are any boxes (e.g. Windows) which do not have images
-available when this value is provided, the build will fail.
-
-For a complete list of boxes on which tests can be run, run `./gradlew :qa:vagrant:listAllBoxes`.
-For a list of boxes that have images available from your configuration, run
-`./gradlew :qa:vagrant:listAvailableBoxes`
-
-Note that if you interrupt gradle in the middle of running these tasks, any boxes started
-will remain running and you'll have to stop them manually with `./gradlew stop` or
+Note that if you interrupt Gradle in the middle of running these tasks, any boxes started
+will remain running and you'll have to stop them manually with `./gradlew --stop` or
 `vagrant halt`.
 
 All the regular vagrant commands should just work so you can get a shell in a
@@ -412,9 +417,7 @@ or passed on the command line like `-Pvagrant.windows-2012r2.id=my-image-id`
 `-Pvagrant.windows-2016=another-image-id`
 
 These properties are required for Windows support in all gradle tasks that
-handle packaging tests. Either or both may be specified. Remember that to run tests
-on these boxes, the project property `vagrant.boxes` still needs to be set to a
-value that will include them.
+handle packaging tests. Either or both may be specified.
 
 If you're running vagrant commands outside of gradle, specify the Windows boxes
 with the environment variables
@@ -457,84 +460,23 @@ that'd consume a ton of ram.
 
 === Iterating on packaging tests
 
-Running the packaging tests through gradle can take a while because it will start
-and stop the VM each time. You can iterate faster by keeping the VM up and running
-the tests directly.
+Because our packaging tests are capable of testing many combinations of OS
+(e.g., Windows, Linux, etc.), package type (e.g., zip file, RPM, etc.),
+Elasticsearch distribution type (e.g., default or OSS), and so forth, it's
+faster to develop against smaller subsets of the tests. For example, to run
+tests for the default archive distribution on Fedora 28:
 
-The packaging tests use a random seed to determine which past version to use for
-testing upgrades. To use a single past version fix the test seed when running
-the commands below (see <<Seed and repetitions.>>)
+-----------------------------------------------------------
+./gradlew :qa:os:fedora-28:distroTest.default-linux-archive
+-----------------------------------------------------------
 
-First build the packaging tests and their dependencies
+These test tasks can use the `--tests`, `--info`, and `--debug` parameters just like
+non-OS tests can. For example:
 
---------------------------------------------
-./gradlew :qa:vagrant:setupPackagingTest
---------------------------------------------
-
-Then choose the VM you want to test on and bring it up. For example, to bring
-up Debian 9 use the gradle command below. Bringing the box up with vagrant directly
-may not mount the packaging test project in the right place. Once the VM is up, ssh
-into it
-
---------------------------------------------
-./gradlew :qa:vagrant:vagrantDebian9#up
-vagrant ssh debian-9
---------------------------------------------
-
-Now inside the VM, start the packaging tests from the terminal. There are two packaging
-test projects. The old ones are written with https://github.com/sstephenson/bats[bats]
-and only run on linux. To run them do
-
---------------------------------------------
-cd $PACKAGING_ARCHIVES
-
-# runs all bats tests
-sudo bats $BATS_TESTS/*.bats
-
-# you can also pass specific test files
-sudo bats $BATS_TESTS/20_tar_package.bats $BATS_TESTS/25_tar_plugins.bats
---------------------------------------------
-
-The new packaging tests are written in Java and run on both linux and windows. On
-linux (again, inside the VM)
-
---------------------------------------------
-# run the full suite
-sudo bash $PACKAGING_TESTS/run-tests.sh
-
-# run specific test cases
-sudo bash $PACKAGING_TESTS/run-tests.sh \
-  org.elasticsearch.packaging.test.DefaultWindowsZipTests \
-  org.elasticsearch.packaging.test.OssWindowsZipTests
---------------------------------------------
-
-or on Windows, from a terminal running as Administrator
-
---------------------------------------------
-# run the full suite
-powershell -File $Env:PACKAGING_TESTS/run-tests.ps1
-
-# run specific test cases
-powershell -File $Env:PACKAGING_TESTS/run-tests.ps1 `
-  org.elasticsearch.packaging.test.DefaultWindowsZipTests `
-  org.elasticsearch.packaging.test.OssWindowsZipTests
---------------------------------------------
-
-Note that on Windows boxes when running from inside the GUI, you may have to log out and
-back in to the `vagrant` user (password `vagrant`) for the environment variables that
-locate the packaging tests and distributions to take effect, due to how vagrant provisions
-Windows machines.
-
-When you've made changes you want to test, keep the VM up and reload the tests and
-distributions inside by running (on the host)
-
---------------------------------------------
-./gradlew :qa:vagrant:clean :qa:vagrant:setupPackagingTest
---------------------------------------------
-
-Note: Starting vagrant VM outside of the elasticsearch folder requires to
-indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
-environment variable.
+-----------------------------------------------------------
+./gradlew :qa:os:fedora-28:distroTest.default-linux-archive \
+  --tests "com.elasticsearch.packaging.test.ArchiveTests"
+-----------------------------------------------------------
 
 == Testing backwards compatibility
 
@@ -555,7 +497,7 @@ version 5.3.2 run:
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.
 These are automatically checked out and built from source.
 See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
-and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle] 
+and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle]
 for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
@@ -676,7 +618,7 @@ care.
 == Test coverage analysis
 
 Generating test coverage reports for Elasticsearch is currently not possible through Gradle.
-However, it _is_ possible to gain insight in code coverage using IntelliJ's built-in coverage 
+However, it _is_ possible to gain insight in code coverage using IntelliJ's built-in coverage
 analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able
 to do the same using the EclEmma plugin.
 

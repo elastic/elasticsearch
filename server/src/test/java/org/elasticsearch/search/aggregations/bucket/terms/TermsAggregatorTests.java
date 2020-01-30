@@ -1073,7 +1073,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
                     new NoneCircuitBreakerService()), null, true);
             for (InternalAggregation internalAgg : aggs) {
-                InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);
+                InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);
                 long expected = numLongs + numDoubles;
                 List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();

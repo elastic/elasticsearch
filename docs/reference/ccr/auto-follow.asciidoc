@@ -21,8 +21,10 @@ a follower index is configured in the local cluster. The follower index uses the
 new index as its leader index.
 
 You can inspect all configured auto-follow pattern collections with the
-{ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API]. To delete a
-configured auto-follow pattern collection, use the
+{ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API]. Auto-follow patterns
+can be paused using the {ref}/ccr-pause-auto-follow-pattern.html[pause auto-follow pattern API]
+ and can be resumed using the {ref}/ccr-resume-auto-follow-pattern.html[resume auto-follow pattern API].
+  To delete a configured auto-follow pattern collection, use the
 {ref}/ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
 
 Since auto-follow functionality is handled automatically in the background on

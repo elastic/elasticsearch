@@ -45,7 +45,7 @@ appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
 --------------------------------------------------
 
 <1> Configure the `RollingFile` appender
-<2> Log to `/var/log/elasticsearch/production.json`
+<2> Log to `/var/log/elasticsearch/production_server.json`
 <3> Use JSON layout.
 <4> `type_name` is a flag populating the `type` field in a `ESJsonLayout`.
  It can be used to distinguish different types of logs more easily when parsing them.
@@ -211,10 +211,17 @@ logs to roll and compress after 1 GB, and to preserve a maximum of five log
 files (four rolled logs, and the active log).
 
 You can disable it in the `config/log4j2.properties` file by setting the deprecation
-log level to `error`.
+log level to `error` like this:
+[source,properties]
+--------------------------------------------------
+logger.deprecation.name = org.elasticsearch.deprecation
+logger.deprecation.level = error
+--------------------------------------------------
+
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
 The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
+
 [source,js]
 ---------------------------
 {

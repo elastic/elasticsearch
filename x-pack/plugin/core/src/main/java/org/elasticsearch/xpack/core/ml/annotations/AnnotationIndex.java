@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.SortedMap;
@@ -37,6 +38,7 @@ public class AnnotationIndex {
     public static final String WRITE_ALIAS_NAME = ".ml-annotations-write";
     // Exposed for testing, but always use the aliases in non-test code
     public static final String INDEX_NAME = ".ml-annotations-6";
+    public static final String INDEX_PATTERN = ".ml-annotations*";
 
     /**
      * Create the .ml-annotations index with correct mappings if it does not already
@@ -84,7 +86,7 @@ public class AnnotationIndex {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     // Create the alias
                                     createAliasListener.onResponse(true);
                                 } else {

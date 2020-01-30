@@ -26,10 +26,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
@@ -70,8 +70,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
-        ValuesSource vs = config.toValuesSource(context.getQueryShardContext());
+    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<?> config) throws IOException {
+        ValuesSource vs = config.toValuesSource(queryShardContext);
         if (vs == null) {
             // The field is unmapped so we use a value source that can parse any type of values.
             // This is needed because the after values are parsed even when there are no values to process.
@@ -85,6 +85,6 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         } else {
             format = config.format();
         }
-        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missingBucket());
+        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missingBucket(), script() != null);
     }
 }

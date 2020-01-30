@@ -18,13 +18,14 @@ Updates the description of a filter, adds items, or removes items.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-update-filter-path-parms]]
 ==== {api-path-parms-title}
 
 `<filter_id>`::
-		(Required, string) Identifier for the filter.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-update-filter-request-body]]
 ==== {api-request-body-title}
@@ -41,10 +42,7 @@ Updates the description of a filter, adds items, or removes items.
 [[ml-update-filter-example]]
 ==== {api-examples-title}
 
-You can change the description, add and remove items to the `safe_domains`
-filter as follows:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/filters/safe_domains/_update
 {
@@ -53,7 +51,6 @@ POST _ml/filters/safe_domains/_update
   "remove_items": ["wikipedia.org"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]
 
 The API returns the following results:

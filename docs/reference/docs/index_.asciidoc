@@ -45,7 +45,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 (Optional, enum) Set to `create` to only index the document
 if it does not already exist (_put if absent_). If a document with the specified
 `_id` already exists, the indexing operation will fail. Same as using the
-`<index>/_create` endpoint. Valid values: `index`, `create`. Default: `index`.
+`<index>/_create` endpoint. Valid values: `index`, `create`.
+If document id is specified, it defaults to `index`. Otherwise, it defaults to `create`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
@@ -127,7 +128,7 @@ exist. To update an existing document, you must use the `_doc` resource.
 
 If the specified index does not already exist, by default the index operation
 automatically creates it and applies any configured
-<<indices-templates,index templates>>. If no mapping exists, the index opration
+<<indices-templates,index templates>>. If no mapping exists, the index operation
 creates a dynamic mapping.  By default,  new fields and objects are
 automatically added to the mapping if needed. For more information about field
 mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.
@@ -190,7 +191,7 @@ If you don't specify a document ID when using POST, the `op_type` is
 automatically set to `create` and the index operation generates a unique ID
 for the document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_doc/
 {
@@ -199,11 +200,10 @@ POST twitter/_doc/
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -241,7 +241,7 @@ hash of the document's id value. For more explicit control, the value
 fed into the hash function used by the router can be directly specified
 on a per-operation basis using the `routing` parameter. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_doc?routing=kimchy
 {
@@ -250,7 +250,6 @@ POST twitter/_doc?routing=kimchy
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 In this example, the document is routed to a shard based on
 the `routing` parameter provided: "kimchy".
@@ -364,7 +363,7 @@ and responding with an error. The `timeout` parameter can be used to
 explicitly specify how long it waits. Here is an example of setting it
 to 5 minutes:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?timeout=5m
 {
@@ -373,7 +372,6 @@ PUT twitter/_doc/1?timeout=5m
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[index-versioning]]
@@ -394,14 +392,13 @@ indexed and the new version number used. If the value provided is less
 than or equal to the stored document's version number, a version
 conflict will occur and the index operation will fail. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?version=2&version_type=external
 {
     "message" : "elasticsearch now has versioning support, double cool!"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: Versioning is completely real time, and is not affected by the
@@ -453,7 +450,7 @@ primary and replica shards to diverge.
 
 Insert a JSON document into the `twitter` index with an `_id` of 1:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1
 {
@@ -462,11 +459,10 @@ PUT twitter/_doc/1
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -488,7 +484,7 @@ The API returns the following result:
 Use the `_create` resource to index a document into the `twitter` index if
 no document with that ID exists:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_create/1
 {
@@ -497,12 +493,11 @@ PUT twitter/_create/1
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 Set the `op_type` parameter to _create_ to index a document into the `twitter`
 index if no document with that ID exists:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?op_type=create
 {
@@ -511,4 +506,3 @@ PUT twitter/_doc/1?op_type=create
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE

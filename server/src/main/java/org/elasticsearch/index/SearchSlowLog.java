@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +42,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
+    private static final Charset UTF_8 = Charset.forName("UTF-8");
+
     private long queryWarnThreshold;
     private long queryInfoThreshold;
     private long queryDebugThreshold;
@@ -49,8 +53,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchInfoThreshold;
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
-
-    private SlowLogLevel level;
 
     private final Logger queryLogger;
     private final Logger fetchLogger;
@@ -88,8 +90,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     public SearchSlowLog(IndexSettings indexSettings) {
 
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query." + indexSettings.getUUID());
+        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch." + indexSettings.getUUID());
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
             this::setQueryWarnThreshold);
@@ -122,7 +124,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        this.level = level;
         Loggers.setLevel(queryLogger, level.name());
         Loggers.setLevel(fetchLogger, level.name());
     }
@@ -230,6 +231,11 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             return sb.toString();
         }
+
+        private static String escapeJson(String text) {
+            byte[] sourceEscaped = JsonStringEncoder.getInstance().quoteAsUTF8(text);
+            return new String(sourceEscaped, UTF_8);
+        }
     }
 
     private void setQueryWarnThreshold(TimeValue warnThreshold) {
@@ -297,6 +303,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        return level;
+        assert queryLogger.getLevel().equals(fetchLogger.getLevel());
+        return SlowLogLevel.parse(queryLogger.getLevel().name());
     }
 }

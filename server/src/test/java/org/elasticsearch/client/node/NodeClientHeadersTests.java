@@ -41,9 +41,10 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     @Override
     protected Client buildClient(Settings headersSettings, ActionType[] testedActions) {
         Settings settings = HEADER_SETTINGS;
+        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, () -> "test", null);
+        client.initialize(actions, taskManager, () -> "test", null);
         return client;
     }
 

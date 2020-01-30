@@ -53,7 +53,7 @@ to relevance, indicated by a `positive_score_impact` value of `false`.
 - `topics`, a <<rank-features,`rank_features`>> field which contains a list of
 topics and a measure of how well each document is connected to this topic
 
-[source,js]
+[source,console]
 ----
 PUT /test
 {
@@ -73,13 +73,12 @@ PUT /test
   }
 }
 ----
-// CONSOLE
 // TESTSETUP
 
 
 Index several documents to the `test` index.
 
-[source,js]
+[source,console]
 ----
 PUT /test/_doc/1?refresh
 {
@@ -118,7 +117,6 @@ PUT /test/_doc/3?refresh
   }
 }
 ----
-// CONSOLE
 
 [[rank-feature-query-ex-query]]
 ===== Example query
@@ -126,7 +124,7 @@ PUT /test/_doc/3?refresh
 The following query searches for `2016` and boosts relevance scores based or
 `pagerank`, `url_length`, and the `sports` topic.
 
-[source,js]
+[source,console]
 ----
 GET /test/_search 
 {
@@ -162,7 +160,6 @@ GET /test/_search
   }
 }
 ----
-// CONSOLE
 
 
 [[rank-feature-top-level-params]]
@@ -232,7 +229,7 @@ than `0.5` otherwise. Scores are always `(0,1)`.
 If the rank feature has a negative score impact then the function will be
 computed as `pivot / (S + pivot)`, which decreases when `S` increases.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_search
 {
@@ -246,14 +243,13 @@ GET /test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 If a `pivot` value is not provided, {es} computes a default value equal to the
 approximate geometric mean of all rank feature values in the index. We recommend
 using this default value if you haven't had the opportunity to train a good
 pivot value.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_search
 {
@@ -265,7 +261,6 @@ GET /test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[rank-feature-query-logarithm]]
 ===== Logarithm
@@ -275,7 +270,7 @@ scaling factor. Scores are unbounded.
 
 This function only supports rank features that have a positive score impact.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_search
 {
@@ -289,7 +284,6 @@ GET /test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[rank-feature-query-sigmoid]]
 ===== Sigmoid
@@ -302,7 +296,7 @@ The `exponent` must be positive and is typically in `[0.5, 1]`. A
 good value should be computed via training. If you don't have the opportunity to
 do so, we recommend you use the `saturation` function instead.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_search
 {
@@ -317,4 +311,3 @@ GET /test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE

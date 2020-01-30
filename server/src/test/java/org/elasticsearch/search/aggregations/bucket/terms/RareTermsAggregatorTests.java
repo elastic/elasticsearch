@@ -56,7 +56,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -521,16 +520,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         documents.add(document);
 
         return documents;
-    }
-
-
-    private InternalAggregation buildInternalAggregation(RareTermsAggregationBuilder builder, MappedFieldType fieldType,
-                                                         IndexSearcher searcher) throws IOException {
-        AbstractRareTermsAggregator aggregator = createAggregator(builder, searcher, fieldType);
-        aggregator.preCollection();
-        searcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        return aggregator.buildAggregation(0L);
     }
 
     private void testSearchCase(Query query, List<Long> dataset,

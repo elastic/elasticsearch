@@ -12,9 +12,9 @@ Returns documents that contain terms within a provided range.
 The following search returns documents where the `age` field contains a term
 between `10` and `20`.
 
-[source,js]
+[source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -27,7 +27,6 @@ GET _search
     }
 }
 ----
-// CONSOLE 
 
 [[range-query-top-level-params]]
 ==== Top-level parameters for `range`
@@ -149,9 +148,9 @@ When the `<field>` parameter is a <<date,`date`>> field datatype, you can use
 For example, the following search returns documents where the `timestamp` field
 contains a date between today and yesterday.
 
-[source,js]
+[source,console]
 ----
-GET _search
+GET /_search
 {
     "query": {
         "range" : {
@@ -163,7 +162,6 @@ GET _search
     }
 }
 ----
-// CONSOLE
 
 
 [[range-query-date-math-rounding]]
@@ -175,7 +173,7 @@ GET _search
 --
 Rounds up to the lastest millisecond.
 
-For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`, including
+For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`, excluding
 the entire month.
 --
 
@@ -184,7 +182,7 @@ the entire month.
 --
 Rounds down to the first millisecond.
 
-For example, `2014-11-18||/M` rounds down to `2014-11-01`, excluding
+For example, `2014-11-18||/M` rounds down to `2014-11-01`, including
 the entire month.
 --
 
@@ -212,23 +210,24 @@ the entire month.
 You can use the `time_zone` parameter to convert `date` values to UTC using a
 UTC offset. For example:
 
-[source,js]
+[source,console]
 ----
-GET _search
+GET /_search
 {
-    "query": {
-        "range" : {
-            "timestamp" : {
-                "time_zone": "+01:00", <1>
-                "gte": "2015-01-01 00:00:00", <2>
-                "lte": "now" <3>
-            }
-        }
+  "query": {
+    "range": {
+      "timestamp": {
+        "time_zone": "+01:00",        <1>
+        "gte": "2020-01-01T00:00:00", <2>
+        "lte": "now"                  <3>
+      }
     }
+  }
 }
 ----
-// CONSOLE
+// TEST[continued]
+
 <1> Indicates that `date` values use a UTC offset of `+01:00`.
 <2> With a UTC offset of `+01:00`, {es} converts this date to
-`2014-12-31T23:00:00 UTC`.
+`2019-12-31T23:00:00 UTC`.
 <3> The `time_zone` parameter does not affect the `now` value.

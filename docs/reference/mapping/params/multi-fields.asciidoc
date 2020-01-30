@@ -6,7 +6,7 @@ purposes.  This is the purpose of _multi-fields_. For instance, a `string`
 field could be mapped as a `text` field for full-text
 search, and as a `keyword` field for sorting or aggregations:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -53,7 +53,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `city.raw` field is a `keyword` version of the `city` field.
 <2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
@@ -71,7 +71,7 @@ ways for better relevance. For instance we could index a field with the
 words, and again with the <<english-analyzer,`english` analyzer>>
 which stems words into their root form:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -110,7 +110,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `text` field uses the `standard` analyzer.
 <2> The `text.english` field uses the `english` analyzer.

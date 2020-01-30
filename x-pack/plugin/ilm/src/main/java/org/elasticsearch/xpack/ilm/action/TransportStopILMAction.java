@@ -52,7 +52,7 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                        return (new OperationModeUpdateTask(OperationMode.STOPPING)).execute(currentState);
+                        return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);
                 }
 
                 @Override

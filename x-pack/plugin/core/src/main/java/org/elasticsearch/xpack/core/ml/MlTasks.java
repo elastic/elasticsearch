@@ -132,6 +132,7 @@ public final class MlTasks {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
+        // TODO: report (task != null && task.getState() == null) as STARTING in version 8, and fix side effects
         if (task != null && task.getState() != null) {
             return (DatafeedState) task.getState();
         } else {
@@ -143,12 +144,31 @@ public final class MlTasks {
 
     public static DataFrameAnalyticsState getDataFrameAnalyticsState(String analyticsId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
-        if (task != null && task.getState() != null) {
-            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
-            return taskState.getState();
-        } else {
+        return getDataFrameAnalyticsState(task);
+    }
+
+    public static DataFrameAnalyticsState getDataFrameAnalyticsState(@Nullable PersistentTasksCustomMetaData.PersistentTask<?> task) {
+        if (task == null) {
             return DataFrameAnalyticsState.STOPPED;
         }
+        DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+        if (taskState == null) {
+            return DataFrameAnalyticsState.STARTING;
+        }
+
+        DataFrameAnalyticsState state = taskState.getState();
+        if (taskState.isStatusStale(task)) {
+            if (state == DataFrameAnalyticsState.STOPPING) {
+                // previous executor node failed while the job was stopping - it won't
+                // be restarted on another node, so consider it STOPPED for reassignment purposes
+                return DataFrameAnalyticsState.STOPPED;
+            }
+            if (state != DataFrameAnalyticsState.FAILED) {
+                // we are relocating at the moment
+                return DataFrameAnalyticsState.STARTING;
+            }
+        }
+        return state;
     }
 
     /**
@@ -178,32 +198,29 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return The job Ids of tasks to do not have an assignment.
      */
-    public static Set<String> unallocatedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
-                                                DiscoveryNodes nodes) {
-        return unallocatedJobTasks(tasks, nodes).stream()
+    public static Set<String> unassignedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
+                                               DiscoveryNodes nodes) {
+        return unassignedJobTasks(tasks, nodes).stream()
                 .map(task -> task.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
 
     /**
-     * The job tasks that do not have an allocation as determined by
+     * The job tasks that do not have an assignment as determined by
      * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetaData.Assignment, DiscoveryNodes)}
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
      * @param nodes The cluster nodes
-     * @return Unallocated job tasks
+     * @return Unassigned job tasks
      */
-    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks(
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unassignedJobTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> true)
-                .stream()
-                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
-                .collect(Collectors.toList());
+        return tasks.findTasks(JOB_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
     }
 
     /**
@@ -231,32 +248,29 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return The job Ids of tasks to do not have an assignment.
      */
-    public static Set<String> unallocatedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks,
-                                                DiscoveryNodes nodes) {
+    public static Set<String> unassignedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks,
+                                                    DiscoveryNodes nodes) {
 
-        return unallocatedDatafeedTasks(tasks, nodes).stream()
+        return unassignedDatafeedTasks(tasks, nodes).stream()
                 .map(task -> task.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
 
     /**
-     * The datafeed tasks that do not have an allocation as determined by
+     * The datafeed tasks that do not have an assignment as determined by
      * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetaData.Assignment, DiscoveryNodes)}
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
      * @param nodes The cluster nodes
-     * @return Unallocated datafeed tasks
+     * @return Unassigned datafeed tasks
      */
-    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedTasks(
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unassignedDatafeedTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
-                .stream()
-                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
-                .collect(Collectors.toList());
+        return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
     }
 }

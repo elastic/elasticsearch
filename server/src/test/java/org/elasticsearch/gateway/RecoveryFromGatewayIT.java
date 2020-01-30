@@ -542,7 +542,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
+        final String customDataPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(
+            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test"));
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);
         index("test", "type", "1");
@@ -579,7 +581,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
         response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesListGatewayStartedShards.class),
-            new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}));
+            new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, new DiscoveryNode[]{node}));
 
         assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodes().get(0).allocationId(), notNullValue());

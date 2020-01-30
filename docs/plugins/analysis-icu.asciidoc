@@ -1,7 +1,7 @@
 [[analysis-icu]]
 === ICU Analysis Plugin
 
-The ICU Analysis plugin integrates the Lucene ICU module into elasticsearch,
+The ICU Analysis plugin integrates the Lucene ICU module into {es},
 adding extended Unicode support using the http://site.icu-project.org/[ICU]
 libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and
@@ -62,7 +62,7 @@ http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet]
 Here are two examples, the default usage and a customised character filter:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -95,7 +95,6 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
@@ -110,7 +109,7 @@ but adds better support for some Asian languages by using a dictionary-based
 approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and
 using custom rules to break Myanmar and Khmer text into syllables.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -127,7 +126,6 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Rules customization
 
@@ -151,7 +149,7 @@ As a demonstration of how the rule files can be used, save the following user fi
 
 Then create an analyzer to use this rule file as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -181,7 +179,6 @@ GET icu_sample/_analyze
   "text": "Elasticsearch. Wow!"
 }
 --------------------------------------------------
-// CONSOLE
 
 The above `analyze` request returns the following:
 
@@ -219,7 +216,7 @@ You should probably prefer the <<analysis-icu-normalization-charfilter,Normaliza
 
 Here are two examples, the default usage and a customised token filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -251,7 +248,6 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfc_normalizer` token filter, which is set to use `nfc` normalization.
@@ -265,7 +261,7 @@ Case folding of Unicode characters based on `UTR#30`, like the
 on steroids. It registers itself as the `icu_folding` token filter and is
 available to all indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -285,7 +281,6 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The ICU folding token filter already does Unicode normalization, so there is
 no need to use Normalize character or token filter as well.
@@ -299,7 +294,7 @@ to note that both upper and lowercase forms should be specified, and that
 these filtered character are not lowercased which is why we add the
 `lowercase` filter as well:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -326,7 +321,6 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[analysis-icu-collation]]
@@ -352,7 +346,7 @@ which is a best-effort attempt at language-neutral sorting.
 Below is an example of how to set up a field for sorting German names in
 ``phonebook'' order:
 
-[source,js]
+[source,console]
 --------------------------
 PUT my_index
 {
@@ -374,7 +368,7 @@ PUT my_index
   }
 }
 
-GET _search <3>
+GET /my_index/_search <3>
 {
   "query": {
     "match": {
@@ -385,7 +379,6 @@ GET _search <3>
 }
 
 --------------------------
-// CONSOLE
 
 <1> The `name` field uses the `standard` analyzer, and so support full text queries.
 <2> The `name.sort` field is an `icu_collation_keyword` field that will preserve the name as
@@ -507,7 +500,7 @@ rulesets are not yet supported.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -552,7 +545,6 @@ GET icu_sample/_analyze
 }
 
 --------------------------------------------------
-// CONSOLE
 
 <1> This transforms transliterates characters to Latin, and separates accents
     from their base characters, removes the accents, and then puts the

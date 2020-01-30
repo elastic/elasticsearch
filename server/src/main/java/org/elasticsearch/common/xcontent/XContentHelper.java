@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -159,6 +160,19 @@ public class XContentHelper {
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
         return convertToJson(bytes, reformatJson, false, xContentType);
+    }
+
+    /**
+     * Accepts a JSON string, parses it and prints it without pretty-printing it. This is useful
+     * where a piece of JSON is formatted for legibility, but needs to be stripped of unnecessary
+     * whitespace e.g. for comparison in a test.
+     *
+     * @param json the JSON to format
+     * @return reformatted JSON
+     * @throws IOException if the reformatting fails, e.g. because the JSON is not well-formed
+     */
+    public static String stripWhitespace(String json) throws IOException {
+        return convertToJson(new BytesArray(json), true, XContentType.JSON);
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)

@@ -19,10 +19,11 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.test.rest.ESRestTestCase;
+
 import java.util.Arrays;
 import java.util.List;
-
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -50,6 +51,7 @@ public final class Features {
             "transform_and_set",
             "arbitrary_key"
     ));
+    private static final String SPI_ON_CLASSPATH_SINCE_JDK_9 = "spi_on_classpath_jdk9";
 
     private Features() {
 
@@ -68,10 +70,18 @@ public final class Features {
                 if (ESRestTestCase.hasXPack()) {
                     return false;
                 }
-            } else if (false == SUPPORTED.contains(feature)) {
+            } else if (false == isSupported(feature)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isSupported(String feature) {
+        if(feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) &&
+            JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
+            return true;
+        }
+        return SUPPORTED.contains(feature) ;
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -38,11 +37,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.Arrays;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterIT extends ESIntegTestCase {
@@ -52,107 +51,87 @@ public class SearchAfterIT extends ESIntegTestCase {
 
     public void testsShouldFail() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field2", "type=keyword").get());
+            .addMapping("type1", "field2", "type=keyword")
+            .get()
+        );
         ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
-        try {
-            client().prepareSearch("test")
-                    .addSort("field1", SortOrder.ASC)
-                    .setQuery(matchAllQuery())
-                    .searchAfter(new Object[]{0})
-                    .setScroll("1m")
-                    .get();
-
-            fail("Should fail on search_after cannot be used with scroll.");
-        } catch (SearchPhaseExecutionException e) {
+        {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
+                .addSort("field1", SortOrder.ASC)
+                .setQuery(matchAllQuery())
+                .searchAfter(new Object[]{0})
+                .setScroll("1m")
+                .get());
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
+                assertThat(failure.toString(), containsString("`search_after` cannot be used in a scroll context."));
             }
         }
-        try {
-            client().prepareSearch("test")
+
+        {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
                 .addSort("field1", SortOrder.ASC)
                 .setQuery(matchAllQuery())
                 .searchAfter(new Object[]{0})
                 .setFrom(10)
-                .get();
-
-            fail("Should fail on search_after cannot be used with from > 0.");
-        } catch (SearchPhaseExecutionException e) {
+                .get());
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-                assertThat(failure.getCause().getMessage(),
-                        Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
+                assertThat(failure.toString(), containsString("`from` parameter must be set to 0 when `search_after` is used."));
             }
         }
 
-        try {
-            client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
-                    .searchAfter(new Object[]{0.75f})
-                    .get();
-
-            fail("Should fail on search_after on score only is disabled");
-        } catch (SearchPhaseExecutionException e) {
+        {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .searchAfter(new Object[]{0.75f})
+                .get());
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field."));
+                assertThat(failure.toString(), containsString("Sort must contain at least one field."));
             }
         }
 
-        try {
-            client().prepareSearch("test")
-                    .addSort("field2", SortOrder.DESC)
-                    .addSort("field1", SortOrder.ASC)
-                    .setQuery(matchAllQuery())
-                    .searchAfter(new Object[]{1})
-                    .get();
-            fail("Should fail on search_after size differs from sort field size");
-        } catch (SearchPhaseExecutionException e) {
+        {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
+                .addSort("field2", SortOrder.DESC)
+                .addSort("field1", SortOrder.ASC)
+                .setQuery(matchAllQuery())
+                .searchAfter(new Object[]{1})
+                .get());
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 1 value(s) but sort has 2."));
+                assertThat(failure.toString(), containsString("search_after has 1 value(s) but sort has 2."));
             }
         }
 
-        try {
-            client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
-                    .addSort("field1", SortOrder.ASC)
-                    .searchAfter(new Object[]{1, 2})
-                    .get();
-            fail("Should fail on search_after size differs from sort field size");
-        } catch (SearchPhaseExecutionException e) {
+        {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .addSort("field1", SortOrder.ASC)
+                .searchAfter(new Object[]{1, 2})
+                .get());
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertTrue(e.shardFailures().length > 0);
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1."));
+                assertThat(failure.toString(), containsString("search_after has 2 value(s) but sort has 1."));
             }
         }
 
-        try {
-            client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
-                    .addSort("field1", SortOrder.ASC)
-                    .searchAfter(new Object[]{"toto"})
-                    .get();
-
-            fail("Should fail on search_after on score only is disabled");
-        } catch (SearchPhaseExecutionException e) {
+        {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .addSort("field1", SortOrder.ASC)
+                .searchAfter(new Object[]{"toto"})
+                .get());
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
-                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]."));
+                assertThat(failure.toString(), containsString("Failed to parse search_after value for field [field1]."));
             }
         }
     }
 
-    public void testWithNullStrings() throws ExecutionException, InterruptedException {
+    public void testWithNullStrings() throws InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();

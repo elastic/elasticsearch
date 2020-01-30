@@ -165,11 +165,10 @@ TIP: You'll want to check out the
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
 clients] when you're ready to start using {es} in your own applications.
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/health?v
 --------------------------------------------------
-// CONSOLE
 +
 The response should indicate that the status of the `elasticsearch` cluster
 is `green` and it has three nodes:
@@ -181,7 +180,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 --------------------------------------------------
 // TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
 // TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
-// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(micros|ms|s))/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(\.\\d+)?(micros|ms|s))/]
 // TESTRESPONSE[non_json]
 +
 NOTE: The cluster status will remain yellow if you are only running a single
@@ -211,14 +210,13 @@ You can do this directly with a simple PUT request that specifies
 the index you want to add the document, a unique document ID, and one or more
 `"field": "value"` pairs in the request body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /customer/_doc/1
 {
   "name": "John Doe"
 }
 --------------------------------------------------
-// CONSOLE
 
 This request automatically creates the `customer` index if it doesn't already
 exist, adds a new document that has an ID of `1`, and stores and
@@ -227,7 +225,7 @@ indexes the `name` field.
 Since this is a new document, the response shows that the result of the
 operation was that version 1 of the document was created:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "customer",
@@ -252,17 +250,16 @@ operation was that version 1 of the document was created:
 The new document is available immediately from any node in the cluster.
 You can retrieve it with a GET request that specifies its document ID:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /customer/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response indicates that a document with the specified ID was found
 and shows the original source fields that were indexed.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "customer",
@@ -288,7 +285,7 @@ If you have a lot of documents to index, you can submit them in batches with
 the {ref}/docs-bulk.html[bulk API]. Using bulk to batch document
 operations is significantly faster than submitting requests individually as it minimizes network roundtrips. 
 
-The optimal batch size depends a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
+The optimal batch size depends on a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
 and a total payload between 5MB and 15MB. From there, you can experiment
 to find the sweet spot.
 
@@ -327,11 +324,10 @@ curl "localhost:9200/_cat/indices?v"
 This replicates the above in a document-testing friendly way but isn't visible
 in the docs:
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/indices?v
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:bank]
 ////
 +
@@ -357,7 +353,7 @@ want to search in the request URI.
 For example, the following request retrieves all documents in the `bank`
 index sorted by account number:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -367,13 +363,12 @@ GET /bank/_search
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 By default, the `hits` section of the response includes the first 10 documents
 that match the search criteria:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 63,
@@ -429,7 +424,7 @@ the `from` and `size` parameters in your request.
 
 For example, the following request gets hits 10 through 19:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -441,7 +436,6 @@ GET /bank/_search
   "size": 10
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Now that you've seen how to submit a basic search request, you can start to
@@ -451,28 +445,26 @@ To search for specific terms within a field, you can use a `match` query.
 For example, the following request searches the `address` field to find 
 customers whose addresses contain `mill` or `lane`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
   "query": { "match": { "address": "mill lane" } }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 To perform a phrase search rather than matching individual terms, you use
 `match_phrase` instead of `match`. For example, the following request only 
 matches addresses that contain the phrase `mill lane`: 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
   "query": { "match_phrase": { "address": "mill lane" } }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 To construct more complex queries, you can use a `bool` query to combine
@@ -483,7 +475,7 @@ For example, the following request searches the `bank` index for accounts that
 belong to customers who are 40 years old, but excludes anyone who lives in
 Idaho (ID):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -499,7 +491,6 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Each `must`, `should`, and `must_not` element in a Boolean query is referred
@@ -516,7 +507,7 @@ include or exclude documents based on structured data.
 For example, the following request uses a range filter to limit the results to
 accounts with a balance between $20,000 and $30,000 (inclusive). 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -535,7 +526,6 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[getting-started-aggregations]]
@@ -551,7 +541,7 @@ For example, the following request uses a `terms` aggregation to group
 all of the accounts in the `bank` index by state, and returns the ten states
 with the most accounts in descending order:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -565,7 +555,6 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The `buckets` in the response are the values of the `state` field. The 
@@ -573,7 +562,7 @@ The `buckets` in the response are the values of the `state` field. The
 can see that there are 27 accounts in `ID` (Idaho). Because the request
 set `size=0`, the response only contains the aggregation results.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 29,
@@ -639,7 +628,7 @@ example, the following request nests an `avg` aggregation within the previous
 `group_by_state` aggregation to calculate the average account balances for
 each state.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -660,13 +649,12 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Instead of sorting the results by count, you could sort using the result of
 the nested aggregation by specifying the order within the `terms` aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /bank/_search
 {
@@ -690,7 +678,6 @@ GET /bank/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 In addition to basic bucketing and metrics aggregations like these, {es}

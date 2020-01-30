@@ -86,7 +86,7 @@ setup:
 ---
 "Test put datafeed with security headers in the body":
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
@@ -160,7 +160,7 @@ setup:
 ---
 "Test put datafeed with invalid query":
   - do:
-      catch: /parsing_exception/
+      catch: /failed\sto\sparse\sfield\s\[query\]/
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
@@ -181,8 +181,10 @@ setup:
             "indexes":["index-foo"],
             "scroll_size": 2000,
             "frequency": "1m",
-            "query_delay": "30s"
+            "query_delay": "30s",
+            "max_empty_searches": 42
           }
+  - match: { max_empty_searches: 42 }
 
   - do:
       ml.update_datafeed:
@@ -192,7 +194,8 @@ setup:
             "indexes":["index-*"],
             "scroll_size": 10000,
             "frequency": "2m",
-            "query_delay": "0s"
+            "query_delay": "0s",
+            "max_empty_searches": -1
           }
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-1" }
@@ -200,6 +203,7 @@ setup:
   - match: { scroll_size: 10000 }
   - match: { frequency: "2m" }
   - match: { query_delay: "0s" }
+  - is_false: max_empty_searches
 
 ---
 "Test update datafeed to point to different job":
@@ -364,7 +368,8 @@ setup:
                   }
                 }
               }
-            }
+            },
+            "max_empty_searches": -1
           }
   - do:
       ml.get_datafeeds:
@@ -374,6 +379,7 @@ setup:
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.@timestamp.max.field: "@timestamp" }
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.bytes_in_avg.avg.field: "system.network.in.bytes" }
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
+  - is_false: max_empty_searches
 
 ---
 "Test delete datafeed":

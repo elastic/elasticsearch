@@ -16,7 +16,7 @@ utility method, `Debug.explain` which throws the exception for you. For
 example, you can use {ref}/search-explain.html[`_explain`] to explore the
 context available to a {ref}/query-dsl-script-query.html[script query].
 
-[source,js]
+[source,console]
 ---------------------------------------------------------
 PUT /hockey/_doc/1?refresh
 {"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
@@ -30,7 +30,6 @@ POST /hockey/_explain/1
   }
 }
 ---------------------------------------------------------
-// CONSOLE
 // TEST[s/_explain\/1/_explain\/1?error_trace=false/ catch:/painless_explain_error/]
 // The test system sends error_trace=true by default for easier debugging so
 // we have to override it to get a normal shaped response
@@ -38,7 +37,7 @@ POST /hockey/_explain/1
 Which shows that the class of `doc.first` is
 `org.elasticsearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
-[source,js]
+[source,console-result]
 ---------------------------------------------------------
 {
    "error": {
@@ -51,24 +50,23 @@ Which shows that the class of `doc.first` is
    "status": 400
 }
 ---------------------------------------------------------
-// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
+// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "position": $body.error.position, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
 
 You can use the same trick to see that `_source` is a `LinkedHashMap`
 in the `_update` API:
 
-[source,js]
+[source,console]
 ---------------------------------------------------------
 POST /hockey/_update/1
 {
   "script": "Debug.explain(ctx._source)"
 }
 ---------------------------------------------------------
-// CONSOLE
 // TEST[continued s/_update\/1/_update\/1?error_trace=false/ catch:/painless_explain_error/]
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ---------------------------------------------------------
 {
   "error" : {
@@ -87,7 +85,7 @@ The response looks like:
 }
 ---------------------------------------------------------
 // TESTRESPONSE[s/"root_cause": \.\.\./"root_cause": $body.error.root_cause/]
-// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.caused_by.script_stack, "script": $body.error.caused_by.script, "lang": $body.error.caused_by.lang, "caused_by": $body.error.caused_by.caused_by, "reason": $body.error.caused_by.reason/]
+// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.caused_by.script_stack, "script": $body.error.caused_by.script, "lang": $body.error.caused_by.lang, "position": $body.error.caused_by.position, "caused_by": $body.error.caused_by.caused_by, "reason": $body.error.caused_by.reason/]
 // TESTRESPONSE[s/"to_string": ".+"/"to_string": $body.error.caused_by.to_string/]
 
 Once you have a class you can go to <<painless-api-reference>> to see a list of

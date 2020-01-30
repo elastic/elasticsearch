@@ -1,0 +1,31 @@
+{
+  "transform.start_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html"
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/{transform_id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to start"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the transform to start"
+      }
+    }
+  }
+}

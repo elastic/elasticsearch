@@ -19,7 +19,7 @@ POST /exams/_search?size=0
 
 The above aggregation computes the average grade over all documents. The aggregation type is `avg` and the `field` setting defines the numeric field of the documents the average will be computed on. The above will return the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

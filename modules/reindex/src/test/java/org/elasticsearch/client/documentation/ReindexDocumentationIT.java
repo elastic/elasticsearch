@@ -200,7 +200,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
     }
 
-    public void testTasks() throws InterruptedException {
+    public void testTasks() throws Exception {
         final Client client = client();
         final ReindexRequestBuilder builder = reindexAndPartiallyBlock();
 
@@ -284,7 +284,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
      * Similar to what CancelTests does: blocks some operations to be able to catch some tasks in running state
      * @see CancelTests#testCancel(String, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
      */
-    private ReindexRequestBuilder reindexAndPartiallyBlock() throws InterruptedException {
+    private ReindexRequestBuilder reindexAndPartiallyBlock() throws Exception {
         final Client client = client();
         final int numDocs = randomIntBetween(10, 100);
         ALLOWED_OPERATIONS.release(numDocs);
@@ -310,9 +310,12 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         builder.execute();
 
         // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertTrue("updates blocked", awaitBusy(
-            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
-            1, TimeUnit.MINUTES));
+        assertBusy(
+            () -> {
+                assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
+                assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
+            },
+            1, TimeUnit.MINUTES);
         return builder;
     }
 

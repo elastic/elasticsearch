@@ -3,7 +3,7 @@
 
 Allows you to use the mustache language to pre render search requests.
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -18,7 +18,6 @@ GET _search/template
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[search-template-api-request]]
@@ -107,7 +106,7 @@ The API request body must contain the search definition template and its paramet
 
 You can store a search template using the stored scripts API.
 
-[source,js]
+[source,console]
 ------------------------------------------
 POST _scripts/<templateid>
 {
@@ -123,7 +122,6 @@ POST _scripts/<templateid>
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
@@ -143,11 +141,10 @@ created:
 
 The template can be retrieved by calling
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _scripts/<templateid>
 ------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following result:
@@ -170,11 +167,10 @@ The API returns the following result:
 
 This template can be deleted by calling
 
-[source,js]
+[source,console]
 ------------------------------------------
 DELETE _scripts/<templateid>
 ------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 
@@ -183,7 +179,7 @@ DELETE _scripts/<templateid>
 
 To use a stored template at search time send the following request:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -193,7 +189,6 @@ GET _search/template
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 <1> Name of the stored template script.
 
@@ -204,7 +199,7 @@ GET _search/template
 A template can be rendered in a response with given parameters by using the 
 following request:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _render/template
 {
@@ -216,7 +211,6 @@ GET _render/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 
 The API returns the rendered template:
@@ -258,7 +252,7 @@ GET _render/template/<template_name>
 
 You can use the `explain` parameter when running a template:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -269,7 +263,6 @@ GET _search/template
   "explain": true
 }
 ------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 
@@ -278,7 +271,7 @@ GET _search/template
 
 You can use the `profile` parameter when running a template:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -289,14 +282,13 @@ GET _search/template
   "profile": true
 }
 ------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 
 [[search-template-query-string-single]]
 ===== Filling in a query string with a single value
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -312,7 +304,6 @@ GET _search/template
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[search-template-converting-to-json]]
@@ -321,7 +312,7 @@ GET _search/template
 The `{{#toJson}}parameter{{/toJson}}` function can be used to convert parameters
 like maps and array to their JSON representation:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -333,7 +324,6 @@ GET _search/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -354,7 +344,7 @@ which is rendered as:
 
 A more complex example substitutes an array of JSON objects:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -367,7 +357,6 @@ GET _search/template
    }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -400,7 +389,7 @@ which is rendered as:
 The `{{#join}}array{{/join}}` function can be used to concatenate the
 values of an array as a comma delimited string:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -416,7 +405,6 @@ GET _search/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -434,7 +422,7 @@ which is rendered as:
 
 The function also accepts a custom delimiter:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -458,7 +446,6 @@ GET _search/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -549,17 +536,17 @@ The `params` would look like:
     "params": {
         "text":      "words to search for",
         "line_no": { <1>
-            "start": 10, <1>
-            "end":   20  <1>
+            "start": 10,
+            "end":   20
         }
     }
 }
 ------------------------------------------
 // NOTCONSOLE
-<1> All three of these elements are optional.
+<1> The `line_no`, `start`, and `end` parameters are optional.
 
-
-We could write the query as:
+When written as a query, the template would include invalid JSON, such as
+section markers like `{{#line_no}}`:
 
 [source,js]
 ------------------------------------------
@@ -578,13 +565,13 @@ We could write the query as:
               {{#start}} <3>
                 "gte": "{{start}}" <4>
                 {{#end}},{{/end}} <5>
-              {{/start}} <3>
+              {{/start}}
               {{#end}} <6>
                 "lte": "{{end}}" <7>
-              {{/end}} <6>
+              {{/end}}
             }
           }
-        {{/line_no}} <2>
+        {{/line_no}}
       }
     }
   }
@@ -600,19 +587,14 @@ We could write the query as:
 <6> Include the `lte` clause only if `line_no.end` is specified
 <7> Fill in the value of param `line_no.end`
 
-[NOTE]
-==================================
-As written above, this template is not valid JSON because it includes the
-_section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in a file (see <<pre-registered-templates>>) or, when used
-via the REST API, should be written as a string:
+Because search templates cannot include invalid JSON, you can pass the same
+query as a string instead:
 
 [source,js]
 --------------------
 "source": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 // NOTCONSOLE
-==================================
 
 
 [[search-template-encode-urls]]
@@ -624,7 +606,7 @@ http://www.w3.org/TR/html4/[HTML specification].
 
 As an example, it is useful to encode a URL:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _render/template
 {
@@ -641,7 +623,6 @@ GET _render/template
     }
 }
 ------------------------------------------
-// CONSOLE
 
 
 The previous query will be rendered as:

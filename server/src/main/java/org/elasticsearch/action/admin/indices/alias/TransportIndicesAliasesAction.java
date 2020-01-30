@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -59,6 +61,8 @@ import static java.util.Collections.unmodifiableList;
  * Add/remove aliases action
  */
 public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetaDataIndexAliasesService indexAliasesService;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;

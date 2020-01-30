@@ -19,9 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -62,10 +60,6 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
 
         InboundMessage deserialize(BytesReference reference) throws IOException {
-            int messageLengthBytes = reference.length();
-            final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-            // we have additional bytes to read, outside of the header
-            boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
             StreamInput streamInput = reference.streamInput();
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
@@ -74,23 +68,13 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 Version remoteVersion = Version.fromId(streamInput.readInt());
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
-                if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
-                    Compressor compressor = getCompressor(reference);
-                    if (compressor == null) {
-                        int maxToRead = Math.min(reference.length(), 10);
-                        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
-                            .append(maxToRead).append("] content bytes out of [").append(reference.length())
-                            .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
-                        for (int i = 0; i < maxToRead; i++) {
-                            sb.append(reference.get(i)).append(",");
-                        }
-                        sb.append("]");
-                        throw new IllegalStateException(sb.toString());
-                    }
-                    streamInput = compressor.streamInput(streamInput);
+
+                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                    // Consume the variable header size
+                    streamInput.readInt();
+                } else {
+                    streamInput = decompressingStream(status, remoteVersion, streamInput);
                 }
-                streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
-                streamInput.setVersion(remoteVersion);
 
                 threadContext.readHeaders(streamInput);
 
@@ -108,8 +92,17 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                         features = Collections.emptySet();
                     }
                     final String action = streamInput.readString();
+
+                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                        streamInput = decompressingStream(status, remoteVersion, streamInput);
+                    }
+                    streamInput = namedWriteableStream(streamInput, remoteVersion);
                     message = new Request(threadContext, remoteVersion, status, requestId, action, features, streamInput);
                 } else {
+                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                        streamInput = decompressingStream(status, remoteVersion, streamInput);
+                    }
+                    streamInput = namedWriteableStream(streamInput, remoteVersion);
                     message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
                 }
                 success = true;
@@ -120,13 +113,26 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 }
             }
         }
-    }
 
-    @Nullable
-    static Compressor getCompressor(BytesReference message) {
-        final int offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-        return CompressorFactory.COMPRESSOR.isCompressed(message.slice(offset, message.length() - offset))
-            ? CompressorFactory.COMPRESSOR : null;
+        static StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
+            if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
+                try {
+                    StreamInput decompressor = CompressorFactory.COMPRESSOR.streamInput(streamInput);
+                    decompressor.setVersion(remoteVersion);
+                    return decompressor;
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
+                }
+            } else {
+                return streamInput;
+            }
+        }
+
+        private StreamInput namedWriteableStream(StreamInput delegate, Version remoteVersion) {
+            NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
+            streamInput.setVersion(remoteVersion);
+            return streamInput;
+        }
     }
 
     @Override

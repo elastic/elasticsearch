@@ -3,20 +3,23 @@
 
 Returns search hits that match the query defined in the request.
 
-[source,js]
---------------------------------------------------
-GET /twitter/_search?q=user:kimchy
---------------------------------------------------
-// CONSOLE
+[source,console]
+----
+GET /twitter/_search?q=tag:wow
+----
 // TEST[setup:twitter]
 
 
 [[search-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_search` +
+`GET /<index>/_search`
 
-`GET /all/_search`
+`POST /<index>/_search`
+
+`GET /_search`
+
+`POST /_search`
 
 
 [[search-search-api-desc]]
@@ -215,38 +218,202 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
   <<query-dsl,Query DSL>>.
 
 
+[[search-api-response-body]]
+==== {api-response-body-title}
+
+`took`::
++
+--
+(Integer)
+Milliseconds it took {es} to execute the request.
+
+This value is calculated by measuring the time elapsed
+between receipt of a request on the coordinating node
+and the time at which the coordinating node is ready to send the response.
+
+Took time includes:
+
+* Communication time between the coordinating node and data nodes
+* Time the request spends in the `search` <<modules-threadpool,thread pool>>,
+  queued for execution
+* Actual execution time
+
+Took time does *not* include:
+
+* Time needed to send the request to {es}
+* Time needed to serialize the JSON response
+* Time needed to send the response to a client
+--
+
+
+`timed_out`::
++
+--
+(Boolean)
+If `true`,
+the request timed out before completion;
+returned results may be partial or empty.
+--
+
+`_shards`::
++
+--
+(Object)
+Object containing a count of shards used for the request.
+Returned parameters include:
+
+`total`::
+(Integer)
+Total number of shards that require querying,
+including unallocated shards.
+
+`successful`::
+(Integer)
+Number of shards that executed the request successfully.
+
+`skipped`::
+(Integer)
+Number of shards that skipped the request because a lightweight check
+helped realize that no documents could possibly match on this shard. This
+typically happens when a search request includes a range filter and the
+shard only has values that fall outside of that range.
+
+`failed`::
+(Integer)
+Number of shards that failed to execute the request. Note that shards
+that are not allocated will be considered neither successful nor failed.
+Having `failed+successful` less than `total` is thus an indication that
+some of the shards were not allocated.
+
+--
+
+`hits`::
++
+--
+(Object)
+Contains returned documents and metadata.
+Returned parameters include:
+
+`total`::
+(Object)
+Metadata about the number of returned documents.
+Returned parameters include:
++
+* `value`: Total number of returned documents.
+* `relation`: Indicates whether the number of documents returned.
+Returned values are:
+** `eq`: Accurate
+** `gte`: Lower bound, including returned documents
+
+`max_score`::
+(Float)
+Highest returned document `_score`.
++
+The `_score` parameter is a 32-bit floating point number
+used to determine the relevance of the returned document.
++
+This parameter value is `null` for requests
+that do not sort by `_score`.
+
+`hits`::
+(Array of objects)
+Array of returned document objects.
+Returned parameters include:
++
+* `_index`: Name of the index containing the returned document.
+* `_type`: Document type.
+  deprecated:[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
+* `_id`: Unique identifier for the returned document.
+  This ID is only unique within the returned index.
+* `_score`: Positive 32-bit floating point number used to determine the
+  relevance of the returned document.
+* `_source`: Object containing the original JSON body
+  passed for the document at index time.
+--
+
+
 [[search-search-api-example]]
 ==== {api-examples-title}
 
-["float",id="search-multi-index"]
-===== Multi-Index
+[[search-api-specific-ex]]
+===== Search a specific index
 
-All search APIs can be applied across multiple indices with support for
-the <<multi-index,multi index syntax>>. For
-example, we can search on all documents within the twitter index:
-
-[source,js]
---------------------------------------------------
+[source,console]
+----
 GET /twitter/_search?q=user:kimchy
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+----
+// TEST[continued]
 
-We can also search all documents with a certain tag across several indices
-(for example, when there is one index per user):
+The API returns the following response:
 
-[source,js]
---------------------------------------------------
-GET /kimchy,elasticsearch/_search?q=tag:wow
---------------------------------------------------
-// CONSOLE
+[source,console-result]
+----
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.3862942,
+    "hits" : [
+      {
+        "_index" : "twitter",
+        "_type" : "_doc",
+        "_id" : "0",
+        "_score" : 1.3862942,
+        "_source" : {
+          "date" : "2009-11-15T14:12:12",
+          "likes" : 0,
+          "message" : "trying out Elasticsearch",
+          "user" : "kimchy"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]
+
+[[search-multi-index]]
+===== Search several indices
+
+[source,console]
+----
+GET /kimchy,elasticsearch/_search?q=user:kimchy
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-Or we can search across all available indices using `_all`:
+[[search-api-all-ex]]
+===== Search all indices
 
-[source,js]
----------------------------------------------------
-GET /_all/_search?q=tag:wow
----------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+To search all indices in a cluster,
+omit the `<index>` parameter.
+
+[source,console]
+----
+GET /_search?q=user:kimchy
+----
+// TEST[continued]
+
+Alternatively,
+you can use the `_all` or `*` value in the `<index>` parameter.
+
+[source,console]
+----
+GET /_all/_search?q=user:kimchy
+----
+// TEST[continued]
+
+[source,console]
+----
+GET /*/_search?q=user:kimchy
+----
+// TEST[continued]

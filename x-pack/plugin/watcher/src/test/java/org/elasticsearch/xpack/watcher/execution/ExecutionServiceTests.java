@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -1098,7 +1099,8 @@ public class ExecutionServiceTests extends ESTestCase {
             }
 
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            future.onResponse(new UpdateResponse(null, null, null, null, 0, 0, 0, null));
+            future.onResponse(new UpdateResponse(null, new ShardId("test", "test", 0), "_doc", "test", 0, 0, 0,
+                DocWriteResponse.Result.CREATED));
             return future;
         }).when(client).update(any());
 

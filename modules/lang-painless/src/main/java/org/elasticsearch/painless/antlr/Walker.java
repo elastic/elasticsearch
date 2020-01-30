@@ -109,6 +109,8 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.DResolvedType;
+import org.elasticsearch.painless.node.DUnresolvedType;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
@@ -141,6 +143,7 @@ import org.elasticsearch.painless.node.PField;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
+import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.node.SContinue;
 import org.elasticsearch.painless.node.SDeclBlock;
 import org.elasticsearch.painless.node.SDeclaration;
@@ -152,7 +155,6 @@ import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.node.SIf;
 import org.elasticsearch.painless.node.SIfElse;
 import org.elasticsearch.painless.node.SReturn;
-import org.elasticsearch.painless.node.SSource;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
@@ -166,14 +168,14 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
+    public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
                                             String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
                                             Printer debugStream) {
         return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
-    private final SSource source;
+    private final SClass source;
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
@@ -188,7 +190,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.painlessLookup = painlessLookup;
-        this.source = (SSource)visit(buildAntlrTree(sourceText));
+        this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
@@ -231,6 +233,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return new Location(sourceName, ctx.getStart().getStartIndex());
     }
 
+    private Location location(TerminalNode tn) {
+        return new Location(sourceName, tn.getSymbol().getStartIndex());
+    }
+
     @Override
     public ANode visitSource(SourceContext ctx) {
         List<SFunction> functions = new ArrayList<>();
@@ -245,7 +251,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
+        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
     }
 
     @Override
@@ -272,7 +278,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.block().dstatement()));
         }
 
-        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
+        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false);
     }
 
     @Override
@@ -478,8 +484,9 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         for (DeclvarContext declvar : ctx.declvar()) {
             String name = declvar.ID().getText();
             AExpression expression = declvar.expression() == null ? null : (AExpression)visit(declvar.expression());
+            DUnresolvedType unresolvedType = new DUnresolvedType(location(declvar), type);
 
-            declarations.add(new SDeclaration(location(declvar), type, name, expression));
+            declarations.add(new SDeclaration(location(declvar), unresolvedType, name, expression));
         }
 
         return new SDeclBlock(location(ctx), declarations);
@@ -501,7 +508,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.ID().getText();
         SBlock block = (SBlock)visit(ctx.block());
 
-        return new SCatch(location(ctx), type, name, block);
+        return new SCatch(location(ctx), new DResolvedType(location(ctx), Exception.class),
+                new SDeclaration(location(ctx.TYPE()), new DUnresolvedType(location(ctx.TYPE()), type), name, null), block);
     }
 
     @Override

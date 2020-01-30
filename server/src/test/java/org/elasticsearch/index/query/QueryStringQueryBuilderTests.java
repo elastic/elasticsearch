@@ -59,9 +59,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -398,7 +398,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
-                                       Query query, SearchContext context) throws IOException {
+                                       Query query, QueryShardContext context) throws IOException {
         // nothing yet, put additional assertions here.
     }
 
@@ -1058,11 +1058,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testDisabledFieldNamesField() throws Exception {
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("_doc",
-            new CompressedXContent(
-                Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                    "foo", "type=text",
-                    "_field_names", "enabled=false"))),
-            MapperService.MergeReason.MAPPING_UPDATE);
+                new CompressedXContent(Strings
+                        .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                                "foo",
+                                "type=text",
+                                "_field_names",
+                                "enabled=false"))),
+                MapperService.MergeReason.MAPPING_UPDATE);
+
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
             Query query = queryBuilder.toQuery(context);
@@ -1071,15 +1074,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         } finally {
             // restore mappings as they were before
             context.getMapperService().merge("_doc",
-                new CompressedXContent(
-                    Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                        "foo", "type=text",
-                        "_field_names", "enabled=true"))),
-                MapperService.MergeReason.MAPPING_UPDATE);
+                    new CompressedXContent(Strings.toString(
+                            PutMappingRequest.buildFromSimplifiedDef("_doc",
+                                    "foo",
+                                    "type=text",
+                                    "_field_names",
+                                    "enabled=true"))),
+                    MapperService.MergeReason.MAPPING_UPDATE);
         }
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}",  context.index().getName()));
     }
-
-
 
     public void testFromJson() throws IOException {
         String json =

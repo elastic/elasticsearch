@@ -10,8 +10,6 @@ import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import org.apache.http.client.HttpClient;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +50,7 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -538,8 +536,7 @@ public final class SamlRealm extends Realm implements Releasable {
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-        HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
@@ -729,7 +726,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file {}", file), e);
+                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
             }
         }
     }

@@ -1,5 +1,8 @@
 [[analysis-multiplexer-tokenfilter]]
-=== Multiplexer Token Filter
+=== Multiplexer token filter
+++++
+<titleabbrev>Multiplexer</titleabbrev>
+++++
 
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
 each version of the token having been run through a different filter.  Identical
@@ -29,7 +32,7 @@ preserve_original:: if `true` (the default) then emit the original token in
 
 You can set it up like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /multiplexer_example
 {
@@ -51,11 +54,10 @@ PUT /multiplexer_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 And test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /multiplexer_example/_analyze
 {
@@ -63,7 +65,6 @@ POST /multiplexer_example/_analyze
   "text" : "Going HOME"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:

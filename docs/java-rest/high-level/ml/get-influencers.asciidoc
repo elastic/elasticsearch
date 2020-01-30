@@ -3,6 +3,7 @@
 :request: GetInfluencersRequest
 :response: GetInfluencersResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get influencers API
 

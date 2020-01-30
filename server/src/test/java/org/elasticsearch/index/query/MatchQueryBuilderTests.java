@@ -32,6 +32,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
@@ -143,7 +143,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
@@ -151,7 +151,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             return;
         }
 
-        QueryShardContext context = searchContext.getQueryShardContext();
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
@@ -486,6 +485,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 new SpanTermQuery(new Term(STRING_FIELD_NAME, "dogs")),
                 new SpanTermQuery(new Term(STRING_FIELD_NAME, "dog"))
             }))
+            .build();
+        assertEquals(expected, actual);
+    }
+
+
+    public void testAliasWithSynonyms() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        final Query actual = matchQuery.parse(Type.PHRASE, STRING_ALIAS_FIELD_NAME, "dogs");
+        Query expected = new SynonymQuery.Builder(STRING_FIELD_NAME)
+            .addTerm(new Term(STRING_FIELD_NAME, "dogs"))
+            .addTerm(new Term(STRING_FIELD_NAME, "dog"))
             .build();
         assertEquals(expected, actual);
     }

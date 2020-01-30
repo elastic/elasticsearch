@@ -103,7 +103,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(10000).subAggregation(
-                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_id", SortOrder.ASC))
+                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);

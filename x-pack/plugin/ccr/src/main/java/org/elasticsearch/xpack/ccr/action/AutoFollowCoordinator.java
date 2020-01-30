@@ -194,7 +194,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
-        AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
+        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             return;
         }
@@ -206,8 +206,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         final CopyOnWriteHashMap<String, AutoFollower> autoFollowers = CopyOnWriteHashMap.copyOf(this.autoFollowers);
-        Set<String> newRemoteClusters = autoFollowMetadata.getPatterns().entrySet().stream()
-            .map(entry -> entry.getValue().getRemoteCluster())
+        Set<String> newRemoteClusters = autoFollowMetadata.getPatterns().values().stream()
+            .filter(AutoFollowPattern::isActive)
+            .map(AutoFollowPattern::getRemoteCluster)
             .filter(remoteCluster -> autoFollowers.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
@@ -283,6 +284,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             String remoteCluster = entry.getKey();
             AutoFollower autoFollower = entry.getValue();
             boolean exist = autoFollowMetadata.getPatterns().values().stream()
+                .filter(AutoFollowPattern::isActive)
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
                 LOGGER.info("removing auto-follower for remote cluster [{}]", remoteCluster);
@@ -345,6 +347,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
         private volatile boolean stop;
+        private volatile List<String> lastActivePatterns = Collections.emptyList();
 
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
@@ -384,7 +387,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
             final List<String> patterns = autoFollowMetadata.getPatterns().entrySet().stream()
                 .filter(entry -> entry.getValue().getRemoteCluster().equals(remoteCluster))
+                .filter(entry -> entry.getValue().isActive())
                 .map(Map.Entry::getKey)
+                .sorted()
                 .collect(Collectors.toList());
             if (patterns.isEmpty()) {
                 LOGGER.info("AutoFollower for cluster [{}] has stopped, because there are no more patterns", remoteCluster);
@@ -394,8 +399,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             this.autoFollowPatternsCountDown = new CountDown(patterns.size());
             this.autoFollowResults = new AtomicArray<>(patterns.size());
 
+            // keep the list of the last known active patterns for this auto-follower
+            // if the list changed, we explicitly retrieve the last cluster state in
+            // order to avoid timeouts when waiting for the next remote cluster state
+            // version that might never arrive
+            final long nextMetadataVersion = Objects.equals(patterns, lastActivePatterns) ? metadataVersion + 1 : metadataVersion;
+            this.lastActivePatterns = Collections.unmodifiableList(patterns);
+
             final Thread thread = Thread.currentThread();
-            getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateResponse, remoteError) -> {
+            getRemoteClusterState(remoteCluster, Math.max(1L, nextMetadataVersion), (remoteClusterStateResponse, remoteError) -> {
                 // Also check removed flag here, as it may take a while for this remote cluster state api call to return:
                 if (removed) {
                     LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
@@ -445,8 +457,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 Map<String, String> headers = autoFollowMetadata.getHeaders().get(autoFollowPatternName);
                 List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(autoFollowPatternName);
 
-                final List<Index> leaderIndicesToFollow =
-                    getLeaderIndicesToFollow(autoFollowPattern, remoteClusterState, followedIndices);
+                final List<Index> leaderIndicesToFollow = getLeaderIndicesToFollow(autoFollowPattern, remoteClusterState, followedIndices);
                 if (leaderIndicesToFollow.isEmpty()) {
                     finalise(slot, new AutoFollowResult(autoFollowPatternName), thread);
                 } else {
@@ -596,7 +607,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : remoteClusterState.getMetaData()) {
-                if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
+                if (leaderIndexMetaData.getState() != IndexMetaData.State.OPEN) {
+                    continue;
+                }
+                if (autoFollowPattern.isActive() && autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
                     IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetaData.getIndex());
                     if (indexRoutingTable != null &&
                         // Leader indices can be in the cluster state, but not all primary shards may be ready yet.

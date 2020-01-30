@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -57,12 +58,19 @@ public class MemoryUsageEstimationProcessManager {
                                                DataFrameDataExtractorFactory dataExtractorFactory) {
         DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        Set<String> categoricalFields = dataExtractor.getCategoricalFields();
         if (dataSummary.rows == 0) {
-            return new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
+            throw ExceptionsHelper.badRequestException(
+                "[{}] Unable to estimate memory usage as no documents in the source indices [{}] contained all the fields selected for "
+                    + "analysis. If you are relying on automatic field selection then there are currently mapped fields that do not exist "
+                    + "in any indexed documents, and you will have to switch to explicit field selection and include only fields that "
+                    + "exist in indexed documents.",
+                jobId,
+                Strings.arrayToCommaDelimitedString(config.getSource().getIndex()));
         }
+        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         AnalyticsProcessConfig processConfig =
             new AnalyticsProcessConfig(
+                jobId,
                 dataSummary.rows,
                 dataSummary.cols,
                 // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
@@ -71,11 +79,13 @@ public class MemoryUsageEstimationProcessManager {
                 1,
                 "",
                 categoricalFields,
-                config.getAnalysis());
+                config.getAnalysis(),
+                dataExtractorFactory.getExtractedFields());
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
-                jobId,
+                config,
                 processConfig,
+                null,
                 executorServiceForProcess,
                 // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
                 // (processInStream == null) which is the case for MemoryUsageEstimationProcess.
@@ -91,9 +101,9 @@ public class MemoryUsageEstimationProcessManager {
         } finally {
             process.consumeAndCloseOutputStream();
             try {
-                LOGGER.info("[{}] Closing process", jobId);
+                LOGGER.debug("[{}] Closing process", jobId);
                 process.close();
-                LOGGER.info("[{}] Closed process", jobId);
+                LOGGER.debug("[{}] Closed process", jobId);
             } catch (Exception e) {
                 String errorMsg =
                     new ParameterizedMessage(

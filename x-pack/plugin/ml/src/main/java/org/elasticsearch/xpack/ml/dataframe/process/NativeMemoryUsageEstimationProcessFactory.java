@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
@@ -52,18 +55,19 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
     @Override
     public NativeMemoryUsageEstimationProcess createAnalyticsProcess(
-            String jobId,
+            DataFrameAnalyticsConfig config,
             AnalyticsProcessConfig analyticsProcessConfig,
+            @Nullable BytesReference state,
             ExecutorService executorService,
             Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId, true, false, false, true, false, false);
+            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId(), true, false, false, true, false, false);
 
-        createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
+        createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
 
         NativeMemoryUsageEstimationProcess process = new NativeMemoryUsageEstimationProcess(
-            jobId,
+            config.getId(),
             processPipes.getLogStream().get(),
             // Memory estimation process does not use the input pipe, hence null.
             null,
@@ -71,7 +75,8 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             null,
             0,
             filesToDelete,
-            onProcessCrash);
+            onProcessCrash,
+            processConnectTimeout);
 
         try {
             process.start(executorService);

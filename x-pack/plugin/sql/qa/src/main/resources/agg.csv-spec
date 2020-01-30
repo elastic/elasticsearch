@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Aggs not supported by H2 / traditional SQL stores
 //
@@ -146,6 +148,33 @@ null           |null           |null           |null          |null           |n
 4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
 ;
 
+aggSumWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithAliasWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithNumericRefWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
 aggByComplexCastedValue
 SELECT CONVERT(CONCAT(LTRIM(CONVERT("emp_no", SQL_VARCHAR)), LTRIM(CONVERT("languages", SQL_VARCHAR))), SQL_BIGINT) AS "TEMP"
 FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;
@@ -217,6 +246,194 @@ TRUNCATE(YEAR("birth_date"), -2)
 null
 1900
 ;
+// Fails for H2
+groupByCastScalarWithNumericRef
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT):l
+------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalar
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) NULLS FIRST;
+
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+
+groupByConvertScalarWithAlias
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) as "convert" FROM test_emp GROUP BY "convert" ORDER BY "convert" NULLS FIRST;
+
+convert:l
+---------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalarWithNumericRef
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConstantScalar
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no LIMIT 10;
+
+PI() * emp_no:d
+---------------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
+
+groupByConstantScalarWithOrderByDesc
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no DESC LIMIT 10;
+
+PI() * emp_no:d
+-------
+31730.0858012569
+31726.9442086033
+31723.8026159497
+31720.6610232961
+31717.5194306425
+31714.3778379889
+31711.2362453353
+31708.0946526817
+31704.9530600281
+31701.8114673746
+;
+
+groupByConstantScalarWithAlias
+SELECT PI() * emp_no AS "value" FROM test_emp GROUP BY value ORDER BY value LIMIT 10;
+
+value:d
+-------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
+
+groupByConstantScalarWithNumericRef
+SELECT PI() * emp_no FROM test_emp GROUP BY 1 ORDER BY 1 DESC LIMIT 10;
+
+PI() * emp_no:d
+-------
+31730.0858012569
+31726.9442086033
+31723.8026159497
+31720.6610232961
+31717.5194306425
+31714.3778379889
+31711.2362453353
+31708.0946526817
+31704.9530600281
+31701.8114673746
+;
+
+groupByFieldAndConstantScalarWithMultipleOrderBy
+SELECT gender, emp_no % 3 + PI() FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender, emp_no % 3 + PI() DESC LIMIT 8;
+
+gender:s    |emp_no % 3 + PI():d
+------------+------------------
+null        |5.1415926535
+null        |4.1415926535
+null        |3.1415926535
+F           |5.1415926535
+F           |4.1415926535
+F           |3.1415926535
+M           |5.1415926535
+M           |4.1415926535
+;
+
+groupByFieldAndConstantScalarWithAliasWithOrderByDesc
+SELECT gender, emp_no % 3 + PI() as p FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender DESC, p DESC LIMIT 8;
+
+gender:s    |p:d
+------------+------------------
+M           |5.1415926535
+M           |4.1415926535
+M           |3.1415926535
+F           |5.1415926535
+F           |4.1415926535
+F           |3.1415926535
+null        |5.1415926535
+null        |4.1415926535
+;
 
 //
 // Grouping functions
@@ -244,47 +461,46 @@ histogramDateTime
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h;
 
-         h          |       c       
---------------------+---------------
-null                |10
-1951-04-11T00:00:00Z|1
-1952-04-05T00:00:00Z|10
-1953-03-31T00:00:00Z|10
-1954-03-26T00:00:00Z|7
-1955-03-21T00:00:00Z|4
-1956-03-15T00:00:00Z|4
-1957-03-10T00:00:00Z|6
-1958-03-05T00:00:00Z|6
-1959-02-28T00:00:00Z|9
-1960-02-23T00:00:00Z|7
-1961-02-17T00:00:00Z|8
-1962-02-12T00:00:00Z|6
-1963-02-07T00:00:00Z|7
-1964-02-02T00:00:00Z|5
-         
+           h            |       c       
+------------------------+---------------
+null                    |10             
+1952-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1954-01-01T00:00:00.000Z|8              
+1955-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1957-01-01T00:00:00.000Z|4              
+1958-01-01T00:00:00.000Z|7              
+1959-01-01T00:00:00.000Z|9              
+1960-01-01T00:00:00.000Z|8              
+1961-01-01T00:00:00.000Z|8              
+1962-01-01T00:00:00.000Z|6              
+1963-01-01T00:00:00.000Z|7              
+1964-01-01T00:00:00.000Z|4              
+1965-01-01T00:00:00.000Z|1              
 ;
 
 histogramDateTimeWithCountAndOrder
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
-         h          |       c       
---------------------+---------------
-1964-02-02T00:00:00Z|5              
-1963-02-07T00:00:00Z|7              
-1962-02-12T00:00:00Z|6              
-1961-02-17T00:00:00Z|8              
-1960-02-23T00:00:00Z|7              
-1959-02-28T00:00:00Z|9              
-1958-03-05T00:00:00Z|6              
-1957-03-10T00:00:00Z|6              
-1956-03-15T00:00:00Z|4              
-1955-03-21T00:00:00Z|4              
-1954-03-26T00:00:00Z|7              
-1953-03-31T00:00:00Z|10             
-1952-04-05T00:00:00Z|10             
-1951-04-11T00:00:00Z|1              
-null                |10   
+           h            |       c       
+------------------------+---------------
+1965-01-01T00:00:00.000Z|1              
+1964-01-01T00:00:00.000Z|4              
+1963-01-01T00:00:00.000Z|7              
+1962-01-01T00:00:00.000Z|6              
+1961-01-01T00:00:00.000Z|8              
+1960-01-01T00:00:00.000Z|8              
+1959-01-01T00:00:00.000Z|9              
+1958-01-01T00:00:00.000Z|7              
+1957-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1955-01-01T00:00:00.000Z|4              
+1954-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1952-01-01T00:00:00.000Z|8              
+null                    |10             
 ;
 
 histogramDateTimeWithMonthOnTop
@@ -318,6 +534,29 @@ SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY
 null           |10   
 ;
 
+histogramYearOnDateTimeWithScalars
+schema::year:i|c:l
+SELECT YEAR(CAST(birth_date + INTERVAL 5 YEARS AS DATE) + INTERVAL 20 MONTHS) AS year, COUNT(*) as c FROM test_emp GROUP BY 1;
+
+     year      |   c
+---------------+---------------
+null           |10
+1958           |2
+1959           |12
+1960           |7
+1961           |7
+1962           |4
+1963           |5
+1964           |5
+1965           |7
+1966           |9
+1967           |7
+1968           |7
+1969           |8
+1970           |6
+1971           |4
+;
+
 histogramNumericWithExpression
 schema::h:i|c:l
 SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
@@ -340,23 +579,23 @@ histogramGroupByWithoutAlias
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY HISTOGRAM(birth_date, INTERVAL 1 YEAR) ORDER BY h DESC;
 
-         h          |       c       
---------------------+---------------
-1964-02-02T00:00:00Z|5              
-1963-02-07T00:00:00Z|7              
-1962-02-12T00:00:00Z|6              
-1961-02-17T00:00:00Z|8              
-1960-02-23T00:00:00Z|7              
-1959-02-28T00:00:00Z|9              
-1958-03-05T00:00:00Z|6              
-1957-03-10T00:00:00Z|6              
-1956-03-15T00:00:00Z|4              
-1955-03-21T00:00:00Z|4              
-1954-03-26T00:00:00Z|7              
-1953-03-31T00:00:00Z|10             
-1952-04-05T00:00:00Z|10             
-1951-04-11T00:00:00Z|1              
-null                |10   
+           h            |       c       
+------------------------+---------------
+1965-01-01T00:00:00.000Z|1              
+1964-01-01T00:00:00.000Z|4              
+1963-01-01T00:00:00.000Z|7              
+1962-01-01T00:00:00.000Z|6              
+1961-01-01T00:00:00.000Z|8              
+1960-01-01T00:00:00.000Z|8              
+1959-01-01T00:00:00.000Z|9              
+1958-01-01T00:00:00.000Z|7              
+1957-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1955-01-01T00:00:00.000Z|4              
+1954-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1952-01-01T00:00:00.000Z|8              
+null                    |10             
 ;
 
 countAll
@@ -365,8 +604,30 @@ SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
 
    all_names   |       c
 ---------------+---------------
-90             |100
+90             |100 
 ;
+
+countDistinctAndLiteral
+schema::ln:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING ln>5 AND ccc>5;
+
+      ln       |     ccc     
+---------------+-------------
+10             |10           
+33             |33
+57             |57                
+;
+
+countSmallCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
 
 countAllCountTypesWithHaving
 schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
@@ -394,6 +655,29 @@ SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_nam
    areEqual    |      fn       |      dfn
 ---------------+---------------+---------------
 true           |90             |90
+;
+
+aggCountWithNull
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l|languages:bt
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages), languages FROM test_emp GROUP BY languages ORDER BY languages DESC;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)|   languages   
+---------------+---------------+-------------------------+---------------
+null           |21             |1                        |5              
+null           |18             |1                        |4              
+null           |17             |1                        |3              
+null           |19             |1                        |2              
+null           |15             |1                        |1              
+null           |10             |0                        |null          
+;
+
+aggCountZeroDocuments
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages) FROM test_emp WHERE languages > 100;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)
+---------------+---------------+-------------------------
+null           |0              |0
 ;
 
 aggCountAllEquality

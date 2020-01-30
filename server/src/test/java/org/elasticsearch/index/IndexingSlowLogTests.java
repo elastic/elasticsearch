@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -105,12 +106,12 @@ public class IndexingSlowLogTests extends ESTestCase {
             ()->new IndexingSlowLogMessage(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting ('true', 'false' or 'null')\\n"
-            + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
+            + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(JsonParseException.class));
         assertThat(e.getCause(), hasToString(containsString("Unrecognized token 'invalid':"
                 + " was expecting ('true', 'false' or 'null')\n"
-                + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
+                + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
     }
 
     public void testReformatSetting() {
@@ -199,6 +200,25 @@ public class IndexingSlowLogTests extends ESTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), SlowLogLevel.DEBUG)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        IndexingSlowLog debugLog = new IndexingSlowLog(settings);
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), SlowLogLevel.INFO)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        IndexingSlowLog infoLog = new IndexingSlowLog(settings);
+
+        assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
+        assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
     }
 
     public void testSetLevels() {

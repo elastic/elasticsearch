@@ -43,6 +43,41 @@
 
   - match: {hits.hits.0.highlight.text.0: "The [quick](_hit_term=quick) brown fox is brown."}
 
+  - do:
+      search:
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: entity_3789 brown
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            span_near:
+              clauses: [
+                span_term: { text: entity_3789 },
+                span_term: { text: brown }
+              ]
+              in_order: true
+              slop: 10
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            match_phrase:
+              text: "fox is brown"
+
+  - match: { hits.total.value: 1 }
+
+
 ---
 "issue 39395 thread safety issue -requires multiple calls to reveal":
   - skip:
@@ -65,13 +100,13 @@
       index:
         index: annotated
         id: 1
-        body: 
+        body:
             "my_field" : "[A](~MARK0&~MARK0) [B](~MARK1)"
   - do:
       index:
         index: annotated
         id: 2
-        body: 
+        body:
             "my_field" : "[A](~MARK0) [C](~MARK2)"
         refresh: true
   - do:

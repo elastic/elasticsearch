@@ -29,10 +29,17 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
+  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  compile "org.apache.logging.log4j:log4j-jcl:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
   compile project(':libs:elasticsearch-core')
+
+  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 forbiddenApisTest {
@@ -48,32 +55,19 @@ testingConventions.enabled = false
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
-tasks.thirdPartyAudit.ignoreMissingClasses (
-        // commons-logging optional dependencies
-        'org.apache.avalon.framework.logger.Logger',
-        'org.apache.log.Hierarchy',
-        'org.apache.log.Logger',
-        'org.apache.log4j.Category',
-        'org.apache.log4j.Level',
-        'org.apache.log4j.Logger',
-        'org.apache.log4j.Priority',
-        // commons-logging provided dependencies
-        'javax.servlet.ServletContextEvent',
-        'javax.servlet.ServletContextListener'
-)
+tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
+  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss'
+}
+
+processTestResources {
+  from project(":test:framework").file("src/main/resources/log4j2-test.properties")
 }
 
 subprojects { Project platformProject ->
-
-  // TODO: remove this property lookup once CI is switched to use an explicit task for the sample tests
-  boolean allBoxes = (project.findProperty('vagrant.boxes') ?: '') == 'all'
-  if (allBoxes || ['centos-7', 'ubuntu-1604'].contains(platformProject.name)) {
-    tasks.register('packagingTest') {
-      dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
-    }
+  tasks.register('packagingTest') {
+    dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
   }
 
   vagrant {

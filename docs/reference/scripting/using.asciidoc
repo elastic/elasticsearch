@@ -20,7 +20,7 @@ the same pattern:
 For example, the following script is used in a search request to return a
 <<request-body-search-script-fields, scripted field>>:
 
-[source,js]
+[source,console]
 -------------------------------------
 PUT my_index/_doc/1
 {
@@ -42,7 +42,6 @@ GET my_index/_search
   }
 }
 -------------------------------------
-// CONSOLE
 
 [float]
 === Script parameters
@@ -144,7 +143,7 @@ The following are examples of using a stored script that lives at
 
 First, create the script called `calculate-score` in the cluster state:
 
-[source,js]
+[source,console]
 -----------------------------------
 POST _scripts/calculate-score
 {
@@ -154,25 +153,45 @@ POST _scripts/calculate-score
   }
 }
 -----------------------------------
-// CONSOLE
+// TEST[setup:twitter]
+
+You may also specify a context as part of the url path to compile a
+stored script against that specific context in the form of
+`/_scripts/{id}/{context}`:
+
+[source,console]
+-----------------------------------
+POST _scripts/calculate-score/score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params.my_modifier"
+  }
+}
+-----------------------------------
+// TEST[setup:twitter]
 
 This same script can be retrieved with:
 
-[source,js]
+[source,console]
 -----------------------------------
 GET _scripts/calculate-score
 -----------------------------------
-// CONSOLE
 // TEST[continued]
 
 Stored scripts can be used by specifying the `id` parameters as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET _search
+GET twitter/_search
 {
   "query": {
-    "script": {
+    "script_score": {
+      "query": {
+        "match": {
+            "message": "some message"
+        }
+      },
       "script": {
         "id": "calculate-score",
         "params": {
@@ -183,16 +202,14 @@ GET _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And deleted with:
 
-[source,js]
+[source,console]
 -----------------------------------
 DELETE _scripts/calculate-score
 -----------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -224,3 +241,14 @@ NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a
 <<modules-scripting-engine,native script engine>> should be considered.
+
+[float]
+[[modules-scripting-errors]]
+=== Script errors
+Elasticsearch returns error details when there is a compliation or runtime
+exception.  The contents of this response are useful for tracking down the
+problem.
+
+experimental[]
+
+The contents of `position` are experimental and subject to change.

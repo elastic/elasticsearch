@@ -100,7 +100,8 @@ on disk.
 Authentication will still work, but in order to ensure FIPS 140-2 compliance,
 you would need to recreate users or change their password using the
 <<users-command, elasticsearch-user>> CLI tool for the file realm and the
-<<security-api-users,User Management APIs>> for the native realm.
+<<security-api-put-user,create users>> and <<security-api-change-password,change
+password>> APIs for the native realm.
 
 The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created
@@ -121,5 +122,3 @@ features are not available while running in fips mode. The list is as follows:
   can be later used in the FIPS 140-2 enabled JVM.
 * The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
   TLS for transport security or PKI for client authentication.
-* The SAML Realm cannot decrypt and consume encrypted Assertions or encrypted
-  attributes in Attribute Statements from the SAML IdP.

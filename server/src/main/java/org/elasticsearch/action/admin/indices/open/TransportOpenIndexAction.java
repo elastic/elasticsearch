@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -44,6 +46,8 @@ import java.io.IOException;
  * Open index action
  */
 public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenIndexRequest, OpenIndexResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportOpenIndexAction.class);
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;

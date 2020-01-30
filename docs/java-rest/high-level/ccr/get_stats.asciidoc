@@ -3,7 +3,7 @@
 :request: CcrStatsRequest
 :response: CcrStatsResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get CCR Stats API
 

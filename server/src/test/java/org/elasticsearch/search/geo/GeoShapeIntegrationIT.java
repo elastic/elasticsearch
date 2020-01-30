@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -121,6 +122,27 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    public void testMappingUpdate() throws Exception {
+        // create index
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("geometry", "shape", "type=geo_shape").get());
+        ensureGreen();
+
+        String update ="{\n" +
+            "  \"properties\": {\n" +
+            "    \"shape\": {\n" +
+            "      \"type\": \"geo_shape\",\n" +
+            "      \"strategy\": \"recursive\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
+            .preparePutMapping("test").setType("geometry")
+            .setSource(update, XContentType.JSON).get());
+        assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
     }
 
     /**

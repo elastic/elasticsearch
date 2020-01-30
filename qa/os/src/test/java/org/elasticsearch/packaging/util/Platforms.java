@@ -28,6 +28,7 @@ public class Platforms {
     public static final boolean LINUX = OS_NAME.startsWith("Linux");
     public static final boolean WINDOWS = OS_NAME.startsWith("Windows");
     public static final boolean DARWIN = OS_NAME.startsWith("Mac OS X");
+    public static final PlatformAction NO_ACTION = () -> {};
 
     public static String getOsRelease() {
         if (LINUX) {
@@ -63,6 +64,10 @@ public class Platforms {
             return false;
         }
         return new Shell().runIgnoreExitCode("which service").isSuccess();
+    }
+
+    public static boolean isDocker() {
+        return new Shell().runIgnoreExitCode("which docker").isSuccess();
     }
 
     public static void onWindows(PlatformAction action) throws Exception {

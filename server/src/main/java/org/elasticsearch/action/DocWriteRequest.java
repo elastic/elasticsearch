@@ -72,8 +72,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * @return the Request
      */
     T defaultTypeIfNull(String defaultType);
-    
-    
+
     /**
      * Get the id of the document for this request
      * @return the id
@@ -256,9 +255,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         if (versionType.validateVersionForWrites(version) == false) {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
-        }
-        if (versionType == VersionType.FORCE) {
-            validationException = addValidationError("version type [force] may no longer be used", validationException);
         }
 
         if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {

@@ -6,7 +6,7 @@
 
 Deletes documents that match the specified query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_delete_by_query
 {
@@ -17,7 +17,6 @@ POST /twitter/_delete_by_query
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 [[docs-delete-by-query-api-request]]
@@ -27,7 +26,7 @@ POST /twitter/_delete_by_query
 
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -75,7 +74,7 @@ and all failed requests are returned in the response. Any delete requests that
 completed successfully still stick, they are not rolled back. 
 
 You can opt to count version conflicts instead of halting and returning by 
-setting `conflicts` to `proceeed`. 
+setting `conflicts` to `proceed`. 
 
 ===== Refreshing shards
 
@@ -243,7 +242,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_delete_by_query
 {
@@ -254,14 +253,13 @@ POST /twitter/_delete_by_query
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 //////////////////////////
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -348,7 +346,7 @@ version conflicts.
 
 Delete all tweets from the `twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_delete_by_query?conflicts=proceed
 {
@@ -357,12 +355,11 @@ POST twitter/_delete_by_query?conflicts=proceed
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Delete documents from multiple indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter,blog/_delete_by_query
 {
@@ -371,13 +368,12 @@ POST /twitter,blog/_delete_by_query
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
 
 Limit the delete by query operation to shards that a particular routing
 value: 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_delete_by_query?routing=1
 {
@@ -390,13 +386,12 @@ POST twitter/_delete_by_query?routing=1
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default `_delete_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_delete_by_query?scroll_size=5000
 {
@@ -407,7 +402,6 @@ POST twitter/_delete_by_query?scroll_size=5000
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -417,7 +411,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 Slice a delete by query manually by providing a slice id and total number of
 slices:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST twitter/_delete_by_query
 {
@@ -448,12 +442,11 @@ POST twitter/_delete_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 Which you can verify works with:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET _refresh
 POST twitter/_search?size=0&filter_path=hits.total
@@ -467,7 +460,6 @@ POST twitter/_search?size=0&filter_path=hits.total
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which results in a sensible `total` like this one:
@@ -492,7 +484,7 @@ You can also let delete-by-query automatically parallelize using
 <<sliced-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
 the number of slices to use:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST twitter/_delete_by_query?refresh&slices=5
 {
@@ -505,12 +497,11 @@ POST twitter/_delete_by_query?refresh&slices=5
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 Which you also can verify works with:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST twitter/_search?size=0&filter_path=hits.total
 {
@@ -523,7 +514,6 @@ POST twitter/_search?size=0&filter_path=hits.total
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which results in a sensible `total` like this one:
@@ -579,11 +569,10 @@ query takes effect immediately but rethrotting that slows down the query
 takes effect after completing the current batch to prevent scroll
 timeouts.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _delete_by_query/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
-// CONSOLE
 
 Use the <<tasks,tasks API>> to get the task ID. Set `requests_per_second`
 to any positive decimal value or `-1` to disable throttling.
@@ -594,11 +583,10 @@ Use the <<tasks,tasks API>> to get the status of a delete by query
 operation:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?detailed=true&actions=*/delete/byquery
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:No tasks to retrieve]
 
 The response looks like:
@@ -649,11 +637,10 @@ will finish when their sum is equal to the `total` field.
 
 With the task id you can look up the task directly:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -670,11 +657,10 @@ you to delete that document.
 
 Any delete by query can be canceled using the <<tasks,task cancel API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
-// CONSOLE
 
 The task ID can be found using the <<tasks,tasks API>>.
 

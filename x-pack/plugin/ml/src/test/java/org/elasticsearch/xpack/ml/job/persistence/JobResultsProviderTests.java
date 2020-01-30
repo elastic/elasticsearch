@@ -163,6 +163,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
         when(indexMetaData.getAliases()).thenReturn(aliases);
+        when(indexMetaData.getSettings()).thenReturn(Settings.EMPTY);
 
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder()
                 .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), indexMetaData).build();
@@ -1035,10 +1036,6 @@ public class JobResultsProviderTests extends ESTestCase {
         verify(client).threadPool();
         verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
-    }
-
-    private Bucket createBucketAtEpochTime(long epoch) {
-        return new Bucket("foo", new Date(epoch), 123);
     }
 
     private JobResultsProvider createProvider(Client client) {

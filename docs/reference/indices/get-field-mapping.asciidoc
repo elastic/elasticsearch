@@ -8,11 +8,10 @@ Retrieves <<mapping,mapping definitions>> for one or more fields. This is useful
 if you don't need the <<indices-get-mapping,complete mapping>> of an index or
 your index contains a large number of fields.
 
-[source,js]
+[source,console]
 ----
 GET /twitter/_mapping/field/user
 ----
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -62,7 +61,7 @@ You can provide field mappings when creating a new index. The following
 <<indices-create-index, create index>> API request creates the `publications`
 index with several field mappings.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /publications
 {
@@ -81,15 +80,13 @@ PUT /publications
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following returns the mapping of the field `title` only:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET publications/_mapping/field/title
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -119,11 +116,10 @@ The get mapping api allows you to specify a comma-separated list of fields.
 
 For instance to select the `id` of the `author` field, you must use its full name `author.id`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET publications/_mapping/field/author.id,abstract,name
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 returns:
@@ -156,11 +152,10 @@ returns:
 
 The get field mapping API also supports wildcard notation.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET publications/_mapping/field/a*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 returns:
@@ -209,7 +204,7 @@ following syntax: `host:port/<index>/_mapping/field/<field>` where
 get mappings for all indices you can use `_all` for `<index>`. The
 following are some examples:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter,kimchy/_mapping/field/message
 
@@ -217,6 +212,5 @@ GET /_all/_mapping/field/message,user.id
 
 GET /_all/_mapping/field/*.id
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT kimchy\nPUT book\n/]

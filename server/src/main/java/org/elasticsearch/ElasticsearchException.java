@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -283,6 +284,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
+            if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
+                // was SearchContextException
+                return new SearchException(input);
+            }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
         return elasticsearchException.apply(input);
@@ -636,7 +641,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
         }
-        return new ElasticsearchException[]{new ElasticsearchException(t.getMessage(), t) {
+        return new ElasticsearchException[]{new ElasticsearchException(ex.getMessage(), ex) {
             @Override
             protected String getExceptionName() {
                 return getExceptionName(getCause());
@@ -965,8 +970,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 TcpTransport.HttpRequestOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
-        SEARCH_CONTEXT_EXCEPTION(org.elasticsearch.search.SearchContextException.class,
-                org.elasticsearch.search.SearchContextException::new, 127, UNKNOWN_VERSION_ADDED),
+        // 127 used to be org.elasticsearch.search.SearchContextException
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.elasticsearch.search.builder.SearchSourceBuilderException.class,
                 org.elasticsearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException
@@ -1027,7 +1031,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.ShardNotInPrimaryModeException.class,
                 org.elasticsearch.index.shard.ShardNotInPrimaryModeException::new,
                 155,
-                Version.V_6_8_1);
+                Version.V_6_8_1),
+        RETENTION_LEASE_INVALID_RETAINING_SEQUENCE_NUMBER_EXCEPTION(
+                org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
+                org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
+                156,
+                Version.V_7_5_0),
+        INGEST_PROCESSOR_EXCEPTION(
+                org.elasticsearch.ingest.IngestProcessorException.class,
+                org.elasticsearch.ingest.IngestProcessorException::new,
+                157,
+                Version.V_7_5_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

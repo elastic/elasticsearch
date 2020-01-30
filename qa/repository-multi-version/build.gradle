@@ -1,0 +1,122 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+
+tasks.register("bwcTest") {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
+}
+
+dependencies {
+  testCompile project(':client:rest-high-level')
+}
+
+for (Version bwcVersion : bwcVersions.indexCompatible) {
+  String baseName = "v${bwcVersion}"
+  String oldClusterName = "${baseName}-old"
+  String newClusterName = "${baseName}-new"
+
+  def clusterSettings = { v ->
+    return {
+      version = v
+      numberOfNodes = 2
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      javaHome = BuildParams.runtimeJavaHome
+    }
+  }
+
+  testClusters {
+    "${oldClusterName}" clusterSettings(bwcVersion.toString())
+    "${newClusterName}" clusterSettings(project.version)
+  }
+
+  tasks.register("${baseName}#Step1OldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${oldClusterName}"
+    mustRunAfter(precommit)
+    doFirst {
+      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+    }
+    systemProperty 'tests.rest.suite', 'step1'
+  }
+
+  tasks.register("${baseName}#Step2NewClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${newClusterName}"
+    dependsOn "${baseName}#Step1OldClusterTest"
+    systemProperty 'tests.rest.suite', 'step2'
+  }
+
+  tasks.register("${baseName}#Step3OldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${oldClusterName}"
+    dependsOn "${baseName}#Step2NewClusterTest"
+    systemProperty 'tests.rest.suite', 'step3'
+  }
+
+  tasks.register("${baseName}#Step4NewClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${newClusterName}"
+    dependsOn "${baseName}#Step3OldClusterTest"
+    systemProperty 'tests.rest.suite', 'step4'
+  }
+
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${newClusterName}" : "${oldClusterName}"
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(
+      tasks.register("${baseName}#bwcTest") {
+        dependsOn tasks.named("${baseName}#Step4NewClusterTest")
+      }
+    )
+  }
+}
+
+task bwcTestSnapshots {
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
+      dependsOn "v${version}#bwcTest"
+    }
+  }
+}
+
+check.dependsOn(bwcTestSnapshots)
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}
+
+test.enabled = false

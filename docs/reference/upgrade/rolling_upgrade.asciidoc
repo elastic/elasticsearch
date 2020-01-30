@@ -7,6 +7,12 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
+It is best to upgrade the master-eligible nodes in your cluster after all of
+the other nodes. Once you have started to upgrade the master-eligible nodes
+they may form a cluster that nodes of older versions cannot join. If you
+upgrade the master-eligible nodes last then all the other nodes will not be
+running an older version and so they will be able to join the cluster.
+
 Rolling upgrades are supported:
 
 * Between minor versions
@@ -16,7 +22,12 @@ Rolling upgrades are supported:
 Upgrading directly to {version} from 6.7 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade from 6.8 to {version}:
+include::preparing_to_upgrade.asciidoc[]
+
+[float]
+=== Upgrading your cluster
+
+To perform a rolling upgrade to {version}:
 
 . *Disable shard allocation*.
 +
@@ -29,7 +40,7 @@ include::disable-shard-alloc.asciidoc[]
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<synced-flush-api, synced-flush>>.
+<<indices-synced-flush-api, synced-flush>>.
 
 include::synced-flush.asciidoc[]
 
@@ -52,6 +63,13 @@ include::shut-down-node.asciidoc[]
 --
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
+
+[[rolling-upgrades-bootstrapping]]
+NOTE: You should leave `cluster.initial_master_nodes` unset while performing a
+rolling upgrade. Each upgraded node is joining an existing cluster so there is
+no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>. You
+must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
+`discovery.seed_providers`>> on every node.
 --
 
 . *Upgrade any plugins.*
@@ -129,7 +147,7 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<synced-flush-api,sync-flushed>> might take longer to
+Shards that were not <<indices-synced-flush-api,sync-flushed>> might take longer to
 recover.  You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
@@ -147,7 +165,20 @@ recovery completes.
 --
 
 When  the node has recovered and the cluster is stable, repeat these steps
-for each node that needs to be updated.
+for each node that needs to be updated. You can monitor the health of the cluster
+with a <<cat-health,`_cat/health`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
+
+And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/nodes?h=ip,name,version&v
+--------------------------------------------------
 
 --
 

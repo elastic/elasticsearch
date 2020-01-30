@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -129,7 +129,8 @@ public class SamlRealmTests extends SamlTestCase {
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        final Settings settings = Settings.builder()
+        final Settings.Builder builder = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("xpack.security.http.ssl.certificate",
@@ -138,8 +139,11 @@ public class SamlRealmTests extends SamlTestCase {
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
             .put("path.home", createTempDir())
-            .setSecureSettings(mockSecureSettings)
-            .build();
+            .setSecureSettings(mockSecureSettings);
+        if (inFipsJvm()) {
+            builder.put("xpack.security.ssl.diagnose.trust", false);
+        }
+        final Settings settings = builder.build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
         try (MockWebServer proxyServer =
                      new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
@@ -698,7 +702,7 @@ public class SamlRealmTests extends SamlTestCase {
     private Settings.Builder buildSettings(String idpMetaDataPath) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
             .put(REALM_SETTINGS_PREFIX + ".ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
@@ -711,6 +715,10 @@ public class SamlRealmTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH + "ms")
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings);
+        if (inFipsJvm()) {
+            builder.put("xpack.security.ssl.diagnose.trust", false);
+        }
+        return builder;
     }
 
     private RealmConfig buildConfig(Settings realmSettings) {

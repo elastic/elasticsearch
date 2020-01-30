@@ -20,7 +20,7 @@ Retrieves the current {watcher} metrics.
 
 * You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
 this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 //[[watcher-api-stats-desc]]
 //==== {api-description-title}
@@ -80,11 +80,10 @@ the `metric` parameter.
 
 The following example calls the `stats` API to retrieve basic metrics:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure similar to the following example:
 
@@ -109,19 +108,17 @@ number of concurrent executing watches.
 The following example specifies the `metric` option as a query string argument
 and will include the basic metrics and metrics about the current executing watches:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats?metric=current_watches
 --------------------------------------------------
-// CONSOLE
 
 The following example specifies the `metric` option as part of the url path:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats/current_watches
 --------------------------------------------------
-// CONSOLE
 
 The following snippet shows an example of a successful JSON response that
 captures a watch in execution:
@@ -162,11 +159,10 @@ captures a watch in execution:
 The following example specifies the `queued_watches` metric option and includes
 both the basic metrics and the queued watches:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/stats/queued_watches
 --------------------------------------------------
-// CONSOLE
 
 An example of a successful JSON response that captures a watch in execution:
 

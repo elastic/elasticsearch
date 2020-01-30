@@ -57,7 +57,6 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.EOFException;
@@ -73,6 +72,7 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -156,6 +156,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         {
             final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(new IllegalArgumentException("foobar"));
+            assertEquals(foobars.length, 1);
+            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertEquals("foobar", foobars[0].getMessage());
+            assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
+            assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
+        }
+
+        {
+            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(
+                new RemoteTransportException("abc", new IllegalArgumentException("foobar")));
             assertEquals(foobars.length, 1);
             assertThat(foobars[0], instanceOf(ElasticsearchException.class));
             assertEquals("foobar", foobars[0].getMessage());
@@ -300,7 +310,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}");
         }
         {
-            ElasticsearchException e = new SearchParseException(new TestSearchContext(null), "foo", new XContentLocation(1,0));
+            ElasticsearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1,0));
             assertExceptionAsJson(e, "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}");
         }
         {
@@ -788,9 +798,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
 
                 expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
-                // strangely, the wrapped exception appears as the root cause...
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=broadcast_shard_operation_failed_exception, " +
-                        "reason=F]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 expected.addSuppressed(suppressed);
                 break;
 
@@ -920,7 +928,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
                 break;
             case 2:
-                actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
+                actual = new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98));
                 expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
                 break;
             case 3:

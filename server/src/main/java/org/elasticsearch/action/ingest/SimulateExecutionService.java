@@ -26,8 +26,10 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 
@@ -41,38 +43,46 @@ class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    SimulateDocumentResult executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose) {
+    void executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose,
+                         BiConsumer<SimulateDocumentResult, Exception> handler) {
         if (verbose) {
-            List<SimulateProcessorResult> processorResultList = new ArrayList<>();
+            List<SimulateProcessorResult> processorResultList = new CopyOnWriteArrayList<>();
             CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
-            try {
-                Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                    verbosePipelineProcessor);
-                ingestDocument.executePipeline(verbosePipeline);
-                return new SimulateDocumentVerboseResult(processorResultList);
-            } catch (Exception e) {
-                return new SimulateDocumentVerboseResult(processorResultList);
-            }
+            Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
+                verbosePipelineProcessor);
+            ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
+                handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);
+            });
         } else {
-            try {
-                IngestDocument result = pipeline.execute(ingestDocument);
-                return new SimulateDocumentBaseResult(result);
-            } catch (Exception e) {
-                return new SimulateDocumentBaseResult(e);
-            }
+            ingestDocument.executePipeline(pipeline, (result, e) -> {
+                if (e == null) {
+                    handler.accept(new SimulateDocumentBaseResult(result), null);
+                } else {
+                    handler.accept(new SimulateDocumentBaseResult(e), null);
+                }
+            });
         }
     }
 
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
-                List<SimulateDocumentResult> responses = new ArrayList<>();
-                for (IngestDocument ingestDocument : request.getDocuments()) {
-                    SimulateDocumentResult response = executeDocument(request.getPipeline(), ingestDocument, request.isVerbose());
+            final AtomicInteger counter = new AtomicInteger();
+            final List<SimulateDocumentResult> responses =
+                new CopyOnWriteArrayList<>(new SimulateDocumentBaseResult[request.getDocuments().size()]);
+            int iter = 0;
+            for (IngestDocument ingestDocument : request.getDocuments()) {
+                final int index = iter;
+                executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
                     if (response != null) {
-                        responses.add(response);
+                        responses.set(index, response);
                     }
-                }
-                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
+                    if (counter.incrementAndGet() == request.getDocuments().size()) {
+                        listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
+                            request.isVerbose(), responses));
+                    }
+                });
+                iter++;
+            }
         }));
     }
 }

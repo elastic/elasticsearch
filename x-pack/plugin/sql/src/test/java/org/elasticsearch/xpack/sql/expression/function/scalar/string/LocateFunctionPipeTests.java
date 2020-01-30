@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.Combinations;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.Combinations;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -18,10 +18,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunctionPipe, Pipe> {
 
@@ -75,24 +75,23 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
         LocateFunctionPipe b = randomInstance();
         Pipe newPattern = pipe(((Expression) randomValueOtherThan(b.pattern(), () -> randomStringLiteral())));
         Pipe newSource = pipe(((Expression) randomValueOtherThan(b.source(), () -> randomStringLiteral())));
-        Pipe newStart;
+        Pipe newStart = b.start() == null ? null : pipe(((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral())));
         
-        LocateFunctionPipe newB = new LocateFunctionPipe(
-                b.source(), b.expression(), b.pattern(), b.src(), b.start());
-        newStart = pipe(((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral())));
+        LocateFunctionPipe newB = new LocateFunctionPipe(b.source(), b.expression(), b.pattern(), b.src(), b.start());
         LocateFunctionPipe transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
+                Pipe tempNewStart = b.start() == null ? b.start() : (comb.get(2) ? newStart : b.start());
                 transformed = (LocateFunctionPipe) newB.replaceChildren(
                         comb.get(0) ? newPattern : b.pattern(),
                         comb.get(1) ? newSource : b.src(),
-                        comb.get(2) ? newStart : b.start());
+                        tempNewStart);
                 
                 assertEquals(transformed.pattern(), comb.get(0) ? newPattern : b.pattern());
                 assertEquals(transformed.src(), comb.get(1) ? newSource : b.src());
-                assertEquals(transformed.start(), comb.get(2) ? newStart : b.start());
+                assertEquals(transformed.start(), tempNewStart);
                 assertEquals(transformed.expression(), b.expression());
                 assertEquals(transformed.source(), b.source());
             }

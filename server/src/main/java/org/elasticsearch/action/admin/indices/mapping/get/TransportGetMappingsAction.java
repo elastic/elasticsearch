@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
@@ -38,6 +40,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetMappingsAction.class);
 
     private final IndicesService indicesService;
 

@@ -243,19 +243,16 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testNodeSelector() throws Exception {
-        NodeSelector firstPositionOnly = new NodeSelector() {
-            @Override
-            public void select(Iterable<Node> restClientNodes) {
-                boolean found = false;
-                for (Iterator<Node> itr = restClientNodes.iterator(); itr.hasNext();) {
-                    if (nodes.get(0) == itr.next()) {
-                        found = true;
-                    } else {
-                        itr.remove();
-                    }
+        NodeSelector firstPositionOnly = restClientNodes -> {
+            boolean found = false;
+            for (Iterator<Node> itr = restClientNodes.iterator(); itr.hasNext();) {
+                if (nodes.get(0) == itr.next()) {
+                    found = true;
+                } else {
+                    itr.remove();
                 }
-                assertTrue(found);
             }
+            assertTrue(found);
         };
         RestClient restClient = createRestClient(firstPositionOnly);
         int rounds = between(1, 10);

@@ -9,6 +9,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -60,13 +61,15 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             final String id = Long.toString(i);
             SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", id,
                 new BytesArray("{}"), XContentType.JSON);
-            indexShard.applyIndexOperationOnReplica(++seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            indexShard.applyIndexOperationOnReplica(++seqNo, indexShard.getOperationPrimaryTerm(), 1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
         SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", "9",
             new BytesArray("{}"), XContentType.JSON);
-        indexShard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+        indexShard.applyIndexOperationOnReplica(seqNo, indexShard.getOperationPrimaryTerm(), 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false, sourceToParse);
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();
@@ -125,11 +128,12 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(Store store, SnapshotId snapshotId,
-                                     Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-                try {
+            public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                                     RecoveryState recoveryState, ActionListener<Void> listener) {
+                ActionListener.completeWith(listener, () -> {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
                         if (file.equals("write.lock") || file.startsWith("extra")) {
@@ -137,11 +141,11 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
-                } catch (Exception ex) {
-                    throw new RuntimeException(ex);
-                }
+                    return null;
+                });
             }
-        }));
+        }, future);
+        assertTrue(future.actionGet());
         assertThat(target.getLocalCheckpoint(), equalTo(0L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));

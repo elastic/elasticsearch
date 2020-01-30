@@ -53,7 +53,7 @@ GET /_search
 The aggregation type is `matrix_stats` and the `fields` setting defines the set of fields (as an array) for computing
 the statistics. The above request returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

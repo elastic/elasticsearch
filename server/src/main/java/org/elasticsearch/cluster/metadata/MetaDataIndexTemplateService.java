@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -55,7 +56,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -196,19 +199,61 @@ public class MetaDataIndexTemplateService {
     }
 
     /**
-     * Finds index templates whose index pattern matched with the given index name.
-     * The result is sorted by {@link IndexTemplateMetaData#order} descending.
+     * Finds index templates whose index pattern matched with the given index name. In the case of
+     * hidden indices, a template with a match all pattern or global template will not be returned.
+     *
+     * @param metaData The {@link MetaData} containing all of the {@link IndexTemplateMetaData} values
+     * @param indexName The name of the index that templates are being found for
+     * @param isHidden Whether or not the index is known to be hidden. May be {@code null} if the index
+     *                 being hidden has not been explicitly requested. When {@code null} if the result
+     *                 of template application results in a hidden index, then global templates will
+     *                 not be returned
+     * @return a list of templates sorted by {@link IndexTemplateMetaData#order()} descending.
+     *
      */
-    public static List<IndexTemplateMetaData> findTemplates(MetaData metaData, String indexName) {
+    public static List<IndexTemplateMetaData> findTemplates(MetaData metaData, String indexName, @Nullable Boolean isHidden) {
+        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final List<IndexTemplateMetaData> matchedTemplates = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
             final IndexTemplateMetaData template = cursor.value;
-            final boolean matched = template.patterns().stream().anyMatch(pattern -> Regex.simpleMatch(pattern, indexName));
-            if (matched) {
-                matchedTemplates.add(template);
+            if (isHidden == null || isHidden == Boolean.FALSE) {
+                final boolean matched = template.patterns().stream().anyMatch(patternMatchPredicate);
+                if (matched) {
+                    matchedTemplates.add(template);
+                }
+            } else {
+                assert isHidden == Boolean.TRUE;
+                final boolean isNotMatchAllTemplate = template.patterns().stream().noneMatch(Regex::isMatchAllPattern);
+                if (isNotMatchAllTemplate) {
+                    if (template.patterns().stream().anyMatch(patternMatchPredicate)) {
+                        matchedTemplates.add(template);
+                    }
+                }
             }
         }
         CollectionUtil.timSort(matchedTemplates, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
+
+        // this is complex but if the index is not hidden in the create request but is hidden as the result of template application,
+        // then we need to exclude global templates
+        if (isHidden == null) {
+            final Optional<IndexTemplateMetaData> templateWithHiddenSetting = matchedTemplates.stream()
+                .filter(template -> IndexMetaData.INDEX_HIDDEN_SETTING.exists(template.settings())).findFirst();
+            if (templateWithHiddenSetting.isPresent()) {
+                final boolean templatedIsHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(templateWithHiddenSetting.get().settings());
+                if (templatedIsHidden) {
+                    // remove the global templates
+                    matchedTemplates.removeIf(current -> current.patterns().stream().anyMatch(Regex::isMatchAllPattern));
+                }
+                // validate that hidden didn't change
+                final Optional<IndexTemplateMetaData> templateWithHiddenSettingPostRemoval = matchedTemplates.stream()
+                    .filter(template -> IndexMetaData.INDEX_HIDDEN_SETTING.exists(template.settings())).findFirst();
+                if (templateWithHiddenSettingPostRemoval.isPresent() == false ||
+                    templateWithHiddenSetting.get() != templateWithHiddenSettingPostRemoval.get()) {
+                    throw new IllegalStateException("A global index template [" + templateWithHiddenSetting.get().name() +
+                        "] defined the index hidden setting, which is not allowed");
+                }
+            }
+        }
         return matchedTemplates;
     }
 
@@ -232,7 +277,7 @@ public class MetaDataIndexTemplateService {
                 .build();
 
             final IndexMetaData tmpIndexMetadata = IndexMetaData.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList());
+            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);
@@ -304,6 +349,13 @@ public class MetaDataIndexTemplateService {
         }
         List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings, true);
         validationErrors.addAll(indexSettingsValidation);
+
+        if (request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
+            if (IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings)) {
+                validationErrors.add("global templates may not specify the setting " + IndexMetaData.INDEX_HIDDEN_SETTING.getKey());
+            }
+        }
+
         if (!validationErrors.isEmpty()) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);

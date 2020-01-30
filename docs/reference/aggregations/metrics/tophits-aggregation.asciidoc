@@ -67,7 +67,7 @@ POST /sales/_search?size=0
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...
@@ -310,7 +310,7 @@ POST /sales/_search
 
 Top hits response snippet with a nested hit, which resides in the first slot of array field `comments`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...
@@ -355,6 +355,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
+
 <1> Name of the array field containing the nested hit
 <2> Position if the nested hit in the containing array
 <3> Source of the nested hit

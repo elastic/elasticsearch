@@ -81,6 +81,18 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(src, service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion())); // no double upgrade
     }
 
+    public void testUpgradeCustomSimilarity() {
+        MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
+        IndexMetaData src = newIndexMeta("foo",
+            Settings.builder()
+                .put("index.similarity.my_similarity.type", "DFR")
+                .put("index.similarity.my_similarity.after_effect", "l")
+                .build());
+        assertFalse(service.isUpgraded(src));
+        src = service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        assertTrue(service.isUpgraded(src));
+    }
+
     public void testIsUpgraded() {
         MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
@@ -116,44 +128,12 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         service.upgradeIndexMetaData(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
-    public void testPluginUpgrade() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.singletonList(
-                        indexMetaData -> IndexMetaData.builder(indexMetaData).settings(
-                            Settings.builder()
-                                .put(indexMetaData.getSettings())
-                                .put("index.refresh_interval", "10s")
-                        ).build()));
-        IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "200s").build());
-        assertFalse(service.isUpgraded(src));
-        src = service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion());
-        assertTrue(service.isUpgraded(src));
-        assertEquals("10s", src.getSettings().get("index.refresh_interval"));
-        assertSame(src, service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion())); // no double upgrade
-    }
-
-    public void testPluginUpgradeFailure() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.singletonList(
-                    indexMetaData -> {
-                        throw new IllegalStateException("Cannot upgrade index " + indexMetaData.getIndex().getName());
-                    }
-                ));
-        IndexMetaData src = newIndexMeta("foo", Settings.EMPTY);
-        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(src,
-            Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "Cannot upgrade index foo");
-    }
-
     private MetaDataIndexUpgradeService getMetaDataIndexUpgradeService() {
         return new MetaDataIndexUpgradeService(
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            Collections.emptyList());
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {

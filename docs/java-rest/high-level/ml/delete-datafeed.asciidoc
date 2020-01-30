@@ -3,6 +3,7 @@
 :request: DeleteDatafeedRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-delete-datafeed"]
 === Delete datafeed API
 

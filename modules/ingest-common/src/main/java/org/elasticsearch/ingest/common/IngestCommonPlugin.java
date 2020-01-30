@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
-import org.elasticsearch.grok.ThreadWatchdog;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
@@ -88,6 +88,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(DissectProcessor.TYPE, new DissectProcessor.Factory());
         processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
         processors.put(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory());
+        processors.put(CsvProcessor.TYPE, new CsvProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 
@@ -109,10 +110,10 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
     }
 
-    private static ThreadWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
+    private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
         long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
         long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
-        return ThreadWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis,
+        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis,
             parameters.relativeTimeSupplier, parameters.scheduler::apply);
     }
 

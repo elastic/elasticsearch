@@ -67,7 +67,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,
@@ -165,7 +165,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 50,
@@ -259,7 +259,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 50,
@@ -309,5 +309,6 @@ And the following may be the response:
 // TESTRESPONSE[s/"took": 50/"took": $body.took/]
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
 <1> `value` is reported in the original units of 'per month'
 <2> `normalized_value` is reported in the desired units of 'per day'

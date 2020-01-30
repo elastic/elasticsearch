@@ -15,7 +15,7 @@ except you can search for multiple values.
 The following search returns documents where the `user` field contains `kimchy`
 or `elasticsearch`.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -27,7 +27,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[terms-top-level-params]]
 ==== Top-level parameters for `terms`
@@ -124,7 +123,7 @@ To see how terms lookup works, try the following example.
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index
 {
@@ -135,7 +134,6 @@ PUT my_index
     }
 }
 ----
-// CONSOLE
 --
 
 . Index a document with an ID of 1 and values of `["blue", "green"]` in the
@@ -143,14 +141,13 @@ PUT my_index
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index/_doc/1
 {
   "color":   ["blue", "green"]
 }
 ----
-// CONSOLE
 // TEST[continued]
 --
 
@@ -159,14 +156,13 @@ field.
 +
 --
 
-[source,js]
+[source,console]
 ----
 PUT my_index/_doc/2
 {
   "color":   "blue"
 }
 ----
-// CONSOLE
 // TEST[continued]
 --
 
@@ -178,16 +174,15 @@ parameter so the response is more readable.
 
 ////
 
-[source,js]
+[source,console]
 ----
 POST my_index/_refresh
 ----
-// CONSOLE
 // TEST[continued]
 
 ////
 
-[source,js]
+[source,console]
 ----
 GET my_index/_search?pretty
 {
@@ -202,13 +197,12 @@ GET my_index/_search?pretty
   }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 Because document 2 and document 1 both contain `blue` as a value in the `color`
 field, {es} returns both documents.
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 17,

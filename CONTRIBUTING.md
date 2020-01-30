@@ -92,34 +92,35 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 12 is required to build Elasticsearch. You must have a JDK 12 installation
+JDK 13 is required to build Elasticsearch. You must have a JDK 13 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 12 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 13 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 8, the build supports compiling with
-JDK 12 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 13 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` 
+script on Windows in the root of the repository. The examples below show the
+usage on Unix.
 
-We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
-minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
-IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in the Eclipse and IntelliJ IDEs.
+For Eclipse, the minimum version that we support is [4.13][eclipse].
+For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
-option `Search for nested projects`. Additionally you will want to
-ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
-accordingly to avoid GC overhead errors.
+then `File: Import: Gradle : Existing Gradle Project`.
+Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying
+`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
 
 IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
@@ -152,30 +153,133 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+Some tests related to locale testing also require the flag 
+`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
+IntelliJ or Eclipse like describe above to use 
+`-Djava.locale.providers=SPI,COMPAT`.
 
 ### Java Language Formatting Guidelines
+
+Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
+formatter, using the [Spotless
+Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
+plugin. This plugin is configured on a project-by-project basis, via
+`build.gradle` in the root of the repository. So long as at least one
+project is configured, the formatting check can be run explicitly with:
+
+    ./gradlew spotlessJavaCheck
+
+The code can be formatted with:
+
+    ./gradlew spotlessApply
+
+These tasks can also be run for specific subprojects, e.g.
+
+    ./gradlew server:spotlessJavaCheck
 
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Lines of code surrounded by `// tag` and `// end` comments are included in the
-documentation and should only be 76 characters wide not counting
-leading indentation
-* The rest is left to Java coding standards
-* Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
- * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
-* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
+* Lines of code surrounded by `// tag::NAME` and `// end::NAME` comments are included
+  in the documentation and should only be 76 characters wide not counting
+  leading indentation. Such regions of code are not formatted automatically as
+  it is not possible to change the line length rule of the formatter for
+  part of a file. Please format such sections sympathetically with the rest
+  of the code, while keeping lines to maximum length of 76 characters.
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
+  the build to fail. This can be done automatically by your IDE:
+   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
+     two boxes labeled "`Number of (static )? imports needed for .*`". Set
+     their values to 99999 or some other absurdly high value.
+   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
+     There are two configuration options: `Class count to use import with
+     '*'` and `Names count to use static import with '*'`. Set their values
+     to 99999 or some other absurdly high value.
+* If *absolutely* necessary, you can disable formatting for regions of code
+  with the `// tag::NAME` and `// end::NAME` directives, but note that
+  these are intended for use in documentation, so please make it clear what
+  you have done, and only do this where the benefit clearly outweighs the
+  decrease in consistency.
+* Note that JavaDoc and block comments i.e. `/* ... */` are not formatted,
+  but line comments i.e `// ...` are.
+* There is an implicit rule that negative boolean expressions should use
+  the form `foo == false` instead of `!foo` for better readability of the
+  code. While this isn't strictly enforced, if might get called out in PR
+  reviews as something to change.
+
+#### Editor / IDE Support
+
+Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
+directly.
+
+IntelliJ IDEs can
+[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
+the same settings file, and / or use the [Eclipse Code
+Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+plugin.
+
+You can also tell Spotless to [format a specific
+file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+from the command line.
+
+#### Formatting failures
+
+Sometimes Spotless will report a "misbehaving rule which can't make up its
+mind" and will recommend enabling the `paddedCell()` setting. If you
+enabled this settings and run the format check again,
+Spotless will write files to
+`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+different copies of the formatted files, so that you can see how they
+differ and infer what is the problem.
+
+The `paddedCell()` option is disabled for normal operation in order to
+detect any misbehaviour. You can enabled the option from the command line
+by running Gradle with `-Dspotless.paddedcell`.
 
 ### License Headers
 
-We require license headers on all Java files. You will notice that all the Java files in
-the top-level `x-pack` directory contain a separate license from the rest of the repository. This
-directory contains commercial code that is associated with a separate license. It can be helpful
-to have the IDE automatically insert the appropriate license header depending which part of the project
-contributions are made to.
+We require license headers on all Java files. With the exception of the
+top-level `x-pack` directory, all contributed code should have the following
+license header unless instructed otherwise:
+
+    /*
+     * Licensed to Elasticsearch under one or more contributor
+     * license agreements. See the NOTICE file distributed with
+     * this work for additional information regarding copyright
+     * ownership. Elasticsearch licenses this file to you under
+     * the Apache License, Version 2.0 (the "License"); you may
+     * not use this file except in compliance with the License.
+     * You may obtain a copy of the License at
+     *
+     *    http://www.apache.org/licenses/LICENSE-2.0
+     *
+     * Unless required by applicable law or agreed to in writing,
+     * software distributed under the License is distributed on an
+     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     * KIND, either express or implied.  See the License for the
+     * specific language governing permissions and limitations
+     * under the License.
+     */
+
+The top-level `x-pack` directory contains code covered by the [Elastic
+license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+welcome, and should have the following license header unless instructed
+otherwise:
+
+    /*
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License;
+     * you may not use this file except in compliance with the Elastic License.
+     */
+
+It is important that the only code covered by the Elastic licence is contained
+within the top-level `x-pack` directory. The build will fail its pre-commit
+checks if contributed code does not have the appropriate license headers.
+
+You may find it helpful to configure your IDE to automatically insert the
+appropriate license header depending on the part of the project to which you are
+contributing.
 
 #### IntelliJ: Copyright & Scope Profiles
 
@@ -389,6 +493,6 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
+[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow

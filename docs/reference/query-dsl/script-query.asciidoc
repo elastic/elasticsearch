@@ -11,7 +11,7 @@ Filters documents based on a provided <<modules-scripting-using,script>>. The
 [[script-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -29,7 +29,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 
 [[script-top-level-params]]
@@ -49,7 +48,7 @@ Like <<query-filter-context,filters>>, scripts are cached for faster execution.
 If you frequently change the arguments of a script, we recommend you store them
 in the script's `params` parameter. For example:
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -70,4 +69,3 @@ GET /_search
     }
 }
 ----
-// CONSOLE

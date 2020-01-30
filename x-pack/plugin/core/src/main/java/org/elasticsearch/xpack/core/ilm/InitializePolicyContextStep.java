@@ -10,8 +10,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
+import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
@@ -22,7 +25,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
 
-    public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
+    InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 
@@ -34,19 +37,39 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             // Index must have been since deleted, ignore it
             return clusterState;
         }
+
         LifecycleExecutionState lifecycleState = LifecycleExecutionState
             .fromIndexMetadata(indexMetaData);
+
         if (lifecycleState.getLifecycleDate() != null) {
             return clusterState;
+        }
+
+        IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
+        if (shouldParseIndexName(indexMetaData.getSettings())) {
+            long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
+            indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                .settings(Settings.builder()
+                    .put(indexMetaData.getSettings())
+                    .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                    .build()
+                );
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
-        newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
-            .builder(indexMetaData)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
+
+        newClusterStateBuilder.metaData(
+            MetaData.builder(clusterState.getMetaData()).put(indexMetadataBuilder)
+        );
         return newClusterStateBuilder.build();
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 }

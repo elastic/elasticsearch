@@ -22,7 +22,9 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -159,8 +161,11 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     private final RollupJob job;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
-    private final RollupIndexer indexer;
-    private AtomicBoolean upgradedDocumentID;
+    private final Client client;
+    private final IndexerState initialIndexerState;
+    private final Map<String, Object> initialPosition;
+    private RollupIndexer indexer;
+    private final AtomicBoolean upgradedDocumentID = new AtomicBoolean(false);
 
     RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus state,
                   Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
@@ -168,35 +173,15 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
-
-        // We can assume the new ID scheme only for new jobs
-        this.upgradedDocumentID = new AtomicBoolean(true);
-
-        // If status is not null, we are resuming rather than starting fresh.
-        Map<String, Object> initialPosition = null;
-        IndexerState initialState = IndexerState.STOPPED;
-        if (state != null) {
-            final IndexerState existingState = state.getIndexerState();
-            logger.debug("We have existing state, setting state to [" + existingState + "] " +
-                    "and current position to [" + state.getPosition() + "] for job [" + job.getConfig().getId() + "]");
-            if (existingState.equals(IndexerState.INDEXING)) {
-                /*
-                 * If we were indexing, we have to reset back to STARTED otherwise the indexer will be "stuck" thinking
-                 * it is indexing but without the actual indexing thread running.
-                 */
-                initialState = IndexerState.STARTED;
-
-            } else if (existingState.equals(IndexerState.ABORTING) || existingState.equals(IndexerState.STOPPING)) {
-                // It shouldn't be possible to persist ABORTING, but if for some reason it does,
-                // play it safe and restore the job as STOPPED.  An admin will have to clean it up,
-                // but it won't be running, and won't delete itself either.  Safest option.
-                // If we were STOPPING, that means it persisted but was killed before finally stopped... so ok
-                // to restore as STOPPED
-                initialState = IndexerState.STOPPED;
-            } else  {
-                initialState = existingState;
-            }
-            initialPosition = state.getPosition();
+        this.client = client;
+        if (state == null) {
+            this.initialIndexerState = null;
+            this.initialPosition = null;
+            // We can assume the new ID scheme only for new jobs
+            this.upgradedDocumentID.set(true);
+        } else {
+            this.initialIndexerState = state.getIndexerState();
+            this.initialPosition = state.getPosition();
 
             // Since we have state, we are resuming a job/checkpoint.  Although we are resuming
             // from something that was checkpointed, we can't guarantee it was the _final_ checkpoint
@@ -207,8 +192,39 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
             // be true if it actually finished a full checkpoint.
             this.upgradedDocumentID.set(state.isUpgradedDocumentID());
         }
+
+    }
+
+    @Override
+    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
+                        String persistentTaskId, long allocationId) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
+
+        // If status is not null, we are resuming rather than starting fresh.
+        IndexerState initialState = IndexerState.STOPPED;
+        if (initialIndexerState != null) {
+            logger.debug("We have existing state, setting state to [" + initialIndexerState + "] " +
+                    "and current position to [" + initialIndexerState + "] for job [" + job.getConfig().getId() + "]");
+            if (initialIndexerState.equals(IndexerState.INDEXING)) {
+                /*
+                 * If we were indexing, we have to reset back to STARTED otherwise the indexer will be "stuck" thinking
+                 * it is indexing but without the actual indexing thread running.
+                 */
+                initialState = IndexerState.STARTED;
+
+            } else if (initialIndexerState.equals(IndexerState.ABORTING) || initialIndexerState.equals(IndexerState.STOPPING)) {
+                // It shouldn't be possible to persist ABORTING, but if for some reason it does,
+                // play it safe and restore the job as STOPPED.  An admin will have to clean it up,
+                // but it won't be running, and won't delete itself either.  Safest option.
+                // If we were STOPPING, that means it persisted but was killed before finally stopped... so ok
+                // to restore as STOPPED
+                initialState = IndexerState.STOPPED;
+            } else  {
+                initialState = initialIndexerState;
+            }
+        }
         this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,
-                new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())), upgradedDocumentID);
+                new ParentTaskAssigningClient(client, getParentTaskId()), upgradedDocumentID);
     }
 
     @Override

@@ -56,6 +56,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
+        when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
         SearchContext context = new TestSearchContext(queryShardContext, indexShard);
 
         Map<String, QueryBuilder> filters = new HashMap<>(3);
@@ -66,8 +67,8 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
             filters.put("filter" + i, queryBuilder);
         }
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
-        IllegalArgumentException ex
-            = expectThrows(IllegalArgumentException.class, () -> builder.doBuild(context, null, new AggregatorFactories.Builder()));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> builder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder()));
         assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: [2] but was [3]."
             + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
             + "] index level setting."));
@@ -76,7 +77,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();
 
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder("dummy", emptyFilters);
-        AggregatorFactory factory = aggregationBuilder.doBuild(context, null, new AggregatorFactories.Builder());
+        AggregatorFactory factory = aggregationBuilder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
         assertWarnings("[index.max_adjacency_matrix_filters] setting was deprecated in Elasticsearch and will be "

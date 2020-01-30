@@ -19,12 +19,13 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
@@ -67,15 +68,17 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
     public void testExecuteSuccessfullyMoved() throws IOException {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
+        StepKey nextStepKey = new StepKey("next-phase", "next-action", "next-step-name");
         long now = randomNonNegativeLong();
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
 
         setStateToKey(currentStepKey);
 
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey), state -> {});
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
         assertThat(lifecycleState.getFailedStep(), equalTo(currentStepKey.getName()));
         assertThat(lifecycleState.getPhaseTime(), nullValue());
@@ -97,7 +100,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(notCurrentStepKey);
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -108,7 +112,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -120,7 +125,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
         setStateToKey(currentStepKey);
 
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         Exception expectedException = new RuntimeException();
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> task.onFailure(randomAlphaOfLength(10), expectedException));
@@ -134,7 +140,6 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
             .metaData(MetaData.builder(clusterState.metaData())
                 .updateSettings(Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())).build();
-
     }
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(

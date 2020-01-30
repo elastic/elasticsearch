@@ -34,6 +34,7 @@ public class EvilSystemPropertyTests extends ESTestCase {
             .build();
         OperationRouting routing = new OperationRouting(indexSettings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        assertWarnings(OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
         assertThat(routing.getAwarenessAttributes().size(), equalTo(1));
         assertThat(routing.getAwarenessAttributes().get(0), equalTo("test"));
         System.setProperty("es.search.ignore_awareness_attributes", "true");

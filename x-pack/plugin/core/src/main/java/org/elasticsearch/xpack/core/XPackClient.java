@@ -17,6 +17,7 @@ import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
+import org.elasticsearch.xpack.core.enrich.client.EnrichClient;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.ilm.client.ILMClient;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
@@ -43,6 +44,7 @@ public class XPackClient {
     private final WatcherClient watcherClient;
     private final MachineLearningClient machineLearning;
     private final ILMClient ilmClient;
+    private final EnrichClient enrichClient;
 
     public XPackClient(Client client) {
         this.client = Objects.requireNonNull(client, "client");
@@ -53,6 +55,7 @@ public class XPackClient {
         this.watcherClient = new WatcherClient(client);
         this.machineLearning = new MachineLearningClient(client);
         this.ilmClient = new ILMClient(client);
+        this.enrichClient = new EnrichClient(client);
     }
 
     public Client es() {
@@ -85,6 +88,10 @@ public class XPackClient {
 
     public ILMClient ilmClient() {
         return ilmClient;
+    }
+
+    public EnrichClient enrichClient() {
+        return enrichClient;
     }
 
     public XPackClient withHeaders(Map<String, String> headers) {

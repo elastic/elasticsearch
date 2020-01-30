@@ -47,7 +47,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
         allGens.add(readersAndWriter.v2());
         try {
-            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, 0, 0);
+            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, 0, 0, 0);
             assertMinGenRequired(deletionPolicy, readersAndWriter, 1L);
             final int committedReader = randomIntBetween(0, allGens.size() - 1);
             final long committedGen = allGens.get(committedReader).generation;
@@ -98,6 +98,25 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         }
     }
 
+    public void testTotalFilesRetention() throws Exception {
+        Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter = createReadersAndWriter(System.currentTimeMillis());
+        List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
+        allGens.add(readersAndWriter.v2());
+        try {
+            assertThat(TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(),
+                randomIntBetween(Integer.MIN_VALUE, 1)), equalTo(readersAndWriter.v2().generation));
+            assertThat(TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(),
+                randomIntBetween(allGens.size(), Integer.MAX_VALUE)), equalTo(allGens.get(0).generation));
+            int numFiles = randomIntBetween(1, allGens.size());
+            long selectedGeneration = allGens.get(allGens.size() - numFiles).generation;
+            assertThat(TranslogDeletionPolicy.getMinTranslogGenByTotalFiles(readersAndWriter.v1(), readersAndWriter.v2(), numFiles),
+                equalTo(selectedGeneration));
+        } finally {
+            IOUtils.close(readersAndWriter.v1());
+            IOUtils.close(readersAndWriter.v2());
+        }
+    }
+
     /**
      * Tests that age trumps size but recovery trumps both.
      */
@@ -107,7 +126,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         List<BaseTranslogReader> allGens = new ArrayList<>(readersAndWriter.v1());
         allGens.add(readersAndWriter.v2());
         try {
-            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, Long.MAX_VALUE, Long.MAX_VALUE);
+            TranslogDeletionPolicy deletionPolicy = new MockDeletionPolicy(now, Long.MAX_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE);
             deletionPolicy.setTranslogGenerationOfLastCommit(Long.MAX_VALUE);
             deletionPolicy.setMinTranslogGenerationForRecovery(Long.MAX_VALUE);
             int selectedReader = randomIntBetween(0, allGens.size() - 1);
@@ -116,32 +135,40 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGenerationBySize = allGens.get(selectedReader).generation;
             long size = allGens.stream().skip(selectedReader).map(BaseTranslogReader::sizeInBytes).reduce(Long::sum).get();
+            selectedReader = randomIntBetween(0, allGens.size() - 1);
+            final long selectedGenerationByTotalFiles = allGens.get(selectedReader).generation;
             deletionPolicy.setRetentionAgeInMillis(maxAge);
             deletionPolicy.setRetentionSizeInBytes(size);
-            assertMinGenRequired(deletionPolicy, readersAndWriter, Math.max(selectedGenerationByAge, selectedGenerationBySize));
+            final int totalFiles = allGens.size() - selectedReader;
+            deletionPolicy.setRetentionTotalFiles(totalFiles);
+            assertMinGenRequired(deletionPolicy, readersAndWriter,
+                max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles));
             // make a new policy as committed gen can't go backwards (for now)
-            deletionPolicy = new MockDeletionPolicy(now, size, maxAge);
+            deletionPolicy = new MockDeletionPolicy(now, size, maxAge, totalFiles);
             long committedGen = randomFrom(allGens).generation;
             deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGen, Long.MAX_VALUE));
             deletionPolicy.setMinTranslogGenerationForRecovery(committedGen);
-            assertMinGenRequired(deletionPolicy, readersAndWriter,
-                Math.min(committedGen, Math.max(selectedGenerationByAge, selectedGenerationBySize)));
+            assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(committedGen,
+                max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles)));
             long viewGen = randomFrom(allGens).generation;
             try (Releasable ignored = deletionPolicy.acquireTranslogGen(viewGen)) {
                 assertMinGenRequired(deletionPolicy, readersAndWriter,
-                    Math.min(
-                        Math.min(committedGen, viewGen),
-                        Math.max(selectedGenerationByAge, selectedGenerationBySize)));
+                    min3(committedGen, viewGen, max3(selectedGenerationByAge, selectedGenerationBySize, selectedGenerationByTotalFiles)));
                 // disable age
                 deletionPolicy.setRetentionAgeInMillis(-1);
-                assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationBySize));
+                assertMinGenRequired(deletionPolicy, readersAndWriter,
+                    min3(committedGen, viewGen, Math.max(selectedGenerationBySize, selectedGenerationByTotalFiles)));
                 // disable size
                 deletionPolicy.setRetentionAgeInMillis(maxAge);
                 deletionPolicy.setRetentionSizeInBytes(-1);
-                assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationByAge));
-                // disable both
+                assertMinGenRequired(deletionPolicy, readersAndWriter,
+                    min3(committedGen, viewGen, Math.max(selectedGenerationByAge, selectedGenerationByTotalFiles)));
+                // disable age and zie
                 deletionPolicy.setRetentionAgeInMillis(-1);
                 deletionPolicy.setRetentionSizeInBytes(-1);
+                assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(committedGen, viewGen));
+                // disable total files
+                deletionPolicy.setRetentionTotalFiles(0);
                 assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(committedGen, viewGen));
             }
         } finally {
@@ -191,8 +218,8 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
 
         long now;
 
-        MockDeletionPolicy(long now, long retentionSizeInBytes, long maxRetentionAgeInMillis) {
-            super(retentionSizeInBytes, maxRetentionAgeInMillis);
+        MockDeletionPolicy(long now, long retentionSizeInBytes, long maxRetentionAgeInMillis, int maxRetentionTotalFiles) {
+            super(retentionSizeInBytes, maxRetentionAgeInMillis, maxRetentionTotalFiles);
             this.now = now;
         }
 
@@ -200,5 +227,13 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         protected long currentTime() {
             return now;
         }
+    }
+
+    private static long max3(long x1, long x2, long x3) {
+        return Math.max(Math.max(x1, x2), x3);
+    }
+
+    private static long min3(long x1, long x2, long x3) {
+        return Math.min(Math.min(x1, x2), x3);
     }
 }

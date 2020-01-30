@@ -19,8 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import static org.junit.Assert.assertTrue;
 
 public class Packages {
 
-    private static final Log logger = LogFactory.getLog(Packages.class);
+    private static final Logger logger =  LogManager.getLogger(Packages.class);
 
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
@@ -94,8 +94,7 @@ public class Packages {
         return result;
     }
 
-    public static Installation installPackage(Distribution distribution) throws IOException {
-        Shell sh = new Shell();
+    public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("JAVA_HOME", systemJavaHome);
@@ -105,7 +104,7 @@ public class Packages {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
 
-        Installation installation = Installation.ofPackage(distribution.packaging);
+        Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
@@ -114,7 +113,7 @@ public class Packages {
         return installation;
     }
 
-    public static Result runInstallCommand(Distribution distribution, Shell sh) {
+    private static Result runInstallCommand(Distribution distribution, Shell sh) {
         final Path distributionFile = distribution.path;
 
         if (Platforms.isRPM()) {
@@ -207,7 +206,7 @@ public class Packages {
 
         Stream.of(
             "NOTICE.txt",
-            "README.textile"
+            "README.asciidoc"
         ).forEach(doc -> assertThat(es.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(es.envFile, file(File, "root", "elasticsearch", p660));
@@ -268,21 +267,21 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    public static void startElasticsearch(Shell sh) throws IOException {
+    /**
+     * Starts Elasticsearch, without checking that startup is successful.
+     */
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
-            sh.run("systemctl start elasticsearch.service");
-        } else {
-            sh.run("service elasticsearch start");
+            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
         }
-
-        assertElasticsearchStarted(sh);
+        return sh.runIgnoreExitCode("service elasticsearch start");
     }
 
-    public static void assertElasticsearchStarted(Shell sh) throws IOException {
-        waitForElasticsearch();
+    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws Exception {
+        waitForElasticsearch(installation);
 
         if (isSystemd()) {
             sh.run("systemctl is-active elasticsearch.service");
@@ -292,7 +291,7 @@ public class Packages {
         }
     }
 
-    public static void stopElasticsearch(Shell sh) throws IOException {
+    public static void stopElasticsearch(Shell sh) {
         if (isSystemd()) {
             sh.run("systemctl stop elasticsearch.service");
         } else {
@@ -300,13 +299,49 @@ public class Packages {
         }
     }
 
-    public static void restartElasticsearch(Shell sh) throws IOException {
+    public static void restartElasticsearch(Shell sh, Installation installation) throws Exception {
         if (isSystemd()) {
             sh.run("systemctl restart elasticsearch.service");
         } else {
             sh.run("service elasticsearch restart");
         }
+        assertElasticsearchStarted(sh, installation);
+    }
 
-        waitForElasticsearch();
+    /**
+     * A small wrapper for retrieving only recent journald logs for the
+     * Elasticsearch service. It works by creating a cursor for the logs
+     * when instantiated, and advancing that cursor when the {@code clear()}
+     * method is called.
+     */
+    public static class JournaldWrapper {
+        private Shell sh;
+        private String cursor;
+
+        /**
+         * Create a new wrapper for Elasticsearch JournalD logs.
+         * @param sh A shell with appropriate permissions.
+         */
+        public JournaldWrapper(Shell sh) {
+            this.sh = sh;
+            clear();
+        }
+
+        /**
+         * "Clears" the journaled messages by retrieving the latest cursor
+         * for Elasticsearch logs and storing it in class state.
+         */
+        public void clear() {
+            cursor = sh.run("sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat" +
+                " | sed -e 's/-- cursor: //'").stdout.trim();
+        }
+
+        /**
+         * Retrieves all log messages coming after the stored cursor.
+         * @return Recent journald logs for the Elasticsearch service.
+         */
+        public Result getLogs() {
+            return sh.run("journalctl -u elasticsearch.service --after-cursor='" + this.cursor + "'");
+        }
     }
 }

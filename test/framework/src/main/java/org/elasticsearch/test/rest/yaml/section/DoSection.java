@@ -302,9 +302,9 @@ public class DoSection implements ExecutableSection {
                      * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
                 } else // noinspection StatementWithEmptyBody
-                    if (message.startsWith("[types removal]")) {
+                    if (message.startsWith("[types removal]") || message.startsWith("[_data_frame/transforms/] is deprecated")) {
                     /*
-                     * We skip warnings related to types deprecation so that we can continue to run the many
+                     * We skip warnings related to types deprecation and transform rename so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
                      */
                 } else if (expected.remove(message) == false) {
@@ -435,7 +435,7 @@ public class DoSection implements ExecutableSection {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        Version[] range = SkipSection.parseVersionRange(parser.text());
+        List<VersionRange> skipVersionRanges = SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
@@ -446,7 +446,8 @@ public class DoSection implements ExecutableSection {
                                 + node);
                     }
                     Version version = Version.fromString(node.getVersion());
-                    if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
+                    if (false == skip) {
                         itr.remove();
                     }
                 }
@@ -454,7 +455,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version between [" + range[0] + "] and [" + range[1] + "]";
+                return "version ranges "+skipVersionRanges;
             }
         };
     }

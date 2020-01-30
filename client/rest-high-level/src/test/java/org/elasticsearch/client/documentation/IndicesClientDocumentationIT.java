@@ -65,6 +65,7 @@ import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
@@ -565,15 +566,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
-            request.source(
-                "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <1>
-                XContentType.JSON);
+            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
+                XContentType.JSON
+            );
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -619,15 +614,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
-            request.source(
-                "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <1>
-                XContentType.JSON);
+            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
+                XContentType.JSON
+            );
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -1030,7 +1019,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::flush-synced-request-indicesOptions
 
             // tag::flush-synced-execute
-            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, RequestOptions.DEFAULT);
+            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+            ));
             // end::flush-synced-execute
 
             // tag::flush-synced-response
@@ -1074,7 +1065,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::flush-synced-execute-async
-            client.indices().flushSyncedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().flushSyncedAsync(request, expectWarnings(
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+            ), listener); // <1>
             // end::flush-synced-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -2295,14 +2288,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
-            putRequest.mapping(
-                    "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", XContentType.JSON);
+            putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
+                XContentType.JSON
+            );
             assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
 
@@ -2894,6 +2882,89 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::reload-analyzers-notfound
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public void testDeleteAlias() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index1"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+        {
+            IndicesAliasesRequest request = new IndicesAliasesRequest();
+            AliasActions aliasAction =
+                new AliasActions(AliasActions.Type.ADD)
+                    .index("index1")
+                    .alias("alias1");
+            request.addAliasAction(aliasAction);
+            AcknowledgedResponse indicesAliasesResponse =
+                client.indices().updateAliases(request, RequestOptions.DEFAULT);
+            assertTrue(indicesAliasesResponse.isAcknowledged());
+        }
+        {
+            IndicesAliasesRequest request = new IndicesAliasesRequest();
+            AliasActions aliasAction =
+                new AliasActions(AliasActions.Type.ADD)
+                    .index("index1")
+                    .alias("alias2");
+            request.addAliasAction(aliasAction);
+            AcknowledgedResponse indicesAliasesResponse =
+                client.indices().updateAliases(request, RequestOptions.DEFAULT);
+            assertTrue(indicesAliasesResponse.isAcknowledged());
+        }
+        {
+            // tag::delete-alias-request
+            DeleteAliasRequest request = new DeleteAliasRequest("index1", "alias1");
+            // end::delete-alias-request
+
+            // tag::delete-alias-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::delete-alias-request-timeout
+            // tag::delete-alias-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::delete-alias-request-masterTimeout
+
+            // tag::delete-alias-execute
+            org.elasticsearch.client.core.AcknowledgedResponse deleteAliasResponse =
+                client.indices().deleteAlias(request, RequestOptions.DEFAULT);
+            // end::delete-alias-execute
+
+            // tag::delete-alias-response
+            boolean acknowledged = deleteAliasResponse.isAcknowledged(); // <1>
+            // end::delete-alias-response
+            assertTrue(acknowledged);
+        }
+
+        {
+            DeleteAliasRequest request = new DeleteAliasRequest("index1", "alias2"); // <1>
+
+            // tag::delete-alias-execute-listener
+            ActionListener<org.elasticsearch.client.core.AcknowledgedResponse> listener =
+                new ActionListener<org.elasticsearch.client.core.AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(org.elasticsearch.client.core.AcknowledgedResponse deleteAliasResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-alias-execute-async
+            client.indices().deleteAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 }

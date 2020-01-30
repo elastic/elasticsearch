@@ -13,7 +13,7 @@ Removes the follower retention leases from the leader.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -21,20 +21,18 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /<leader_index>/_ccr/forget_follower
 {
@@ -44,7 +42,6 @@ POST /<leader_index>/_ccr/forget_follower
   "leader_remote_cluster" : "<leader_remote_cluster>"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/<leader_index>/leader_index/]
 // TEST[s/<follower_cluster>/follower_cluster/]
 // TEST[s/<follower_index>/follower_index/]
@@ -52,7 +49,7 @@ POST /<leader_index>/_ccr/forget_follower
 // TEST[s/<leader_remote_cluster>/leader_remote_cluster/]
 // TEST[skip_shard_failures]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards" : {
@@ -73,7 +70,7 @@ POST /<leader_index>/_ccr/forget_follower
 
 * If the {es} {security-features} are enabled, you must have `manage_leader_index`
 index privileges for the leader index. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ccr-post-forget-follower-desc]]
 ==== {api-description-title}
@@ -127,7 +124,7 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 This example removes the follower retention leases for `follower_index` from
 `leader_index`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /leader_index/_ccr/forget_follower
 {
@@ -137,12 +134,11 @@ POST /leader_index/_ccr/forget_follower
   "leader_remote_cluster" : "leader_cluster"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip_shard_failures]
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards" : {

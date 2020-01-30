@@ -1,18 +1,19 @@
 setup:
   - skip:
-      features: headers
+      features: [headers, warnings]
       version: " - 7.3.99"
       reason: "sparse_vector functions check on empty values was added from 7.4"
 
   - do:
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
         include_type_name: false
         index: test-index
         body:
           settings:
-            number_of_replicas: 0
-            # we need to have 1 shard to get request failure in test "Sparse vectors should error with dense vector functions"
             number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               my_sparse_vector:
@@ -50,14 +51,17 @@ setup:
   - do:
       headers:
         Content-Type: application/json
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       search:
+        index: test-index
         rest_total_hits_as_int: true
         body:
           query:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+                source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
                 params:
                   query_vector: {"1": 10}
 
@@ -70,14 +74,17 @@ setup:
   - do:
       headers:
         Content-Type: application/json
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       search:
+        index: test-index
         rest_total_hits_as_int: true
         body:
           query:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+                source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
                 params:
                   query_vector: {"1": 10.0}
 
@@ -96,6 +103,8 @@ setup:
         my_sparse_vector: {"1": 10}
 
 - do:
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     index:
       index: test-index
       id: 2
@@ -110,14 +119,17 @@ setup:
     catch: bad_request
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10.0}
 - match: { error.root_cause.0.type: "script_exception" }
@@ -126,14 +138,17 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10.0}
 
@@ -173,14 +188,17 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"100": -200.0, "11" : 300.33, "12": -34.8988, "2": 230.0, "30": 15.555}
 
@@ -210,12 +228,13 @@ setup:
     headers:
       Content-Type: application/json
     search:
+      index: test-index
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProduct(params.query_vector, doc['my_sparse_vector'])"
+              source: "dotProduct(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: [0.5, 111]
 - match: { error.root_cause.0.type: "script_exception" }
@@ -249,14 +268,17 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "dotProductSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5": 5}
 
@@ -278,14 +300,17 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5" : 5}
 
@@ -306,14 +331,17 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "l1normSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "l1normSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5": 5}
 
@@ -331,14 +359,17 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "l2normSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "l2normSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5": 5}
 

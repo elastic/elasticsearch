@@ -1,0 +1,22 @@
+{
+  "transform.preview_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html"
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/_preview",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The definition for the transform to preview",
+      "required":true
+    }
+  }
+}

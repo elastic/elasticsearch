@@ -143,8 +143,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    private static ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME,
-            () -> new IdsQueryBuilder());
+    private static final ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, IdsQueryBuilder::new);
 
     static {
         PARSER.declareStringArray(fromList(String.class, IdsQueryBuilder::types), IdsQueryBuilder.TYPE_FIELD);

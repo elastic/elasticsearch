@@ -56,6 +56,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
@@ -256,7 +258,8 @@ public class RestHighLevelClient implements Closeable {
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
-    private final DataFrameClient dataFrameClient = new DataFrameClient(this);
+    private final TransformClient transformClient = new TransformClient(this);
+    private final EnrichClient enrichClient = new EnrichClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -472,13 +475,17 @@ public class RestHighLevelClient implements Closeable {
      * are shipped with the Elastic Stack distribution of Elasticsearch. All of
      * these APIs will 404 if run against the OSS distribution of Elasticsearch.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/data-frame-apis.html">
-     *     Data Frame APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
+     *     Transform APIs on elastic.co</a> for more information.
      *
      * @return the client wrapper for making Data Frame API calls
      */
-    public DataFrameClient dataFrame() {
-        return dataFrameClient;
+    public TransformClient transform() {
+        return transformClient;
+    }
+
+    public EnrichClient enrich() {
+        return enrichClient;
     }
 
     /**
@@ -498,9 +505,11 @@ public class RestHighLevelClient implements Closeable {
      * @param bulkRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
-        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
+    public final Cancellable bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
+        return performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options,
+            BulkResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -535,9 +544,11 @@ public class RestHighLevelClient implements Closeable {
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void reindexAsync(ReindexRequest reindexRequest, RequestOptions options, ActionListener<BulkByScrollResponse> listener) {
-        performRequestAsyncAndParseEntity(
+    public final Cancellable reindexAsync(ReindexRequest reindexRequest, RequestOptions options,
+                                          ActionListener<BulkByScrollResponse> listener) {
+        return performRequestAsyncAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, listener, singleton(409)
         );
     }
@@ -563,10 +574,11 @@ public class RestHighLevelClient implements Closeable {
      * @param updateByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void updateByQueryAsync(UpdateByQueryRequest updateByQueryRequest, RequestOptions options,
-                                         ActionListener<BulkByScrollResponse> listener) {
-        performRequestAsyncAndParseEntity(
+    public final Cancellable updateByQueryAsync(UpdateByQueryRequest updateByQueryRequest, RequestOptions options,
+                                                ActionListener<BulkByScrollResponse> listener) {
+        return performRequestAsyncAndParseEntity(
             updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, singleton(409)
         );
     }
@@ -586,16 +598,32 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Submits a delete by query task
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *      Delete By Query API on elastic.co</a>
+     * @param deleteByQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the submission response
+     */
+    public final TaskSubmissionResponse submitDeleteByQueryTask(DeleteByQueryRequest deleteByQueryRequest,
+                                                                RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deleteByQueryRequest, RequestConverters::submitDeleteByQuery, options, TaskSubmissionResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
      * Asynchronously executes a delete by query request.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
      *     Delete By Query API on elastic.co</a>
      * @param deleteByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void deleteByQueryAsync(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options,
-                                         ActionListener<BulkByScrollResponse> listener) {
-        performRequestAsyncAndParseEntity(
+    public final Cancellable deleteByQueryAsync(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options,
+                                                ActionListener<BulkByScrollResponse> listener) {
+        return performRequestAsyncAndParseEntity(
             deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, singleton(409)
         );
     }
@@ -620,10 +648,11 @@ public class RestHighLevelClient implements Closeable {
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void deleteByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-            ActionListener<ListTasksResponse> listener) {
-        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
+    public final Cancellable deleteByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+                                                          ActionListener<ListTasksResponse> listener) {
+        return performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
                 ListTasksResponse::fromXContent, listener, emptySet());
     }
 
@@ -647,10 +676,11 @@ public class RestHighLevelClient implements Closeable {
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void updateByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-            ActionListener<ListTasksResponse> listener) {
-        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
+    public final Cancellable updateByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+                                                          ActionListener<ListTasksResponse> listener) {
+        return performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
                 ListTasksResponse::fromXContent, listener, emptySet());
     }
 
@@ -672,15 +702,15 @@ public class RestHighLevelClient implements Closeable {
      * Executes a reindex rethrottling request.
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
      * Reindex rethrottling API on elastic.co</a>
-     *
      * @param rethrottleRequest the request
      * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener          the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-            ActionListener<ListTasksResponse> listener) {
-        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options, ListTasksResponse::fromXContent,
-                listener, emptySet());
+    public final Cancellable reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+                                                    ActionListener<ListTasksResponse> listener) {
+        return performRequestAsyncAndParseEntity(rethrottleRequest,
+            RequestConverters::rethrottleReindex, options, ListTasksResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -720,9 +750,10 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
-        performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
+    public final Cancellable getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
+        return performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
                 singleton(404));
     }
 
@@ -759,10 +790,12 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @deprecated use {@link #mgetAsync(MultiGetRequest, RequestOptions, ActionListener)} instead
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public final void multiGetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
-        mgetAsync(multiGetRequest, options, listener);
+    public final Cancellable multiGetAsync(MultiGetRequest multiGetRequest, RequestOptions options,
+                                           ActionListener<MultiGetResponse> listener) {
+        return mgetAsync(multiGetRequest, options, listener);
     }
 
     /**
@@ -771,10 +804,12 @@ public class RestHighLevelClient implements Closeable {
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
-        performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent, listener,
-                singleton(404));
+    public final Cancellable mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options,
+                                       ActionListener<MultiGetResponse> listener) {
+        return performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options,
+            MultiGetResponse::fromXContent, listener, singleton(404));
     }
 
     /**
@@ -794,9 +829,10 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        performRequestAsync(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, listener,
+    public final Cancellable existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
+        return performRequestAsync(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, listener,
                 emptySet());
     }
 
@@ -819,10 +855,39 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        performRequestAsync(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, listener,
-                emptySet());
+    public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
+        return performRequestAsync(getRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public GetSourceResponse getSource(GetSourceRequest getRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(getRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable getSourceAsync(GetSourceRequest getRequest, RequestOptions options,
+                                            ActionListener<GetSourceResponse> listener) {
+        return performRequestAsyncAndParseEntity(getRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -833,7 +898,8 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options,
+            IndexResponse::fromXContent, emptySet());
     }
 
     /**
@@ -842,9 +908,10 @@ public class RestHighLevelClient implements Closeable {
      * @param indexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
-        performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
+    public final Cancellable indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
+        return performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
                 emptySet());
     }
 
@@ -866,9 +933,10 @@ public class RestHighLevelClient implements Closeable {
      * @param countRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
-        performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
+    public final Cancellable countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
+        return performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
             listener, emptySet());
     }
 
@@ -889,9 +957,10 @@ public class RestHighLevelClient implements Closeable {
      * @param updateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
-        performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, listener,
+    public final Cancellable updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
+        return performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, listener,
                 emptySet());
     }
 
@@ -913,9 +982,10 @@ public class RestHighLevelClient implements Closeable {
      * @param deleteRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
-        performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
+    public final Cancellable deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
+        return performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
             Collections.singleton(404));
     }
 
@@ -941,9 +1011,10 @@ public class RestHighLevelClient implements Closeable {
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
-        performRequestAsyncAndParseEntity(
+    public final Cancellable searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
+        return performRequestAsyncAndParseEntity(
                 searchRequest,
                 r -> RequestConverters.search(r, "_search"),
                 options,
@@ -987,11 +1058,12 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @deprecated use {@link #msearchAsync(MultiSearchRequest, RequestOptions, ActionListener)} instead
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public final void multiSearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
-                                   ActionListener<MultiSearchResponse> listener) {
-        msearchAsync(searchRequest, options, listener);
+    public final Cancellable multiSearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
+                                              ActionListener<MultiSearchResponse> listener) {
+        return msearchAsync(searchRequest, options, listener);
     }
 
     /**
@@ -1001,10 +1073,11 @@ public class RestHighLevelClient implements Closeable {
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void msearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
-                                   ActionListener<MultiSearchResponse> listener) {
-        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
+    public final Cancellable msearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
+                                          ActionListener<MultiSearchResponse> listener) {
+        return performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
                 listener, emptySet());
     }
 
@@ -1046,11 +1119,12 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @deprecated use {@link #scrollAsync(SearchScrollRequest, RequestOptions, ActionListener)} instead
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public final void searchScrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
-                                  ActionListener<SearchResponse> listener) {
-        scrollAsync(searchScrollRequest, options, listener);
+    public final Cancellable searchScrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
+                                               ActionListener<SearchResponse> listener) {
+        return scrollAsync(searchScrollRequest, options, listener);
     }
 
     /**
@@ -1061,11 +1135,12 @@ public class RestHighLevelClient implements Closeable {
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void scrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
-                                  ActionListener<SearchResponse> listener) {
-        performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
-                listener, emptySet());
+    public final Cancellable scrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
+                                         ActionListener<SearchResponse> listener) {
+        return performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll,
+            options, SearchResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1090,11 +1165,12 @@ public class RestHighLevelClient implements Closeable {
      * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
-                                       ActionListener<ClearScrollResponse> listener) {
-        performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
-                listener, emptySet());
+    public final Cancellable clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
+                                              ActionListener<ClearScrollResponse> listener) {
+        return performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll,
+            options, ClearScrollResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1116,10 +1192,11 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
      * on elastic.co</a>.
+     * @return cancellable that may be used to cancel the request
      */
-    public final void searchTemplateAsync(SearchTemplateRequest searchTemplateRequest, RequestOptions options,
-                                          ActionListener<SearchTemplateResponse> listener) {
-        performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
+    public final Cancellable searchTemplateAsync(SearchTemplateRequest searchTemplateRequest, RequestOptions options,
+                                                 ActionListener<SearchTemplateResponse> listener) {
+        return performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
             SearchTemplateResponse::fromXContent, listener, emptySet());
     }
 
@@ -1147,9 +1224,10 @@ public class RestHighLevelClient implements Closeable {
      * @param explainRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
-        performRequestAsync(explainRequest, RequestConverters::explain, options,
+    public final Cancellable explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
+        return performRequestAsync(explainRequest, RequestConverters::explain, options,
             response -> {
                 CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
                     parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
@@ -1181,9 +1259,12 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void termvectorsAsync(TermVectorsRequest request, RequestOptions options, ActionListener<TermVectorsResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::termVectors, options, TermVectorsResponse::fromXContent, listener,
+    public final Cancellable termvectorsAsync(TermVectorsRequest request, RequestOptions options,
+                                              ActionListener<TermVectorsResponse> listener) {
+        return performRequestAsyncAndParseEntity(request, RequestConverters::termVectors, options,
+            TermVectorsResponse::fromXContent, listener,
             emptySet());
     }
 
@@ -1211,10 +1292,11 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void mtermvectorsAsync(MultiTermVectorsRequest request, RequestOptions options,
-            ActionListener<MultiTermVectorsResponse> listener) {
-        performRequestAsyncAndParseEntity(
+    public final Cancellable mtermvectorsAsync(MultiTermVectorsRequest request, RequestOptions options,
+                                               ActionListener<MultiTermVectorsResponse> listener) {
+        return performRequestAsyncAndParseEntity(
             request, RequestConverters::mtermVectors, options, MultiTermVectorsResponse::fromXContent, listener, emptySet());
     }
 
@@ -1250,11 +1332,12 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
      * on elastic.co</a>.
+     * @return cancellable that may be used to cancel the request
      */
-    public final void msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
-                                           RequestOptions options,
-                                           ActionListener<MultiSearchTemplateResponse> listener) {
-        performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+    public final Cancellable msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                                  RequestOptions options,
+                                                  ActionListener<MultiSearchTemplateResponse> listener) {
+        return performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
     }
 
@@ -1265,9 +1348,12 @@ public class RestHighLevelClient implements Closeable {
      * @param rankEvalRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,  ActionListener<RankEvalResponse> listener) {
-        performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,  RankEvalResponse::fromXContent, listener,
+    public final Cancellable rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,
+                                           ActionListener<RankEvalResponse> listener) {
+        return performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,
+            RankEvalResponse::fromXContent, listener,
                 emptySet());
     }
 
@@ -1305,10 +1391,11 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
-                               ActionListener<GetStoredScriptResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
+    public Cancellable getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
+                                      ActionListener<GetStoredScriptResponse> listener) {
+        return performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
             GetStoredScriptResponse::fromXContent, listener, emptySet());
     }
 
@@ -1332,10 +1419,11 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
-                                  ActionListener<AcknowledgedResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+    public Cancellable deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        return performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1360,10 +1448,11 @@ public class RestHighLevelClient implements Closeable {
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
-                               ActionListener<AcknowledgedResponse> listener) {
-        performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
+    public Cancellable putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
+                                      ActionListener<AcknowledgedResponse> listener) {
+        return performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1374,10 +1463,11 @@ public class RestHighLevelClient implements Closeable {
      * @param fieldCapabilitiesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
-                                     ActionListener<FieldCapabilitiesResponse> listener) {
-        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
+    public final Cancellable fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
+                                            ActionListener<FieldCapabilitiesResponse> listener) {
+        return performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
     }
 
@@ -1509,26 +1599,28 @@ public class RestHighLevelClient implements Closeable {
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
-                                                                         CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                         RequestOptions options,
-                                                                         CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                         ActionListener<Resp> listener, Set<Integer> ignores) {
-        performRequestAsync(request, requestConverter, options,
+    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(Req request,
+                CheckedFunction<Req, Request, IOException> requestConverter,
+                RequestOptions options,
+                CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                ActionListener<Resp> listener, Set<Integer> ignores) {
+        return performRequestAsync(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
 
     /**
      * Defines a helper method for asynchronously performing a request.
+     * @return Cancellable instance that may be used to cancel the request
      */
-    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseEntity(Req request,
-                                                                       CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                       RequestOptions options,
-                                                                       CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                       ActionListener<Resp> listener, Set<Integer> ignores) {
-        performRequestAsync(request, requestConverter, options,
+    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseEntity(Req request,
+                CheckedFunction<Req, Request, IOException> requestConverter,
+                RequestOptions options,
+                CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                ActionListener<Resp> listener, Set<Integer> ignores) {
+        return performRequestAsync(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
 
@@ -1536,56 +1628,59 @@ public class RestHighLevelClient implements Closeable {
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
-                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                            RequestOptions options,
-                                                                            CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                                            ActionListener<Resp> listener, Set<Integer> ignores) {
+    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsync(Req request,
+                CheckedFunction<Req, Request, IOException> requestConverter,
+                RequestOptions options,
+                CheckedFunction<Response, Resp, IOException> responseConverter,
+                ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             listener.onFailure(validationException);
-            return;
+            return Cancellable.NO_OP;
         }
-        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+        return internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
     }
 
     /**
      * Defines a helper method for asynchronously performing a request.
+     * @return Cancellable instance that may be used to cancel the request
      */
-    protected final <Req extends Validatable, Resp> void performRequestAsync(Req request,
-                                                                          CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                          RequestOptions options,
-                                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                                          ActionListener<Resp> listener, Set<Integer> ignores) {
+    protected final <Req extends Validatable, Resp> Cancellable performRequestAsync(Req request,
+                CheckedFunction<Req, Request, IOException> requestConverter,
+                RequestOptions options,
+                CheckedFunction<Response, Resp, IOException> responseConverter,
+                ActionListener<Resp> listener, Set<Integer> ignores) {
         Optional<ValidationException> validationException = request.validate();
         if (validationException != null && validationException.isPresent()) {
             listener.onFailure(validationException.get());
-            return;
+            return Cancellable.NO_OP;
         }
-        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+        return internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
     }
 
     /**
      * Provides common functionality for asynchronously performing a request.
+     * @return Cancellable instance that may be used to cancel the request
      */
-    private <Req, Resp> void internalPerformRequestAsync(Req request,
-                                                 CheckedFunction<Req, Request, IOException> requestConverter,
-                                                 RequestOptions options,
-                                                 CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+    private <Req, Resp> Cancellable internalPerformRequestAsync(Req request,
+                 CheckedFunction<Req, Request, IOException> requestConverter,
+                 RequestOptions options,
+                 CheckedFunction<Response, Resp, IOException> responseConverter,
+                 ActionListener<Resp> listener, Set<Integer> ignores) {
         Request req;
         try {
             req = requestConverter.apply(request);
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return Cancellable.NO_OP;
         }
         req.setOptions(options);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req, responseListener);
+        return client.performRequestAsync(req, responseListener);
     }
 
 
@@ -1629,28 +1724,29 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronous request which returns empty {@link Optional}s in the case of 404s or parses entity into an Optional
+     * @return Cancellable instance that may be used to cancel the request
      */
-    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseOptionalEntity(Req request,
-            CheckedFunction<Req, Request, IOException> requestConverter,
-            RequestOptions options,
-            CheckedFunction<XContentParser, Resp, IOException> entityParser,
-            ActionListener<Optional<Resp>> listener) {
+    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseOptionalEntity(Req request,
+              CheckedFunction<Req, Request, IOException> requestConverter,
+              RequestOptions options,
+              CheckedFunction<XContentParser, Resp, IOException> entityParser,
+              ActionListener<Optional<Resp>> listener) {
         Optional<ValidationException> validationException = request.validate();
         if (validationException != null && validationException.isPresent()) {
             listener.onFailure(validationException.get());
-            return;
+            return Cancellable.NO_OP;
         }
         Request req;
         try {
             req = requestConverter.apply(request);
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return Cancellable.NO_OP;
         }
         req.setOptions(options);
         ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(),
                 entityParser), listener);
-        client.performRequestAsync(req, responseListener);
+        return client.performRequestAsync(req, responseListener);
     }
 
     final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,

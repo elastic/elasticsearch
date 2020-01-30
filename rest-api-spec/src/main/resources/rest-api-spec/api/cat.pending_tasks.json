@@ -41,6 +41,19 @@
         "type":"list",
         "description":"Comma-separated list of column names or column aliases to sort by"
       },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d (Days)",
+          "h (Hours)",
+          "m (Minutes)",
+          "s (Seconds)",
+          "ms (Milliseconds)",
+          "micros (Microseconds)",
+          "nanos (Nanoseconds)"
+        ]
+      },
       "v":{
         "type":"boolean",
         "description":"Verbose mode. Display column headers",

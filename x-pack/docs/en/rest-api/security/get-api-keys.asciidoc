@@ -51,8 +51,10 @@ by the currently authenticated user. Defaults to false.
 The 'realm_name' or 'username' parameters cannot be specified when this
 parameter is set to 'true' as they are assumed to be the currently authenticated ones.
 
-NOTE: At least one of "id", "name", "username" and "realm_name" must be specified
- if "owner" is "false" (default).
+NOTE: When none of the parameters "id", "name", "username" and "realm_name"
+are specified, and the "owner" is set to false then it will retrieve all API
+keys if the user is authorized. If the user is not authorized to retrieve other user's
+API keys, then an error will be returned.
 
 [[security-api-get-api-key-example]]
 ==== {api-examples-title}
@@ -120,6 +122,13 @@ The following example retrieves all API keys owned by the currently authenticate
 [source,console]
 --------------------------------------------------
 GET /_security/api_key?owner=true
+--------------------------------------------------
+// TEST[continued]
+
+The following example retrieves all API keys if the user is authorized to do so:
+[source,console]
+--------------------------------------------------
+GET /_security/api_key
 --------------------------------------------------
 // TEST[continued]
 

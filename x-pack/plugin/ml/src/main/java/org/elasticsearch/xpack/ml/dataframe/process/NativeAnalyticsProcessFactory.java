@@ -8,16 +8,23 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,11 +43,22 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     private final Environment env;
     private final NativeController nativeController;
+    private final NamedXContentRegistry namedXContentRegistry;
+    private final ResultsPersisterService resultsPersisterService;
+    private final DataFrameAnalyticsAuditor auditor;
     private volatile Duration processConnectTimeout;
 
-    public NativeAnalyticsProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
+    public NativeAnalyticsProcessFactory(Environment env,
+                                         NativeController nativeController,
+                                         ClusterService clusterService,
+                                         NamedXContentRegistry namedXContentRegistry,
+                                         ResultsPersisterService resultsPersisterService,
+                                         DataFrameAnalyticsAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
+        this.auditor = auditor;
+        this.resultsPersisterService = resultsPersisterService;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -51,11 +69,13 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     }
 
     @Override
-    public NativeAnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig,
-                                                   ExecutorService executorService, Consumer<String> onProcessCrash) {
+    public NativeAnalyticsProcess createAnalyticsProcess(DataFrameAnalyticsConfig config, AnalyticsProcessConfig analyticsProcessConfig,
+                                                         @Nullable BytesReference state, ExecutorService executorService,
+                                                         Consumer<String> onProcessCrash) {
+        String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
-                true, false, true, true, false, false);
+                true, false, true, true, state != null, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;
@@ -63,11 +83,12 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
-                filesToDelete, onProcessCrash, analyticsProcessConfig);
+                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
+                processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete, onProcessCrash, processConnectTimeout,
+                analyticsProcessConfig, namedXContentRegistry);
 
         try {
-            analyticsProcess.start(executorService);
+            startProcess(config, executorService, processPipes, analyticsProcess);
             return analyticsProcess;
         } catch (EsRejectedExecutionException e) {
             try {
@@ -76,6 +97,16 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
                 LOGGER.error("Can't close data frame analytics process", ioe);
             }
             throw e;
+        }
+    }
+
+    private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService, ProcessPipes processPipes,
+                                                NativeAnalyticsProcess process) {
+        if (config.getAnalysis().persistsState()) {
+            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
+            process.start(executorService, stateProcessor, processPipes.getPersistStream().get());
+        } else {
+            process.start(executorService);
         }
     }
 

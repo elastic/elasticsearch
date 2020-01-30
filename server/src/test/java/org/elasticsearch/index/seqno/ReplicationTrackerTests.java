@@ -184,7 +184,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(updatedGlobalCheckpoint.get(), equalTo(update));
     }
 
-    public void testMarkAllocationIdAsInSync() throws BrokenBarrierException, InterruptedException {
+    public void testMarkAllocationIdAsInSync() throws Exception {
         final long initialClusterStateVersion = randomNonNegativeLong();
         Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 1);
         Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
@@ -212,7 +212,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         });
         thread.start();
         barrier.await();
-        awaitBusy(tracker::pendingInSync);
+        assertBusy(() -> assertTrue(tracker.pendingInSync()));
         final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
         // there is a shard copy pending in sync, the global checkpoint can not advance
         updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);

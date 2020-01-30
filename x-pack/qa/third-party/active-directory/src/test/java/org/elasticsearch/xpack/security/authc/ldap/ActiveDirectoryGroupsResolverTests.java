@@ -34,7 +34,6 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         ldapConnection.getConnectionOptions().setFollowReferrals(AbstractActiveDirectoryTestCase.FOLLOW_REFERRALS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.authc.realms.active_directory.ad.group_search.scope", LdapSearchScope.SUB_TREE)

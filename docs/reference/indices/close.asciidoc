@@ -6,11 +6,10 @@
 
 Closes an index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_close
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -61,11 +60,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 The following example shows how to close an index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_close
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
 The API returns following response:

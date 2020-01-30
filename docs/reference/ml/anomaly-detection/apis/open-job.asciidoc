@@ -18,7 +18,7 @@ Opens one or more {anomaly-jobs}.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-open-job-desc]]
 ==== {api-description-title}
@@ -37,7 +37,8 @@ data is received.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-open-job-request-body]]
 ==== {api-request-body-title}
@@ -49,17 +50,13 @@ data is received.
 [[ml-open-job-example]]
 ==== {api-examples-title}
 
-The following example opens the `total-requests` job and sets an optional
-property:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_open
 {
   "timeout": "35m"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the job opens, you receive the following results:

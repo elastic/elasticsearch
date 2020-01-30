@@ -56,7 +56,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "node_1");
         auditor.info("whatever", "blah");
 
-        // Creating a document in the .ml-notifications index should cause .ml-annotations
+        // Creating a document in the .ml-notifications-000001 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
 
         assertBusy(() -> {

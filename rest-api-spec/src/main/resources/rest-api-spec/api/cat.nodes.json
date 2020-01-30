@@ -16,6 +16,23 @@
       ]
     },
     "params":{
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
+      },
       "format":{
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
@@ -26,7 +43,11 @@
       },
       "local":{
         "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+        "description":"Calculate the selected nodes using the local cluster state rather than the state from master node (default: false)",
+        "deprecated":{
+          "version":"7.6.0",
+          "description":"This parameter does not cause this API to act locally."
+        }
       },
       "master_timeout":{
         "type":"time",
@@ -44,6 +65,19 @@
       "s":{
         "type":"list",
         "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d (Days)",
+          "h (Hours)",
+          "m (Minutes)",
+          "s (Seconds)",
+          "ms (Milliseconds)",
+          "micros (Microseconds)",
+          "nanos (Nanoseconds)"
+        ]
       },
       "v":{
         "type":"boolean",

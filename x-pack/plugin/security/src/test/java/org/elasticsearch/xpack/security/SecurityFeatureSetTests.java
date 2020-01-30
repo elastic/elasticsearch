@@ -149,6 +149,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
         if (anonymousEnabled) {
             settings.put(AnonymousUser.ROLES_SETTING.getKey(), "foo");
         }
+        final boolean fips140Enabled = randomBoolean();
+        if (fips140Enabled) {
+            settings.put("xpack.security.fips_mode.enabled", true);
+        }
 
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
                 realms, rolesStore, roleMappingStore, ipFilter);
@@ -216,6 +220,9 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
                 // anonymous
                 assertThat(source.getValue("anonymous.enabled"), is(anonymousEnabled));
+
+                // FIPS 140
+                assertThat(source.getValue("fips_140.enabled"), is(fips140Enabled));
             } else {
                 assertThat(source.getValue("realms"), is(nullValue()));
                 assertThat(source.getValue("ssl"), is(nullValue()));

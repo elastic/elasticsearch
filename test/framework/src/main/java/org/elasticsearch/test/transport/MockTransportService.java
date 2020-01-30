@@ -92,11 +92,17 @@ public final class MockTransportService extends TransportService {
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
+    private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
+
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
+    }
+
+    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool) {
+        return createNewService(settings, version, threadPool, null);
     }
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
@@ -463,7 +469,7 @@ public final class MockTransportService extends TransportService {
      * @return {@code true} if no other get connection behavior was registered for this address before.
      */
     public boolean addGetConnectionBehavior(TransportAddress transportAddress, StubbableConnectionManager.GetConnectionBehavior behavior) {
-        return connectionManager().addConnectBehavior(transportAddress, behavior);
+        return connectionManager().addGetConnectionBehavior(transportAddress, behavior);
     }
 
     /**
@@ -522,6 +528,16 @@ public final class MockTransportService extends TransportService {
         }
 
         return connection;
+    }
+
+    public void addOnStopListener(Runnable listener) {
+        onStopListeners.add(listener);
+    }
+
+    @Override
+    protected void doStop() {
+        onStopListeners.forEach(Runnable::run);
+        super.doStop();
     }
 
     @Override

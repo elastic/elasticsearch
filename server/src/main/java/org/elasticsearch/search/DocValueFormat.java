@@ -117,6 +117,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            try {
+                // Prefer parsing as a long to avoid losing precision
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                // retry as a double
+            }
             double d = Double.parseDouble(value);
             if (roundUp) {
                 d = Math.ceil(d);
@@ -134,6 +140,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
+        }
+
+        @Override
+        public String toString() {
+            return "raw";
         }
     };
 
@@ -339,6 +350,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        }
+
+        @Override
+        public String toString() {
+            return "ip";
         }
     };
 

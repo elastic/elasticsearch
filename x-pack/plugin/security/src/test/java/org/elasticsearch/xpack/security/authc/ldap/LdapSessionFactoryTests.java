@@ -19,6 +19,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -59,7 +60,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         final Path origCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-ca.crt");
         ldapCaPath = createTempFile();
         Files.copy(origCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
-        globalSettings = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        globalSettings = builder
             .put("path.home", createTempDir())
             .putList(RealmSettings.realmSslPrefix(REALM_IDENTIFIER) + "certificate_authorities", ldapCaPath.toString())
             .build();
@@ -87,7 +92,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "1ms")
                 .put("path.home", createTempDir())
                 .build();
 
@@ -239,6 +244,9 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * (one failure, one success) depending on which file content is in place.
      */
     public void testSslTrustIsReloaded() throws Exception {
+        assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
+            "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
+            inFipsJvm());
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         InetAddress listenAddress = ldapServer.getListenAddress("ldaps");
         if (listenAddress == null) {

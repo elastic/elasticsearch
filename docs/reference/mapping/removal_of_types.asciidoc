@@ -42,7 +42,7 @@ field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-<<mapping-parent-field,parent-child relationship>>
+<<parent-join,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 
@@ -454,7 +454,7 @@ warnings in 6.8, the parameter can be set to either `true` or `false`. In 7.0, s
 
 See some examples of interactions with Elasticsearch with this option set to `false`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index?include_type_name=false
 {
@@ -467,10 +467,10 @@ PUT index?include_type_name=false
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Mappings are included directly under the `mappings` key, without a type name.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_mappings?include_type_name=false
 {
@@ -481,15 +481,14 @@ PUT index/_mappings?include_type_name=false
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> Mappings are included directly under the `mappings` key, without a type name.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_mappings?include_type_name=false
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above call returns
@@ -520,14 +519,13 @@ The above call returns
 In 7.0, index APIs must be called with the `{index}/_doc` path for automatic
 generation of the `_id` and `{index}/_doc/{id}` with explicit ids.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
   "foo": "baz"
 }
 --------------------------------------------------
-// CONSOLE
 
 [source,console-result]
 --------------------------------------------------
@@ -549,11 +547,10 @@ PUT index/_doc/1
 
 Similarly, the `get` and `delete` APIs use the path `{index}/_doc/{id}`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: In 7.0, `_doc` represents the endpoint name instead of the document type.
@@ -563,7 +560,7 @@ The `_doc` component is a permanent part of the path for the document `index`,
 For API paths that contain both a type and endpoint name like `_update`,
 in 7.0 the endpoint will immediately follow the index name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST index/_update/1
 {
@@ -574,14 +571,13 @@ POST index/_update/1
 
 GET /index/_source/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Types should also no longer appear in the body of requests. The following
 example of bulk indexing omits the type both in the URL, and in the individual
 bulk commands:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _bulk
 { "index" : { "_index" : "index", "_id" : "3" } }
@@ -589,7 +585,6 @@ POST _bulk
 { "index" : { "_index" : "index", "_id" : "4" } }
 { "foo" : "qux" }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Search APIs
@@ -612,7 +607,7 @@ in the response. For example, the following typeless `get` call will always
 return `_doc` as the type, even if the mapping has a custom type name like
 `my_type`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/my_type/1
 {
@@ -621,7 +616,6 @@ PUT index/my_type/1
 
 GET index/_doc/1
 --------------------------------------------------
-// CONSOLE
 
 [source,console-result]
 --------------------------------------------------
@@ -655,7 +649,7 @@ will be typeless in spite of the fact that it matches a template that defines
 a type. Both `index-1-01` and `index-2-01` will inherit the `foo` field from
 the template that they match.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _template/template1
 {
@@ -707,7 +701,17 @@ PUT index-2-01
   }
 }
 --------------------------------------------------
-// CONSOLE
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template1
+DELETE /_template/template2
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 In case of implicit index creation, because of documents that get indexed in
 an index that doesn't exist yet, the template is always honored. This is

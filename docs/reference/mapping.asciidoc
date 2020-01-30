@@ -5,7 +5,7 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed.  For instance, use mappings to define:
+are stored and indexed. For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
@@ -20,7 +20,7 @@ are stored and indexed.  For instance, use mappings to define:
 Each index has one _mapping type_ which determines how the document will be
 indexed.
 
-deprecated[6.0.0,See <<removal-of-types>>].
+deprecated::[6.0.0,See <<removal-of-types>>]
 
 A mapping type has:
 
@@ -80,6 +80,17 @@ causing a mapping explosion:
 `index.mapping.total_fields.limit`::
     The maximum number of fields in an index. Field and object mappings, as well as
     field aliases count towards this limit. The default value is `1000`.
++
+[IMPORTANT]
+====
+The limit is in place to prevent mappings and searches from becoming too
+large. Higher values can lead to performance degradations and memory issues,
+especially in clusters with a high load or few resources.
+
+If you increase this setting, we recommend you also increase the
+<<search-settings,`indices.query.bool.max_clause_count`>> setting, which
+limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query.
+====
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
@@ -129,7 +140,7 @@ You can create field mappings when you <<create-mapping,create an index>> and
 You can use the <<indices-create-index,create index>> API to create a new index
 with an explicit mapping.
 
-[source,js]
+[source,console]
 ----
 PUT /my-index
 {
@@ -142,7 +153,6 @@ PUT /my-index
   }
 }
 ----
-// CONSOLE
 
 <1> Creates `age`, an <<number,`integer`>> field
 <2> Creates `email`, a <<keyword,`keyword`>> field
@@ -159,7 +169,7 @@ The following example adds `employee-id`, a `keyword` field with an
 <<mapping-index,`index`>> mapping parameter value of `false`. This means values
 for the `employee-id` field are stored but not indexed or available for search.
 
-[source,js]
+[source,console]
 ----
 PUT /my-index/_mapping
 {
@@ -171,14 +181,15 @@ PUT /my-index/_mapping
   }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 [float]
 [[update-mapping]]
 === Update the mapping of a field
 
-include::{docdir}/indices/put-mapping.asciidoc[tag=put-field-mapping-exceptions]
+include::{docdir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
+
+include::{docdir}/indices/put-mapping.asciidoc[tag=rename-field]
 
 [float]
 [[view-mapping]]
@@ -187,11 +198,10 @@ include::{docdir}/indices/put-mapping.asciidoc[tag=put-field-mapping-exceptions]
 You can use the <<indices-get-mapping, get mapping>> API to view the mapping of
 an existing index.
 
-[source,js]
+[source,console]
 ----
 GET /my-index/_mapping
 ----
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -234,11 +244,10 @@ contains a large number of fields.
 
 The following request retrieves the mapping for the `employee-id` field.
 
-[source,js]
+[source,console]
 ----
 GET /my-index/_mapping/field/employee-id
 ----
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:

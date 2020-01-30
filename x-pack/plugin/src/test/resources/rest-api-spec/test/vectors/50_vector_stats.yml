@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: headers
+      features: [headers, warnings]
       version: " - 7.3.99"
       reason: "vector stats was added from 7.4"
 
@@ -17,6 +17,9 @@ setup:
       indices.create:
         index: test-index1
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               my_dense_vector1:
@@ -27,6 +30,8 @@ setup:
                 dims: 30
 
   - do:
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
         index: test-index2
         body:

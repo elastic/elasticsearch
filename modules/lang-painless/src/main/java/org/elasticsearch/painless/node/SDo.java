@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -48,15 +49,6 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
 
@@ -66,7 +58,7 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         locals = Locals.newLocalScope(locals);
 
         if (block == null) {
@@ -75,16 +67,15 @@ public final class SDo extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-
-        block.analyze(locals);
+        block.analyze(scriptRoot, locals);
 
         if (block.loopEscape && !block.anyContinue) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
+        condition.analyze(scriptRoot, locals);
+        condition = condition.cast(scriptRoot, locals);
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;
@@ -107,32 +98,32 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label start = new Label();
         Label begin = new Label();
         Label end = new Label();
 
-        writer.mark(start);
+        methodWriter.mark(start);
 
         block.continu = begin;
         block.brake = end;
-        block.write(writer, globals);
+        block.write(classWriter, methodWriter, globals);
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
         if (!continuous) {
-            condition.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, end);
+            condition.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         if (loopCounter != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+            methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
         }
 
-        writer.goTo(start);
-        writer.mark(end);
+        methodWriter.goTo(start);
+        methodWriter.mark(end);
     }
 
     @Override

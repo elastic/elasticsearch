@@ -68,53 +68,59 @@ include::common-options.asciidoc[]
 Here is an example of using the provided patterns to extract out and name structured fields from a string field in
 a document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
+POST _ingest/pipeline/_simulate
 {
-  "message": "55.3.244.1 GET /index.html 15824 0.043"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-The pattern for this could be:
-
-[source,txt]
---------------------------------------------------
-%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}
---------------------------------------------------
-
-Here is an example pipeline for processing the above document by using Grok:
-
-[source,js]
---------------------------------------------------
-{
-  "description" : "...",
-  "processors": [
+  "pipeline": {
+    "description" : "...",
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": ["%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes:int} %{NUMBER:duration:double}"]
+        }
+      }
+    ]
+  },
+  "docs":[
     {
-      "grok": {
-        "field": "message",
-        "patterns": ["%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"]
+      "_source": {
+        "message": "55.3.244.1 GET /index.html 15824 0.043"
       }
     }
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
 
 This pipeline will insert these named captures as new fields within the document, like so:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-  "message": "55.3.244.1 GET /index.html 15824 0.043",
-  "client": "55.3.244.1",
-  "method": "GET",
-  "request": "/index.html",
-  "bytes": 15824,
-  "duration": "0.043"
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_type": "_doc",
+        "_id": "_id",
+        "_source" : {
+          "duration" : 0.043,
+          "request" : "/index.html",
+          "method" : "GET",
+          "bytes" : 15824,
+          "client" : "55.3.244.1",
+          "message" : "55.3.244.1 GET /index.html 15824 0.043"
+        },
+        "_ingest": {
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
 [[custom-patterns]]
 ==== Custom Patterns
@@ -155,7 +161,7 @@ the same `or` behavior.
 
 Here is an example of such a configuration executed against the simulate API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ingest/pipeline/_simulate
 {
@@ -183,11 +189,10 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "docs": [
@@ -216,7 +221,7 @@ that same pipeline, but with `"trace_match": true` configured:
 
 ////
 Hidden setup for example:
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ingest/pipeline/_simulate
 {
@@ -245,10 +250,9 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// CONSOLE
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "docs": [
@@ -283,11 +287,10 @@ metadata and will not be indexed.
 
 The Grok Processor comes packaged with its own REST endpoint for retrieving which patterns the processor is packaged with.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ingest/processor/grok
 --------------------------------------------------
-// CONSOLE
 
 The above request will return a response body containing a key-value representation of the built-in patterns dictionary.
 

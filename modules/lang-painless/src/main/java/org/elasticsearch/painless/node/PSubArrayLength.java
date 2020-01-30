@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -44,17 +45,12 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if ("length".equals(value)) {
             if (write) {
                 throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));
@@ -67,9 +63,9 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLength();
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayLength();
     }
 
     @Override
@@ -88,17 +84,17 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 

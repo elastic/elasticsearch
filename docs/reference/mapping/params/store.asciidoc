@@ -16,7 +16,7 @@ you have a document with a `title`, a `date`, and a very large `content`
 field, you may want to retrieve just the `title` and the `date` without having
 to extract those fields from a large `_source` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -49,7 +49,7 @@ GET my_index/_search
   "stored_fields": [ "title", "date" ] <2>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `title` and `date` fields are stored.
 <2> This request will retrieve the values of the `title` and `date` fields.
 

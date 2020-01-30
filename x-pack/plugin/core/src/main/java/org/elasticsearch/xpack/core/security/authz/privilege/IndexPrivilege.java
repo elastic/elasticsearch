@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
@@ -41,6 +43,7 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
 public final class IndexPrivilege extends Privilege {
+    private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
@@ -48,6 +51,8 @@ public final class IndexPrivilege extends Privilege {
             ClusterSearchShardsAction.NAME);
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
             PutMappingAction.NAME);
+    private static final Automaton CREATE_DOC_AUTOMATON = patterns("indices:data/write/index", "indices:data/write/index[*",
+        "indices:data/write/index:op_type/create", "indices:data/write/bulk*", PutMappingAction.NAME);
     private static final Automaton INDEX_AUTOMATON =
             patterns("indices:data/write/index*", "indices:data/write/bulk*", "indices:data/write/update*", PutMappingAction.NAME);
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
@@ -74,6 +79,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE =              new IndexPrivilege("delete",              DELETE_AUTOMATON);
     public static final IndexPrivilege WRITE =               new IndexPrivilege("write",               WRITE_AUTOMATON);
+    public static final IndexPrivilege CREATE_DOC =          new IndexPrivilege("create_doc",          CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR =             new IndexPrivilege("monitor",             MONITOR_AUTOMATON);
     public static final IndexPrivilege MANAGE =              new IndexPrivilege("manage",              MANAGE_AUTOMATON);
     public static final IndexPrivilege DELETE_INDEX =        new IndexPrivilege("delete_index",        DELETE_INDEX_AUTOMATON);
@@ -94,6 +100,7 @@ public final class IndexPrivilege extends Privilege {
             .put("delete", DELETE)
             .put("write", WRITE)
             .put("create", CREATE)
+            .put("create_doc", CREATE_DOC)
             .put("delete_index", DELETE_INDEX)
             .put("view_index_metadata", VIEW_METADATA)
             .put("read_cross_cluster", READ_CROSS_CLUSTER)
@@ -144,10 +151,12 @@ public final class IndexPrivilege extends Privilege {
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
                 } else {
-                    throw new IllegalArgumentException("unknown index privilege [" + part + "]. a privilege must be either " +
-                            "one of the predefined fixed indices privileges [" +
-                            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
-                            " actions");
+                    String errorMessage = "unknown index privilege [" + part + "]. a privilege must be either " +
+                        "one of the predefined fixed indices privileges [" +
+                        Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
+                        " actions";
+                    logger.debug(errorMessage);
+                    throw new IllegalArgumentException(errorMessage);
                 }
             }
         }

@@ -11,12 +11,16 @@ filter and routing information.
 [[cat-alias-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/aliases/<name>`
+`GET /_cat/aliases/<alias>`
+
+`GET /_cat/aliases`
 
 [[cat-alias-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=name]
+`<alias>`::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias]
 
 
 [[cat-alias-api-query-params]]
@@ -30,8 +34,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
@@ -42,7 +44,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 ////
 Hidden setup for example:
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test1
 {
@@ -65,14 +67,12 @@ PUT test1
   }
 }
 --------------------------------------------------
-// CONSOLE
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/aliases?v
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:

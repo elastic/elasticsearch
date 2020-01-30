@@ -20,8 +20,10 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -34,6 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptScoreQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -55,7 +58,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("doc['field2'].value * param1", vars -> {
+            scripts.put("doc['field2'].value * param1", vars -> {   
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles field2Values = (ScriptDocValues.Doubles) doc.get("field2");
                 Double param1 = (Double) vars.get("param1");
@@ -86,7 +89,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
         SearchResponse resp = client()
             .prepareSearch("test-index")
-            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), new ScriptScoreFunctionBuilder(script)))
+            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
             .get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6", "4", "2");
@@ -97,9 +100,60 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         // applying min score
         resp = client()
             .prepareSearch("test-index")
-            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), new ScriptScoreFunctionBuilder(script)).setMinScore(0.6f))
+            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script).setMinScore(0.6f))
             .get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6");
+    }
+
+    public void testScriptScoreBoolQuery() {
+        assertAcked(
+            prepareCreate("test-index").addMapping("_doc", "field1", "type=text", "field2", "type=double")
+        );
+        int docCount = 10;
+        for (int i = 1; i <= docCount; i++) {
+            client().prepareIndex("test-index", "_doc", "" + i)
+                .setSource("field1", "text" + i, "field2", i)
+                .get();
+        }
+        refresh();
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", 0.1);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
+        QueryBuilder boolQuery = boolQuery().should(matchQuery("field1", "text1")).should(matchQuery("field1", "text10"));
+        SearchResponse resp = client()
+            .prepareSearch("test-index")
+            .setQuery(scriptScoreQuery(boolQuery, script))
+            .get();
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "10", "1");
+        assertFirstHit(resp, hasScore(1.0f));
+        assertSecondHit(resp, hasScore(0.1f));
+    }
+
+
+    // test that when the internal query is rewritten script_score works well
+    public void testRewrittenQuery() {
+        assertAcked(
+            prepareCreate("test-index2")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .addMapping("_doc", "field1", "type=date", "field2", "type=double")
+        );
+        client().prepareIndex("test-index2", "_doc", "1").setSource("field1", "2019-09-01", "field2", 1).get();
+        client().prepareIndex("test-index2", "_doc", "2").setSource("field1", "2019-10-01", "field2", 2).get();
+        client().prepareIndex("test-index2", "_doc", "3").setSource("field1", "2019-11-01", "field2", 3).get();
+        refresh();
+
+        RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", 0.1);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
+        SearchResponse resp = client()
+            .prepareSearch("test-index2")
+            .setQuery(scriptScoreQuery(rangeQB, script))
+            .get();
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "3", "2", "1");
     }
 }

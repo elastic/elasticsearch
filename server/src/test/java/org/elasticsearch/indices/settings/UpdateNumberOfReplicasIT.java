@@ -21,6 +21,7 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -159,6 +160,22 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
+
+            clusterHealth = client().admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForGreenStatus()
+                .setWaitForActiveShards(numShards.numPrimaries * 2)
+                .execute().actionGet();
+            logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
+            assertThat(clusterHealth.isTimedOut(), equalTo(false));
+            assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
+            assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
+            assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
+        }
+
         final long settingsVersion =
                 client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
 
@@ -247,6 +264,22 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
+
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
+
+            clusterHealth = client().admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForGreenStatus()
+                .setWaitForActiveShards(numShards.numPrimaries * 2)
+                .execute().actionGet();
+            logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
+            assertThat(clusterHealth.isTimedOut(), equalTo(false));
+            assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
+            assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
+            assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
+        }
 
         final long settingsVersion =
                 client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();

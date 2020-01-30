@@ -15,15 +15,19 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinFieldwiseCompareRows;
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
     private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
+    private FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', '"', 3, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" +
@@ -368,6 +372,47 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss.SSSSSS"), structure.getJodaTimestampFormats());
     }
 
+    public void testCreateConfigsGivenTsvWithSyslogLikeTimestamp() throws Exception {
+        String sample = "Latitude\tLongitude\tloc\tTimestamp\n" +
+            "25.78042\t18.441196\t\"25.7804200000,18.4411960000\"\tJun 30 2019 13:21:24\n" +
+            "25.743484\t18.443047\t\"25.7434840000,18.4430470000\"\tJun 30 2019 06:02:35\n" +
+            "25.744583\t18.442783\t\"25.7445830000,18.4427830000\"\tJun 30 2019 06:02:35\n" +
+            "25.754593\t18.431637\t\"25.7545930000,18.4316370000\"\tJul 1 2019 06:02:43\n" +
+            "25.768574\t18.433483\t\"25.7685740000,18.4334830000\"\tJul 1 2019 06:21:28\n" +
+            "25.757736\t18.438683\t\"25.7577360000,18.4386830000\"\tJul 1 2019 12:06:08\n" +
+            "25.76615\t18.436565\t\"25.7661500000,18.4365650000\"\tJul 1 2019 12:06:08\n" +
+            "25.76896\t18.43586\t\"25.7689600000,18.4358600000\"\tJul 1 2019 12:13:50\n" +
+            "25.76423\t18.43705\t\"25.7642300000,18.4370500000\"\tJul 1 2019 12:39:10\n";
+        assertTrue(tsvFactory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = tsvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertEquals("^\"?Latitude\"?\\t\"?Longitude\"?\\t\"?loc\"?\\t\"?Timestamp\"?",
+            structure.getExcludeLinesPattern());
+        assertNull(structure.getMultilineStartPattern());
+        assertEquals(Character.valueOf('\t'), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertTrue(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals(Arrays.asList("Latitude", "Longitude", "loc", "Timestamp"), structure.getColumnNames());
+        assertNull(structure.getGrokPattern());
+        assertEquals("Timestamp", structure.getTimestampField());
+        assertEquals(Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss", "MMM d YYYY HH:mm:ss"),
+            structure.getJodaTimestampFormats());
+    }
+
     public void testCreateConfigsGivenDotInFieldName() throws Exception {
         String sample = "time.iso8601,message\n" +
             "2018-05-17T13:41:23,hello\n" +
@@ -540,5 +585,40 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("b", DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
         assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
         assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
+    }
+
+    public void testMakeCsvProcessorSettings() {
+
+        String field = randomAlphaOfLength(10);
+        List<String> targetFields = Arrays.asList(generateRandomStringArray(10, field.length() - 1, false , false));
+        char separator = randomFrom(',', ';', '\t', '|');
+        char quote = randomFrom('"', '\'');
+        boolean trim = randomBoolean();
+        Map<String, Object> settings = DelimitedFileStructureFinder.makeCsvProcessorSettings(field, targetFields, separator, quote, trim);
+        assertThat(settings.get("field"), equalTo(field));
+        assertThat(settings.get("target_fields"), equalTo(targetFields));
+        assertThat(settings.get("ignore_missing"), equalTo(false));
+        if (separator == ',') {
+            assertThat(settings, not(hasKey("separator")));
+        } else {
+            assertThat(settings.get("separator"), equalTo(String.valueOf(separator)));
+        }
+        if (quote == '"') {
+            assertThat(settings, not(hasKey("quote")));
+        } else {
+            assertThat(settings.get("quote"), equalTo(String.valueOf(quote)));
+        }
+        if (trim) {
+            assertThat(settings.get("trim"), equalTo(true));
+        } else {
+            assertThat(settings, not(hasKey("trim")));
+        }
+    }
+
+    static Map<String, Object> randomCsvProcessorSettings() {
+        String field = randomAlphaOfLength(10);
+        return DelimitedFileStructureFinder.makeCsvProcessorSettings(field,
+            Arrays.asList(generateRandomStringArray(10, field.length() - 1, false , false)), randomFrom(',', ';', '\t', '|'),
+            randomFrom('"', '\''), randomBoolean());
     }
 }

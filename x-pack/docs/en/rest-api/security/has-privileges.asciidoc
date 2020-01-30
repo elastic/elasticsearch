@@ -21,13 +21,13 @@ a specified list of privileges.
 * All users can use this API, but only to determine their own privileges.
 To check the privileges of other users, you must use the run as feature. For
 more information, see
-{stack-ov}/run-as-privilege.html[Submitting requests on behalf of other users].
+<<run-as-privilege>>.
 
 [[security-api-has-privileges-desc]]
 ==== {api-description-title}
 
 For a list of the privileges that you can specify in this API,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 A successful call returns a JSON structure that shows whether each specified
 privilege is assigned to the user.

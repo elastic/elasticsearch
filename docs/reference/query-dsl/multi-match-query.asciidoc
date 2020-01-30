@@ -7,7 +7,7 @@
 The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
 to allow multi-field queries:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -19,7 +19,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The query string.
 <2> The fields to be queried.
 
@@ -29,7 +29,7 @@ GET /_search
 
 Fields can be specified with wildcards, eg:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -41,12 +41,12 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Query the `title`, `first_name` and `last_name` fields.
 
 Individual fields can be boosted with the caret (`^`) notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -58,7 +58,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `subject` field is three times as important as the `message` field.
 
@@ -110,7 +109,7 @@ The `best_fields` type generates a <<query-dsl-match-query,`match` query>> for
 each field and wraps them in a <<query-dsl-dis-max-query,`dis_max`>> query, to
 find the single best matching field.  For instance, this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -124,11 +123,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -143,7 +141,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Normally the `best_fields` type uses the score of the *single* best matching
 field, but if `tie_breaker` is specified, then it calculates the score as
@@ -169,7 +166,7 @@ which is probably not what you want.
 
 Take this query for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -183,7 +180,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> All terms must be present.
 
@@ -212,7 +208,7 @@ to push the most similar results to the top of the list.
 
 This query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -225,11 +221,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -244,7 +239,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
@@ -262,7 +256,8 @@ but they use a `match_phrase` or `match_phrase_prefix` query instead of a
 `match` query.
 
 This query:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -275,11 +270,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -293,7 +287,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Also, accepts `analyzer`, <<mapping-boost,`boost`>>, `lenient` and `zero_terms_query` as explained
 in <<query-dsl-match-query>>, as well as `slop` which is explained in <<query-dsl-match-query-phrase>>.
@@ -346,7 +339,7 @@ big field.
 
 A query like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -360,7 +353,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 is executed as:
 
@@ -407,7 +399,7 @@ For instance, if we have a `first` and `last` field which have
 the same analyzer, plus a `first.edge` and `last.edge` which
 both use an `edge_ngram` analyzer, this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -423,7 +415,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
@@ -446,7 +437,7 @@ You can easily rewrite this query yourself as two separate `cross_fields`
 queries combined with a `bool` query, and apply the `minimum_should_match`
 parameter to just one of them:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -473,7 +464,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE 
 
 <1> Either `will` or `smith` must be present in either of the `first`
     or `last` fields
@@ -481,7 +471,7 @@ GET /_search
 You can force all fields into the same group by specifying the `analyzer`
 parameter in the query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -495,7 +485,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Use the `standard` analyzer for all fields.
 
@@ -534,7 +523,7 @@ The `bool_prefix` type's scoring behaves like <<type-most-fields>>, but using a
 <<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>> instead of a
 `match` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -547,7 +536,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `analyzer`, `boost`, `operator`, `minimum_should_match`, `lenient`,
 `zero_terms_query`, and `auto_generate_synonyms_phrase_query` parameters as

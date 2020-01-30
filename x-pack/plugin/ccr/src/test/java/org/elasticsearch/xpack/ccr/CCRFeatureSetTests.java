@@ -101,7 +101,7 @@ public class CCRFeatureSetTests extends ESTestCase {
         Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = new HashMap<>(numAutoFollowPatterns);
         for (int i = 0; i < numAutoFollowPatterns; i++) {
             AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern("remote_cluser",
-                Collections.singletonList("logs" + i + "*"), null, null, null, null, null, null, null, null, null, null, null);
+                Collections.singletonList("logs" + i + "*"), null, true, null, null, null, null, null, null, null, null, null, null);
             patterns.put("pattern" + i, pattern);
         }
         metaData.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));

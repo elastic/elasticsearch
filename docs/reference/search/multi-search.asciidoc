@@ -123,7 +123,7 @@ The endpoint allows to also search against an index/indices in the URI itself,
 in which case it will be used as the default unless explicitly defined otherwise
 in the header. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_msearch
 {}
@@ -133,7 +133,6 @@ GET twitter/_msearch
 {"index" : "twitter2"}
 {"query" : {"match_all" : {}}}
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The above will execute the search against the `twitter` index for all the
@@ -157,7 +156,7 @@ Much like described in <<search-template>> for the _search resource, _msearch
 also provides support for templates. Submit them like follows for inline 
 templates:
 
-[source,js]
+[source,console]
 -----------------------------------------------
 GET _msearch/template
 {"index" : "twitter"}
@@ -165,13 +164,12 @@ GET _msearch/template
 {"index" : "twitter"}
 { "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
 -----------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
 You can also create search templates:
 
-[source,js]
+[source,console]
 ------------------------------------------
 POST /_scripts/my_template_1
 {
@@ -187,11 +185,10 @@ POST /_scripts/my_template_1
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
-[source,js]
+[source,console]
 ------------------------------------------
 POST /_scripts/my_template_2
 {
@@ -207,12 +204,11 @@ POST /_scripts/my_template_2
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 You can use search templates in a _msearch:
 
-[source,js]
+[source,console]
 -----------------------------------------------
 GET _msearch/template
 {"index" : "main"}
@@ -220,7 +216,6 @@ GET _msearch/template
 {"index" : "main"}
 { "id": "my_template_2", "params": { "field": "user", "value": "test" } }
 -----------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 

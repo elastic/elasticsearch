@@ -179,12 +179,13 @@ public class NativePrivilegeStore {
         }
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         if (termsQuery != null) {
-            boolQuery.filter(termsQuery);
+            boolQuery.should(termsQuery);
         }
         for (String wildcard : wildcardNames) {
             final String prefix = wildcard.substring(0, wildcard.length() - 1);
-            boolQuery.filter(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
+            boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
         }
+        boolQuery.minimumShouldMatch(1);
         return boolQuery;
     }
 

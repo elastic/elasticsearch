@@ -43,8 +43,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
-        private static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, SNAPSHOT_ID);

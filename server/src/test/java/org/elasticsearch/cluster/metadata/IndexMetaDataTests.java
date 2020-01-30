@@ -71,7 +71,7 @@ public class IndexMetaDataTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(INDICES_MODULE.getNamedXContents());
+        return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
     public void testIndexMetaDataSerialization() throws IOException {

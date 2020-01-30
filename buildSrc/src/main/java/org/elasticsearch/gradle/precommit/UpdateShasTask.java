@@ -22,6 +22,7 @@ package org.elasticsearch.gradle.precommit;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -77,6 +78,7 @@ public class UpdateShasTask extends DefaultTask {
         Files.write(shaFile.toPath(), sha.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
     }
 
+    @Internal
     public DependencyLicensesTask getParentTask() {
         return parentTask.get();
     }

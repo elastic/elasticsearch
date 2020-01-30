@@ -1,3 +1,4 @@
+[role="xpack"]
 [[trigger]]
 == Triggers
 
@@ -7,6 +8,6 @@ appropriate _Trigger Engine_. The trigger engine is responsible for evaluating
 the trigger and triggering the watch when needed.
 
 {watcher} is designed to support different types of triggers, but only time-based
-<<trigger-schedule, `schedule`>> triggers are currently available.
+<<trigger-schedule,`schedule`>> triggers are currently available.
 
 include::trigger/schedule.asciidoc[]

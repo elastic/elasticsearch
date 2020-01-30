@@ -20,7 +20,7 @@ For example, to get highlights for the `content` field in each search hit
 using the default highlighter, include a `highlight` object in
 the request body that specifies the `content` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -34,7 +34,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 {es} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
@@ -276,7 +275,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 You can specify highlighter settings globally and selectively override them for
 individual fields.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -295,7 +294,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -307,7 +305,7 @@ when highlighting. For example, the following query includes both the search
 query and rescore query in the `highlight_query`. Without the `highlight_query`,
 highlighting would only take the search query into account.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -365,7 +363,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -376,7 +373,7 @@ The `type` field allows to force a specific highlighter type.
 The allowed values are: `unified`, `plain` and `fvh`.
 The following is an example that forces the use of the plain highlighter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -390,7 +387,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[configure-tags]]
@@ -401,7 +397,7 @@ By default, the highlighting will wrap highlighted text in `<em>` and
 `</em>`. This can be controlled by setting `pre_tags` and `post_tags`,
 for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -417,13 +413,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 When using the fast vector highlighter, you can specify additional tags and the
 "importance" is ordered.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -439,12 +434,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 You can also use the built-in `styled` tag schema:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -459,7 +453,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -469,7 +462,7 @@ GET /_search
 Forces the highlighting to highlight fields based on the source even if fields
 are stored separately. Defaults to `false`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -483,7 +476,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -494,7 +486,7 @@ GET /_search
 By default, only fields that contains a query match are highlighted. Set
 `require_field_match` to `false` to highlight all fields.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -509,7 +501,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[matched-fields]]
@@ -528,7 +519,7 @@ the matches are combined is loaded so only that field would benefit from having
 In the following examples, `comment` is analyzed by the `english`
 analyzer and `comment.plain` is analyzed by the `standard` analyzer.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -549,7 +540,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The above matches both "run with scissors" and "running with scissors"
@@ -558,7 +548,7 @@ phrases appear in a large document then "running with scissors" is
 sorted above "run with scissors" in the fragments list because there
 are more matches in that fragment.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -579,14 +569,13 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The above highlights "run" as well as "running" and "scissors" but
 still sorts "running with scissors" above "run with scissors" because
 the plain match ("running") is boosted.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -607,7 +596,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The above query wouldn't highlight "run" or "scissor" but shows that
@@ -656,7 +644,7 @@ Elasticsearch highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered.  If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -668,7 +656,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 None of the highlighters built into Elasticsearch care about the order that the
@@ -686,7 +673,7 @@ in characters (defaults to `100`), and the maximum number of fragments
 to return (defaults to `5`).
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -700,13 +687,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 On top of this it is possible to specify that highlighted fragments need
 to be sorted by score:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -721,7 +707,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 If the `number_of_fragments` value is set to `0` then no fragments are
@@ -730,7 +715,7 @@ course it is highlighted. This can be very handy if short texts (like
 document title or address) need to be highlighted but no fragmentation
 is required. Note that `fragment_size` is ignored in this case.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -745,7 +730,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 When using `fvh` one can use `fragment_offset`
@@ -757,7 +741,7 @@ beginning of the field by setting `no_match_size` (default `0`) to the length
 of the text that you want returned. The actual length may be shorter or longer than
 specified as it tries to break on a word boundary.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -775,7 +759,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -785,7 +768,7 @@ GET /_search
 Here is an example of setting the `comment` field in the index mapping to
 allow for highlighting using the postings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
@@ -799,12 +782,11 @@ PUT /example
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Here is an example of setting the `comment` field to allow for
 highlighting using the `term_vectors` (this will cause the index to be bigger):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
@@ -818,7 +800,6 @@ PUT /example
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[specify-fragmenter]]
@@ -827,7 +808,7 @@ PUT /example
 When using the `plain` highlighter, you can choose between the `simple` and
 `span` fragmenters:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_search
 {
@@ -846,12 +827,11 @@ GET twitter/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -860,13 +840,13 @@ Response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.601195,
+        "max_score": 1.6011951,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
-                "_score": 1.601195,
+                "_score": 1.6011951,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",
@@ -886,7 +866,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_search
 {
@@ -905,12 +885,11 @@ GET twitter/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -919,13 +898,13 @@ Response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.601195,
+        "max_score": 1.6011951,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
-                "_score": 1.601195,
+                "_score": 1.6011951,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",

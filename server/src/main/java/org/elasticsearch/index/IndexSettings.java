@@ -19,6 +19,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -252,22 +253,31 @@ public final class IndexSettings {
      * Controls how long translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is enabled.
+     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
-            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12), TimeValue.MINUS_ONE,
-            Property.Dynamic, Property.IndexScope);
+            settings -> shouldDisableTranslogRetention(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
+            TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is enabled.
+     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "-1" : "512MB",
+        Setting.byteSizeSetting("index.translog.retention.size",
+            settings -> shouldDisableTranslogRetention(settings) ? "-1" : "512MB",
             Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
+     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
+     * This setting is intentionally not registered, it is only used in tests
+     **/
+    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
+        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
 
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
@@ -299,12 +309,18 @@ public final class IndexSettings {
         1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final Setting<String> DEFAULT_PIPELINE =
-       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
-           if (s == null || s.isEmpty()) {
-               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
-           }
-        return s;
-       }, Property.Dynamic, Property.IndexScope);
+        new Setting<>("index.default_pipeline",
+        IngestService.NOOP_PIPELINE_NAME,
+        Function.identity(),
+        Property.Dynamic,
+        Property.IndexScope);
+
+    public static final Setting<String> FINAL_PIPELINE =
+        new Setting<>("index.final_pipeline",
+            IngestService.NOOP_PIPELINE_NAME,
+            Function.identity(),
+            Property.Dynamic,
+            Property.IndexScope);
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -384,6 +400,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
 
     /**
@@ -555,6 +572,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -571,7 +589,7 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        if (softDeleteEnabled && byteSizeValue.getBytes() >= 0) {
+        if (shouldDisableTranslogRetention(settings) && byteSizeValue.getBytes() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionSize = new ByteSizeValue(-1);
         } else {
@@ -580,7 +598,7 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        if (softDeleteEnabled && age.millis() >= 0) {
+        if (shouldDisableTranslogRetention(settings) && age.millis() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionAge = TimeValue.MINUS_ONE;
         } else {
@@ -624,14 +642,14 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return customDataPath() != null;
+        return Strings.isNotEmpty(customDataPath());
     }
 
     /**
-     * Returns the customDataPath for this index, if configured. <code>null</code> o.w.
+     * Returns the customDataPath for this index, if configured. <code>""</code> o.w.
      */
     public String customDataPath() {
-        return settings.get(IndexMetaData.SETTING_DATA_PATH);
+        return IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
     }
 
     /**
@@ -746,7 +764,7 @@ public final class IndexSettings {
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
     }
-    
+
     /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
@@ -768,7 +786,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        assert softDeleteEnabled == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        assert shouldDisableTranslogRetention(settings) == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
         return translogRetentionSize;
     }
 
@@ -777,8 +795,21 @@ public final class IndexSettings {
      * around
      */
     public TimeValue getTranslogRetentionAge() {
-        assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
+        assert shouldDisableTranslogRetention(settings) == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
+    }
+
+    /**
+     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * when soft-deletes is disabled.
+     */
+    public int getTranslogRetentionTotalFiles() {
+        return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
+    }
+
+    private static boolean shouldDisableTranslogRetention(Settings settings) {
+        return INDEX_SOFT_DELETES_SETTING.get(settings)
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
     }
 
     /**
@@ -825,7 +856,7 @@ public final class IndexSettings {
      * Returns the max number of filters in adjacency_matrix aggregation search requests
      * @deprecated This setting will be removed in 8.0
      */
-    @Deprecated    
+    @Deprecated
     public int getMaxAdjacencyMatrixFilters() {
         return this.maxAdjacencyMatrixFilters;
     }
@@ -834,7 +865,7 @@ public final class IndexSettings {
      * @param maxAdjacencyFilters the max number of filters in adjacency_matrix aggregation search requests
      * @deprecated This setting will be removed in 8.0
      */
-    @Deprecated    
+    @Deprecated
     private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
         this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
     }
@@ -990,6 +1021,14 @@ public final class IndexSettings {
 
     public void setDefaultPipeline(String defaultPipeline) {
         this.defaultPipeline = defaultPipeline;
+    }
+
+    public String getRequiredPipeline() {
+        return requiredPipeline;
+    }
+
+    public void setRequiredPipeline(final String requiredPipeline) {
+        this.requiredPipeline = requiredPipeline;
     }
 
     /**

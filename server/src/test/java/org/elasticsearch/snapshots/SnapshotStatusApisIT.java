@@ -21,13 +21,20 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -99,14 +106,65 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
 
-        final List<SnapshotStatus> snapshotStatus = client.admin().cluster().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots();
-        assertBusy(() -> assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatus.get(0).getState()), 1L, TimeUnit.MINUTES);
+        assertBusy(() -> assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().snapshotsStatus(
+            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots().get(0).getState()), 1L,
+            TimeUnit.MINUTES);
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");
 
         logger.info("--> wait for snapshot to finish");
         createSnapshotResponseActionFuture.actionGet();
+    }
+
+    public void testExceptionOnMissingSnapBlob() throws IOException {
+        disableRepoConsistencyCheck("This test intentionally corrupts the repository");
+
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
+            Settings.builder().put("location", repoPath).build()));
+
+        logger.info("--> snapshot");
+        final CreateSnapshotResponse response =
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
+
+        logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
+        IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
+
+        expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
+            .getSnapshots(new GetSnapshotsRequest("test-repo", new String[] {"test-snap"})).actionGet());
+    }
+
+    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
+        disableRepoConsistencyCheck("This test intentionally corrupts the repository");
+
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
+            Settings.builder().put("location", repoPath).build()));
+
+        createIndex("test-idx-1");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> snapshot");
+        final CreateSnapshotResponse response =
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
+
+        logger.info("--> delete shard-level snap-${uuid}.dat file for one shard in this snapshot to simulate concurrent delete");
+        final RepositoriesService service = internalCluster().getMasterNodeInstance(RepositoriesService.class);
+        final Repository repository = service.repository("test-repo");
+        final String indexRepoId = getRepositoryData(repository).resolveIndexId(response.getSnapshotInfo().indices().get(0)).getId();
+        IOUtils.rm(repoPath.resolve("indices").resolve(indexRepoId).resolve("0").resolve(
+            BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
+
+        expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
+            .prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet());
     }
 }

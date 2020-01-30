@@ -8,9 +8,8 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.license.License.LicenseType;
 import org.elasticsearch.rest.RestStatus;
-
-import java.util.stream.StreamSupport;
 
 public class LicenseUtils {
 
@@ -39,7 +38,8 @@ public class LicenseUtils {
     }
 
     public static boolean licenseNeedsExtended(License license) {
-        return "basic".equals(license.type()) && license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+        return LicenseType.isBasic(license.type()) &&
+            license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     }
 
     /**
@@ -47,24 +47,30 @@ public class LicenseUtils {
      * recreated with the new key
      */
     public static boolean signatureNeedsUpdate(License license, DiscoveryNodes currentNodes) {
-        assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
+        assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
 
-        return ("basic".equals(license.type()) || "trial".equals(license.type())) &&
+        String typeName = license.type();
+        return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName)) &&
                 // only upgrade signature when all nodes are ready to deserialize the new signature
                 (license.version() < License.VERSION_CRYPTO_ALGORITHMS &&
-                    compatibleLicenseVersion(currentNodes) == License.VERSION_CRYPTO_ALGORITHMS
+                    compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS
                 );
     }
 
     public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {
-        assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
-
-        if (StreamSupport.stream(currentNodes.spliterator(), false)
-            .allMatch(node -> node.getVersion().onOrAfter(Version.V_6_4_0))) {
-            // License.VERSION_CRYPTO_ALGORITHMS was introduced in 6.4.0
-            return License.VERSION_CRYPTO_ALGORITHMS;
-        } else {
-            return License.VERSION_START_DATE;
-        }
+        return getMaxLicenseVersion(currentNodes.getMinNodeVersion());
     }
+
+    public static int getMaxLicenseVersion(Version version){
+            if (version != null) {
+                if (version.before(Version.V_6_4_0)) {
+                    return License.VERSION_START_DATE;
+                }
+                if (version.before(Version.V_7_6_0)) {
+                    return License.VERSION_CRYPTO_ALGORITHMS;
+                }
+            }
+            assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
+            return License.VERSION_ENTERPRISE;
+        }
 }

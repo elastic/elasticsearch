@@ -51,9 +51,15 @@ public class RestGetLicenseAction extends XPackRestHandler {
      */
     @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
-        final Map<String, String> overrideParams = new HashMap<>(2);
+        // Hide enterprise licenses by default, there is an opt-in flag to show them
+        final boolean hideEnterprise = request.paramAsBoolean("accept_enterprise", false) == false;
+        final int licenseVersion = hideEnterprise ? License.VERSION_CRYPTO_ALGORITHMS : License.VERSION_CURRENT;
+
+        final Map<String, String> overrideParams = new HashMap<>(3);
         overrideParams.put(License.REST_VIEW_MODE, "true");
-        overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
+        overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(licenseVersion));
+        overrideParams.put(License.XCONTENT_HIDE_ENTERPRISE, String.valueOf(hideEnterprise));
+
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));

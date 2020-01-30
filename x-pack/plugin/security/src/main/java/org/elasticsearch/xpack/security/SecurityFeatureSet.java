@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
@@ -95,6 +96,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
+        Map<String, Object> fips140Usage = fips140Usage(settings);
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
@@ -104,7 +106,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             if (countDown.countDown()) {
                 listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
                         roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
-                        apiKeyServiceUsage));
+                        apiKeyServiceUsage, fips140Usage));
             }
         };
 
@@ -184,4 +186,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         return ipFilter.usageStats();
     }
 
+    static Map<String, Object> fips140Usage(Settings settings) {
+        return singletonMap("enabled", FIPS_MODE_ENABLED.get(settings));
+    }
 }

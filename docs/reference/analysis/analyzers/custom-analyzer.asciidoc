@@ -1,5 +1,5 @@
 [[analysis-custom-analyzer]]
-=== Custom Analyzer
+=== Create a custom analyzer
 
 When the built-in analyzers do not fulfill your needs, you can create a
 `custom` analyzer which uses the appropriate combination of:
@@ -51,7 +51,7 @@ Token Filters::
 * <<analysis-lowercase-tokenfilter,Lowercase Token Filter>>
 * <<analysis-asciifolding-tokenfilter,ASCII-Folding Token Filter>>
 
-[source,js]
+[source,console]
 --------------------------------
 PUT my_index
 {
@@ -59,7 +59,7 @@ PUT my_index
     "analysis": {
       "analyzer": {
         "my_custom_analyzer": {
-          "type":      "custom", <1>
+          "type": "custom", <1>
           "tokenizer": "standard",
           "char_filter": [
             "html_strip"
@@ -80,7 +80,6 @@ POST my_index/_analyze
   "text": "Is this <b>déjà vu</b>?"
 }
 --------------------------------
-// CONSOLE
 
 <1> Setting `type` to `custom` tells Elasticsearch that we are defining a custom analyzer.
     Compare this to how <<configuring-analyzers,built-in analyzers can be configured>>:
@@ -154,7 +153,7 @@ Token Filters::
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -201,10 +200,9 @@ PUT my_index
 POST my_index/_analyze
 {
   "analyzer": "my_custom_analyzer",
-  "text":     "I'm a :) person, and you?"
+  "text": "I'm a :) person, and you?"
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Assigns the index a default custom analyzer, `my_custom_analyzer`. This
 analyzer uses a custom tokenizer, character filter, and token filter that

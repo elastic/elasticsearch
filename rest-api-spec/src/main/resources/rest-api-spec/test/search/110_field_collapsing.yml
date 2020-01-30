@@ -372,32 +372,47 @@ setup:
 ---
 "field collapsing on a field alias":
   - skip:
-      version: " - 6.3.99"
-      reason: Field aliases were introduced in 6.4.0.
+      version: " - 7.5.1"
+      reason: the bug fix was introduced in 7.5.2
   - do:
-      indices.put_mapping:
-        include_type_name: false
-        index: test
+      indices.create:
+        index:  alias-test
         body:
-          properties:
-            group_alias: { type: alias, path: numeric_group }
+          mappings:
+            properties:
+              numeric_group: { type: alias, path: other_numeric_group }
+              other_numeric_group: { type: integer }
+  - do:
+      index:
+        index:  alias-test
+        id:     1
+        body:   { other_numeric_group: 1, sort: 6 }
+  - do:
+      index:
+        index:  alias-test
+        id:     2
+        body:   { other_numeric_group: 25, sort: 10 }
+  - do:
+      indices.refresh:
+        index: alias-test
+
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: [alias-test, test]
         body:
-          collapse: { field: group_alias, inner_hits: { name: sub_hits } }
+          collapse: { field: numeric_group, inner_hits: { name: sub_hits } }
           sort: [{ sort: desc }]
 
-  - match: { hits.total: 6 }
+  - match: { hits.total: 8 }
   - length: { hits.hits: 3 }
 
-  - match: { hits.hits.0.fields.group_alias: [3] }
+  - match: { hits.hits.0.fields.numeric_group: [3] }
   - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1}
-  - match: { hits.hits.1.fields.group_alias: [1] }
-  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3}
-  - match: { hits.hits.2.fields.group_alias: [25] }
-  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2}
+  - match: { hits.hits.1.fields.numeric_group: [1] }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 4}
+  - match: { hits.hits.2.fields.numeric_group: [25] }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 3}
 
 ---
 "field collapsing, inner_hits and seq_no":

@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -236,6 +236,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testVerificationUsingATruststore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
 
         UserRoleMapper roleMapper = buildRoleMapper();
@@ -294,6 +295,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testAuthenticationDelegationSuccess() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Authentication mockAuthentication = mock(Authentication.class);
         User mockUser = mock(User.class);
@@ -330,6 +332,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testAuthenticationDelegationFailure() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         X509AuthenticationToken delegatedToken = X509AuthenticationToken.delegated(new X509Certificate[] { certificate },
                 mock(Authentication.class));
@@ -353,6 +356,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testVerificationFailsUsingADifferentTruststore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -377,6 +381,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testTruststorePathWithoutPasswordThrowsException() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put("xpack.security.authc.realms.pki.mypki.truststore.path",
@@ -391,6 +396,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testTruststorePathWithLegacyPasswordDoesNotThrow() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put("xpack.security.authc.realms.pki.mypki.truststore.path",

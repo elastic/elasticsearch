@@ -32,8 +32,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.DocValueField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.TimeField;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -135,11 +136,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
-        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
         extractedFields = new TimeBasedExtractedFields(timeField,
-                Arrays.asList(timeField, ExtractedField.newField("field_1", Collections.singleton("keyword"),
-                    ExtractedField.ExtractionMethod.DOC_VALUE)));
+                Arrays.asList(timeField, new DocValueField("field_1", Collections.singleton("keyword"))));
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();

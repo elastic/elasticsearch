@@ -31,7 +31,7 @@ and permissions for any user from the
 https://www.elastic.co/guide/en/elasticsearch/reference/7.1/configuring-file-realm.html[file realm]
 or the https://www.elastic.co/guide/en/elasticsearch/reference/7.1/configuring-native-realm.html[native realm]
 . Download https://www.elastic.co/downloads/elasticsearch[Elasticsearch],
-https://www.elastic.co/guide/en/elastic-stack-overview/7.1/authorization.html[configure RBAC],
+https://www.elastic.co/guide/en/elasticsearch/reference/7.1/authorization.html[configure RBAC],
 and run your cluster in production, knowing your private data stays private.
 Note that our advanced security features, such as single sign-on and Active Directory/LDAP
 authentication to field-level and document-level security, remain paid features.

@@ -39,7 +39,6 @@
             },
             "type":{
               "type":"string",
-              "required":false,
               "description":"The type of the document; deprecated and optional starting with 7.0",
               "deprecated":true
             }

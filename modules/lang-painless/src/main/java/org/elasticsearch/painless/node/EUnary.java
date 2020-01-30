@@ -20,13 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
@@ -55,36 +56,31 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        child.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         child.extractVariables(variables);
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         originallyExplicit = explicit;
 
         if (operation == Operation.NOT) {
-            analyzeNot(locals);
+            analyzeNot(scriptRoot, locals);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(locals);
+            analyzeBWNot(scriptRoot, locals);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(locals);
+            analyzerAdd(scriptRoot, locals);
         } else if (operation == Operation.SUB) {
-            analyzerSub(locals);
+            analyzerSub(scriptRoot, locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(Locals variables) {
+    void analyzeNot(ScriptRoot scriptRoot, Locals variables) {
         child.expected = boolean.class;
-        child.analyze(variables);
-        child = child.cast(variables);
+        child.analyze(scriptRoot, variables);
+        child = child.cast(scriptRoot, variables);
 
         if (child.constant != null) {
             constant = !(boolean)child.constant;
@@ -93,8 +89,8 @@ public final class EUnary extends AExpression {
         actual = boolean.class;
     }
 
-    void analyzeBWNot(Locals variables) {
-        child.analyze(variables);
+    void analyzeBWNot(ScriptRoot scriptRoot, Locals variables) {
+        child.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
@@ -104,7 +100,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(variables);
+        child = child.cast(scriptRoot, variables);
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -123,8 +119,8 @@ public final class EUnary extends AExpression {
         }
     }
 
-    void analyzerAdd(Locals variables) {
-        child.analyze(variables);
+    void analyzerAdd(ScriptRoot scriptRoot, Locals variables) {
+        child.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
@@ -134,7 +130,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(variables);
+        child = child.cast(scriptRoot, variables);
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -157,8 +153,8 @@ public final class EUnary extends AExpression {
         }
     }
 
-    void analyzerSub(Locals variables) {
-        child.analyze(variables);
+    void analyzerSub(ScriptRoot scriptRoot, Locals variables) {
+        child.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
@@ -168,7 +164,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(variables);
+        child = child.cast(scriptRoot, variables);
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -192,23 +188,23 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
             Label fals = new Label();
             Label end = new Label();
 
-            child.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+            child.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-            writer.push(false);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(true);
-            writer.mark(end);
+            methodWriter.push(false);
+            methodWriter.goTo(end);
+            methodWriter.mark(fals);
+            methodWriter.push(true);
+            methodWriter.mark(end);
         } else {
-            child.write(writer, globals);
+            child.write(classWriter, methodWriter, globals);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.
@@ -224,29 +220,29 @@ public final class EUnary extends AExpression {
             if (operation == Operation.BWNOT) {
                 if (promote == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    writer.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
+                    methodWriter.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     if (promote == int.class) {
-                        writer.push(-1);
+                        methodWriter.push(-1);
                     } else if (promote == long.class) {
-                        writer.push(-1L);
+                        methodWriter.push(-1L);
                     } else {
                         throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
-                    writer.math(MethodWriter.XOR, actualType);
+                    methodWriter.math(MethodWriter.XOR, actualType);
                 }
             } else if (operation == Operation.SUB) {
                 if (promote == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    writer.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
+                    methodWriter.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
-                    writer.math(MethodWriter.NEG, actualType);
+                    methodWriter.math(MethodWriter.NEG, actualType);
                 }
             } else if (operation == Operation.ADD) {
                 if (promote == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    writer.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
+                    methodWriter.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 }
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

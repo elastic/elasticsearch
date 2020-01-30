@@ -14,7 +14,7 @@ including options for fuzzy matching.
 [[match-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -27,7 +27,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[match-top-level-params]]
@@ -147,7 +146,7 @@ See <<query-dsl-match-query-zero>> for an example.
 You can simplify the match query syntax by combining the `<field>` and `query`
 parameters. For example:
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -158,7 +157,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[query-dsl-match-query-boolean]]
 ===== How the match query works
@@ -173,7 +171,7 @@ parameter.
 
 Here is an example with the `operator` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -187,7 +185,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It defaults to the field explicit mapping
@@ -218,7 +215,7 @@ analysis process produces multiple tokens at the same position. Under the hood
 these terms are expanded to a special synonym query that blends term frequencies,
 which does not support fuzzy expansion.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -232,7 +229,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-query-zero]]
 ===== Zero terms query
@@ -241,7 +237,7 @@ does, the default behavior is to match no documents at all. In order to
 change that the `zero_terms_query` option can be used, which accepts
 `none` (default) and `all` which corresponds to a `match_all` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -256,12 +252,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-query-cutoff]]
 ===== Cutoff frequency
 
-deprecated[7.3.0,"This option can be omitted as the <<query-dsl-match-query>> can skip block of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
+deprecated[7.3.0,"This option can be omitted as the <<query-dsl-match-query>> can skip blocks of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
 
 The match query supports a `cutoff_frequency` that allows
 specifying an absolute or relative document frequency where high
@@ -279,12 +274,12 @@ automatically transformed into a pure conjunction (`and`) query to
 ensure fast execution.
 
 The `cutoff_frequency` can either be relative to the total number of
-documents if in the range `[0..1)` or absolute if greater or equal to
+documents if in the range from 0 (inclusive) to 1 (exclusive) or absolute if greater or equal to
 `1.0`.
 
 Here is an example showing a query composed of stopwords exclusively:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -298,7 +293,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]]
 
 IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
@@ -316,7 +310,7 @@ For example, the following synonym: `"ny, new york" would produce:`
 
 It is also possible to match multi terms synonyms with conjunctions instead:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -330,7 +324,6 @@ GET /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates a boolean query:
 

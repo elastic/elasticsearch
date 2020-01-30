@@ -501,3 +501,53 @@ setup:
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
     - match: { hits.hits.1._id : "1" }
+
+
+---
+"Script Score With Highlight":
+  - skip:
+      version: " - 7.4.0"
+      reason: "highlight for script_score was introduced in 7.4.1"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            "properties":
+              "company":
+                "type": "text"
+              "reputation":
+                "type": "integer"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id" : "1"}}'
+          - '{"company": "ABC company", "reputation": 300}'
+          - '{"index": {"_index": "test_index", "_id" : "2"}}'
+          - '{"company": "ABC ABCD company", "reputation": 200}'
+          - '{"index": {"_index": "test_index", "_id" : "3"}}'
+          - '{"company": "ABCD company", "reputation": 100}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              script:
+                source: "doc['reputation'].value"
+              query:
+                bool:
+                  should:
+                    - match:
+                        company: ABC
+                    - match:
+                        company: ABCD
+          highlight:
+            fields:
+              company: {}
+
+  - match: {hits.hits.0.highlight.company.0: "<em>ABC</em> company"}
+  - match: {hits.hits.1.highlight.company.0: "<em>ABC</em> <em>ABCD</em> company"}
+  - match: {hits.hits.2.highlight.company.0: "<em>ABCD</em> company"}

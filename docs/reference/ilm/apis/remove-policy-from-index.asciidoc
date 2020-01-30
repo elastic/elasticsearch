@@ -8,37 +8,44 @@
 
 Removes the assigned lifecycle policy from an index.
 
-==== Request
+[[ilm-remove-policy-request]]
+==== {api-request-title}
 
 `POST <index>/_ilm/remove`
 
-==== Description
+[[ilm-remove-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+privileges on the indices being managed to use this API. For more information,
+see <<security-privileges>>.
+
+[[ilm-remove-policy-desc]]
+==== {api-description-title}
 
 Removes the assigned lifecycle policy and stops managing the specified index.
 If an index pattern is specified, removes the assigned policies from all matching
 indices.
 
-==== Path Parameters
+[[ilm-remove-policy-path-params]]
+==== {api-path-parms-title}
 
-`index` (required)::
-  (string) Identifier for the index.
+`<index>`::
+  (Required, string) Identifier for the index.
 
-==== Request Parameters
+[[ilm-remove-policy-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
-
-You must have the `manage_ilm` privileges on the indices being managed to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
-
-==== Examples
+[[ilm-remove-policy-example]]
+==== {api-examples-title}
 
 The following example removes the assigned policy from `my_index`.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -69,16 +76,13 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST my_index/_ilm/remove
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request succeeds, you receive the following result:

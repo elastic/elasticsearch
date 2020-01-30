@@ -83,7 +83,7 @@ Inner hits also supports the following per document features:
 
 The nested `inner_hits` can be used to include nested inner objects as inner hits to a search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -124,13 +124,12 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition in the nested query. No other options need to be defined.
 
 An example of a response snippet that could be generated from the above search request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...,
@@ -207,7 +206,7 @@ has an impact on the time it takes to execute the entire search request, especia
 are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
 including the source and solely rely on doc values fields. Like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -253,13 +252,12 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////
 
 Response not included in text but tested for completeness sake.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...,
@@ -321,7 +319,7 @@ If a mapping has multiple levels of hierarchical nested object fields each level
 For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
 with the root hits then the following path can be defined:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -374,11 +372,10 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Which would look like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...,
@@ -387,13 +384,13 @@ Which would look like:
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.6931472,
+    "max_score": 0.6931471,
     "hits": [
       {
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.6931472,
+        "_score": 0.6931471,
         "_source": ...,
         "inner_hits": {
           "comments.votes": { <1>
@@ -402,7 +399,7 @@ Which would look like:
                   "value": 1,
                   "relation": "eq"
               },
-              "max_score": 0.6931472,
+              "max_score": 0.6931471,
               "hits": [
                 {
                   "_index": "test",
@@ -416,7 +413,7 @@ Which would look like:
                       "offset": 0
                     }
                   },
-                  "_score": 0.6931472,
+                  "_score": 0.6931471,
                   "_source": {
                     "value": 1,
                     "voter": "kimchy"
@@ -441,7 +438,7 @@ This indirect referencing is only supported for nested inner hits.
 
 The parent/child `inner_hits` can be used to include parent or child:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -487,13 +484,12 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition like in the nested example.
 
 An example of a response snippet that could be generated from the above search request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...,

@@ -10,7 +10,7 @@ The Painless execute API allows an arbitrary script to be executed and a result 
 [options="header"]
 |======
 | Name              | Required  | Default                | Description
-| `script`          | yes       | -                      | The script to execute
+| `script`          | yes       | -                      | The script to execute.
 | `context`         | no        | `painless_test`        | The context the script should be executed in.
 | `context_setup`   | no        | -                      | Additional parameters to the context.
 |======
@@ -21,7 +21,7 @@ Contexts control how scripts are executed, what variables are available at runti
 
 ===== Painless test context
 
-The `painless_test` context executes scripts as is and do not add any special parameters.
+The `painless_test` context executes scripts as is and does not add any special parameters.
 The only variable that is available is `params`, which can be used to access user defined values.
 The result of the script is always converted to a string.
 If no context is specified then this context is used by default.
@@ -56,9 +56,9 @@ Response:
 ===== Filter context
 
 The `filter` context executes scripts as if they were executed inside a `script` query.
-For testing purposes a document must be provided that will be indexed temporarily in-memory and
-is accessible to the script being tested. Because of this the _source, stored fields and doc values
-are available in the script being tested.
+For testing purposes, a document must be provided so that it will be temporarily indexed in-memory and
+is accessible from the script. More precisely, the _source, stored fields and doc values of such a 
+document are available to the script being tested.
 
 The following parameters may be specified in `context_setup` for a filter context:
 
@@ -117,7 +117,7 @@ The following parameters may be specified in `context_setup` for a score context
 
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
 index:: The name of an index containing a mapping that is compatible with the document being indexed.
-query:: If `_score` is used in the script then a query can specified that will be used to compute a score.
+query:: If `_score` is used in the script then a query can specify that it will be used to compute a score.
 
 *Example*
 

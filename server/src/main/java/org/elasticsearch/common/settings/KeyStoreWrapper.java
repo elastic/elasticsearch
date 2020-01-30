@@ -20,6 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -32,6 +34,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -40,7 +43,6 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -217,7 +219,16 @@ public class KeyStoreWrapper implements SecureSettings {
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
-            int formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+            final int formatVersion;
+            try {
+                formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+            } catch (IndexFormatTooOldException e) {
+                throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too old. " +
+                    "You should delete and recreate it in order to upgrade.", e);
+            } catch (IndexFormatTooNewException e) {
+                throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too new. " +
+                    "Are you trying to downgrade? You should delete and recreate it in order to downgrade.", e);
+            }
             byte hasPasswordByte = input.readByte();
             boolean hasPassword = hasPasswordByte == 1;
             if (hasPassword == false && hasPasswordByte != 0) {
@@ -368,6 +379,9 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
         } catch (IOException e) {
+            if (e.getCause() instanceof AEADBadTagException) {
+                throw new SecurityException("Provided keystore password was incorrect", e);
+            }
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
@@ -570,7 +584,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Set a string setting. */
+    /**
+     * Set a string setting.
+     */
     synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
@@ -583,7 +599,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Set a file setting. */
+    /**
+     * Set a file setting.
+     */
     synchronized void setFile(String setting, byte[] bytes) {
         ensureOpen();
         validateSettingName(setting);
@@ -594,7 +612,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Remove the given setting from the keystore. */
+    /**
+     * Remove the given setting from the keystore.
+     */
     void remove(String setting) {
         ensureOpen();
         Entry oldEntry = entries.get().remove(setting);

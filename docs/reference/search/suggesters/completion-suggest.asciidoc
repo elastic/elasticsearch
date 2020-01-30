@@ -24,7 +24,7 @@ but are costly to build and are stored in-memory.
 To use this feature, specify a special mapping for this field,
 which indexes the field values for fast completions.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT music
 {
@@ -40,7 +40,6 @@ PUT music
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 Mapping supports the following parameters:
@@ -81,7 +80,7 @@ You index suggestions like any other field. A suggestion is made of an
 text to be matched by a suggestion query and the `weight` determines how
 the suggestions will be scored. Indexing a suggestion is as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT music/_doc/1?refresh
 {
@@ -91,7 +90,6 @@ PUT music/_doc/1?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 The following parameters are supported:
@@ -100,6 +98,16 @@ The following parameters are supported:
 `input`::
     The input to store, this can be an array of strings or just
     a string. This field is mandatory.
++
+[NOTE]
+====
+This value cannot contain the following UTF-16 control characters:
+
+* `\u0000` (null)
+* `\u001f` (information separator one)
+* `\u001e` (information separator two)
+====
+
 
 `weight`::
     A positive integer or a string containing a positive integer,
@@ -108,7 +116,7 @@ The following parameters are supported:
 
 You can index multiple suggestions for a document as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT music/_doc/1?refresh
 {
@@ -124,20 +132,18 @@ PUT music/_doc/1?refresh
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
 a weight with suggestion(s) in the shorthand form.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT music/_doc/1?refresh
 {
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[querying]]
@@ -148,7 +154,7 @@ type as `completion`. Suggestions are near real-time, which means
 new suggestions can be made visible by <<indices-refresh,refresh>> and
 documents once deleted are never shown. This request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST music/_search?pretty
 {
@@ -162,7 +168,6 @@ POST music/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Prefix used to search for suggestions
@@ -171,7 +176,7 @@ POST music/_search?pretty
 
 returns this response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards" : {
@@ -218,7 +223,7 @@ using <<request-body-search-source-filtering, source filtering>> to minimize
 `_source` size. Note that the _suggest endpoint doesn't support source
 filtering but using suggest on the `_search` endpoint does:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST music/_search
 {
@@ -234,7 +239,6 @@ POST music/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Filter the source to return only the `suggest` field
@@ -243,7 +247,7 @@ POST music/_search
 
 Which should look like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 6,
@@ -310,7 +314,7 @@ Queries can return duplicate suggestions coming from different documents.
 It is possible to modify this behavior by setting `skip_duplicates` to true.
 When set, this option filters out documents with duplicate suggestions from the result.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST music/_search?pretty
 {
@@ -325,7 +329,6 @@ POST music/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 WARNING: When set to true, this option can slow down search because more suggestions
 need to be visited to find the top N.
@@ -336,7 +339,7 @@ need to be visited to find the top N.
 The completion suggester also supports fuzzy queries -- this means
 you can have a typo in your search and still get results back.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST music/_search?pretty
 {
@@ -353,7 +356,6 @@ POST music/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Suggestions that share the longest prefix to the query `prefix` will
 be scored higher.
@@ -395,7 +397,7 @@ NOTE: If you want to stick with the default values, but
 The completion suggester also supports regex queries meaning
 you can express a prefix as a regular expression
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST music/_search?pretty
 {
@@ -409,7 +411,6 @@ POST music/_search?pretty
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The regex query can take specific regex parameters.
 The following parameters are supported:

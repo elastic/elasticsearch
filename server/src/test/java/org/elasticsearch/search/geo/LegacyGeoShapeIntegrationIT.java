@@ -23,8 +23,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -158,6 +160,29 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC")
         ).get();
 
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    /**
+     * Test that the circle is still supported for the legacy shapes
+     */
+    public void testLegacyCircle() throws Exception {
+        // create index
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "_doc", "0").setSource("shape", (ToXContent) (builder, params) -> {
+            builder.startObject().field("type", "circle")
+                .startArray("coordinates").value(30).value(50).endArray()
+                .field("radius","77km")
+                .endObject();
+            return builder;
+        }));
+
+        // test self crossing of circles
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape",
+            new Circle(30, 50, 77000))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 

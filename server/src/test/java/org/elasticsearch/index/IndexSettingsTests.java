@@ -364,7 +364,7 @@ public class IndexSettingsTests extends ESTestCase {
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(),
-                settings.getMaxAdjacencyMatrixFilters());    
+                settings.getMaxAdjacencyMatrixFilters());
         assertWarnings("[index.max_adjacency_matrix_filters] setting was deprecated in Elasticsearch and will be removed in a "
                 + "future release! See the breaking changes documentation for the next major version.");
     }
@@ -583,7 +583,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT));
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }

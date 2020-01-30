@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,7 +59,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ThreadPool implements Scheduler, Closeable {
+public class ThreadPool implements Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
@@ -754,15 +753,13 @@ public class ThreadPool implements Scheduler, Closeable {
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
         if (pool != null) {
             // Leverage try-with-resources to close the threadpool
-            try (ThreadPool c = pool) {
-                pool.shutdown();
-                if (awaitTermination(pool, timeout, timeUnit)) {
-                    return true;
-                }
-                // last resort
-                pool.shutdownNow();
-                return awaitTermination(pool, timeout, timeUnit);
+            pool.shutdown();
+            if (awaitTermination(pool, timeout, timeUnit)) {
+                return true;
             }
+            // last resort
+            pool.shutdownNow();
+            return awaitTermination(pool, timeout, timeUnit);
         }
         return false;
     }
@@ -779,11 +776,6 @@ public class ThreadPool implements Scheduler, Closeable {
             Thread.currentThread().interrupt();
         }
         return false;
-    }
-
-    @Override
-    public void close() {
-        threadContext.close();
     }
 
     public ThreadContext getThreadContext() {

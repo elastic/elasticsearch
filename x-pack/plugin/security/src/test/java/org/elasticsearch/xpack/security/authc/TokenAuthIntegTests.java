@@ -8,14 +8,19 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -53,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,6 +79,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     protected int maxNumberOfNodes() {
         // we start one more node so we need to make sure if we hit max randomization we can still start one
         return defaultMaxNumberOfNodes() + 1;
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // need real http
     }
 
     public void testTokenServiceBootstrapOnNodeJoin() throws Exception {
@@ -186,6 +197,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             .actionGet();
                 } catch (ElasticsearchSecurityException e) {
                     assertEquals("token malformed", e.getMessage());
+                    assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
                 }
             }
             client.admin().indices().prepareRefresh(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).get();
@@ -302,7 +314,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertNoTimeout(client()
                 .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
                 .admin().cluster().prepareHealth().get());
-
         CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
         assertNotNull(refreshResponse.getRefreshToken());
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
@@ -552,17 +563,46 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         });
     }
 
+    public void testAuthenticateWithWrongToken() throws Exception {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        org.elasticsearch.client.security.CreateTokenResponse response = restClient.security().createToken(
+            org.elasticsearch.client.security.CreateTokenRequest.passwordGrant(SecuritySettingsSource.TEST_USER_NAME,
+            SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        assertNotNull(response.getAccessToken());
+        // First authenticate with token
+        RequestOptions correctAuthOptions =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + response.getAccessToken()).build();
+        org.elasticsearch.client.security.AuthenticateResponse validResponse = restClient.security().authenticate(correctAuthOptions);
+        assertThat(validResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
+        // Now attempt to authenticate with an invalid access token string
+        RequestOptions wrongAuthOptions =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(0, 128)).build();
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptions));
+        assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+        // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
+        RequestOptions wrongAuthOptionsPre72 =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + generateAccessToken(Version.V_7_1_0)).build();
+        ElasticsearchStatusException e1 = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptionsPre72));
+        assertThat(e1.status(), equalTo(RestStatus.UNAUTHORIZED));
+        // Now attempt to authenticate with an invalid access token with valid structure (after 7.2)
+        RequestOptions wrongAuthOptionsAfter72 =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + generateAccessToken(Version.V_7_4_0)).build();
+        ElasticsearchStatusException e2 = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptionsAfter72));
+        assertThat(e2.status(), equalTo(RestStatus.UNAUTHORIZED));
+    }
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         assertSecurityIndexActive();
     }
 
     @After
-    public void wipeSecurityIndex() throws InterruptedException {
+    public void wipeSecurityIndex() throws Exception {
         // get the token service and wait until token expiration is not in progress!
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
-            final boolean done = awaitBusy(() -> tokenService.isExpirationInProgress() == false);
-            assertTrue(done);
+            assertBusy(() -> assertFalse(tokenService.isExpirationInProgress()));
         }
         super.deleteSecurityIndex();
     }
@@ -570,5 +610,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testMetadataIsNotSentToClient() {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetaData.TYPE));
+    }
+
+    private String generateAccessToken(Version version) throws Exception {
+        TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        String accessTokenString = UUIDs.randomBase64UUID();
+        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            accessTokenString = TokenService.hashTokenString(accessTokenString);
+        }
+        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 }

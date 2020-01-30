@@ -34,6 +34,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -1157,6 +1158,33 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
         });
     }
+    
+    public void testGetDateTypeFromAggregation() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 1984-05-02 14:59:12 UTC
+        Long timeInMillis = 452357952000L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted", "UTC", results -> {
+            results.next();
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeInMillis), ZoneId.of("Z"))
+                    .toLocalDate().atStartOfDay(ZoneId.of("Z"));
+
+            java.sql.Date expectedDate = new java.sql.Date(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedDate, results.getDate("converted"));
+            assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
+
+            java.sql.Time expectedTime = new java.sql.Time(0L);
+            assertEquals(expectedTime, results.getTime("converted"));
+            assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedTimestamp, results.getTimestamp("converted"));
+            assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
+        });
+    }
 
     public void testGetTimeType() throws Exception {
         createIndex("test");
@@ -1245,6 +1273,54 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             
             assertEquals(randomBool, results.getObject("test_boolean"));
             assertTrue(results.getObject("test_boolean") instanceof Boolean);
+        });
+    }
+    
+    public void testGettingNullValues() throws Exception {
+        String query = "SELECT CAST(NULL AS BOOLEAN) b, CAST(NULL AS TINYINT) t, CAST(NULL AS SMALLINT) s, CAST(NULL AS INTEGER) i,"
+                + "CAST(NULL AS BIGINT) bi, CAST(NULL AS DOUBLE) d, CAST(NULL AS REAL) r, CAST(NULL AS FLOAT) f, CAST(NULL AS VARCHAR) v,"
+                + "CAST(NULL AS DATE) dt, CAST(NULL AS TIME) tm, CAST(NULL AS TIMESTAMP) ts";
+        doWithQuery(query, (results) -> {
+            results.next();
+            
+            assertNull(results.getObject("b"));
+            assertFalse(results.getBoolean("b"));
+            
+            assertNull(results.getObject("t"));
+            assertEquals(0, results.getByte("t"));
+            
+            assertNull(results.getObject("s"));
+            assertEquals(0, results.getShort("s"));
+            
+            assertNull(results.getObject("i"));
+            assertEquals(0, results.getInt("i"));
+            
+            assertNull(results.getObject("bi"));
+            assertEquals(0, results.getLong("bi"));
+            
+            assertNull(results.getObject("d"));
+            assertEquals(0.0d, results.getDouble("d"), 0d);
+            
+            assertNull(results.getObject("r"));
+            assertEquals(0.0f, results.getFloat("r"), 0f);
+            
+            assertNull(results.getObject("f"));
+            assertEquals(0.0f, results.getFloat("f"), 0f);
+            
+            assertNull(results.getObject("v"));
+            assertNull(results.getString("v"));
+            
+            assertNull(results.getObject("dt"));
+            assertNull(results.getDate("dt"));
+            assertNull(results.getDate("dt", randomCalendar()));
+            
+            assertNull(results.getObject("tm"));
+            assertNull(results.getTime("tm"));
+            assertNull(results.getTime("tm", randomCalendar()));
+            
+            assertNull(results.getObject("ts"));
+            assertNull(results.getTimestamp("ts"));
+            assertNull(results.getTimestamp("ts", randomCalendar()));
         });
     }
 
@@ -1421,6 +1497,34 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowDeleted());
     }
     
+    public void testResultSetNotInitialized() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery(SELECT_WILDCARD, rs -> {
+                assertFalse(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
+    public void testResultSetConsumed() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery("SELECT * FROM test LIMIT 1", rs -> {
+                assertFalse(rs.isAfterLast());
+                assertTrue(rs.next());
+                assertFalse(rs.isAfterLast());
+                assertFalse(rs.next());
+                assertTrue(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         doWithQuery(() -> esJdbc(timeZoneId), query, consumer);
     }
@@ -1784,5 +1888,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     private ZoneId getZoneFromOffset(Long randomLongDate) {
         return ZoneId.of(ZoneId.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
+    }
+    
+    private Calendar randomCalendar() {
+        return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 }

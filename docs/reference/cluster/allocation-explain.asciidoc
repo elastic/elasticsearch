@@ -1,5 +1,8 @@
 [[cluster-allocation-explain]]
-=== Cluster Allocation Explain API
+=== Cluster allocation explain API
+++++
+<titleabbrev>Cluster allocation explain</titleabbrev>
+++++
 
 Provides explanations for shard allocations in the cluster.
 
@@ -63,15 +66,14 @@ it finds by sending an empty body for the request.
 
 
 //////
-[source,js]	
+[source,console]
 --------------------------------------------------	
 PUT /myindex	
 --------------------------------------------------	
-// CONSOLE	
 // TESTSETUP
 //////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/allocation/explain
 {
@@ -80,12 +82,11 @@ GET /_cluster/allocation/explain
   "primary": true
 }
 --------------------------------------------------
-// CONSOLE
 
 
 ===== Example of the current_node parameter
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/allocation/explain
 {
@@ -95,34 +96,40 @@ GET /_cluster/allocation/explain
   "current_node": "nodeA"                         <1>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:no way of knowing the current_node]
+
 <1> The node where shard 0 currently has a replica on
 
 
 ===== Examples of unassigned primary shard explanations
 
-[source,js]
+//////
+[source,console]
+--------------------------------------------------	
+DELETE myindex	
+--------------------------------------------------	
+//////
+
+[source,console]
 --------------------------------------------------
-PUT /idx?master_timeout=1s&timeout=1s
+PUT /my_index?master_timeout=1s&timeout=1s
 {"settings": {"index.routing.allocation.include._name": "non_existent_node"} }
 
 GET /_cluster/allocation/explain
 {
-  "index": "idx",
+  "index": "my_index",
   "shard": 0,
   "primary": true
 }
 --------------------------------------------------
-// CONSOLE
 
 
 The API returns the following response for an unassigned primary shard:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "my_index",
   "shard" : 0,
   "primary" : true,
   "current_state" : "unassigned",                 <1>
@@ -171,7 +178,7 @@ allocated to a node in the cluster:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "my_index",
   "shard" : 0,
   "primary" : true,
   "current_state" : "unassigned",
@@ -196,7 +203,7 @@ allocation:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "my_index",
   "shard" : 0,
   "primary" : false,
   "current_state" : "unassigned",
@@ -232,7 +239,7 @@ allocation:
         {
           "decider" : "same_shard",
           "decision" : "NO",
-          "explanation" : "the shard cannot be allocated to the same node on which a copy of the shard already exists [[idx][0], node[3sULLVJrRneSg0EfBB-2Ew], [P], s[STARTED], a[id=eV9P8BN1QPqRc3B4PLx6cg]]"
+          "explanation" : "the shard cannot be allocated to the same node on which a copy of the shard already exists [[my_index][0], node[3sULLVJrRneSg0EfBB-2Ew], [P], s[STARTED], a[id=eV9P8BN1QPqRc3B4PLx6cg]]"
         }
       ]
     }
@@ -253,7 +260,7 @@ its current node and is required to move:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "my_index",
   "shard" : 0,
   "primary" : true,
   "current_state" : "started",
@@ -302,7 +309,7 @@ because moving the shard to another node does not form a better cluster balance:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "my_index",
   "shard" : 0,
   "primary" : true,
   "current_state" : "started",

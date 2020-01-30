@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -33,8 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,7 +53,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     public StatsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     protected StatsAggregationBuilder(StatsAggregationBuilder clone,
@@ -70,7 +70,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
      * Read from a stream.
      */
     public StatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
@@ -79,9 +79,9 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     @Override
-    protected StatsAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new StatsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
+    protected StatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        return new StatsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

@@ -44,6 +44,7 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
     static {
         PARSER.declareString(SamlPrepareAuthenticationRequest::setAssertionConsumerServiceURL, new ParseField("acs"));
         PARSER.declareString(SamlPrepareAuthenticationRequest::setRealmName, new ParseField("realm"));
+        PARSER.declareString(SamlPrepareAuthenticationRequest::setRelayState, new ParseField("relay_state"));
     }
 
     public RestSamlPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

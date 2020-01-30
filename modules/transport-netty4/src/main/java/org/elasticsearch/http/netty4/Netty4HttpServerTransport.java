@@ -20,7 +20,6 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
@@ -32,7 +31,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -63,7 +61,7 @@ import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.CopyBytesServerSocketChannel;
+import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
@@ -186,14 +184,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
 
-            // If direct buffer pooling is disabled, use the CopyBytesServerSocketChannel which will create child
-            // channels of type CopyBytesSocketChannel. CopyBytesSocketChannel pool a single direct buffer
-            // per-event-loop thread to be used for IO operations.
-            if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
-                serverBootstrap.channel(NioServerSocketChannel.class);
-            } else {
-                serverBootstrap.channel(CopyBytesServerSocketChannel.class);
-            }
+            // NettyAllocator will return the channel type designed to work with the configuredAllocator
+            serverBootstrap.channel(NettyAllocator.getServerChannelType());
+
+            // Set the allocators for both the server channel and the child channels created
+            serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
+            serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
             serverBootstrap.childHandler(configureServerChannelHandler());
             serverBootstrap.handler(new ServerChannelExceptionHandler(this));

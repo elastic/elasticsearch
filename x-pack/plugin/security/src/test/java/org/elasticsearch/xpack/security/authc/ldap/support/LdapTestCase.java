@@ -172,6 +172,9 @@ public abstract class LdapTestCase extends ESTestCase {
         if (serverSetType != null) {
             builder.put(getFullSettingKey(realmId, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING), serverSetType.toString());
         }
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
         return builder.build();
     }
 

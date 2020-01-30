@@ -29,6 +29,18 @@ import java.util.List;
 
 public class ClientYamlSuiteRestApiTests extends ESTestCase {
 
+    public void testParseCommonSpec() throws IOException {
+        XContentParser parser = createParser(YamlXContent.yamlXContent, COMMON_SPEC);
+        ClientYamlSuiteRestSpec restSpec = new ClientYamlSuiteRestSpec();
+        ClientYamlSuiteRestSpec.parseCommonSpec(parser, restSpec);
+        assertTrue(restSpec.isGlobalParameter("pretty"));
+        assertTrue(restSpec.isGlobalParameter("human"));
+        assertTrue(restSpec.isGlobalParameter("error_trace"));
+        assertTrue(restSpec.isGlobalParameter("source"));
+        assertTrue(restSpec.isGlobalParameter("filter_path"));
+        assertFalse(restSpec.isGlobalParameter("unknown"));
+    }
+
     public void testPathMatching() throws IOException {
         XContentParser parser = createParser(YamlXContent.yamlXContent, REST_SPEC_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("index.json", parser);
@@ -65,6 +77,39 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
             assertEquals("/{index}/{type}/{id}", paths.get(0).getPath());
         }
     }
+
+    private static final String COMMON_SPEC = "{\n"+
+        "  \"documentation\" : {\n"+
+        "    \"url\": \"Parameters that are accepted by all API endpoints.\",\n"+
+        "    \"documentation\": \"https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html\"\n"+
+        "  },\n"+
+        "  \"params\": {\n"+
+        "    \"pretty\": {\n"+
+        "      \"type\": \"boolean\",\n"+
+        "      \"description\": \"Pretty format the returned JSON response.\",\n"+
+        "      \"default\": false\n"+
+        "    },\n"+
+        "    \"human\": {\n"+
+        "      \"type\": \"boolean\",\n"+
+        "      \"description\": \"Return human readable values for statistics.\",\n"+
+        "      \"default\": true\n"+
+        "    },\n"+
+        "    \"error_trace\": {\n"+
+        "      \"type\": \"boolean\",\n"+
+        "      \"description\": \"Include the stack trace of returned errors.\",\n"+
+        "      \"default\": false\n"+
+        "    },\n"+
+        "    \"source\": {\n"+
+        "      \"type\": \"string\",\n"+
+        "      \"description\": \"The URL-encoded request definition." +
+        " Useful for libraries that do not accept a request body for non-POST requests.\"\n"+
+        "    },\n"+
+        "    \"filter_path\": {\n"+
+        "      \"type\": \"list\",\n"+
+        "      \"description\": \"A comma-separated list of filters used to reduce the response.\"\n"+
+        "    }\n"+
+        "  }\n"+
+        "}\n";
 
     private static final String REST_SPEC_API = "{\n" +
         "  \"index\":{\n" +

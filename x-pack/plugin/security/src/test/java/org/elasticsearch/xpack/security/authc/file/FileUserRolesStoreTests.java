@@ -54,7 +54,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-                .put("resource.reload.interval.high", "2s")
+                .put("resource.reload.interval.high", "100ms")
                 .put("path.home", createTempDir())
                 .build();
         env = TestEnvironment.newEnvironment(settings);
@@ -101,6 +101,17 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(store.roles("user4"), equalTo(Strings.EMPTY_ARRAY));
 
         watcherService.start();
+
+        try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.append("\n");
+        }
+
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        if (latch.getCount() != 1) {
+            fail("Listener should not be called as users roles are not changed.");
+        }
+
+        assertThat(store.roles("user1"), arrayContaining("role1", "role2", "role3"));
 
         try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();

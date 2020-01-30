@@ -47,6 +47,7 @@ import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -75,69 +76,276 @@ public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
 
+    private static Setting.AffixSettingDependency TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
+        @Override
+        public Setting.AffixSetting getSetting() {
+            return Exporter.TYPE_SETTING;
+        }
+
+        @Override
+        public void validate(final String key, final Object value, final Object dependency) {
+            if (TYPE.equals(dependency) == false) {
+                throw new SettingsException("[" + key + "] is set but type is [" + dependency + "]");
+            }
+        }
+    };
+
     /**
      * A string array representing the Elasticsearch node(s) to communicate with over HTTP(S).
      */
     public static final Setting.AffixSetting<List<String>> HOST_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","host",
-                    (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-                            Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "host",
+                key -> Setting.listSetting(
+                    key,
+                    Collections.emptyList(),
+                    Function.identity(),
+                    new Setting.Validator<List<String>>() {
+
+                        @Override
+                        public void validate(final List<String> value) {
+
+                        }
+
+                        @Override
+                        public void validate(final List<String> hosts, final Map<Setting<?>, Object> settings) {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final String type = (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+
+                            if (hosts.isEmpty()) {
+                                final String defaultType =
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace).get(Settings.EMPTY);
+                                if (Objects.equals(type, defaultType)) {
+                                    // hosts can only be empty if the type is unset
+                                    return;
+                                } else {
+                                    throw new SettingsException("host list for [" + key + "] is empty but type is [" + type + "]");
+                                }
+                            }
+
+                            boolean httpHostFound = false;
+                            boolean httpsHostFound = false;
+
+                            // every host must be configured
+                            for (final String host : hosts) {
+                                final HttpHost httpHost;
+
+                                try {
+                                    httpHost = HttpHostBuilder.builder(host).build();
+                                } catch (final IllegalArgumentException e) {
+                                    throw new SettingsException("[" + key + "] invalid host: [" + host + "]", e);
+                                }
+
+                                if (TYPE.equals(httpHost.getSchemeName())) {
+                                    httpHostFound = true;
+                                } else {
+                                    httpsHostFound = true;
+                                }
+
+                                // fail if we find them configuring the scheme/protocol in different ways
+                                if (httpHostFound && httpsHostFound) {
+                                    throw new SettingsException("[" + key + "] must use a consistent scheme: http or https");
+                                }
+                            }
+                        }
+
+                        @Override
+                        public Iterator<Setting<?>> settings() {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final List<Setting<?>> settings =
+                                Collections.singletonList(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                            return settings.iterator();
+                        }
+
+                    },
+                    Property.Dynamic,
+                    Property.NodeScope),
+                TYPE_DEPENDENCY);
+
     /**
      * Master timeout associated with bulk requests.
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Timeout used for initiating a connection.
      */
     public static final Setting.AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","connection.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "connection.timeout",
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Timeout used for reading from the connection.
      */
     public static final Setting.AffixSetting<TimeValue> CONNECTION_READ_TIMEOUT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","connection.read_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "connection.read_timeout",
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Username for basic auth.
      */
     public static final Setting.AffixSetting<String> AUTH_USERNAME_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","auth.username",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(
+                        key,
+                        new Setting.Validator<String>() {
+                            @Override
+                            public void validate(final String password) {
+                                 // no username validation that is independent of other settings
+                            }
+
+                            @Override
+                            public void validate(final String username, final Map<Setting<?>, Object> settings) {
+                                final String namespace =
+                                    HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
+                                        HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
+                                final String password =
+                                    (String) settings.get(AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
+
+                                // password must be specified along with username for any auth
+                                if (Strings.isNullOrEmpty(username) == false) {
+                                    if (Strings.isNullOrEmpty(password)) {
+                                        throw new SettingsException(
+                                            "[" + AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is set " +
+                                            "but [" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is " +
+                                            "missing");
+                                    }
+                                    final String type =
+                                        (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                                    if ("http".equals(type) == false) {
+                                        throw new SettingsException("username for [" + key + "] is set but type is [" + type + "]");
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public Iterator<Setting<?>> settings() {
+                                final String namespace =
+                                    HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
+                                        HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
+
+                                final List<Setting<?>> settings = Arrays.asList(
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace),
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
+                                return settings.iterator();
+                            }
+
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope,
+                        Property.Filtered),
+                    TYPE_DEPENDENCY);
     /**
      * Password for basic auth.
      */
     public static final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key,
+                        new Setting.Validator<String>() {
+                            @Override
+                            public void validate(String password) {
+                                // no password validation that is independent of other settings
+                            }
+
+                            @Override
+                            public void validate(String password, Map<Setting<?>, Object> settings) {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final String username =
+                                    (String) settings.get(AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+
+                                // username is required for any auth
+                                if (Strings.isNullOrEmpty(username)) {
+                                    if (Strings.isNullOrEmpty(password) == false) {
+                                        throw new IllegalArgumentException(
+                                            "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] without [" +
+                                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "]");
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public Iterator<Setting<?>> settings() {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final List<Setting<?>> settings = Collections.singletonList(
+                                    HttpExporter.AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+                                return settings.iterator();
+                            }
+
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope,
+                        Property.Filtered),
+                    TYPE_DEPENDENCY);
     /**
      * The SSL settings.
      *
      * @see SSLService
      */
     public static final Setting.AffixSetting<Settings> SSL_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","ssl",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "ssl",
+                (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
+                TYPE_DEPENDENCY);
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
      */
     public static final Setting.AffixSetting<String> PROXY_BASE_PATH_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","proxy.base_path",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.simpleString(
+                        key,
+                        value -> {
+                            if (Strings.isNullOrEmpty(value) == false) {
+                                try {
+                                    RestClientBuilder.cleanPathPrefix(value);
+                                } catch (RuntimeException e) {
+                                    Setting<?> concreteSetting = HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(key);
+                                    throw new SettingsException("[" + concreteSetting.getKey() + "] is malformed [" + value + "]", e);
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope),
+                    TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
     public static final Setting.AffixSetting<Settings> HEADERS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","headers",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.groupSetting(
+                        key + ".",
+                        settings -> {
+                            final Set<String> names = settings.names();
+                            for (String name : names) {
+                                final String fullSetting = key + "." + name;
+                                if (HttpExporter.BLACKLISTED_HEADERS.contains(name)) {
+                                    throw new SettingsException("header cannot be overwritten via [" + fullSetting + "]");
+                                }
+                                final List<String> values = settings.getAsList(name);
+                                if (values.isEmpty()) {
+                                    throw new SettingsException("headers must have values, missing for setting [" + fullSetting + "]");
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope),
+                    TYPE_DEPENDENCY);
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -149,19 +357,19 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable whether to create placeholders for the old templates.
      */
     public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
     public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
@@ -380,43 +588,17 @@ public class HttpExporter extends Exporter {
      */
     private static HttpHost[] createHosts(final Config config) {
         final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        String configKey = HOST_SETTING.getConcreteSettingForNamespace(config.name()).getKey();
-
-        if (hosts.isEmpty()) {
-            throw new SettingsException("missing required setting [" + configKey + "]");
-        }
 
         final List<HttpHost> httpHosts = new ArrayList<>(hosts.size());
-        boolean httpHostFound = false;
-        boolean httpsHostFound = false;
 
-        // every host must be configured
         for (final String host : hosts) {
-            final HttpHost httpHost;
-
-            try {
-                httpHost = HttpHostBuilder.builder(host).build();
-            } catch (IllegalArgumentException e) {
-                throw new SettingsException("[" + configKey + "] invalid host: [" + host + "]", e);
-            }
-
-            if ("http".equals(httpHost.getSchemeName())) {
-                httpHostFound = true;
-            } else {
-                httpsHostFound = true;
-            }
-
-            // fail if we find them configuring the scheme/protocol in different ways
-            if (httpHostFound && httpsHostFound) {
-                throw new SettingsException("[" + configKey + "] must use a consistent scheme: http or https");
-            }
-
+            final HttpHost httpHost = HttpHostBuilder.builder(host).build();
             httpHosts.add(httpHost);
         }
 
         logger.debug("exporter [{}] using hosts {}", config.name(), hosts);
 
-        return httpHosts.toArray(new HttpHost[httpHosts.size()]);
+        return httpHosts.toArray(new HttpHost[0]);
     }
 
     /**
@@ -527,17 +709,6 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final String password = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-
-        // username is required for any auth
-        if (Strings.isNullOrEmpty(username)) {
-            if (Strings.isNullOrEmpty(password) == false) {
-                throw new SettingsException(
-                        "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "] without [" +
-                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "]");
-            }
-            // nothing to configure; default situation for most users
-            return null;
-        }
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));

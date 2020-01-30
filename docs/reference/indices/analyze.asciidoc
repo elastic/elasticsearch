@@ -7,7 +7,7 @@
 Performs <<analysis,analysis>> on a text string
 and returns the resulting tokens.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -15,7 +15,6 @@ GET /_analyze
   "text" : "Quick Brown Foxes!"
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[analyze-api-request]]
@@ -137,7 +136,7 @@ See <<analysis-tokenizers>> for a list of tokenizers.
 You can apply any of the built-in analyzers to the text string without
 specifying an index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -145,14 +144,13 @@ GET /_analyze
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 
 [[analyze-api-text-array-ex]]
 ===== Array of text strings
 
 If the `text` parameter is provided as array of strings, it is analyzed as a multi-value field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -160,7 +158,6 @@ GET /_analyze
   "text" : ["this is a test", "the second text"]
 }
 --------------------------------------------------
-// CONSOLE
 
 [[analyze-api-custom-analyzer-ex]]
 ===== Custom analyzer
@@ -169,7 +166,7 @@ You can use the analyze API to test a custom transient analyzer built from
 tokenizers, token filters, and char filters. Token filters use the `filter`
 parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -178,9 +175,8 @@ GET /_analyze
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -190,13 +186,12 @@ GET /_analyze
   "text" : "this is a <b>test</b>"
 }
 --------------------------------------------------
-// CONSOLE
 
 deprecated[5.0.0, Use `filter`/`char_filter` instead of `filters`/`char_filters` and `token_filters` has been removed]
 
 Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -205,28 +200,26 @@ GET /_analyze
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 
 [[analyze-api-specific-index-ex]]
 ===== Specific index
 
 You can also run the analyze API against a specific index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /analyze_sample/_analyze
 {
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:analyze_sample]
 
 The above will run an analysis on the "this is a test" text, using the
 default index analyzer associated with the `analyze_sample` index. An `analyzer`
 can also be provided to use a different analyzer:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /analyze_sample/_analyze
 {
@@ -234,7 +227,6 @@ GET /analyze_sample/_analyze
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:analyze_sample]
 
 [[analyze-api-field-ex]]
@@ -242,7 +234,7 @@ GET /analyze_sample/_analyze
 
 The analyzer can be derived based on a field mapping, for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /analyze_sample/_analyze
 {
@@ -250,7 +242,6 @@ GET /analyze_sample/_analyze
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:analyze_sample]
 
 Will cause the analysis to happen based on the analyzer configured in the
@@ -261,7 +252,7 @@ mapping for `obj1.field1` (and if not, the default index analyzer).
 
 A `normalizer` can be provided for keyword field with normalizer associated with the `analyze_sample` index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /analyze_sample/_analyze
 {
@@ -269,12 +260,11 @@ GET /analyze_sample/_analyze
   "text" : "BaR"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:analyze_sample]
 
 Or by building a custom transient normalizer out of token filters and char filters.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -282,7 +272,6 @@ GET /_analyze
   "text" : "BaR"
 }
 --------------------------------------------------
-// CONSOLE
 
 [[explain-analyze-api]]
 ===== Explain analyze
@@ -292,7 +281,7 @@ You can filter token attributes you want to output by setting `attributes` optio
 
 NOTE: The format of the additional detail information is labelled as experimental in Lucene and it may change in the future.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_analyze
 {
@@ -303,7 +292,7 @@ GET /_analyze
   "attributes" : ["keyword"] <1>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Set "keyword" to output "keyword" attribute only
 
 The request returns the following result:
@@ -367,7 +356,7 @@ The following setting allows to limit the number of tokens that can be produced:
     the limit for a specific index:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /analyze_sample
 {
@@ -376,15 +365,13 @@ PUT /analyze_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /analyze_sample/_analyze
 {
   "text" : "this is a test"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:analyze_sample]

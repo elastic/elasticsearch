@@ -46,7 +46,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -194,7 +194,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         boolean valid;
         String explanation = null;
         String error = null;
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(request.shardId(), request.types(),
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {

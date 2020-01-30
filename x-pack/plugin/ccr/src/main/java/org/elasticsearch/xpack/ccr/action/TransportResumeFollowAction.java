@@ -397,6 +397,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         nonReplicatedSettings.add(IndexSettings.MAX_SLICES_PER_SCROLL);
         nonReplicatedSettings.add(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         nonReplicatedSettings.add(IndexSettings.DEFAULT_PIPELINE);
+        nonReplicatedSettings.add(IndexSettings.FINAL_PIPELINE);
         nonReplicatedSettings.add(IndexSettings.INDEX_SEARCH_THROTTLED);
         nonReplicatedSettings.add(IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING);

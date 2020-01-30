@@ -23,13 +23,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -317,22 +316,22 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                              Builder subFactoriesBuilder) throws IOException {
+        ValuesSourceConfig<VS> config = resolveConfig(queryShardContext);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
 
     /**
-     * Provide a hook for aggregations to have finer grained control of the ValuesSourceType for script values.  This will only be called if
-     * the user did not supply a type hint for the script.  The script object is provided for reference.
+     * Provide a hook for aggregations to have finer grained control of the CoreValuesSourceType for script values.  This will only be
+     * called if the user did not supply a type hint for the script.  The script object is provided for reference.
      *
      * @param script - The user supplied script
-     * @return The ValuesSourceType we expect this script to yield.
+     * @return The CoreValuesSourceType we expect this script to yield.
      */
     protected ValuesSourceType resolveScriptAny(Script script) {
-        return ValuesSourceType.BYTES;
+        return CoreValuesSourceType.BYTES;
     }
 
     /**
@@ -345,14 +344,16 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         return valueType;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
+    protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-        return ValuesSourceConfig.resolve(context.getQueryShardContext(),
+        return ValuesSourceConfig.resolve(queryShardContext,
                 valueType, field, script, missing, timeZone, format, this::resolveScriptAny);
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<VS> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

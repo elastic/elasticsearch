@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
@@ -36,19 +37,12 @@ import static java.util.Collections.emptyList;
  */
 public final class SBlock extends AStatement {
 
-    private final List<AStatement> statements;
+    final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
 
         this.statements = Collections.unmodifiableList(statements);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
-            statement.storeSettings(settings);
-        }
     }
 
     @Override
@@ -59,7 +53,7 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -76,8 +70,7 @@ public final class SBlock extends AStatement {
             statement.inLoop = inLoop;
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
-
-            statement.analyze(locals);
+            statement.analyze(scriptRoot, locals);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -89,11 +82,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(writer, globals);
+            statement.write(classWriter, methodWriter, globals);
         }
     }
 

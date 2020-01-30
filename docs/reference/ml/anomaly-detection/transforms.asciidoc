@@ -24,7 +24,7 @@ functions in one or more detectors.
 The following index APIs create and add content to an index that is used in
 subsequent examples:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT /my_index
 {
@@ -92,8 +92,8 @@ PUT /my_index/_doc/1
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:SETUP]
+
 <1> In this example, string fields are mapped as `keyword` fields to support
 aggregation. If you want both a full text (`text`) and a keyword (`keyword`)
 version of the same field, use multi-fields. For more information, see
@@ -101,7 +101,7 @@ version of the same field, use multi-fields. For more information, see
 
 [[ml-configuring-transform1]]
 .Example 1: Adding two numerical fields
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/test1
 {
@@ -140,8 +140,8 @@ PUT _ml/datafeeds/datafeed-test1
   }
 }
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
+
 <1> A script field named `total_error_count` is referenced in the detector
 within the job.
 <2> The script field is defined in the {dfeed}.
@@ -157,11 +157,10 @@ For more information, see
 
 You can preview the contents of the {dfeed} by using the following API:
 
-[source,js]
+[source,console]
 ----------------------------------
 GET _ml/datafeeds/datafeed-test1/_preview
 ----------------------------------
-// CONSOLE
 // TEST[skip:continued]
 
 In this example, the API returns the following results, which contain a sum of
@@ -210,7 +209,7 @@ that convert your strings to upper or lowercase letters.
 
 [[ml-configuring-transform2]]
 .Example 2: Concatenating strings
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/test2
 {
@@ -251,8 +250,8 @@ PUT _ml/datafeeds/datafeed-test2
 
 GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
+
 <1> The script field has a rather generic name in this case, since it will
 be used for various tests in the subsequent examples.
 <2> The script field uses the plus (+) operator to concatenate strings.
@@ -272,7 +271,7 @@ and "SMITH  " have been concatenated and an underscore was added:
 
 [[ml-configuring-transform3]]
 .Example 3: Trimming strings
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
@@ -288,8 +287,8 @@ POST _ml/datafeeds/datafeed-test2/_update
 
 GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:continued]
+
 <1> This script field uses the `trim()` function to trim extra white space from a
 string.
 
@@ -308,7 +307,7 @@ has been trimmed to "SMITH":
 
 [[ml-configuring-transform4]]
 .Example 4: Converting strings to lowercase
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
@@ -324,8 +323,8 @@ POST _ml/datafeeds/datafeed-test2/_update
 
 GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:continued]
+
 <1> This script field uses the `toLowerCase` function to convert a string to all
 lowercase letters. Likewise, you can use the `toUpperCase{}` function to convert
 a string to uppercase letters.
@@ -345,7 +344,7 @@ has been converted to "joe":
 
 [[ml-configuring-transform5]]
 .Example 5: Converting strings to mixed case formats
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
@@ -361,8 +360,8 @@ POST _ml/datafeeds/datafeed-test2/_update
 
 GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:continued]
+
 <1> This script field is a more complicated example of case manipulation. It uses
 the `subString()` function to capitalize the first letter of a string and
 converts the remaining characters to lowercase.
@@ -382,7 +381,7 @@ has been converted to "Joe":
 
 [[ml-configuring-transform6]]
 .Example 6: Replacing tokens
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
@@ -398,8 +397,8 @@ POST _ml/datafeeds/datafeed-test2/_update
 
 GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:continued]
+
 <1> This script field uses regular expressions to replace white
 space with underscores.
 
@@ -418,7 +417,7 @@ The preview {dfeed} API returns the following results, which show that
 
 [[ml-configuring-transform7]]
 .Example 7: Regular expression matching and concatenation
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
@@ -434,8 +433,8 @@ POST _ml/datafeeds/datafeed-test2/_update
 
 GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:continued]
+
 <1> This script field looks for a specific regular expression pattern and emits the
 matched groups as a concatenated string. If no match is found, it emits an empty
 string.
@@ -455,7 +454,7 @@ The preview {dfeed} API returns the following results, which show that
 
 [[ml-configuring-transform8]]
 .Example 8: Splitting strings by domain name
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/test3
 {
@@ -499,7 +498,6 @@ PUT _ml/datafeeds/datafeed-test3
 
 GET _ml/datafeeds/datafeed-test3/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 If you have a single field that contains a well-formed DNS domain name, you can
@@ -527,7 +525,7 @@ The preview {dfeed} API returns the following results, which show that
 
 [[ml-configuring-transform9]]
 .Example 9: Transforming geo_point data
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/test4
 {
@@ -567,7 +565,6 @@ PUT _ml/datafeeds/datafeed-test4
 
 GET _ml/datafeeds/datafeed-test4/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is

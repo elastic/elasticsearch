@@ -22,6 +22,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
@@ -65,7 +66,15 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
-        String accept = request.param("format");
+        String accept = null;
+        
+        if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
+                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication() == true)) {
+            // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
+            accept = XContentType.CBOR.name();
+        } else {
+            accept = request.param("format");
+        }
         if (accept == null) {
             accept = request.header("Accept");
             if ("*/*".equals(accept)) {

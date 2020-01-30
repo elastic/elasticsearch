@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -63,11 +64,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
  */
 public class RecoveryIT extends AbstractRollingTestCase {
+
+    private static String CLUSTER_NAME = System.getProperty("tests.clustername");
 
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
@@ -303,55 +307,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    /**
-     * This test ensures that peer recovery won't get stuck in a situation where the recovery target and recovery source
-     * have an identical sync id but different local checkpoint in the commit in particular the target does not have
-     * sequence numbers yet. This is possible if the primary is on 6.x while the replica was on 5.x and some write
-     * operations with sequence numbers have taken place. If this is not the case, then peer recovery should utilize
-     * syncId and skip copying files.
-     */
-    public void testRecoverSyncedFlushIndex() throws Exception {
-        final String index = "recover_synced_flush_index";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "256b");
-            }
-            createIndex(index, settings.build());
-            ensureGreen(index);
-            indexDocs(index, 0, 40);
-            syncedFlush(index);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
-            ensureGreen(index);
-            if (firstMixedRound) {
-                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-0", equalTo(0));
-                assertDocCountOnAllCopies(index, 40);
-                indexDocs(index, 40, 50);
-                syncedFlush(index);
-            } else {
-                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-1", equalTo(0));
-                assertDocCountOnAllCopies(index, 90);
-                indexDocs(index, 90, 60);
-                syncedFlush(index);
-                // exclude node-2 from allocation-filter so we can trim translog on the primary before node-2 starts recover
-                if (randomBoolean()) {
-                    updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-*"));
-                }
-            }
-        } else {
-            final int docsAfterUpgraded = randomIntBetween(0, 100);
-            indexDocs(index, 150, docsAfterUpgraded);
-            ensureGreen(index);
-            assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-2", equalTo(0));
-            assertDocCountOnAllCopies(index, 150 + docsAfterUpgraded);
-        }
-    }
-
-    public void testRecoveryWithSoftDeletes() throws Exception {
+    public void testRecovery() throws Exception {
         final String index = "recover_with_soft_deletes";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
@@ -363,8 +319,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (getNodeId(v -> v.onOrAfter(Version.V_6_5_0)) != null && randomBoolean()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            if (randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
             int numDocs = randomInt(10);
@@ -395,7 +351,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             createIndex(index, settings.build());
             int numDocs = randomInt(10);
             indexDocs(index, 0, numDocs);
@@ -418,7 +374,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
                 createIndex(index, settings.build());
                 int numDocs = randomInt(10);
                 indexDocs(index, 0, numDocs);
@@ -538,12 +494,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
-                .put("index.routing.allocation.include._name", "node-0")
+                .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
                 .build());
             indexDocs(indexName, 0, randomInt(10));
             // allocate replica to node-2
             updateIndexSettings(indexName,
-                Settings.builder().put("index.routing.allocation.include._name", "node-0,node-2,upgraded-node-*"));
+                Settings.builder().put(
+                    "index.routing.allocation.include._name",
+                    CLUSTER_NAME + "-0," + CLUSTER_NAME + "-2," + CLUSTER_NAME + "-*")
+            );
             ensureGreen(indexName);
             closeIndex(indexName);
         }
@@ -554,8 +513,16 @@ public class RecoveryIT extends AbstractRollingTestCase {
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (CLUSTER_TYPE != ClusterType.OLD && minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
-                assertNoFileBasedRecovery(indexName, s-> s.startsWith("upgraded"));
+            if (minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
+                switch (CLUSTER_TYPE) {
+                    case OLD: break;
+                    case MIXED:
+                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                        break;
+                    case UPGRADED:
+                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
+                        break;
+                }
             }
         } else {
             assertClosedIndex(indexName, false);
@@ -572,28 +539,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final Response response = client().performRequest(request);
         return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
-    }
-
-    /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    private static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = client().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
     }
 
     /**
@@ -630,7 +575,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertThat(shards.size(), equalTo(numberOfReplicas + 1));
                 for (Map<String, ?> shard : shards) {
                     assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
-                    assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
+                    assertThat((String) XContentMapValues.extractValue("state", shard),
+                        oneOf("STARTED", "RELOCATING", "RELOCATED"));
                     assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
                 }
             }
@@ -645,7 +591,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
             try {
-                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                Response resp = performSyncedFlush(index);
                 Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
                 assertThat(result.get("failed"), equalTo(0));
             } catch (ResponseException ex) {
@@ -725,7 +671,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
+    private void assertNoopRecoveries(String indexName, Predicate<String> targetNode) throws IOException {
         Map<String, Object> recoveries = entityAsMap(client()
             .performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
 
@@ -755,5 +701,113 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         assertTrue("must find replica", foundReplica);
+    }
+
+    /**
+     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there were some
+     * but not too many uncommitted documents (i.e., less than 10% of committed documents or the extra translog)
+     * before we upgrade each node. This is important when we move from translog based to retention leases based
+     * peer recoveries.
+     */
+    public void testOperationBasedRecovery() throws Exception {
+        final String index = "test_operation_based_recovery";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean()).build());
+            ensureGreen(index);
+            indexDocs(index, 0, randomIntBetween(100, 200));
+            flush(index, randomBoolean());
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            // uncommitted docs must be less than 10% of committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+        } else {
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, nodeName ->
+                   CLUSTER_TYPE == ClusterType.UPGRADED
+                || nodeName.startsWith(CLUSTER_NAME + "-0")
+                || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+        }
+    }
+
+    /**
+     * Verifies that once all shard copies on the new version, we should turn off the translog retention for indices with soft-deletes.
+     */
+    public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
+        final String index = "turn_off_translog_retention";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            ensureGreen(index);
+            indexDocs(index, 0, randomIntBetween(100, 200));
+            flush(index, randomBoolean());
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 100));
+        }
+        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            ensureGreen(index);
+            flush(index, true);
+            assertEmptyTranslog(index);
+        }
+    }
+
+    public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
+        final String indexName = "test-auto-expand-filtering";
+        final Version minimumNodeVersion = minimumNodeVersion();
+
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .build());
+            ensureGreen(indexName);
+            updateIndexSettings(indexName,
+                Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
+        }
+
+        final int numberOfReplicas = Integer.parseInt(
+            getIndexSettingsAsMap(indexName).get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS).toString());
+        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
+            assertEquals(nodes.size() - 2, numberOfReplicas);
+            ensureGreen(indexName);
+        } else {
+            assertEquals(nodes.size() - 1, numberOfReplicas);
+        }
+    }
+
+    public void testSoftDeletesDisabledWarning() throws Exception {
+        final String indexName = "test_soft_deletes_disabled_warning";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            boolean softDeletesEnabled = true;
+            Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+            if (randomBoolean()) {
+                softDeletesEnabled = randomBoolean();
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
+            }
+            Request request = new Request("PUT", "/" + indexName);
+            request.setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
+            if (softDeletesEnabled == false) {
+                expectSoftDeletesWarning(request, indexName);
+            }
+            client().performRequest(request);
+        }
+        ensureGreen(indexName);
+        indexDocs(indexName, randomInt(100), randomInt(100));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexSettings(index);
+        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

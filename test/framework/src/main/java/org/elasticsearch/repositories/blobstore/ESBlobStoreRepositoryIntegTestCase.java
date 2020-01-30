@@ -18,33 +18,44 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.CoreMatchers;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -60,26 +71,28 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
 
+    public static RepositoryData getRepositoryData(Repository repository) {
+        return PlainActionFuture.get(repository::getRepositoryData);
+    }
+
     protected abstract String repositoryType();
 
     protected Settings repositorySettings() {
-        final Settings.Builder settings = Settings.builder();
-        settings.put("compress", randomBoolean());
-        if (randomBoolean()) {
-            long size = 1 << randomInt(10);
-            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
-        }
-        return settings.build();
+        return Settings.builder().put("compress", randomBoolean()).build();
     }
 
     protected final String createRepository(final String name) {
+        return createRepository(name, repositorySettings());
+    }
+
+    protected final String createRepository(final String name, final Settings settings) {
         final boolean verify = randomBoolean();
 
-        logger.debug("-->  creating repository [name: {}, verify: {}]", name, verify);
+        logger.debug("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(repositoryType())
             .setVerify(verify)
-            .setSettings(repositorySettings()));
+            .setSettings(settings));
 
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
@@ -90,6 +103,170 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         });
 
         return name;
+    }
+
+    public void testReadNonExistingPath() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            expectThrows(NoSuchFileException.class, () -> {
+                try (InputStream is = container.readBlob("non-existing")) {
+                    is.read();
+                }
+            });
+        }
+    }
+
+    public void testWriteRead() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            if (randomBoolean()) {
+                // override file, to check if we get latest contents
+                data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+                writeBlob(container, "foobar", new BytesArray(data), false);
+            }
+            try (InputStream stream = container.readBlob("foobar")) {
+                BytesRefBuilder target = new BytesRefBuilder();
+                while (target.length() < data.length) {
+                    byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
+                    int offset = scaledRandomIntBetween(0, buffer.length - 1);
+                    int read = stream.read(buffer, offset, buffer.length - offset);
+                    if (read >= 0) {
+                        target.append(new BytesRef(buffer, offset, read));
+                    } else {
+                        fail("Expected [" + (data.length - target.length()) + "] more bytes to be readable but reached EOF");
+                    }
+                }
+                assertEquals(data.length, target.length());
+                assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
+            }
+            container.delete();
+        }
+    }
+
+    public void testList() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            assertThat(container.listBlobs().size(), CoreMatchers.equalTo(0));
+            int numberOfFooBlobs = randomIntBetween(0, 10);
+            int numberOfBarBlobs = randomIntBetween(3, 20);
+            Map<String, Long> generatedBlobs = new HashMap<>();
+            for (int i = 0; i < numberOfFooBlobs; i++) {
+                int length = randomIntBetween(10, 100);
+                String name = "foo-" + i + "-";
+                generatedBlobs.put(name, (long) length);
+                writeRandomBlob(container, name, length);
+            }
+            for (int i = 1; i < numberOfBarBlobs; i++) {
+                int length = randomIntBetween(10, 100);
+                String name = "bar-" + i + "-";
+                generatedBlobs.put(name, (long) length);
+                writeRandomBlob(container, name, length);
+            }
+            int length = randomIntBetween(10, 100);
+            String name = "bar-0-";
+            generatedBlobs.put(name, (long) length);
+            writeRandomBlob(container, name, length);
+
+            Map<String, BlobMetaData> blobs = container.listBlobs();
+            assertThat(blobs.size(), CoreMatchers.equalTo(numberOfFooBlobs + numberOfBarBlobs));
+            for (Map.Entry<String, Long> generated : generatedBlobs.entrySet()) {
+                BlobMetaData blobMetaData = blobs.get(generated.getKey());
+                assertThat(generated.getKey(), blobMetaData, CoreMatchers.notNullValue());
+                assertThat(blobMetaData.name(), CoreMatchers.equalTo(generated.getKey()));
+                assertThat(blobMetaData.length(), CoreMatchers.equalTo(generated.getValue()));
+            }
+
+            assertThat(container.listBlobsByPrefix("foo-").size(), CoreMatchers.equalTo(numberOfFooBlobs));
+            assertThat(container.listBlobsByPrefix("bar-").size(), CoreMatchers.equalTo(numberOfBarBlobs));
+            assertThat(container.listBlobsByPrefix("baz-").size(), CoreMatchers.equalTo(0));
+            container.delete();
+        }
+    }
+
+    public void testDeleteBlobs() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final List<String> blobNames = Arrays.asList("foobar", "barfoo");
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            final BytesArray bytesArray = new BytesArray(data);
+            for (String blobName : blobNames) {
+                writeBlob(container, blobName, bytesArray, randomBoolean());
+            }
+            assertEquals(container.listBlobs().size(), 2);
+            container.deleteBlobsIgnoringIfNotExists(blobNames);
+            assertTrue(container.listBlobs().isEmpty());
+            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+        }
+    }
+
+    public static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
+        boolean failIfAlreadyExists) throws IOException {
+        try (InputStream stream = bytesArray.streamInput()) {
+            if (randomBoolean()) {
+                container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
+            } else {
+                container.writeBlobAtomic(blobName, stream, bytesArray.length(), failIfAlreadyExists);
+            }
+        }
+    }
+
+    public void testContainerCreationAndDeletion() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer containerFoo = store.blobContainer(new BlobPath().add("foo"));
+            final BlobContainer containerBar = store.blobContainer(new BlobPath().add("bar"));
+            byte[] data1 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            byte[] data2 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            writeBlob(containerFoo, "test", new BytesArray(data1));
+            writeBlob(containerBar, "test", new BytesArray(data2));
+
+            assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
+            assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
+
+            assertTrue(BlobStoreTestUtil.blobExists(containerFoo, "test"));
+            assertTrue(BlobStoreTestUtil.blobExists(containerBar, "test"));
+            containerBar.delete();
+            containerFoo.delete();
+        }
+    }
+
+    public static byte[] writeRandomBlob(BlobContainer container, String name, int length) throws IOException {
+        byte[] data = randomBytes(length);
+        writeBlob(container, name, new BytesArray(data));
+        return data;
+    }
+
+    public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
+        byte[] data = new byte[length];
+        try (InputStream inputStream = container.readBlob(name)) {
+            assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
+            assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
+        }
+        return data;
+    }
+
+    public static byte[] randomBytes(int length) {
+        byte[] data = new byte[length];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        return data;
+    }
+
+    protected static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
+        try (InputStream stream = bytesArray.streamInput()) {
+            container.writeBlob(blobName, stream, bytesArray.length(), true);
+        }
+    }
+
+    protected BlobStore newBlobStore() {
+        final String repository = createRepository(randomName());
+        final BlobStoreRepository blobStoreRepository =
+            (BlobStoreRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository);
+        return PlainActionFuture.get(
+            f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.supply(f, blobStoreRepository::blobStore)));
     }
 
     public void testSnapshotAndRestore() throws Exception {
@@ -260,23 +437,22 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
 
         final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
-        final SetOnce<RepositoryData> repositoryData = new SetOnce<>();
-        final CountDownLatch latch = new CountDownLatch(1);
+        final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             indicesBlobContainer.set(repository.blobStore().blobContainer(repository.basePath().add("indices")));
-            repositoryData.set(repository.getRepositoryData());
-            latch.countDown();
+            repository.getRepositoryData(repositoryData);
         });
 
-        latch.await();
-        for (IndexId indexId : repositoryData.get().getIndices().values()) {
+        for (IndexId indexId : repositoryData.actionGet().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
                 assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
             }
         }
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap2").get());
     }
 
-    protected void addRandomDocuments(String name, int numDocs) throws ExecutionException, InterruptedException {
+    protected void addRandomDocuments(String name, int numDocs) throws InterruptedException {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders[i] = client().prepareIndex(name, name, Integer.toString(i))
@@ -307,7 +483,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertThat(response.getSnapshotInfo().successfulShards(), equalTo(response.getSnapshotInfo().totalShards()));
     }
 
-    private static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
+    protected static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
         RestoreSnapshotResponse response = requestBuilder.get();
         assertSuccessfulRestore(response);
     }

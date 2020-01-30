@@ -25,8 +25,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
 
@@ -61,12 +61,11 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(Netty4Plugin.class);
+        return Collections.singletonList(Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(Netty4Plugin.class);
+        return Collections.singletonList(Netty4Plugin.class);
     }
-
 }

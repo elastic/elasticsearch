@@ -3,7 +3,7 @@
 
 Specifies search criteria as request body parameters.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -12,7 +12,6 @@ GET /twitter/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -59,7 +58,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 `ccs_minimize_roundtrips`::
   (Optional, boolean) If `true`, the network round-trips between the 
   coordinating node and the remote clusters ewill be minimized when executing 
-  {ccs} requests. See <<ccs-reduction>> for more. Defaults to `true`. 
+  {ccs} requests. See <<ccs-network-delays>>. Defaults to `true`. 
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 
@@ -74,7 +73,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
 
 
 Out of the above, the `search_type`, `request_cache` and the 
@@ -89,7 +88,7 @@ all clients support GET with body, POST is allowed as well.
 [[search-request-body-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -98,13 +97,12 @@ GET /twitter/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 1,
@@ -120,13 +118,13 @@ The API returns the following response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.3862944,
+        "max_score": 1.3862942,
         "hits" : [
             {
                 "_index" : "twitter",
                 "_type" : "_doc",
                 "_id" : "0",
-                "_score": 1.3862944,
+                "_score": 1.3862942,
                 "_source" : {
                     "user" : "kimchy",
                     "message": "trying out Elasticsearch",
@@ -155,11 +153,10 @@ interested in the search results. Also we can set `terminate_after` to `1`
 to indicate that the query execution can be terminated whenever the first
 matching document was found (per shard).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search?q=message:number&size=0&terminate_after=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -170,7 +167,7 @@ as many documents matching the query when it was early terminated.
 Also if the query was terminated early, the `terminated_early` flag will
 be set to `true` in the response.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 3,

@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
@@ -143,7 +145,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode) {
+    public static void parseNorms(FieldMapper.Builder<?,?> builder, String fieldName, Object propNode) {
         builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
@@ -151,7 +153,7 @@ public class TypeParsers {
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
      */
-    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+    public static void parseTextField(FieldMapper.Builder<?,?> builder, String name, Map<String, Object> fieldNode,
                                       Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
@@ -167,10 +169,57 @@ public class TypeParsers {
     }
 
     /**
+     * Parse the {@code meta} key of the mapping.
+     */
+    public static void parseMeta(FieldMapper.Builder<?,?> builder, String name, Map<String, Object> fieldNode) {
+        Object metaObject = fieldNode.remove("meta");
+        if (metaObject == null) {
+            // no meta
+            return;
+        }
+        if (metaObject instanceof Map == false) {
+            throw new MapperParsingException("[meta] must be an object, got " + metaObject.getClass().getSimpleName() +
+                    "[" + metaObject + "] for field [" + name +"]");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, ?> meta = (Map<String, ?>) metaObject;
+        if (meta.size() > 5) {
+            throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" +
+                    name + "]");
+        }
+        for (String key : meta.keySet()) {
+            if (key.codePointCount(0, key.length()) > 20) {
+                throw new MapperParsingException("[meta] keys can't be longer than 20 chars, but got [" + key +
+                        "] for field [" + name + "]");
+            }
+        }
+        for (Object value : meta.values()) {
+            if (value instanceof String) {
+                String sValue = (String) value;
+                if (sValue.codePointCount(0, sValue.length()) > 50) {
+                    throw new MapperParsingException("[meta] values can't be longer than 50 chars, but got [" + value +
+                            "] for field [" + name + "]");
+                }
+            } else if (value == null) {
+                throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
+            } else {
+                throw new MapperParsingException("[meta] values can only be strings, but got " +
+                        value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
+            }
+        }
+        final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
+        final Function<Object, String> stringCast = String.class::cast;
+        Map<String, String> checkedMeta = Collections.unmodifiableMap(meta.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast))));
+        builder.meta(checkedMeta);
+    }
+
+    /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+    public static void parseField(FieldMapper.Builder<?,?> builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
+        parseMeta(builder, name, fieldNode);
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();

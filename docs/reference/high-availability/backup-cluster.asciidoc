@@ -1,0 +1,22 @@
+[[backup-cluster]]
+== Back up a cluster
+
+include::../snapshot-restore/index.asciidoc[tag=backup-warning]
+
+To have a complete backup for your cluster:
+
+. <<backup-cluster-data,Back up the data>>
+. <<backup-cluster-configuration,Back up the cluster configuration>>
+. <<security-backup,Back up the security configuration>>
+
+To restore your cluster from a backup:
+
+. <<restore-cluster-data,Restore the data>>
+. <<restore-security-configuration,Restore the security configuration>>
+
+
+
+include::backup-cluster-data.asciidoc[]
+include::backup-cluster-config.asciidoc[]
+include::backup-and-restore-security-config.asciidoc[]
+include::restore-cluster-data.asciidoc[]

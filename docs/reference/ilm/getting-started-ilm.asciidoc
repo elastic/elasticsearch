@@ -25,7 +25,7 @@ a few that are needed for our example. For starters, we will use the
 policies are defined in JSON and include specific
 <<ilm-policy-definition,phases and actions>>.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/datastream_policy   <1>
 {
@@ -49,8 +49,7 @@ PUT _ilm/policy/datastream_policy   <1>
   }
 }
 ------------------------
-// CONSOLE
-// TEST
+
 <1> call to the <<ilm-put-lifecycle,put lifecycle API>> endpoint to create
     a new policy named "datastream_policy"
 <2> policy definition sub-object
@@ -76,7 +75,7 @@ the new index created from Rollover, we will set the policy via
 index templates.
 
 
-[source,js]
+[source,console]
 -----------------------
 PUT _template/datastream_template
 {
@@ -89,8 +88,18 @@ PUT _template/datastream_template
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/datastream_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 <1> match all indices starting with "datastream-". These will include all
     newly created indices from actions like rollover
 <2> the name of the lifecycle policy managing the index
@@ -109,7 +118,7 @@ The intention here is that the rollover alias is also defined on the index.
 To begin, we will want to bootstrap our first index to write to.
 
 
-[source,js]
+[source,console]
 -----------------------
 PUT datastream-000001
 {
@@ -120,7 +129,6 @@ PUT datastream-000001
   }
 }
 -----------------------
-// CONSOLE
 // TEST[continued]
 
 When creating our index, we have to consider a few important configurations
@@ -153,18 +161,17 @@ things like which phase we're in and when we entered that phase. The API
 will also provide further info if errors occurred, or if we are blocked on
 certain checks within actions.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET datastream-*/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above request will retrieve {ilm-init} execution information for all our
 managed indices.
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -198,8 +205,8 @@ managed indices.
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "datastream_policy"
 <3> the current age of the index

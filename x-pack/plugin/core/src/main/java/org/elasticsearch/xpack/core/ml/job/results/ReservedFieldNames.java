@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -72,6 +74,7 @@ public final class ReservedFieldNames {
             AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyCause.TYPICAL.getPreferredName(),
             AnomalyCause.ACTUAL.getPreferredName(),
+            AnomalyCause.GEO_RESULTS.getPreferredName(),
             AnomalyCause.INFLUENCERS.getPreferredName(),
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
@@ -86,6 +89,7 @@ public final class ReservedFieldNames {
             AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyRecord.TYPICAL.getPreferredName(),
             AnomalyRecord.ACTUAL.getPreferredName(),
+            AnomalyRecord.GEO_RESULTS.getPreferredName(),
             AnomalyRecord.INFLUENCERS.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -94,6 +98,9 @@ public final class ReservedFieldNames {
             AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
+
+            GeoResults.TYPICAL_POINT.getPreferredName(),
+            GeoResults.ACTUAL_POINT.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
@@ -297,19 +304,26 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
             DataFrameAnalyticsSource.QUERY.getPreferredName(),
+            DataFrameAnalyticsSource._SOURCE.getPreferredName(),
             OutlierDetection.NAME.getPreferredName(),
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
             OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
             Regression.NAME.getPreferredName(),
             Regression.DEPENDENT_VARIABLE.getPreferredName(),
-            Regression.LAMBDA.getPreferredName(),
-            Regression.GAMMA.getPreferredName(),
-            Regression.ETA.getPreferredName(),
-            Regression.MAXIMUM_NUMBER_TREES.getPreferredName(),
-            Regression.FEATURE_BAG_FRACTION.getPreferredName(),
             Regression.PREDICTION_FIELD_NAME.getPreferredName(),
             Regression.TRAINING_PERCENT.getPreferredName(),
+            Classification.NAME.getPreferredName(),
+            Classification.DEPENDENT_VARIABLE.getPreferredName(),
+            Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.NUM_TOP_CLASSES.getPreferredName(),
+            Classification.TRAINING_PERCENT.getPreferredName(),
+            BoostedTreeParams.LAMBDA.getPreferredName(),
+            BoostedTreeParams.GAMMA.getPreferredName(),
+            BoostedTreeParams.ETA.getPreferredName(),
+            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
+            BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

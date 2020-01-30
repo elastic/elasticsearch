@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluste
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -57,18 +56,20 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -90,6 +91,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -561,7 +565,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            final AtomicBoolean abort = new AtomicBoolean();
+            // Large histories can be problematic and have the linearizability checker run OOM
+            // Bound the time how long the checker can run on such histories (Values empirically determined)
+            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+            try {
+                if (history.size() > 300) {
+                    scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
+                }
+                final boolean linearizable = linearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
+                if (abort.get() == false) {
+                    assertTrue("history not linearizable: " + history, linearizable);
+                }
+            } finally {
+                ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
+            }
             logger.info("linearizability check completed");
         }
 
@@ -703,8 +721,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), localNode)
-                            .getPersistedState(Settings.EMPTY, null);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
                         delegate = new InMemoryPersistedState(0L,
@@ -722,20 +741,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
-                        final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
                         final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
-                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
-                            metaStateService.writeGlobalStateAndUpdateManifest("update global state", updatedMetaData);
-                        }
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
-                        if (updatedTerm != oldState.getCurrentTerm()) {
-                            final Manifest manifest = metaStateService.loadManifestOrEmpty();
-                            metaStateService.writeManifestAndCleanup("update term",
-                                new Manifest(updatedTerm, manifest.getClusterStateVersion(), manifest.getGlobalGeneration(),
-                                    manifest.getIndexGenerations()));
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData() || updatedTerm != oldState.getCurrentTerm()) {
+                            try (PersistedClusterStateService.Writer writer =
+                                     new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                                         deterministicTaskQueue::getCurrentTimeMillis)
+                                         .createWriter()) {
+                                writer.writeFullStateAndCommit(updatedTerm,
+                                    ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build());
+                            }
                         }
-                        delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), newLocalNode)
-                            .getPersistedState(Settings.EMPTY, null);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
@@ -834,6 +854,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             @Override
             public void close() {
                 assertTrue(openPersistedStates.remove(this));
+                try {
+                    delegate.close();
+                } catch (IOException e) {
+                    throw new AssertionError("unexpected", e);
+                }
             }
         }
 
@@ -1170,6 +1195,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private boolean isNotUsefullyBootstrapped() {
                 return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
             }
+
+            void allowClusterStateApplicationFailure() {
+                clusterApplierService.allowClusterStateApplicationFailure();
+            }
         }
 
         private List<TransportAddress> provideSeedHosts(SeedHostsProvider.HostsResolver ignored) {
@@ -1280,6 +1309,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
         ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
+        private boolean applicationMayFail;
 
         DisruptableClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings,
                                          DeterministicTaskQueue deterministicTaskQueue, Function<Runnable, Runnable> runnableWrapper) {
@@ -1323,6 +1353,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
             // don't do anything, and don't block
+        }
+
+        @Override
+        protected boolean applicationMayFail() {
+            return this.applicationMayFail;
+        }
+
+        void allowClusterStateApplicationFailure() {
+            this.applicationMayFail = true;
         }
     }
 

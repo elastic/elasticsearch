@@ -45,10 +45,13 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     public enum Fileness { File, Directory }
 
+    public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
+    public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
     public static final Set<PosixFilePermission> p755 = fromString("rwxr-xr-x");
     public static final Set<PosixFilePermission> p750 = fromString("rwxr-x---");
     public static final Set<PosixFilePermission> p660 = fromString("rw-rw----");
     public static final Set<PosixFilePermission> p644 = fromString("rw-r--r--");
+    public static final Set<PosixFilePermission> p600 = fromString("rw-------");
 
     private final Fileness fileness;
     private final String owner;
@@ -59,7 +62,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     public FileMatcher(Fileness fileness, String owner, String group, Set<PosixFilePermission> posixPermissions) {
         this.fileness = Objects.requireNonNull(fileness);
-        this.owner = Objects.requireNonNull(owner);
+        this.owner = owner;
         this.group = group;
         this.posixPermissions = posixPermissions;
     }
@@ -73,16 +76,18 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
         if (Platforms.WINDOWS) {
             final BasicFileAttributes attributes = getBasicFileAttributes(path);
-            final String attributeViewOwner = getFileOwner(path);
 
             if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
                 mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
                 return false;
             }
 
-            if (attributeViewOwner.contains(owner) == false) {
-                mismatch = "Owned by " + attributeViewOwner;
-                return false;
+            if (owner != null) {
+                final String attributeViewOwner = getFileOwner(path);
+                if (attributeViewOwner.contains(owner) == false) {
+                    mismatch = "Owned by " + attributeViewOwner;
+                    return false;
+                }
             }
         } else {
             final PosixFileAttributes attributes = getPosixFileAttributes(path);
@@ -92,7 +97,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
                 return false;
             }
 
-            if (owner.equals(attributes.owner().getName()) == false) {
+            if (owner != null && owner.equals(attributes.owner().getName()) == false) {
                 mismatch = "Owned by " + attributes.owner().getName();
                 return false;
             }

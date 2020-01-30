@@ -3,6 +3,7 @@
 :request: StopWatchServiceRequest
 :response: StopWatchServiceResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Stop watch service API
 

@@ -14,8 +14,8 @@ not be included yet.
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
-* <<data-frame-apis,{dataframe-transform-cap} APIs>>
 * <<docs, Document APIs>>
+* <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph Explore API>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
@@ -30,6 +30,7 @@ not be included yet.
 * <<search, Search APIs>>
 * <<security-api,Security APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
+* <<transform-apis,{transform-cap} APIs>>
 * <<watcher-api,Watcher APIs>>
 --
 
@@ -37,8 +38,8 @@ include::{es-repo-dir}/api-conventions.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
-include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
+include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
@@ -53,5 +54,6 @@ include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
 include::{es-repo-dir}/ilm/apis/slm-api.asciidoc[]
+include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
 include::defs.asciidoc[]

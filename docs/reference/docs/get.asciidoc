@@ -6,6 +6,12 @@
 
 Retrieves the specified JSON document from an index.
 
+[source,console]
+--------------------------------------------------
+GET twitter/_doc/0
+--------------------------------------------------
+// TEST[setup:twitter]
+
 [[docs-get-api-request]]
 ==== {api-request-title}
 
@@ -29,11 +35,11 @@ that it exists.
 ===== Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search). If a document
-has been updated but is not yet refreshed, the get API will issue a refresh
-call in-place to make the document visible. This will also make other documents
-changed since the last refresh visible. In order to disable realtime GET,
-one can set the `realtime` parameter to `false`.
+rate of the index (when data will become visible for search). In case where
+stored fields are requested (see `stored_fields` parameter) and the document
+has been updated but is not yet refreshed, the get API will have to parse
+and analyze the source to extract the stored fields. In order to disable
+realtime GET, the `realtime` parameter can be set to `false`.
 
 [float]
 [[get-source-filtering]]
@@ -43,11 +49,10 @@ By default, the get operation returns the contents of the `_source` field unless
 you have used the `stored_fields` parameter or if the `_source` field is disabled.
 You can turn off `_source` retrieval by using the `_source` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/0?_source=false
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 If you only need one or two fields from the `_source`, use the `_source_includes`
@@ -56,20 +61,18 @@ This can be especially helpful with large documents where partial retrieval can
 save on network overhead. Both parameters take a comma separated list
 of fields or wildcard expressions. Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 If you only want to specify includes, you can use a shorter notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/0?_source=*.id,retweeted
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -79,11 +82,10 @@ GET twitter/_doc/0?_source=*.id,retweeted
 If routing is used during indexing, the routing value also needs to be
 specified to retrieve a document. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/2?routing=user1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This request gets the tweet with id `2`, but it is routed based on the
@@ -135,9 +137,7 @@ better GET scaling we will have.
 ===== Versioning support
 
 You can use the `version` parameter to retrieve the document only if
-its current version is equal to the specified one. This behavior is the same
-for all version types with the exception of version type `FORCE` which always
-retrieves the document. Note that `FORCE` version type is deprecated.
+its current version is equal to the specified one.
 
 Internally, Elasticsearch has marked the old document as deleted and added an
 entirely new document. The old version of the document doesn’t disappear
@@ -156,32 +156,21 @@ deleted documents in the background as you continue to index more data.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-`preference`::
-(Optional, string) Specify the node or shard the operation should
-be performed on (default: random).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
-`realtime`::
-(Optional, boolean) Set to `false` to disable real time GET
-(default: `true`). See <<realtime>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
-`stored_fields`::
-(Optional, boolean) Set to `true` to retrieve the document fields stored in the
-index rather than the document `_source` (default: `false`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-`_source`::
-(Optional, list) Set to `false` to disable source retrieval (default: `true`).
- You can also specify a comma-separated list of the fields
-you want to retrieve.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
 
-`_source_excludes`::
-(Optional, list) Specify the source fields you want to exclude.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-`_source_includes`::
-(Optional, list) Specify the source fields you want to retrieve.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
@@ -220,7 +209,7 @@ The explicit routing, if set.
 '_source'::
 If `found` is `true`, contains the document data formatted in JSON.
 Excluded if the `_source` parameter is set to `false` or the `stored_fields`
-paramter is set to `true`.
+parameter is set to `true`.
 
 '_fields'::
 If the `stored_fields` parameter is set to `true` and `found` is
@@ -231,11 +220,10 @@ If the `stored_fields` parameter is set to `true` and `found` is
 
 Retrieve the JSON document with the `_id` 0 from the `twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/0
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The API returns the following result:
@@ -262,11 +250,10 @@ The API returns the following result:
 
 Check to see if a document with the `_id` 0 exists:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 HEAD twitter/_doc/0
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 {es} returns a status code of `200 - OK` if the document exists, or
@@ -279,32 +266,29 @@ HEAD twitter/_doc/0
 Use the `<index>/_source/<id>` resource to get
 just the `_source` field of a document. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_source/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 You can use the source filtering parameters to control which parts of the
 `_source` are returned:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 You can use HEAD with the `_source` endpoint to efficiently
 test whether or not the document _source exists. A document's source is not
 available if it is disabled in the <<mapping-source-field,mapping>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 HEAD twitter/_source/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -315,7 +299,7 @@ Use the `stored_fields` parameter to specify the set of stored fields you want
 to retrieve. Any requested fields that are not stored are ignored.
 Consider for instance the following mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter
 {
@@ -333,11 +317,10 @@ PUT twitter
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 Now we can add a document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1
 {
@@ -345,16 +328,14 @@ PUT twitter/_doc/1
     "tags" : ["red"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And then try to retrieve it:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/1?stored_fields=tags,counter
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following result:
@@ -383,7 +364,7 @@ Since the `counter` field is not stored, the get request  ignores it.
 
 You can also retrieve metadata fields like the `_routing` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/2?routing=user1
 {
@@ -391,14 +372,12 @@ PUT twitter/_doc/2?routing=user1
     "tags" : ["white"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following result:

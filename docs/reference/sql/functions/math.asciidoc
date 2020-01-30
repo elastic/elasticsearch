@@ -385,7 +385,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSqrt]
 --------------------------------------------------
 
 [[sql-functions-math-truncate]]
-==== `TRUNCATE`
+==== `TRUNCATE/TRUNC`
 
 .Synopsis:
 [source, sql]

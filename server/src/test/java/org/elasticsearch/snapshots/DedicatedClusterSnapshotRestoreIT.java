@@ -499,11 +499,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().prepareCleanupRepository("test-repo").get();
 
-        // Subtract four files that will remain in the repository:
+        // Expect two files to remain in the repository:
         //   (1) index-(N+1)
-        //   (2) index-N (because we keep the previous version) and
-        //   (3) index-latest
-        assertFileCount(repo, 3);
+        //   (2) index-latest
+        assertFileCount(repo, 2);
         logger.info("--> done");
     }
 
@@ -933,7 +932,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25281")
     public void testMasterShutdownDuringFailedSnapshot() throws Exception {
         logger.info("-->  starting two master nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);
@@ -1225,6 +1223,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+
+        logger.info("-->  wait for shard snapshots to show as failed");
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get().getSnapshots()
+                .get(0).getShardsStats().getFailedShards(), greaterThanOrEqualTo(1)), 60L, TimeUnit.SECONDS);
+
         unblockNode("test-repo", dataNode);
         disruption.stopDisrupting();
         // check that snapshot completes
@@ -1234,6 +1238,55 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
+        }, 60L, TimeUnit.SECONDS);
+    }
+
+    public void testDataNodeRestartAfterShardSnapshotFailure() throws Exception {
+        logger.info("-->  starting a master node and two data nodes");
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        assertAcked(prepareCreate("test-idx", 0, Settings.builder()
+            .put("number_of_shards", 2).put("number_of_replicas", 0)));
+        ensureGreen();
+        logger.info("-->  indexing some data");
+        final int numdocs = randomIntBetween(50, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1",
+                Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+        blockAllDataNodes("test-repo");
+        logger.info("-->  snapshot");
+        client(internalCluster().getMasterName()).admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+        logger.info("-->  restarting first data node, which should cause the primary shard on it to be failed");
+        internalCluster().restartNode(dataNodes.get(0), InternalTestCluster.EMPTY_CALLBACK);
+
+        logger.info("-->  wait for shard snapshot of first primary to show as failed");
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get().getSnapshots()
+                .get(0).getShardsStats().getFailedShards(), is(1)), 60L, TimeUnit.SECONDS);
+
+        logger.info("-->  restarting second data node, which should cause the primary shard on it to be failed");
+        internalCluster().restartNode(dataNodes.get(1), InternalTestCluster.EMPTY_CALLBACK);
+
+        // check that snapshot completes with both failed shards being accounted for in the snapshot result
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
+            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
+            assertThat(snapshotInfo.totalShards(), is(2));
+            assertThat(snapshotInfo.shardFailures(), hasSize(2));
         }, 60L, TimeUnit.SECONDS);
     }
 

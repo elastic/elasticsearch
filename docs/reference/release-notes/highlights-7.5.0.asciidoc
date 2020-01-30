@@ -1,0 +1,64 @@
+[[release-highlights-7.5.0]]
+== 7.5.0 release highlights
+++++
+<titleabbrev>7.5.0</titleabbrev>
+++++
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[float]
+==== Enrich processor
+
+A new {ref}/enrich-processor.html[enrich ingest processor] has been added,
+which can enrich documents with data from another index.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Shape support in SQL
+
+{ref}/xpack-sql.html[SQL] functionality that worked for geo_shape will
+now work for the {ref}/shape.html[`shape`] field type introduced in 7.3.
+
+
+// end::notable-highlights[]
+
+
+// tag::notable-highlights[]
+[float]
+==== Snapshot lifecycle management retention
+
+There is a new {ref}/slm-retention.html[snapshot lifecycle management retention],
+which allows you to delete older snapshots automatically through a custom
+policy’s schedule.
+
+// end::notable-highlights[]
+
+
+// tag::notable-highlights[]
+[float]
+==== Pause {ccr}
+
+New {ref}/ccr-post-pause-follow.html[pause] and
+{ref}/ccr-post-pause-follow.html[resume] API endpoints for
+{ref}/xpack-ccr.html[{ccr}] have been added, which enable you to temporarily
+pause auto-follow patterns.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== {ml-cap} {classanalysis}
+
+{ml-docs}/dfa-classification.html[{classanalysis-cap}] is a supervised {ml}
+process for predicting a class or category of a given data point in a dataset.
+For example, it can determine whether an email is spam or not.
+{classification-cap} is for predicting discrete, categorical values, unlike
+{reganalysis}, which predicts continuous, numerical values. 7.5.0 introduces
+binary classification, which can label data points into two possible categories.
+
+// end::notable-highlights[]
+

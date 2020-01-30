@@ -22,7 +22,8 @@ package org.elasticsearch.http;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.bytes.PagedBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -331,7 +332,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
-        final BytesReference content = new ReleasablePagedBytesReference(byteArray, 0 , byteArray);
+        final BytesReference content = new ReleasableBytesReference(new PagedBytesReference(byteArray, 0) , byteArray);
         channel.sendResponse(new TestRestResponse(RestStatus.METHOD_NOT_ALLOWED, content));
 
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
@@ -368,7 +369,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
-        final BytesReference content = new ReleasablePagedBytesReference(byteArray, 0 , byteArray);
+        final BytesReference content = new ReleasableBytesReference(new PagedBytesReference(byteArray, 0) , byteArray);
 
         expectThrows(IllegalArgumentException.class, () -> channel.sendResponse(new TestRestResponse(RestStatus.OK, content)));
 
@@ -458,6 +459,15 @@ public class DefaultRestChannelTests extends ESTestCase {
         @Override
         public HttpResponse createResponse(RestStatus status, BytesReference content) {
             return new TestResponse(status, content);
+        }
+
+        @Override
+        public void release() {
+        }
+
+        @Override
+        public HttpRequest releaseAndCopy() {
+            return this;
         }
     }
 

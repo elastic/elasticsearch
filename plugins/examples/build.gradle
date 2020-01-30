@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 // Subprojects aren't published so do not assemble
 gradle.projectsEvaluated {
   subprojects {
@@ -5,24 +7,31 @@ gradle.projectsEvaluated {
     if (assemble) {
       assemble.enabled = false
     }
+
+    // Disable example project testing with FIPS JVM
+    tasks.withType(Test) {
+      onlyIf {
+        BuildParams.inFipsJvm == false
+      }
+    }
   }
 }
 
 configure(project('painless-whitelist')) {
-    configurations.all {
-       resolutionStrategy.dependencySubstitution {
-            substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with project(':modules:lang-painless:spi')
-            substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
-        }
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with project(':modules:lang-painless:spi')
+      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
     }
+  }
 }
 
 configure(project('security-authorization-engine')) {
-    configurations.all {
-        resolutionStrategy.dependencySubstitution {
-            substitute module('org.elasticsearch.plugin:x-pack-core') with project(':x-pack:plugin:core')
-            substitute module('org.elasticsearch.client:x-pack-transport') with project(':x-pack:transport-client')
-            substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
-        }
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      substitute module('org.elasticsearch.plugin:x-pack-core') with project(':x-pack:plugin:core')
+      substitute module('org.elasticsearch.client:x-pack-transport') with project(':x-pack:transport-client')
+      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
     }
+  }
 }

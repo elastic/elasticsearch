@@ -24,7 +24,7 @@ Retrieves configuration information for {anomaly-jobs}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-get-job-desc]]
 ==== {api-description-title}
@@ -40,35 +40,40 @@ IMPORTANT: This API returns a maximum of 10,000 jobs.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Optional, string) Identifier for the {anomaly-job}. It can be a job
-  identifier, a group name, or a wildcard expression. If you do not specify one
-  of these options, the API returns information for all {anomaly-jobs}.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-default]
 
 [[ml-get-job-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no jobs that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches.
-
-The default value is `true`, which returns an empty `jobs` array 
-when there are no matches and the subset of results when there are partial 
-matches. If this parameter is `false`, the request returns a `404` status code
-when there are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 [[ml-get-job-results]]
 ==== {api-response-body-title}
 
-The API returns the following information:
+The API returns an array of {anomaly-job} resources. For the full list of
+properties, see <<ml-put-job-request-body,create {anomaly-jobs} API>>.
 
-`jobs`::
-  (array) An array of {anomaly-job} resources.
-  For more information, see <<ml-job-resource>>.
+`create_time`::
+(string) The time the job was created. For example, `1491007356077`. This
+property is informational; you cannot change its value.
+  
+`finished_time`::
+(string) If the job closed or failed, this is the time the job finished.
+Otherwise, it is `null`. This property is informational; you cannot change its
+value.
+
+`job_type`::
+(string) Reserved for future use, currently set to `anomaly_detector`.
+
+`job_version`::
+(string) The version of {es} that existed on the node when the job was created.
+
+`model_snapshot_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-get-job-response-codes]]
 ==== {api-response-codes-title}
@@ -80,52 +85,65 @@ The API returns the following information:
 [[ml-get-job-example]]
 ==== {api-examples-title}
 
-The following example gets configuration information for the `total-requests` job:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-GET _ml/anomaly_detectors/total-requests
+GET _ml/anomaly_detectors/high_sum_total_sales
 --------------------------------------------------
-// CONSOLE
-// TEST[skip:setup:server_metrics_job]
+// TEST[skip:Kibana sample data]
 
 The API returns the following results:
+
 [source,js]
 ----
 {
   "count": 1,
   "jobs": [
     {
-      "job_id": "total-requests",
-      "job_type": "anomaly_detector",
-      "job_version": "7.0.0-alpha1",
-      "description": "Total sum of requests",
-      "create_time": 1517011406091,
-      "analysis_config": {
-        "bucket_span": "10m",
-        "detectors": [
+      "job_id" : "high_sum_total_sales",
+      "job_type" : "anomaly_detector",
+      "job_version" : "7.5.0",
+      "groups" : [
+        "kibana_sample_data",
+        "kibana_sample_ecommerce"
+      ],
+      "description" : "Find customers spending an unusually high amount in an hour",
+      "create_time" : 1577221534700,
+      "analysis_config" : {
+        "bucket_span" : "1h",
+        "detectors" : [
           {
-            "detector_description": "Sum of total",
-            "function": "sum",
-            "field_name": "total",
-            "detector_index": 0
+            "detector_description" : "High total sales",
+            "function" : "high_sum",
+            "field_name" : "taxful_total_price",
+            "over_field_name" : "customer_full_name.keyword",
+            "detector_index" : 0
           }
         ],
-        "influencers": [ ]
+        "influencers" : [
+          "customer_full_name.keyword",
+          "category.keyword"
+        ]
       },
-      "analysis_limits": {
-        "model_memory_limit": "1024mb",
-        "categorization_examples_limit": 4
+      "analysis_limits" : {
+        "model_memory_limit" : "10mb",
+        "categorization_examples_limit" : 4
       },
-      "data_description": {
-        "time_field": "timestamp",
-        "time_format": "epoch_ms"
+      "data_description" : {
+        "time_field" : "order_date",
+        "time_format" : "epoch_ms"
       },
-      "model_snapshot_retention_days": 1,
-      "results_index_name": "shared"
+      "model_plot_config" : {
+        "enabled" : true
+      },
+      "model_snapshot_retention_days" : 1,
+      "custom_settings" : {
+        "created_by" : "ml-module-sample",
+        ...
+      },
+      "model_snapshot_id" : "1575402237",
+      "results_index_name" : "shared",
+      "allow_lazy_open" : false
     }
   ]
 }
 ----
-// TESTRESPONSE[s/"7.0.0-alpha1"/$body.$_path/]
-// TESTRESPONSE[s/1517011406091/$body.$_path/]

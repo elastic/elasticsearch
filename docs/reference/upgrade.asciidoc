@@ -18,7 +18,7 @@ The following table shows the recommended upgrade paths to {version}.
 |Upgrade from   
 |Recommended upgrade path  to {version}
 
-|7.0–7.4
+|7.0–7.5
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 
 |6.8
@@ -67,21 +67,6 @@ of the products in your Elastic Stack. For more information, see the
 To upgrade directly to {version} from 6.7 or earlier, you must shut down the
 cluster, install {version}, and restart. For more information, see
 <<restart-upgrade, Full cluster restart upgrade>>.
-
-[float]
-== Preparing to upgrade
-
-Before upgrading {es}:
-
-. Check the <<deprecation-logging, deprecation log>> to see if you are using
-any deprecated features and update your code accordingly. By default,
-deprecation warnings are logged when the log level is set to `WARN`.
-. Review the <<breaking-changes,breaking changes>> and make any necessary changes
-to your code and configuration for {version}.
-. If you use custom plugins, make sure compatible versions are available.
-. Test upgrades in a dev environment before upgrading your production cluster.
-. <<modules-snapshots,Back up your data!>> You must have a snapshot of your
-data to roll back to an earlier version.
 
 --
 

@@ -22,6 +22,7 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -292,7 +293,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.settings())),
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        return new TestSessionFactory(config, new SSLService(builder.build(), TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
     }
 
@@ -320,7 +325,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             final List<Socket> openedSockets = new ArrayList<>();
             final List<InetAddress> blacklistedAddress = new ArrayList<>();
             try {
-                final boolean allSocketsOpened = awaitBusy(() -> {
+                final boolean allSocketsOpened = waitUntil(() -> {
                     try {
                         InetAddress[] allAddresses = InetAddressHelper.getAllAddresses();
                         if (serverAddress instanceof Inet4Address) {
@@ -337,10 +342,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                                 final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);
                                 openedSockets.add(socket);
                                 logger.debug("opened socket [{}]", socket);
-                            } catch (NoRouteToHostException e) {
-                                logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
-                                blacklistedAddress.add(localAddress);
-                            } catch (ConnectException e) {
+                            } catch (NoRouteToHostException | ConnectException e) {
                                 logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
                                 blacklistedAddress.add(localAddress);
                             }

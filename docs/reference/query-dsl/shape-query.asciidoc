@@ -24,7 +24,7 @@ https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Kn
 
 Given the following index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
@@ -37,22 +37,21 @@ PUT /example
     }
 }
 
-POST /example/_doc?refresh
+PUT /example/_doc/1?refresh=wait_for
 {
     "name": "Lucky Landing",
-    "location": {
+    "geometry": {
         "type": "point",
         "coordinates": [1355.400544, 5255.530286]
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 The following query will find the point using the Elasticsearch's
 `envelope` GeoJSON extension:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /example/_search
 {
@@ -69,7 +68,48 @@ GET /example/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
+////
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 0.0,
+    "hits": [
+      {
+        "_index": "example",
+        "_type": "_doc",
+        "_id": "1",
+        "_score": 0.0,
+        "_source": {
+          "name": "Lucky Landing",
+          "geometry": {
+            "type": "point",
+            "coordinates": [
+              1355.400544,
+              5255.530286
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+////
 
 ==== Pre-Indexed Shape
 
@@ -90,7 +130,7 @@ Defaults to 'shape'.
 The following is an example of using the Filter with a pre-indexed
 shape:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /shapes
 {
@@ -126,18 +166,19 @@ GET /example/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Spatial Relations
 
 The following is a complete list of spatial relation operators available:
 
-* `INTERSECTS` - (default) Return all documents whose `geo_shape` field
+* `INTERSECTS` - (default) Return all documents whose `shape` field
 intersects the query geometry.
-* `DISJOINT` - Return all documents whose `geo_shape` field
+* `DISJOINT` - Return all documents whose `shape` field
 has nothing in common with the query geometry.
-* `WITHIN` - Return all documents whose `geo_shape` field
+* `WITHIN` - Return all documents whose `shape` field
 is within the query geometry.
+* `CONTAINS` - Return all documents whose `shape` field
+contains the query geometry.
 
 [float]
 ==== Ignore Unmapped

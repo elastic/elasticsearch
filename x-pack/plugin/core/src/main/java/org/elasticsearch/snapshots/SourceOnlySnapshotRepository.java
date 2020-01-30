@@ -134,7 +134,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(4);
-        toClose.add(() -> IOUtils.rm(snapPath));
+        //toClose.add(() -> IOUtils.rm(snapPath));
         try {
             FSDirectory directory = new SimpleFSDirectory(snapPath);
             toClose.add(0, directory);

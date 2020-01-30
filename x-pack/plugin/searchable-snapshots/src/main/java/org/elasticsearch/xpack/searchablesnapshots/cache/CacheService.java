@@ -40,7 +40,7 @@ public class CacheService extends AbstractLifecycleComponent {
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
         Setting.Property.NodeScope);
 
-    private final Cache<String, CacheFile> cache;
+    private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final ByteSizeValue rangeSize;
 
@@ -52,7 +52,7 @@ public class CacheService extends AbstractLifecycleComponent {
     CacheService(final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
         this.cacheSize = Objects.requireNonNull(cacheSize);
         this.rangeSize = Objects.requireNonNull(rangeSize);
-        this.cache = CacheBuilder.<String, CacheFile>builder()
+        this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
@@ -96,39 +96,31 @@ public class CacheService extends AbstractLifecycleComponent {
         return Math.toIntExact(rangeSize.getBytes());
     }
 
-    public CacheFile get(final String fileName, final long length, final Path cacheDir) throws Exception {
+    public CacheFile get(final CacheKey cacheKey) throws Exception {
         ensureLifecycleStarted();
-        return cache.computeIfAbsent(toCacheKey(cacheDir, fileName), key -> {
+        return cache.computeIfAbsent(cacheKey, key -> {
             ensureLifecycleStarted();
             // generate a random UUID for the name of the cache file on disk
             final String uuid = UUIDs.randomBase64UUID();
             // resolve the cache file on disk w/ the expected cached file
-            final Path path = cacheDir.resolve(uuid);
+            final Path path = key.getCacheDir().resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(fileName, length, path, getRangeSize());
+            return new CacheFile(key.toString(), key.getFileLength(), path, getRangeSize());
         });
     }
 
     /**
-     * Remove from cache all entries that match the given predicate.
+     * Invalidate cache entries with keys matching the given predicate
      *
      * @param predicate the predicate to evaluate
      */
-    void removeFromCache(final Predicate<String> predicate) {
-        for (String cacheKey : cache.keys()) {
+    void removeFromCache(final Predicate<CacheKey> predicate) {
+        for (CacheKey cacheKey : cache.keys()) {
             if (predicate.test(cacheKey)) {
                 cache.invalidate(cacheKey);
             }
         }
         cache.refresh();
-    }
-
-    /**
-     * Computes the cache key associated to the given Lucene cached file
-     */
-    private static String toCacheKey(final Path cacheDir, String fileName) {
-        // TODO Fix this. Cache Key should be computed from snapshot id/index id/shard
-        return cacheDir.resolve(fileName).toAbsolutePath().toString();
     }
 }

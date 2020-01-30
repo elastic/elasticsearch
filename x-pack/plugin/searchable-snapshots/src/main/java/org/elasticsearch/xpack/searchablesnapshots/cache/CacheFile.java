@@ -50,7 +50,7 @@ class CacheFile {
 
     private final SparseFileTracker tracker;
     private final int rangeSize;
-    private final String name;
+    private final String description;
     private final Path file;
 
     private volatile Set<EvictionListener> listeners;
@@ -59,9 +59,9 @@ class CacheFile {
     @Nullable // if evicted, or there are no listeners
     private volatile FileChannel channel;
 
-    CacheFile(String name, long length, Path file, int rangeSize) {
+    CacheFile(String description, long length, Path file, int rangeSize) {
         this.tracker = new SparseFileTracker(file.toString(), length);
-        this.name = Objects.requireNonNull(name);
+        this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
         this.listeners = new HashSet<>();
         this.rangeSize = rangeSize;
@@ -219,7 +219,7 @@ class CacheFile {
     @Override
     public String toString() {
         return "CacheFile{" +
-            "name='" + name + '\'' +
+            "desc='" + description + '\'' +
             ", file=" + file +
             ", length=" + tracker.getLength() +
             ", channel=" + (channel != null ? "yes" : "no") +

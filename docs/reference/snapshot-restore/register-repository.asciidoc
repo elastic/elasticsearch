@@ -198,17 +198,17 @@ When you restore a source only snapshot:
 
 ==================================================
 
-When you create a source repository, you must specify the type and name of the delegate repository
-where the snapshots will be stored:
+You can create a source-only repository like a normal repository by adding the
+setting `"source_only": true`.
 
 [source,console]
 -----------------------------------
 PUT _snapshot/my_src_only_repository
 {
-  "type": "source",
+  "type": "fs",
   "settings": {
-    "delegate_type": "fs",
     "location": "my_backup_location"
+    "source_only": true,
   }
 }
 -----------------------------------

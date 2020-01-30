@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -48,7 +49,7 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if ("length".equals(value)) {
             if (write) {
                 throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));
@@ -61,7 +62,7 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    DotSubArrayLengthNode write() {
+    DotSubArrayLengthNode write(ClassNode classNode) {
         DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
 
         dotSubArrayLengthNode.setLocation(location);

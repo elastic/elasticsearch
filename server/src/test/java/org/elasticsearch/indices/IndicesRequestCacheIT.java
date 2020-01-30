@@ -125,6 +125,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25"))
+            // to ensure that query is executed even if it rewrites to match_no_docs
             .addAggregation(new GlobalAggregationBuilder("global"))
             .setPreFilterShardSize(Integer.MAX_VALUE).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
@@ -133,7 +134,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
-            // to ensure that query is executed even if it rewrites to match_no_docs
             .addAggregation(new GlobalAggregationBuilder("global"))
             .setPreFilterShardSize(Integer.MAX_VALUE).get();
         ElasticsearchAssertions.assertAllSuccessful(r2);

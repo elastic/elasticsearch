@@ -523,16 +523,10 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("geo", filterShape)
             .relation(ShapeRelation.CONTAINS);
 
-        if (usePrefixTrees) {
-            SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
-                .setPostFilter(filter).get();
-            assertSearchResponse(response);
-            assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
-        } else {
-            Exception e = expectThrows(Exception.class, () -> client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
-                .setPostFilter(filter).get());
-            assertThat(e.getCause().getMessage(), containsString("CONTAINS query relation not supported for Field"));
-        }
+        SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+            .setPostFilter(filter).get();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
     }
 
     public void testExistsQuery() throws Exception {

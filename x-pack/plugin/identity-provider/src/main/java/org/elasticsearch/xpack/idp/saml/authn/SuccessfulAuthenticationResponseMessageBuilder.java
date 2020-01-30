@@ -166,7 +166,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         } else if (authenticationMethods.contains(AuthenticationMethod.PRIOR_SESSION)) {
             return AuthnContext.PREVIOUS_SESSION_AUTHN_CTX;
         } else if (networkControls.contains(NetworkControl.IP_FILTER)) {
-            return AuthnContext.IP_PASSWORD_AUTHN_CTX;
+            return AuthnContext.IP_AUTHN_CTX;
         } else {
             return AuthnContext.UNSPECIFIED_AUTHN_CTX;
         }

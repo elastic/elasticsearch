@@ -795,6 +795,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         assertHitCount(result, 0);
     }
 
+    /*
     public void testGeometryCollectionRelations() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("doc")
@@ -867,4 +868,5 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             assertEquals(1, response.getHits().getTotalHits().value);
         }
     }
+    */
 }

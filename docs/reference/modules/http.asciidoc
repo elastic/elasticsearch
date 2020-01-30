@@ -133,8 +133,8 @@ traced.
 PUT _cluster/settings
 {
    "transient" : {
-      "transport.tracer.include" : "*",
-      "transport.tracer.exclude" : ""
+      "rest.tracer.include" : "*",
+      "rest.tracer.exclude" : ""
    }
 }
 --------------------------------------------------

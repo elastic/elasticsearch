@@ -83,8 +83,6 @@ public interface TestClusterConfiguration {
 
     void freeze();
 
-    void setJavaHome(File javaHome);
-
     void start();
 
     void restart();

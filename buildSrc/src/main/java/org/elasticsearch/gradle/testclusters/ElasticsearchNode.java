@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
 import org.elasticsearch.gradle.LoggedExec;
@@ -30,6 +31,7 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -115,6 +117,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String name;
     private final Project project;
     private final ReaperService reaper;
+    private final Jdk bwcJdk;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -145,7 +148,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private List<ElasticsearchDistribution> distributions = new ArrayList<>();
-    private File javaHome;
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
@@ -153,11 +155,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String transportPort = "0";
     private Path confPathData;
 
-    ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
-        this.path = path;
+    ElasticsearchNode(String name, Project project, ReaperService reaper, File workingDirBase, Jdk bwcJdk) {
+        this.path = project.getPath();
         this.name = name;
         this.project = project;
         this.reaper = reaper;
+        this.bwcJdk = bwcJdk;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -371,21 +374,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
-    }
-
-    @Override
-    public void setJavaHome(File javaHome) {
-        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
-        checkFrozen();
-        if (javaHome.exists() == false) {
-            throw new TestClustersException("java home for `" + this + "` does not exists: `" + javaHome + "`");
-        }
-        this.javaHome = javaHome;
-    }
-
-    @Internal
-    public File getJavaHome() {
-        return javaHome;
     }
 
     /**
@@ -675,9 +663,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
-        if (getJavaHome() != null) {
-            defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-        }
+        getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("JAVA_HOME", javaHome));
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
@@ -724,6 +710,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         environment.forEach((key, value) -> defaultEnv.put(key, value.toString()));
         return defaultEnv;
+    }
+
+    private java.util.Optional<String> getRequiredJavaHome() {
+        // If we are testing the current version of Elasticsearch, use the configured runtime Java
+        if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
+            return java.util.Optional.of(BuildParams.getRuntimeJavaHome()).map(File::getAbsolutePath);
+        } else if (getVersion().before("7.0.0")) {
+            return java.util.Optional.of(bwcJdk.getJavaHomePath().toString());
+        } else { // otherwise use the bundled JDK
+            return java.util.Optional.empty();
+        }
+    }
+
+    @Internal
+    Jdk getBwcJdk() {
+        return getVersion().before("7.0.0") ? bwcJdk : null;
     }
 
     private void startElasticsearchProcess() {

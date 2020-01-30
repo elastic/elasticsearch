@@ -10,8 +10,6 @@
 
 Instantiates a {transform}.
 
-beta[]
-
 [[put-transform-request]]
 ==== {api-request-title}
 

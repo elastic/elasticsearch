@@ -99,6 +99,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     }
   }
 

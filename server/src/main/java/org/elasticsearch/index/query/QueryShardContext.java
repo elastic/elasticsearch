@@ -98,6 +98,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
+    private ValuesSourceRegistry valuesSourceRegistry;
 
     public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
@@ -113,18 +114,19 @@ public class QueryShardContext extends QueryRewriteContext {
                              IndexSearcher searcher,
                              LongSupplier nowInMillis,
                              String clusterAlias,
-                             Predicate<String> indexNameMatcher) {
+                             Predicate<String> indexNameMatcher,
+                             ValuesSourceRegistry valuesSourceRegistry) {
         this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
             scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
             new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                indexSettings.getIndex().getUUID()));
+                indexSettings.getIndex().getUUID()), valuesSourceRegistry);
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex);
+            source.fullyQualifiedIndex, source.valuesSourceRegistry);
     }
 
     private QueryShardContext(int shardId,
@@ -141,7 +143,8 @@ public class QueryShardContext extends QueryRewriteContext {
                               IndexSearcher searcher,
                               LongSupplier nowInMillis,
                               Predicate<String> indexNameMatcher,
-                              Index fullyQualifiedIndex) {
+                              Index fullyQualifiedIndex,
+                              ValuesSourceRegistry valuesSourceRegistry) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -156,6 +159,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.searcher = searcher;
         this.indexNameMatcher = indexNameMatcher;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
+        this.valuesSourceRegistry = valuesSourceRegistry;
     }
 
     private void reset() {
@@ -251,7 +255,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
-        return ValuesSourceRegistry.getInstance();
+        return valuesSourceRegistry;
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {

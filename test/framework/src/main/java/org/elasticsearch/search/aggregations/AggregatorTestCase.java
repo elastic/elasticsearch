@@ -68,6 +68,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -286,7 +287,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
-            writableRegistry(), null, searcher, System::currentTimeMillis, null, null);
+            writableRegistry(), null, searcher, System::currentTimeMillis, null, null,
+            ValuesSourceRegistry.getInstance());
     }
 
     /**

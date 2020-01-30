@@ -162,7 +162,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
             assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
     }
-    
+
     /**
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
@@ -229,9 +229,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null);
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, null);
     }
-    
+
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);

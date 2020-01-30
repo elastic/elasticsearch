@@ -84,7 +84,8 @@ public class IntervalsTests extends ESTestCase {
     public void testSecondInterval() throws Exception {
         int randomSeconds = randomNonNegativeInt();
         int randomMillis = randomBoolean() ? (randomBoolean() ? 0 : 999) : randomInt(999);
-        String value = format(Locale.ROOT, "%s%d.%d", sign, randomSeconds, randomMillis);
+        String value = format(Locale.ROOT, "%s%d", sign, randomSeconds);
+        value += randomMillis > 0 ? format(Locale.ROOT, ".%03d", randomMillis) : "";
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_SECOND);
         assertEquals(maybeNegate(sign, Duration.ofSeconds(randomSeconds).plusMillis(randomMillis)), amount);
     }
@@ -129,7 +130,7 @@ public class IntervalsTests extends ESTestCase {
 
         boolean withMillis = randomBoolean();
         int randomMilli = withMillis ? randomInt(999) : 0;
-        String millisString = withMillis ? "." + randomMilli : "";
+        String millisString = withMillis && randomMilli > 0 ? format(Locale.ROOT, ".%03d", randomMilli) : "";
 
         String value = format(Locale.ROOT, "%s%d %d:%d:%d%s", sign, randomDay, randomHour, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_DAY_TO_SECOND);
@@ -152,7 +153,7 @@ public class IntervalsTests extends ESTestCase {
 
         boolean withMillis = randomBoolean();
         int randomMilli = withMillis ? randomInt(999) : 0;
-        String millisString = withMillis ? "." + randomMilli : "";
+        String millisString = withMillis && randomMilli > 0 ? format(Locale.ROOT, ".%03d", randomMilli) : "";
 
         String value = format(Locale.ROOT, "%s%d:%d:%d%s", sign, randomHour, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_HOUR_TO_SECOND);
@@ -166,7 +167,7 @@ public class IntervalsTests extends ESTestCase {
 
         boolean withMillis = randomBoolean();
         int randomMilli = withMillis ? randomInt(999) : 0;
-        String millisString = withMillis ? "." + randomMilli : "";
+        String millisString = withMillis && randomMilli > 0 ? format(Locale.ROOT, ".%03d", randomMilli) : "";
 
         String value = format(Locale.ROOT, "%s%d:%d%s", sign, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_MINUTE_TO_SECOND);

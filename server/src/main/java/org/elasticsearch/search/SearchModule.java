@@ -322,6 +322,10 @@ public class SearchModule {
         return namedXContents;
     }
 
+    public ValuesSourceRegistry getValuesSourceRegistry() {
+        return ValuesSourceRegistry.getInstance();
+    }
+
     /**
      * Returns the {@link Highlighter} registry
      */

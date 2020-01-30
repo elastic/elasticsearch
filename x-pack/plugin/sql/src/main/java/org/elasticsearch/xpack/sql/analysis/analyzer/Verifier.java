@@ -750,7 +750,7 @@ public final class Verifier {
         };
         Consumer<Expression> checkForNested = e ->
                 attributeRefs.getOrDefault(e, e).forEachUp(matchNested, FieldAttribute.class);
-        Consumer<ScalarFunction> checkForNestedInFcuntion =  f -> f.arguments().forEach(
+        Consumer<ScalarFunction> checkForNestedInFunction =  f -> f.arguments().forEach(
                 arg -> arg.forEachUp(matchNested, FieldAttribute.class));
 
         // nested fields shouldn't be used in aggregates or having (yet)
@@ -777,7 +777,7 @@ public final class Verifier {
                             sf instanceof IsNotNull == false &&
                             sf instanceof Not == false &&
                             sf instanceof BinaryLogic== false) {
-                        checkForNestedInFcuntion.accept(sf);
+                        checkForNestedInFunction.accept(sf);
                     }}, ScalarFunction.class)
         ), Filter.class);
         if (!nested.isEmpty()) {
@@ -789,7 +789,7 @@ public final class Verifier {
 
         // check in order by (scalars not allowed)
         p.forEachDown(ob -> ob.order().forEach(o -> o.forEachUp(e ->
-                attributeRefs.getOrDefault(e, e).forEachUp(checkForNestedInFcuntion, ScalarFunction.class)
+                attributeRefs.getOrDefault(e, e).forEachUp(checkForNestedInFunction, ScalarFunction.class)
         )), OrderBy.class);
         if (!nested.isEmpty()) {
             localFailures.add(

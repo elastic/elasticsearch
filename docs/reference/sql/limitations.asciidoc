@@ -40,7 +40,7 @@ For example:
 
 [source, sql]
 --------------------------------------------------
-SELECT * FROM test_emp WHERE length(dep.dep_name.keyword) > 5;
+SELECT * FROM test_emp WHERE LENGTH(dep.dep_name.keyword) > 5;
 --------------------------------------------------
 
 and

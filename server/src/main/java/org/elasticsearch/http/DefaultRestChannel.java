@@ -19,7 +19,10 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -60,14 +63,18 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
 
+    @Nullable
+    private final Logger tracerLog;
+
     DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext) {
+                       HttpHandlingSettings settings, ThreadContext threadContext, @Nullable Logger tracerLog) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
         this.bigArrays = bigArrays;
         this.settings = settings;
         this.threadContext = threadContext;
+        this.tracerLog = tracerLog;
     }
 
     @Override
@@ -77,6 +84,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
+        if (tracerLog != null) {
+            tracerLog.trace(new ParameterizedMessage("Sending response for [{}] to [{}]", request.hashCode(), httpChannel));
+        }
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
         toClose.add(httpRequest::release);
         if (isCloseConnection()) {

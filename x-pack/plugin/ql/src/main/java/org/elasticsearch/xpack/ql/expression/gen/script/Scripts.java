@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.LinkedHashMap;
@@ -57,7 +58,7 @@ public final class Scripts {
         return new ScriptTemplate(formatTemplate(
                 format(Locale.ROOT, "{sql}.nullSafeFilter(%s)", script.template())),
                 script.params(),
-                DataType.BOOLEAN);
+                DataTypes.BOOLEAN);
     }
 
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
@@ -69,11 +70,11 @@ public final class Scripts {
     }
 
     public static ScriptTemplate and(ScriptTemplate left, ScriptTemplate right) {
-        return binaryMethod("and", left, right, DataType.BOOLEAN);
+        return binaryMethod("and", left, right, DataTypes.BOOLEAN);
     }
 
     public static ScriptTemplate or(ScriptTemplate left, ScriptTemplate right) {
-        return binaryMethod("or", left, right, DataType.BOOLEAN);
+        return binaryMethod("or", left, right, DataTypes.BOOLEAN);
     }
     
     public static ScriptTemplate binaryMethod(String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,

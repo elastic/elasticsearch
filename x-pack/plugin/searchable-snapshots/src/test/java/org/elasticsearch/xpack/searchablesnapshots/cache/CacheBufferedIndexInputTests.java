@@ -13,10 +13,14 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -28,6 +32,10 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
         try (CacheService cacheService = createCacheService()) {
             cacheService.start();
 
+            SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
+            IndexId indexId = new IndexId("_name", "_uuid");
+            ShardId shardId = new ShardId("_name", "_uuid", 0);
+
             for (int i = 0; i < 5; i++) {
                 final String fileName = randomAlphaOfLength(10);
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
@@ -37,7 +45,8 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                     directory = new CountingDirectory(directory, cacheService.getRangeSize());
                 }
 
-                try (CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir())) {
+                final Path cacheDir = createTempDir();
+                try (CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardId)) {
                     try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());

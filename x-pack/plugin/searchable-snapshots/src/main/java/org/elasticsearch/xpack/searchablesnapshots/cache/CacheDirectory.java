@@ -15,6 +15,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -34,19 +37,30 @@ public class CacheDirectory extends FilterDirectory {
     private static final int COPY_BUFFER_SIZE = 8192;
 
     private final CacheService cacheService;
+    private final SnapshotId snapshotId;
+    private final IndexId indexId;
+    private final ShardId shardId;
     private final Path cacheDir;
 
-    public CacheDirectory(Directory in, CacheService cacheService, Path cacheDir) throws IOException {
+    public CacheDirectory(Directory in, CacheService cacheService, Path cacheDir, SnapshotId snapshotId, IndexId indexId, ShardId shardId)
+        throws IOException {
         super(in);
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Files.createDirectories(cacheDir);
+        this.snapshotId = Objects.requireNonNull(snapshotId);
+        this.indexId = Objects.requireNonNull(indexId);
+        this.shardId = Objects.requireNonNull(shardId);
+    }
+
+    private CacheKey createCacheKey(String fileName) {
+        return new CacheKey(snapshotId, indexId, shardId, fileName);
     }
 
     public void close() throws IOException {
         super.close();
         // Ideally we could let the cache evict/remove cached files by itself after the
         // directory has been closed.
-        cacheService.removeFromCache(key -> key.startsWith(cacheDir.toString()));
+        cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
     }
 
     @Override
@@ -57,12 +71,12 @@ public class CacheDirectory extends FilterDirectory {
 
     private class CacheFileReference implements CacheFile.EvictionListener {
 
-        private final String fileName;
         private final long fileLength;
+        private final CacheKey cacheKey;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
 
         private CacheFileReference(String fileName, long fileLength) {
-            this.fileName = fileName;
+            this.cacheKey = createCacheKey(fileName);
             this.fileLength = fileLength;
         }
 
@@ -73,7 +87,7 @@ public class CacheDirectory extends FilterDirectory {
                 return currentCacheFile;
             }
 
-            final CacheFile newCacheFile = cacheService.get(fileName, fileLength, cacheDir);
+            final CacheFile newCacheFile = cacheService.get(cacheKey, fileLength, cacheDir);
             synchronized (this) {
                 currentCacheFile = cacheFile.get();
                 if (currentCacheFile != null) {
@@ -89,7 +103,7 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         String getFileName() {
-            return fileName;
+            return cacheKey.getFileName();
         }
 
         @Override
@@ -113,7 +127,7 @@ public class CacheDirectory extends FilterDirectory {
         @Override
         public String toString() {
             return "CacheFileReference{" +
-                "fileName='" + fileName + '\'' +
+                "cacheKey='" + cacheKey + '\'' +
                 ", fileLength=" + fileLength +
                 ", cacheDir=" + cacheDir +
                 ", acquired=" + (cacheFile.get() != null) +

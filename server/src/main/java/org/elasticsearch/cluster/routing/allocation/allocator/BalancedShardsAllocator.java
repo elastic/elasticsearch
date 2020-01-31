@@ -1014,11 +1014,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                     if (decision.type() == Type.YES) {
                         /* only allocate on the cluster if we are not throttled */
-                        logger.debug("Relocate shard [{}] from node [{}] to node [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
+                        logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                         minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                         return true;
                     } else {
                         /* allocate on the model even if throttled */
+                        logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                         assert decision.type() == Type.THROTTLE;
                         minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
                         return false;

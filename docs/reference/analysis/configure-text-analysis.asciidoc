@@ -20,6 +20,7 @@ the process.
 * <<test-analyzer>>
 * <<configuring-analyzers>>
 * <<analysis-custom-analyzer>>
+* <specify-analyer>>
 
 
 include::testing.asciidoc[]
@@ -27,3 +28,5 @@ include::testing.asciidoc[]
 include::analyzers/configuring.asciidoc[]
 
 include::analyzers/custom-analyzer.asciidoc[]
+
+include::specify-analyzer.asciidoc[]

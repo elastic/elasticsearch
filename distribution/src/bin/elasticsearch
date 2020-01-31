@@ -16,15 +16,41 @@
 
 source "`dirname "$0"`"/elasticsearch-env
 
+CHECK_KEYSTORE=true
+DAEMONIZE=false
+for option in "$@"; do
+  case "$option" in
+    -h|--help|-V|--version)
+      CHECK_KEYSTORE=false
+      ;;
+    -d|--daemonize)
+      DAEMONIZE=true
+      ;;
+  esac
+done
+
 if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
+fi
+
+# get keystore password before setting java options to avoid
+# conflicting GC configurations for the keystore tools
+unset KEYSTORE_PASSWORD
+KEYSTORE_PASSWORD=
+if [[ $CHECK_KEYSTORE = true ]] \
+    && "`dirname "$0"`"/elasticsearch-keystore has-passwd --silent
+then
+  if ! read -s -r -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
+    echo "Failed to read keystore password on console" 1>&2
+    exit 1
+  fi
 fi
 
 ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
 
 # manual parsing to find out, if process should be detached
-if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then
+if [[ $DAEMONIZE = false ]]; then
   exec \
     "$JAVA" \
     $ES_JAVA_OPTS \
@@ -35,7 +61,7 @@ if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; 
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@"
+    "$@" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
     "$JAVA" \
@@ -48,7 +74,7 @@ else
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" \
-    <&- &
+    <<<"$KEYSTORE_PASSWORD" &
   retval=$?
   pid=$!
   [ $retval -eq 0 ] || exit $retval

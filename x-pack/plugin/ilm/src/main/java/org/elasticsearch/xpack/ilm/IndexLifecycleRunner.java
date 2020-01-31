@@ -165,7 +165,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                 }
-            });
+            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }

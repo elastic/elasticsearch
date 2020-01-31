@@ -189,7 +189,7 @@ namespace in `elasticsearch.yml`. For example:
 xpack.security.authc.realms:
 
     native.realm1: <1>
-        order: 0
+        order: 0 <2>
         ...
 
     ldap.realm2:
@@ -204,6 +204,8 @@ xpack.security.authc.realms:
 <1> Specifies the type of realm (for example, `native`, `ldap`,
 `active_directory`, `pki`, `file`, `kerberos`, `saml`) and the realm name. This
 information is required.
+<2> Specifies priority of a realm in the realm chain. This information
+is required.
 
 The valid settings vary depending on the realm type. For more
 information, see <<setting-up-authentication>>.
@@ -214,8 +216,7 @@ information, see <<setting-up-authentication>>.
 
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are
-consulted first. Although not required, use of this setting is strongly
-recommended when you configure multiple realms. Defaults to `Integer.MAX_VALUE`.
+consulted first. The value must be unique for each realm. This setting is required.
 
 `enabled`::
 Indicates whether a realm is enabled. You can use this setting to disable a
@@ -442,12 +443,19 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
+connection. This is equivalent to and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds.
+
+`timeout.response`::
+The time interval to wait for the response from the LDAP server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
-The LDAP Server enforced timeout period for an LDAP search.
+The timeout period for an LDAP search. The value is specified in the request
+and is enforced by the receiving LDAP Server.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
@@ -690,12 +698,20 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
+connection.  This is equivalent to and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
+
+`timeout.response`::
+The time interval to wait for the response from the AD server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
-The LDAP Server enforced timeout period for an LDAP search.
+The timeout period for an LDAP search. The value is specified in the request
+and is enforced by the receiving LDAP Server.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 

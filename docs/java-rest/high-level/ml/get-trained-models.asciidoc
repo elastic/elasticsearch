@@ -29,6 +29,9 @@ include-tagged::{doc-tests-file}[{api}-request]
 <5> Allow empty response if no Trained Models match the provided ID patterns.
     If false, an error will be thrown if no Trained Models match the
     ID patterns.
+<6> An optional list of tags used to narrow the model search. A Trained Model
+    can have many tags or none. The trained models in the response will
+    contain all the provided tags.
 
 include::../execution.asciidoc[]
 

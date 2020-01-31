@@ -251,12 +251,11 @@ public class CacheDirectory extends FilterDirectory {
         @SuppressForbidden(reason = "Use positional writes on purpose")
         void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
-            final String fileName = cacheFileReference.getFileName();
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
-            logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] of file [{}] to cache file", start, end, fileName));
+            logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(fileName, ioContext)) {
+            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 stats.incrementInnerOpenCount();
                 if (start > 0) {
                     input.seek(start);

@@ -15,6 +15,9 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -256,9 +259,14 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
     private static void executeTestCase(CacheService cacheService, String fileName, byte[] fileContent,
                                         TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
+
+        final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
+        final IndexId indexId = new IndexId("_name", "_uuid");
+        final ShardId shardId = new ShardId("_name", "_uuid", 0);
+
         try (CacheService ignored = cacheService;
              Directory directory = newDirectory();
-             CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir())
+             CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId)
         ) {
             cacheService.start();
             assertThat(cacheDirectory.getStats(fileName), nullValue());

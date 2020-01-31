@@ -52,6 +52,9 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         AcknowledgedResponse openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertTrue(openJobResponse.isAcknowledged());
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
         ensureGreen();
 
         // Record which node the job starts off on

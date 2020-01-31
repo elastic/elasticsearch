@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
@@ -894,13 +893,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            final TimeValue delayedNodeTimeOutSetting;
-            // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-            if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
-                delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-            } else {
-                delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
-            }
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate =
@@ -912,8 +904,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .build();
                 templates.put(AuditorField.NOTIFICATIONS_INDEX, notificationMessageTemplate);
             } catch (IOException e) {
@@ -928,8 +919,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .version(Version.CURRENT.id)
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
@@ -947,7 +937,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
@@ -964,8 +953,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
@@ -981,7 +969,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                                 // Sacrifice durability for performance: in the event of power
                                 // failure we can lose the last 5 seconds of changes, but it's
                                 // much faster

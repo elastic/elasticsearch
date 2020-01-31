@@ -35,12 +35,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, PercentilesAggregationBuilder> {
@@ -115,6 +117,13 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
         returnedAgg.compression(internal.compression());
         returnedAgg.numberOfSignificantValueDigits(internal.numberOfSignificantValueDigits());
         return returnedAgg;
+    }
+
+    private static AtomicBoolean wasRegistered = new AtomicBoolean(false);
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        if (wasRegistered.compareAndSet(false, true) == true) {
+            PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistry);
+        }
     }
 
     private static <T> void setIfNotNull(Consumer<T> consumer, T value) {
@@ -270,16 +279,18 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
-        switch (method) {
-        case TDIGEST:
-            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, queryShardContext, parent,
-                    subFactoriesBuilder, metaData);
-        case HDR:
-            return new HDRPercentilesAggregatorFactory(name, config, percents,
-                numberOfSignificantValueDigits, keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
-        default:
+        PercentilesConfig percentilesConfig;
+        if (method.equals(PercentilesMethod.TDIGEST)) {
+            percentilesConfig = new PercentilesConfig.TDigestConfig(compression);
+        } else if (method.equals(PercentilesMethod.HDR)) {
+            percentilesConfig = new PercentilesConfig.HdrHistoConfig(numberOfSignificantValueDigits);
+        } else {
             throw new IllegalStateException("Illegal method [" + method + "]");
         }
+
+        return new PercentilesAggregatorFactory(name, config, percents, percentilesConfig, keyed, queryShardContext, parent,
+            subFactoriesBuilder, metaData);
+
     }
 
     @Override
@@ -361,6 +372,49 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
                 return this;
             } else {
                 throw new IllegalStateException("Only one percentiles method should be declared.");
+            }
+        }
+    }
+
+    /**
+     * A small config object that carries algo-specific settings.  This allows the factory to have
+     * a single unified constructor for both algos, but internally switch execution
+     * depending on which algo is selected
+     */
+    abstract static class PercentilesConfig {
+        private final PercentilesMethod method;
+
+        PercentilesConfig(PercentilesMethod method) {
+            this.method = method;
+        }
+
+        public PercentilesMethod getMethod() {
+            return method;
+        }
+
+        static class TDigestConfig extends PercentilesConfig {
+            private final double compression;
+
+            TDigestConfig(double compression) {
+                super(PercentilesMethod.TDIGEST);
+                this.compression = compression;
+            }
+
+            public double getCompression() {
+                return compression;
+            }
+        }
+
+        static class HdrHistoConfig extends PercentilesConfig {
+            private final int numberOfSignificantValueDigits;
+
+            HdrHistoConfig(int numberOfSignificantValueDigits) {
+                super(PercentilesMethod.HDR);
+                this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+            }
+
+            public int getNumberOfSignificantValueDigits() {
+                return numberOfSignificantValueDigits;
             }
         }
     }

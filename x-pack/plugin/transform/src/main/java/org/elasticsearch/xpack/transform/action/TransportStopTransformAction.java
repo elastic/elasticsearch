@@ -66,7 +66,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private final ThreadPool threadPool;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
-    private final Client client;
 
     @Inject
     public TransportStopTransformAction(
@@ -104,7 +103,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
-        this.client = client;
     }
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
@@ -274,7 +272,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         ActionListener<Response> onStopListener = ActionListener.wrap(
             waitResponse -> transformConfigManager.refresh(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
-                logger.debug("Failed to refresh internal index after stop", e);
+                logger.warn("Failed to refresh internal index after stop", e);
                 listener.onResponse(waitResponse);
             })),
             listener::onFailure

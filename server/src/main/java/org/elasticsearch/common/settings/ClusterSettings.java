@@ -97,7 +97,6 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
@@ -272,8 +271,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
             HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
             HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
-            RestController.SETTING_REST_TRACE_LOG_INCLUDE,
-            RestController.SETTING_REST_TRACE_LOG_EXCLUDE,
+            HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
+            HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
             HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -128,9 +127,7 @@ public class RestIndicesActionTests extends ESTestCase {
             }
         }
 
-        final RestController restController = new RestController(
-            Settings.EMPTY, Collections.emptySet(), null, null, null, new UsageService(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        final RestController restController = new RestController(Collections.emptySet(), null, null, null, new UsageService());
         final RestIndicesAction action = new RestIndicesAction(restController);
         final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetaDatas);
 

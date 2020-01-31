@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,9 +56,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        final RestController restController = new RestController(
-            settings, Collections.emptySet(), null, null, null, usageService,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
         final RestCatRecoveryAction action = new RestCatRecoveryAction(restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));

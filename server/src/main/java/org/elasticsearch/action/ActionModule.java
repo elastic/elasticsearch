@@ -411,7 +411,7 @@ public class ActionModule extends AbstractModule {
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
         restController = new RestController(
-            settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService, clusterSettings);
+            headers, restWrapper, nodeClient, circuitBreakerService, usageService);
     }
 
 

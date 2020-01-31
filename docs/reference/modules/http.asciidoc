@@ -113,14 +113,14 @@ It also uses the common
 === Rest Request Tracer
 
 The http module has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
-by setting the level of the `org.elasticsearch.rest.RestController.tracer` logger to `TRACE`:
+by setting the level of the `org.elasticsearch.http.AbstractHttpServerTransport.tracer` logger to `TRACE`:
 
 [source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
    "transient" : {
-      "logger.org.elasticsearch.rest.RestController.tracer" : "TRACE"
+      "logger.org.elasticsearch.http.AbstractHttpServerTransport.tracer" : "TRACE"
    }
 }
 --------------------------------------------------
@@ -133,8 +133,8 @@ traced.
 PUT _cluster/settings
 {
    "transient" : {
-      "rest.tracer.include" : "*",
-      "rest.tracer.exclude" : ""
+      "http.tracer.include" : "*",
+      "http.tracer.exclude" : ""
    }
 }
 --------------------------------------------------

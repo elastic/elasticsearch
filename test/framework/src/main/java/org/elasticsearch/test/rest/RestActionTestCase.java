@@ -20,7 +20,6 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -45,11 +44,10 @@ public abstract class RestActionTestCase extends ESTestCase {
     @Before
     public void setUpController() {
         nodeClient = mock(NodeClient.class);
-        controller = new RestController(Settings.EMPTY, Collections.emptySet(), null,
+        controller = new RestController(Collections.emptySet(), null,
             nodeClient,
             new NoneCircuitBreakerService(),
-            new UsageService(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            new UsageService());
     }
 
     /**

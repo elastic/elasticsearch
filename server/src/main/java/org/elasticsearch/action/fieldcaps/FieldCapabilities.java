@@ -290,32 +290,17 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.meta = new HashMap<>();
         }
 
-        private void add(String index, boolean search, boolean agg) {
+        /**
+         * Collect the field capabilities for an index.
+         */
+        void add(String index, boolean search, boolean agg, Map<String, String> meta) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
-        }
-
-        /**
-         * Collect capabilities of an index.
-         */
-        void add(String index, boolean search, boolean agg, Map<String, String> meta) {
-            add(index, search, agg);
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .add(entry.getValue());
-            }
-        }
-
-        /**
-         * Merge another capabilities instance.
-         */
-        void merge(String index, boolean search, boolean agg, Map<String, Set<String>> meta) {
-            add(index, search, agg);
-            for (Map.Entry<String, Set<String>> entry : meta.entrySet()) {
-                this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
-                        .addAll(entry.getValue());
             }
         }
 

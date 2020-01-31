@@ -398,7 +398,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    boolean betterWeightWithShardAdded = nodeWeight + 1 < currentWeight;
+                    boolean betterWeightWithShardAdded = nodeWeight + 1.0f < currentWeight;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the

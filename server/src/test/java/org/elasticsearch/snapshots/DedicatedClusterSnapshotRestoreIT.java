@@ -1132,11 +1132,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         SnapshotStats stats = snapshots.get(0).getStats();
 
-        assertThat(stats.getTotalFileCount(), is(snapshot0FileCount));
-        assertThat(stats.getTotalSize(), is(snapshot0FileSize));
+        assertThat(stats.getTotalFileCount(), greaterThanOrEqualTo(snapshot0FileCount));
+        assertThat(stats.getTotalSize(), greaterThanOrEqualTo(snapshot0FileSize));
 
-        assertThat(stats.getIncrementalFileCount(), equalTo(snapshot0FileCount));
-        assertThat(stats.getIncrementalSize(), equalTo(snapshot0FileSize));
+        assertThat(stats.getIncrementalFileCount(), equalTo(stats.getTotalFileCount()));
+        assertThat(stats.getIncrementalSize(), equalTo(stats.getTotalSize()));
 
         assertThat(stats.getIncrementalFileCount(), equalTo(stats.getProcessedFileCount()));
         assertThat(stats.getIncrementalSize(), equalTo(stats.getProcessedSize()));
@@ -1175,8 +1175,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ArrayList<Path> snapshotFilesDiff = new ArrayList<>(snapshot1Files);
         snapshotFilesDiff.removeAll(snapshot0Files);
 
-        assertThat(anotherStats.getIncrementalFileCount(), equalTo(snapshotFilesDiff.size()));
-        assertThat(anotherStats.getIncrementalSize(), equalTo(calculateTotalFilesSize(snapshotFilesDiff)));
+        assertThat(anotherStats.getIncrementalFileCount(), greaterThanOrEqualTo(snapshotFilesDiff.size()));
+        assertThat(anotherStats.getIncrementalSize(), greaterThanOrEqualTo(calculateTotalFilesSize(snapshotFilesDiff)));
 
         assertThat(anotherStats.getIncrementalFileCount(), equalTo(anotherStats.getProcessedFileCount()));
         assertThat(anotherStats.getIncrementalSize(), equalTo(anotherStats.getProcessedSize()));
@@ -1184,8 +1184,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(stats.getTotalSize(), lessThan(anotherStats.getTotalSize()));
         assertThat(stats.getTotalFileCount(), lessThan(anotherStats.getTotalFileCount()));
 
-        assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
-        assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
+        assertThat(anotherStats.getTotalFileCount(), greaterThanOrEqualTo(snapshot1FileCount));
+        assertThat(anotherStats.getTotalSize(), greaterThanOrEqualTo(snapshot1FileSize));
     }
 
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {

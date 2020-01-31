@@ -70,10 +70,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
-        // always default delayed allocation to 0 to make sure we have tests are not delayed
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
-            .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
-            .actionGet();
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
@@ -117,10 +114,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
-        // always default delayed allocation to 0 to make sure we have tests are not delayed
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
-            .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
-            .actionGet();
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDataFeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDataFeedRequest);

@@ -420,10 +420,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
         }, 20, TimeUnit.SECONDS);
 
-        // always default delayed allocation to 0 to make sure we have tests are not delayed
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
-            .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
-            .actionGet();
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();

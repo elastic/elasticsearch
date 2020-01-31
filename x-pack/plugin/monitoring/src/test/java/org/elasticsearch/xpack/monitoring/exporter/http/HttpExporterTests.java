@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
@@ -156,7 +157,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Settings settings = builder.build();
         final ClusterSettings clusterSettings =
-            new ClusterSettings(settings, Set.of(HttpExporter.AUTH_SECURE_PASSWORD_SETTING, Exporter.TYPE_SETTING));
+            new ClusterSettings(settings,
+                Stream.of(HttpExporter.AUTH_SECURE_PASSWORD_SETTING, Exporter.TYPE_SETTING).collect(Collectors.toSet()));
         final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
         assertThat(e, hasToString(containsString("[" + prefix + settingName + "] is set but type is [local]")));
     }

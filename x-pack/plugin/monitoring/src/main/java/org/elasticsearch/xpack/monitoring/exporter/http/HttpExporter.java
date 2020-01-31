@@ -922,7 +922,7 @@ public class HttpExporter extends Exporter {
     }
 
     public static List<Setting.AffixSetting<?>> getSecureSettings() {
-        return List.of(AUTH_SECURE_PASSWORD_SETTING);
+        return Collections.singletonList(AUTH_SECURE_PASSWORD_SETTING);
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {

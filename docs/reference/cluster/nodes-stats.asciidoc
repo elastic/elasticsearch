@@ -143,8 +143,8 @@ Name of the cluster. Based on the <<cluster.name>> setting.
 
 `nodes.<node_id>.timestamp`::
 (integer)
-Last time the node statistics were refreshed. Recorded in milliseconds since the
-https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+Time the node stats were collected for this response. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 
 `nodes.<node_id>.name`::
 (string)

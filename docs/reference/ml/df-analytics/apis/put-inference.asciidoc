@@ -32,8 +32,8 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 [[ml-put-inference-desc]]
 ==== {api-description-title}
 
-The create {infer} trained model API enables you to supply a trained model that is 
-not created by {dfanalytics}. 
+The create {infer} trained model API enables you to supply a trained model that 
+is not created by {dfanalytics}. 
 
 
 [[ml-put-inference-path-params]]
@@ -197,7 +197,8 @@ The index of the right child.
 
 `tree_node`.`default_left`:::
 (Optional, boolean) 
-Indicates whether to default to the left when the feature is missing. Defaults to `true`.
+Indicates whether to default to the left when the feature is missing. Defaults 
+to `true`.
 
 `tree_node`.`split_feature`:::
 (Optional, integer) 
@@ -485,10 +486,9 @@ Example of a `weighted_mode` object:
 ----------------------------------
 //NOTCONSOLE
 
-////
+
 [[ml-put-inference-json-schema]]
 ===== {infer-cap} JSON schema
 
 For the full JSON schema of model {infer}, 
-https://github.com/elastic/ml_json_schemas[click here].
-////
+https://github.com/elastic/ml-json-schemas[click here].

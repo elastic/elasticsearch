@@ -516,8 +516,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 for (int j = 0; j < numDisconnects; j++) {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {
-                                        connection.getConnection(node);
-                                    } catch (NodeNotConnectedException e) {
+                                        connection.getConnectionManager().getConnection(node);
+                                    } catch (NoSuchRemoteClusterException e) {
                                         // Ignore
                                     }
                                 }

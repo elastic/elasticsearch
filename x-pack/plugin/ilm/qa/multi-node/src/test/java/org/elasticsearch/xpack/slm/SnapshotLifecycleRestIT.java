@@ -65,6 +65,13 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         return true;
     }
 
+    // as we are testing the SLM history entries we'll preserve the "slm-history-ilm-policy" policy as it'll be associated with the
+    // .slm-history-* indices and we won't be able to delete it when we wipe out the cluster
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
     public void testMissingRepo() throws Exception {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("missing-repo-policy", "snap",
             "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);

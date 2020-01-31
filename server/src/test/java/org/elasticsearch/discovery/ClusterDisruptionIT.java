@@ -108,8 +108,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     @TestIssueLogging(value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
-        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE," +
+        "org.elasticsearch.gateway.PersistedClusterStateService:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068,https://github.com/elastic/elasticsearch/issues/51329")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;

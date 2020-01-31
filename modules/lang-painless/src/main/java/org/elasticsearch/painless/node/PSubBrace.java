@@ -19,9 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BraceSubNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -48,18 +49,18 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         index.expected = int.class;
-        index.analyze(scriptRoot, locals);
-        index = index.cast(scriptRoot, locals);
+        index.analyze(scriptRoot, scope);
+        index = index.cast(scriptRoot, scope);
 
         actual = clazz.getComponentType();
     }
 
-    BraceSubNode write() {
+    BraceSubNode write(ClassNode classNode) {
         BraceSubNode braceSubNode = new BraceSubNode();
 
-        braceSubNode.setChildNode(index.write());
+        braceSubNode.setChildNode(index.write(classNode));
 
         braceSubNode.setLocation(location);
         braceSubNode.setExpressionType(actual);

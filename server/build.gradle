@@ -96,7 +96,6 @@ dependencies {
   compile "org.apache.lucene:lucene-queries:${versions.lucene}"
   compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"

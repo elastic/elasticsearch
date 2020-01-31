@@ -11,16 +11,22 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
@@ -51,6 +57,10 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         super(in);
     }
 
+    @Override
+    protected DataType loadTypeFromName(String typeName) {
+        return SqlDataTypes.fromTypeName(typeName);
+    }
 
     @Override
     protected ZoneId readZoneId(StreamInput in) throws IOException {
@@ -69,7 +79,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     private boolean isGeoPointArray(List<?> list) {
-        if (dataType() != DataType.GEO_POINT) {
+        if (dataType() != GEO_POINT) {
             return false;
         }
         // we expect the point in [lon lat] or [lon lat alt] formats
@@ -79,16 +89,17 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
+    
     @Override
-    protected Object extractFromSource(Map<String, Object> map) {
-        return super.extractFromSource(map);
+    protected boolean isFromDocValuesOnly(DataType dataType) {
+        return SqlDataTypes.isFromDocValuesOnly(dataType);
     }
 
     @Override
     protected Object unwrapCustomValue(Object values) {
         DataType dataType = dataType();
 
-        if (dataType == DataType.GEO_POINT) {
+        if (dataType == GEO_POINT) {
             try {
                 GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
                 return new GeoShape(geoPoint.lon(), geoPoint.lat());
@@ -96,14 +107,14 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
             }
         }
-        if (dataType == DataType.GEO_SHAPE) {
+        if (dataType == GEO_SHAPE) {
             try {
                 return new GeoShape(values);
             } catch (IOException ex) {
                 throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName());
             }
         }
-        if (dataType == DataType.SHAPE) {
+        if (dataType == SHAPE) {
             try {
                 return new GeoShape(values);
             } catch (IOException ex) {
@@ -113,17 +124,12 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName());
         }
-        if (dataType == DataType.DATETIME) {
+        if (dataType == DATETIME) {
             if (values instanceof String) {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId());
             }
         }
 
         return null;
-    }
-
-    @Override
-    protected DataType dataType() {
-        return super.dataType();
     }
 }

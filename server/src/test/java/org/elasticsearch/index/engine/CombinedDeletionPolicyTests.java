@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -54,7 +53,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final int extraRetainedOps = between(0, 100);
         final SoftDeletesPolicy softDeletesPolicy =
                 new SoftDeletesPolicy(globalCheckpoint::get, NO_OPS_PERFORMED, extraRetainedOps, () -> RetentionLeases.EMPTY);
-        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);
 
         final LongArrayList maxSeqNoList = new LongArrayList();
@@ -101,7 +100,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final SoftDeletesPolicy softDeletesPolicy =
                 new SoftDeletesPolicy(globalCheckpoint::get, -1, extraRetainedOps, () -> RetentionLeases.EMPTY);
         final UUID translogUUID = UUID.randomUUID();
-        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);
         long lastMaxSeqNo = between(1, 1000);
         long lastCheckpoint = randomLongBetween(-1, lastMaxSeqNo);
@@ -181,7 +180,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testDeleteInvalidCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
         final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
-        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);
 
         final int invalidCommits = between(1, 10);
@@ -216,7 +215,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
         final UUID translogUUID = UUID.randomUUID();
-        final TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
+        final TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);
         final List<IndexCommit> commitList = new ArrayList<>();
         int totalCommits = between(2, 20);

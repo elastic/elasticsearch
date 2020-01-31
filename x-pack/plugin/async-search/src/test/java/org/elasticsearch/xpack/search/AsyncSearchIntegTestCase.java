@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
@@ -231,7 +232,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.getSearchResponse().getSuccessfulShards(), equalTo(0));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
                     assertNull(newResponse.getSearchResponse().getAggregations());
-                    assertNull(newResponse.getSearchResponse().getHits().getTotalHits());
+                    assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
+                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(0L));
+                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().relation,
+                        equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
                 } else {
                     assertThat(newResponse.status(),  equalTo(RestStatus.OK));
                     assertNotNull(newResponse.getSearchResponse());

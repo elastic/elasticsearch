@@ -1,0 +1,35 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-requirements]]
+== EQL requirements
+++++
+<titleabbrev>Requirements</titleabbrev>
+++++
+
+EQL is schemaless and works out-of-the-box with most common log formats. If you
+use a standard log format and already know what fields in your index contain
+event type and timestamp information, you can skip this page.
+
+[discrete]
+[[eql-required-fields]]
+=== Required fields
+
+In {es}, EQL assumes each document in an index corresponds to an event.
+
+To search an index using EQL, each document in the index must contain the
+following field archetypes:
+
+Event type::
+A field containing the event classification, such as `process`, `file`, or
+`network`. This is typically mapped as a <<keyword,`keyword`>> field.
+
+Timestamp::
+A field containing the date and/or time the event occurred. This is typically
+mapped as a <<date,`date`>> field.
+
+[TIP]
+====
+While no schema is required to use EQL in {es}, we recommend the
+{ecs-ref}[Elastic Common Schema (ECS)]. {es}'s EQL search is designed to work
+with core ECS fields by default.
+====

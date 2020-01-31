@@ -20,9 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.ir.UnaryNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -56,23 +57,23 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         originallyExplicit = explicit;
 
         if (operation == Operation.NOT) {
-            analyzeNot(scriptRoot, locals);
+            analyzeNot(scriptRoot, scope);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(scriptRoot, locals);
+            analyzeBWNot(scriptRoot, scope);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(scriptRoot, locals);
+            analyzerAdd(scriptRoot, scope);
         } else if (operation == Operation.SUB) {
-            analyzerSub(scriptRoot, locals);
+            analyzerSub(scriptRoot, scope);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(ScriptRoot scriptRoot, Locals variables) {
+    void analyzeNot(ScriptRoot scriptRoot, Scope variables) {
         child.expected = boolean.class;
         child.analyze(scriptRoot, variables);
         child = child.cast(scriptRoot, variables);
@@ -84,7 +85,7 @@ public final class EUnary extends AExpression {
         actual = boolean.class;
     }
 
-    void analyzeBWNot(ScriptRoot scriptRoot, Locals variables) {
+    void analyzeBWNot(ScriptRoot scriptRoot, Scope variables) {
         child.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
@@ -114,7 +115,7 @@ public final class EUnary extends AExpression {
         }
     }
 
-    void analyzerAdd(ScriptRoot scriptRoot, Locals variables) {
+    void analyzerAdd(ScriptRoot scriptRoot, Scope variables) {
         child.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
@@ -148,7 +149,7 @@ public final class EUnary extends AExpression {
         }
     }
 
-    void analyzerSub(ScriptRoot scriptRoot, Locals variables) {
+    void analyzerSub(ScriptRoot scriptRoot, Scope variables) {
         child.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
@@ -183,10 +184,10 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    UnaryNode write() {
+    UnaryNode write(ClassNode classNode) {
         UnaryMathNode unaryMathNode = new UnaryMathNode();
 
-        unaryMathNode.setChildNode(child.write());
+        unaryMathNode.setChildNode(child.write(classNode));
 
         unaryMathNode.setLocation(location);
         unaryMathNode.setExpressionType(actual);

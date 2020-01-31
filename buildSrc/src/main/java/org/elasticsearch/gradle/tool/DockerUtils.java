@@ -217,12 +217,14 @@ public class DockerUtils {
             });
             return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
         } catch (GradleException ex) {
+            String error = stderr.toString().trim();
+            String output = stdout.toString().trim();
             final String message = String.format(
                 Locale.ROOT,
-                "Error occurred running command [%s] stderr: [%s] stdout: [%s]",
+                "Error occurred running command [%s]:%s%s",
                 String.join(" ", args),
-                stderr.toString().trim(),
-                stdout.toString().trim()
+                error.isEmpty() ? "" : "\n" + error,
+                output.isEmpty() ? "" : "\n" + output
             );
             throw new GradleException(message, ex);
         }

@@ -11,11 +11,12 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumericOrDateOrTime;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumericOrDateOrTime;
 
 /**
  * Find the minimum value in matched documents.
@@ -51,7 +52,7 @@ public class Min extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().dataType().isString()) {
+        if (DataTypes.isString(field().dataType())) {
             return isExact(field(), sourceText(), ParamOrdinal.DEFAULT);
         } else {
             return isNumericOrDateOrTime(field(), sourceText(), ParamOrdinal.DEFAULT);

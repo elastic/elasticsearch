@@ -360,7 +360,8 @@ public class SearchModule {
                 MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
                         .addResultReader(InternalMedianAbsoluteDeviation::new));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
-                CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new));
+                CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new)
+            .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
                 GlobalAggregationBuilder::parse).addResultReader(InternalGlobal::new));
         registerAggregation(new AggregationSpec(MissingAggregationBuilder.NAME, MissingAggregationBuilder::new,
@@ -383,7 +384,8 @@ public class SearchModule {
                     .addResultReader(StringTerms.NAME, StringTerms::new)
                     .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
                     .addResultReader(LongTerms.NAME, LongTerms::new)
-                    .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
+                    .addResultReader(DoubleTerms.NAME, DoubleTerms::new)
+            .setAggregatorRegistrar(TermsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(RareTermsAggregationBuilder.NAME, RareTermsAggregationBuilder::new,
                 RareTermsAggregationBuilder::parse)
                     .addResultReader(StringRareTerms.NAME, StringRareTerms::new)

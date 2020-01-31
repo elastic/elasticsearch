@@ -7,15 +7,17 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClassificationConfigTests extends AbstractWireSerializingTestCase<ClassificationConfig> {
+public class ClassificationConfigTests extends AbstractSerializingTestCase<ClassificationConfig> {
 
     public static ClassificationConfig randomClassificationConfig() {
         return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
@@ -52,4 +54,8 @@ public class ClassificationConfigTests extends AbstractWireSerializingTestCase<C
         return ClassificationConfig::new;
     }
 
+    @Override
+    protected ClassificationConfig doParseInstance(XContentParser parser) throws IOException {
+        return ClassificationConfig.fromXContent(parser);
+    }
 }

@@ -294,33 +294,43 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                final String docId = credentials.getId();
-                final GetRequest getRequest = client
-                        .prepareGet(SECURITY_MAIN_ALIAS, docId)
-                        .setFetchSource(true)
-                        .request();
-                executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
-                    if (response.isExists()) {
-                        try (ApiKeyCredentials ignore = credentials) {
-                            final Map<String, Object> source = response.getSource();
-                            validateApiKeyCredentials(docId, source, credentials, clock, listener);
-                        }
-                    } else {
+                loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
+                    response -> {
                         credentials.close();
-                        listener.onResponse(
-                            AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
+                        listener.onResponse(response);
+                    },
+                    e -> {
+                        credentials.close();
+                        listener.onFailure(e);
                     }
-                }, e -> {
-                    credentials.close();
-                    listener.onResponse(AuthenticationResult.unsuccessful("apikey authentication for id " + credentials.getId() +
-                        " encountered a failure", e));
-                }), client::get);
+                ));
             } else {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
+    }
+
+    private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
+                                                  ActionListener<AuthenticationResult> listener) {
+        final String docId = credentials.getId();
+        final GetRequest getRequest = client
+            .prepareGet(SECURITY_MAIN_ALIAS, docId)
+            .setFetchSource(true)
+            .request();
+        executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
+                if (response.isExists()) {
+                    final Map<String, Object> source = response.getSource();
+                    validateApiKeyCredentials(docId, source, credentials, clock, listener);
+                } else {
+                    listener.onResponse(
+                        AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
+                }
+            },
+            e -> listener.onResponse(AuthenticationResult.unsuccessful(
+                "apikey authentication for id " + credentials.getId() + " encountered a failure", e))),
+            client::get);
     }
 
     /**
@@ -535,7 +545,8 @@ public class ApiKeyService {
         return null;
     }
 
-    private static boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
+    // Protected instance method so this can be mocked
+    protected boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
         final char[] apiKeyHashChars = apiKeyHash.toCharArray();
         try {
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());

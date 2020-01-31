@@ -137,6 +137,7 @@ processTestResources {
 }
 
 task integTest(type: Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
   // don't add the tasks to build the docker images if we have no way of testing them
@@ -208,6 +209,7 @@ subprojects { Project subProject ->
     def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable 'docker'
       outputs.file(tarFile)
       args "save",

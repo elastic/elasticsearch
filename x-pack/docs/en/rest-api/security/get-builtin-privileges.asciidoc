@@ -12,7 +12,7 @@ available in this version of {es}.
 [[security-api-get-builtin-privileges-request]]
 ==== {api-request-title}
 
-`GET /_security/privilege/_builtin` 
+`GET /_security/privilege/_builtin`
 
 
 [[security-api-get-builtin-privileges-prereqs]]
@@ -104,6 +104,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "delete",
     "delete_index",
     "index",
+    "maintenance",
     "manage",
     "manage_follow_index",
     "manage_ilm",

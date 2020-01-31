@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
@@ -80,7 +81,7 @@ public class DatePart extends BinaryDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 
     @Override

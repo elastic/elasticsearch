@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
@@ -17,7 +18,7 @@ import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
 import javax.net.ssl.X509KeyManager;
-import java.util.ArrayList;
+import java.security.PrivateKey;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,9 +81,11 @@ public class CloudIdp implements SamlIdentityProvider {
         if (keyManager == null) {
             return null;
         }
-        final Set<String> aliases = new HashSet<>();
+
+        final String selectedAlias;
         final String configAlias = IDP_SIGNING_KEY_ALIAS.get(settings);
         if (Strings.isNullOrEmpty(configAlias)) {
+            final Set<String> aliases = new HashSet<>();
             final String[] rsaAliases = keyManager.getServerAliases("RSA", null);
             if (null != rsaAliases) {
                 aliases.addAll(Arrays.asList(rsaAliases));
@@ -92,29 +95,30 @@ public class CloudIdp implements SamlIdentityProvider {
                 aliases.addAll(Arrays.asList(ecAliases));
             }
             if (aliases.isEmpty()) {
-                throw new IllegalArgumentException("The configured keystore for xpack.idp.signing.keystore does not contain any RSA or EC" +
-                    " key pairs");
+                throw new IllegalArgumentException(
+                    "The configured keystore for xpack.idp.signing.keystore does not contain any RSA or EC key pairs");
             }
             if (aliases.size() > 1) {
                 throw new IllegalArgumentException("The configured keystore for xpack.idp.signing.keystore contains multiple key pairs" +
                     " but no alias has been configured with [" + IDP_SIGNING_KEY_ALIAS.getKey() + "]");
             }
+            selectedAlias = Iterables.get(aliases, 0);
         } else {
-            aliases.add(configAlias);
+            selectedAlias = configAlias;
         }
-        String alias = new ArrayList<>(aliases).get(0);
-        if (keyManager.getPrivateKey(alias) == null) {
+        final PrivateKey signingKey = keyManager.getPrivateKey(selectedAlias);
+        if (signingKey == null) {
             throw new IllegalArgumentException("The configured keystore for xpack.idp.signing.keystore does not have a private key" +
-                " associated with alias [" + alias + "]");
+                " associated with alias [" + selectedAlias + "]");
         }
 
-        final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
+        final String keyType = signingKey.getAlgorithm();
         if (keyType.equals("RSA") == false && keyType.equals("EC") == false) {
-            throw new IllegalArgumentException("The key associated with alias [" + alias + "] " + "that has been configured with ["
+            throw new IllegalArgumentException("The key associated with alias [" + selectedAlias + "] " + "that has been configured with ["
                 + IDP_SIGNING_KEY_ALIAS.getKey() + "] uses unsupported key algorithm type [" + keyType
                 + "], only RSA and EC are supported");
         }
-        return new X509KeyManagerX509CredentialAdapter(keyManager, alias);
+        return new X509KeyManagerX509CredentialAdapter(keyManager, selectedAlias);
     }
 
 

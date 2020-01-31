@@ -73,18 +73,14 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private final Logger logger = LogManager.getLogger();
     private boolean enabled;
-    private final Settings settings;
-
-    public IdentityProviderPlugin(Settings settings) {
-        this.settings = settings;
-        this.enabled = ENABLED_SETTING.get(settings);
-    }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        final Settings settings = environment.settings();
+        enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return List.of();
         }

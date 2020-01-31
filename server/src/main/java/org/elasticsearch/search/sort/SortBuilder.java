@@ -70,10 +70,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
-    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
-        // TODO support all sorts
-        throw new IllegalArgumentException("unsupported sort");
-    }
+    public abstract BucketedSort buildBucketedSort(QueryShardContext context) throws IOException;
 
     /**
      * Set the order of sorting.

@@ -141,10 +141,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-        // It'd be lovely to support sorts in aggregations on these sorts of fields but that'll come later
-        throw new IllegalArgumentException("unsupported field type");
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
-
 
     /**
      * A view of a SortedDocValues where missing values

@@ -588,12 +588,19 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
             @Override
             public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
+                // NOCOMMIT support
                 throw new UnsupportedOperationException("unsupported field type");
             }
         };
 
         return new SortFieldAndFormat(new SortField(fieldName, geoDistanceComparatorSource, reverse),
             DocValueFormat.RAW);
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+        // NOCOMMIT support
+        throw new UnsupportedOperationException("unsupported field type");
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {

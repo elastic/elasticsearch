@@ -232,13 +232,23 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+        return new SortFieldAndFormat(
+                new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
+                DocValueFormat.RAW);
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW); 
+    }
+
+    private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());
         }
-        boolean reverse = (order == SortOrder.DESC);
         if (valueMode == null) {
-            valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
+            valueMode = order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
         Nested nested = null;
@@ -247,12 +257,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             nested = resolveNested(context, nestedSort);
         }
 
-        final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-                fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
+                return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
                     StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
@@ -277,11 +286,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript.setScorer(scorer);
                     }
                 };
-                break;
             case NUMBER:
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
-                fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
+                return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
                     NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
@@ -304,12 +312,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript.setScorer(scorer);
                     }
                 };
-                break;
             default:
             throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
-
-        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     @Override

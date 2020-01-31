@@ -20,7 +20,7 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
     public static final String LIFECYCLE_HISTORY_INDEX_ENABLED = "indices.lifecycle.history_index_enabled";
-    public static final String LIFECYCLE_STEP_MASTER_TIMEOUT = "index.lifecycle.step.master_timeout";
+    public static final String LIFECYCLE_STEP_MASTER_TIMEOUT = "indices.lifecycle.step.master_timeout";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";

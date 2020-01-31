@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Set;
 
 /**
  * Implements a field who's value is null if the prefix is null rather than throwing an NPE.
@@ -36,11 +34,6 @@ public class PSubNullSafeField extends AStoreable {
     public PSubNullSafeField(Location location, AStoreable guarded) {
         super(location);
         this.guarded = guarded;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

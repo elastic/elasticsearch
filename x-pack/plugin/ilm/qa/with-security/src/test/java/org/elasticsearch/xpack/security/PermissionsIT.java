@@ -168,20 +168,10 @@ public class PermissionsIT extends ESRestTestCase {
         final HighLevelClient hlAdminClient = new HighLevelClient(adminClient());
 
         // Build two high level clients, each using a different user
-        final RestClientBuilder adminBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-pass".toCharArray()));
-        configureClient(adminBuilder, Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", adminToken)
-            .build());
-        adminBuilder.setStrictDeprecationMode(true);
+        final RestClientBuilder adminBuilder = getRestClientBuilder("slm_admin", "slm-pass");
         final RestHighLevelClient adminHLRC = new RestHighLevelClient(adminBuilder);
 
-        final RestClientBuilder userBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-pass".toCharArray()));
-        configureClient(userBuilder, Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", userToken)
-            .build());
-        userBuilder.setStrictDeprecationMode(true);
+        final RestClientBuilder userBuilder = getRestClientBuilder("slm_user", "slm-user-pass");
         final RestHighLevelClient readHlrc = new RestHighLevelClient(userBuilder);
 
         PutRepositoryRequest repoRequest = new PutRepositoryRequest();
@@ -273,7 +263,6 @@ public class PermissionsIT extends ESRestTestCase {
      * Tests when the user is limited by alias of an index is able to write to index
      * which was rolled over by an ILM policy.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41440")
     @TestIssueLogging(value = "org.elasticsearch:DEBUG", issueUrl = "https://github.com/elastic/elasticsearch/issues/41440")
     public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy() throws Exception {
         /*
@@ -301,19 +290,41 @@ public class PermissionsIT extends ESRestTestCase {
         });
 
         // test_user: index docs using alias, now should be able write to new index
-        indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
+        indexDoc("test_user", "x-pack-test-password", "foo_alias", "documentID");
         refresh("foo_alias");
 
         // verify that the doc has been indexed into new write index
-        assertBusy(() -> {
-            Request request = new Request("GET", "/foo-logs-000002/_search");
+        try {
+            assertBusy(() -> {
+                Request request = new Request("GET", "/foo-logs-000002/_search");
+                request.setJsonEntity("{\n" +
+                    "\"profile\": true,\n" +
+                    "\"query\": {\n" +
+                    "    \"match_all\": {}\n" +
+                    "  }\n" +
+                    "}");
+                Response response = adminClient().performRequest(request);
+                try (InputStream content = response.getEntity().getContent()) {
+                    Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+                    logger.info("Search response payload is {}", map);
+                    Integer totalHits = (Integer) XContentMapValues.extractValue("hits.total.value", map);
+                    assertThat(totalHits, equalTo(1));
+                }
+            });
+        } catch (AssertionError e) {
+            Request request = new Request("GET", "/foo-logs-000002/_explain/documentID");
+            request.setJsonEntity("{\n" +
+                "\"query\": {\n" +
+                "    \"match_all\": {}\n" +
+                "  }\n" +
+                "}");
             Response response = adminClient().performRequest(request);
             try (InputStream content = response.getEntity().getContent()) {
                 Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-                Integer totalHits = (Integer) XContentMapValues.extractValue("hits.total.value", map);
-                assertThat(totalHits, equalTo(1));
+                logger.info("Explain search for document with id documentID {}", map);
             }
-        });
+            throw e;
+        }
     }
 
     private void createNewSingletonPolicy(RestClient client, String policy, String phaseName, LifecycleAction action) throws IOException {
@@ -368,20 +379,33 @@ public class PermissionsIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(request));
     }
 
-    private void indexDocs(String user, String passwd, String index, int noOfDocs) throws IOException {
+    private RestClientBuilder getRestClientBuilder(String user, String passwd) throws IOException {
         RestClientBuilder builder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
         String token = basicAuthHeaderValue(user, new SecureString(passwd.toCharArray()));
         configureClient(builder, Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build());
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build());
         builder.setStrictDeprecationMode(true);
-        try (RestClient userClient = builder.build();) {
+        return builder;
+    }
 
+    private void indexDocs(String user, String passwd, String index, int noOfDocs) throws IOException {
+        RestClientBuilder builder = getRestClientBuilder(user, passwd);
+        try (RestClient userClient = builder.build()) {
             for (int cnt = 0; cnt < noOfDocs; cnt++) {
                 Request request = new Request("POST", "/" + index + "/_doc");
                 request.setJsonEntity(jsonDoc);
                 assertOK(userClient.performRequest(request));
             }
+        }
+    }
+
+    private void indexDoc(String user, String passwd, String index, String docId) throws IOException {
+        RestClientBuilder builder = getRestClientBuilder(user, passwd);
+        try (RestClient userClient = builder.build()) {
+                Request request = new Request("POST", "/" + index + "/_doc/" + docId);
+                request.setJsonEntity(jsonDoc);
+                assertOK(userClient.performRequest(request));
         }
     }
 

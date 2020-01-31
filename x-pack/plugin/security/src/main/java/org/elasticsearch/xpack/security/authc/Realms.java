@@ -47,6 +47,7 @@ import java.util.stream.StreamSupport;
 public class Realms implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
     private final Environment env;
@@ -248,23 +249,7 @@ public class Realms implements Iterable<Realm> {
             throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
         }
 
-        if (missingOrderRealmSettingKeys.size() > 0) {
-            new DeprecationLogger(logger).deprecated("Found realms without order config: [{}]. " +
-                "In next major release, node will fail to start with missing realm order.",
-                String.join("; ", missingOrderRealmSettingKeys)
-            );
-        }
-        final List<String> duplicatedRealmOrderSettingKeys = orderToRealmOrderSettingKeys.entrySet()
-                .stream()
-                .filter(e -> e.getValue().size() > 1)
-                .map(e -> e.getKey() + ": " + String.join(",", e.getValue()))
-                .sorted()
-                .collect(Collectors.toList());
-        if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            new DeprecationLogger(logger).deprecated("Found multiple realms configured with the same order: [{}]. " +
-                    "In next major release, node will fail to start with duplicated realm order.",
-                String.join("; ", duplicatedRealmOrderSettingKeys));
-        }
+        logDeprecationIfFound(missingOrderRealmSettingKeys, orderToRealmOrderSettingKeys);
 
         return realms;
     }
@@ -381,6 +366,26 @@ public class Realms implements Iterable<Realm> {
                 return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
             default:
                 throw new IllegalStateException("unknown enabled realm type [" + enabledRealmType + "]");
+        }
+    }
+
+    private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
+        if (missingOrderRealmSettingKeys.size() > 0) {
+            deprecationLogger.deprecated("Found realms without order config: [{}]. " +
+                    "In next major release, node will fail to start with missing realm order.",
+                String.join("; ", missingOrderRealmSettingKeys)
+            );
+        }
+        final List<String> duplicatedRealmOrderSettingKeys = orderToRealmOrderSettingKeys.entrySet()
+            .stream()
+            .filter(e -> e.getValue().size() > 1)
+            .map(e -> e.getKey() + ": " + String.join(",", e.getValue()))
+            .sorted()
+            .collect(Collectors.toList());
+        if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
+            deprecationLogger.deprecated("Found multiple realms configured with the same order: [{}]. " +
+                    "In next major release, node will fail to start with duplicated realm order.",
+                String.join("; ", duplicatedRealmOrderSettingKeys));
         }
     }
 

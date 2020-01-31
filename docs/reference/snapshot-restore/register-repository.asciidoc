@@ -207,8 +207,8 @@ PUT _snapshot/my_src_only_repository
 {
   "type": "fs",
   "settings": {
-    "location": "my_backup_location"
-    "source_only": true,
+    "location": "my_backup_location",
+    "source_only": true
   }
 }
 -----------------------------------

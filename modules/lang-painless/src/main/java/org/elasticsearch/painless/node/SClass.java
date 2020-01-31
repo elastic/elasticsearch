@@ -33,6 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+
 /**
  * The root of all Painless trees.  Contains a series of statements.
  */

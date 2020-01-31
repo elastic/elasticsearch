@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.WhileNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -53,12 +54,12 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        locals = Locals.newLocalScope(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        scope = scope.newLocalScope();
 
         condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
+        condition.analyze(scriptRoot, scope);
+        condition = condition.cast(scriptRoot, scope);
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;
@@ -76,7 +77,7 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(scriptRoot, locals);
+            block.analyze(scriptRoot, scope);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
@@ -91,18 +92,14 @@ public final class SWhile extends AStatement {
         }
 
         statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
     }
 
     @Override
-    WhileNode write() {
+    WhileNode write(ClassNode classNode) {
         WhileNode whileNode = new WhileNode();
 
-        whileNode.setConditionNode(condition.write());
-        whileNode.setBlockNode(block == null ? null : block.write());
+        whileNode.setConditionNode(condition.write(classNode));
+        whileNode.setBlockNode(block == null ? null : block.write(classNode));
 
         whileNode.setLocation(location);
         whileNode.setContinuous(continuous);

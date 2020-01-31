@@ -39,17 +39,9 @@ public abstract class ScalarFunction extends Function {
         super(source, fields);
     }
 
-    // used if the function is monotonic and thus does not have to be computed for ordering purposes
-    // null means the script needs to be used; expression means the field/expression to be used instead
-    public Expression orderBy() {
-        return null;
-    }
-
-
     //
     // Script generation
     //
-
     public ScriptTemplate asScript(Expression exp) {
         if (exp.foldable()) {
             return scriptWithFoldable(exp);
@@ -72,7 +64,6 @@ public abstract class ScalarFunction extends Function {
         }
         throw new QlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
     }
-
 
     protected ScriptTemplate scriptWithFoldable(Expression foldable) {
         Object fold = foldable.fold();

@@ -19,9 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -35,8 +36,6 @@ public final class EVariable extends AStoreable {
 
     private final String name;
 
-    private Variable variable = null;
-
     public EVariable(Location location, String name) {
         super(location);
 
@@ -49,18 +48,18 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        variable = locals.getVariable(location, name);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        Variable variable = scope.getVariable(location, name);
 
-        if (write && variable.readonly) {
-            throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
+        if (write && variable.isFinal()) {
+            throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
         }
 
-        actual = variable.clazz;
+        actual = variable.getType();
     }
 
     @Override
-    VariableNode write() {
+    VariableNode write(ClassNode classNode) {
         VariableNode variableNode = new VariableNode();
 
         variableNode.setLocation(location);

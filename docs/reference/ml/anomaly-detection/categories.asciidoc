@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="platinum"]
 [[ml-configuring-categories]]
 === Categorizing log messages
 

@@ -152,7 +152,8 @@ Human-readable identifier for the node. Based on the <<node.name>> setting.
 
 `nodes.<node_id>.transport_address`::
 (string)
-Host and port where HTTP connections for the node are accepted.
+Host and port for the <<modules-transport,transport layer>>, used for internal
+communication between nodes in a cluster.
 
 `nodes.<node_id>.host`::
 (string)

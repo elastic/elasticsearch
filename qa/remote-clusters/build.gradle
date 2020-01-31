@@ -44,7 +44,11 @@ task copyKeystore(type: Sync) {
 
 preProcessFixture {
   if (TestFixturesPlugin.dockerComposeSupported()) {
-    dependsOn ":distribution:docker:buildDockerImage"
+    if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+      dependsOn ":distribution:docker:buildDockerImage"
+    } else {
+      dependsOn ":distribution:docker:buildOssDockerImage"
+    }
   }
   dependsOn copyKeystore
   doLast {
@@ -93,6 +97,7 @@ processTestResources {
 }
 
 task integTest(type: Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
   // don't add the tasks to build the docker images if we have no way of testing them

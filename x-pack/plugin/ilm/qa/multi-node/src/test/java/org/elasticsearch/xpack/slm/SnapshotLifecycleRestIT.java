@@ -122,9 +122,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
                 .peek(m -> logger.info("--> responses: {}", m))
                 .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
-                .peek(allRepos -> logger.info("--> all repositories: {}", allRepos))
-                .filter(allRepos -> allRepos.stream().anyMatch(repoHasSnapshot))
-                .peek(allRepos -> logger.info("--> repos with 'snap-' snapshots: {}", allRepos))
+                .peek(allReposSnapshots -> logger.info("--> all repository's snapshots: {}", allReposSnapshots))
+                .filter(allReposSnapshots -> allReposSnapshots.stream().anyMatch(repoHasSnapshot))
+                .peek(allRepos -> logger.info("--> snapshots with 'snap-' snapshot: {}", allRepos))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
             assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));

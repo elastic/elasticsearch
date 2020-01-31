@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -27,6 +28,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Collects the {@code top_metrics} aggregation.
+ *
+ * This extends {@linkplain NumericMetricsAggregator.MultiValue} as a compromise
+ * to allow sorting on the metric. Right now it only collects a single metric
+ * but we expect it to collect a list of them in the future. Also in the future
+ * we expect it to allow collecting non-string metrics which'll change how we
+ * do the inheritance. Finally, we also expect it to allow collecting more than
+ * one document worth of metrics. Once that happens we'll need to come up with
+ * some way to pick which document's metrics to use for the sort.
+ */
 class TopMetricsAggregator extends MetricsAggregator {
     private final BucketedSort sort;
     private final String metricName;
@@ -55,7 +67,7 @@ class TopMetricsAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         assert sub == LeafBucketCollector.NO_OP_COLLECTOR : "Expected noop but was " + sub.toString();
-        
+
         if (metricValueSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

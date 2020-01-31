@@ -6,7 +6,7 @@
 experimental[We expect to change the response format of this aggregation as we add more features.]
 
 The `top_metrics` aggregation selects metrics from the document with the largest or smallest "sort"
-value. This gets the value of the `v` field on the document with the largest value of `s`:
+value. For example, This gets the value of the `v` field on the document with the largest value of `s`:
 
 [source,console,id=search-aggregations-metrics-top-metrics-simple]
 ----
@@ -44,56 +44,37 @@ Which returns:
 ----
 // TESTRESPONSE
 
-And this gets the value of `v` on the document with the smallest value of `s`:
-
-[source,console]
-----
-POST /test/_search?filter_path=aggregations
-{
-  "aggs": {
-    "tm": {
-      "top_metrics": {
-        "metric": {"field": "v"},
-        "sort": {"s": "asc"}
-      }
-    }
-  }
-}
-----
-// TEST[continued]
-
-Which returns:
-
-[source,js]
-----
-{
-  "aggregations": {
-    "tm": {
-      "top": [ {"sort": [1], "metrics": {"v": 3.1414999961853027 } } ]
-    }
-  }
-}
-----
-// TESTRESPONSE
-
-`top_metrics` is fairly similar to <<search-aggregations-metrics-top-hits-aggregation, `top_hits`>> in spirit
-but it is faster because it can do its job entirely with <<doc-values>> which are **much** faster to access
-than the `_source` which `top_hits` needs.
+`top_metrics` is fairly similar to <<search-aggregations-metrics-top-hits-aggregation, `top_hits`>>
+in spirit but it should be faster in most cases because it can do its job entirely with <<doc-values>>
+which are **much** faster to access than the `_source` which `top_hits` needs. 
 
 ==== `sort`
 
 The `sort` field in the metric request functions exactly the same as the `sort` field in the
-<<request-body-search-sort, search>> request. The metrics that the aggregation returns is the
-first hits that would be returned by the search request. Thus, `"sort": {"s": "desc"}` gets
-metrics from the documents with the highest values for `s`. And `"sort": {"s": "asc"}` gets
-the metrics from the documents with the lowest values.
+<<request-body-search-sort, search>> request except:
+* It can't be used on <<binary,binary>>, <<flattened,flattened>, <<ip,ip>>,
+<<keyword,keyword>>, or <<text,text>> fields.
+* It only supports a single sort value.
+
+The metrics that the aggregation returns is the first hit that would be returned by the search
+request. So,
+
+`"sort": {"s": "desc"}`:: gets metrics from the document with the highest `s`
+`"sort": {"s": "asc"}`:: gets the metrics from the document with the lowest `s`
+`"sort": {"_geo_distance": {"location": "35.7796, 78.6382"}}`::
+  gets metrics from the documents with `location` *closest* to `35.7796, -78.6382`
+`"sort": "_score"`:: gets metrics from the document with the highest score
+
+==== `metric`
+
+At this point `metric` supports only `{"field": "field_name"}`. Expect more to come here.
 
 ==== Examples
 
 ===== Use with terms
 
 This aggregation should be quite useful inside of <<search-aggregations-bucket-terms-aggregation, `terms`>>
-aggregation, to, say, find the last value reported by each node.
+aggregation, to, say, find the last value reported by each server.
 
 [source,console,id=search-aggregations-metrics-top-metrics-terms]
 ----
@@ -158,47 +139,6 @@ Which returns:
       ],
       "doc_count_error_upper_bound": 0,
       "sum_other_doc_count": 0
-    }
-  }
-}
-----
-// TESTRESPONSE
-
-===== Score `sort`
-
-The aggregation supports sorting by `_score`.
-
-[source,console,id=search-aggregations-metrics-top-metrics-score]
-----
-POST /test/_bulk?refresh
-{"index": {}}
-{"s": "big cat", "v": 3.1415}
-{"index": {}}
-{"s": "cat", "v": 1}
-{"index": {}}
-{"s": "the small dog", "v": 2.71828}
-POST /test/_search?filter_path=aggregations
-{
-  "query": { "match": { "s": "big cat" } },
-  "aggs": {
-    "tm": {
-      "top_metrics": {
-        "metric": {"field": "v"},
-        "sort": "_score"
-      }
-    }
-  }
-}
-----
-
-Which returns:
-
-[source,js]
-----
-{
-  "aggregations": {
-    "tm": {
-      "top": [ {"sort": [1.450832724571228], "metrics": {"v": 3.1414999961853027 } } ]
     }
   }
 }

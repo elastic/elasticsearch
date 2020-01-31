@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -25,10 +26,19 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -38,15 +48,21 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notANumber;
 import static org.hamcrest.Matchers.nullValue;
@@ -187,6 +203,66 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
+    public void testSortByScriptDescending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(scriptSortOnS().order(SortOrder.DESC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(doubleField("s", 2), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(doubleField("s", 1), doubleField("m", 3.0)));
+                },
+                doubleFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
+        assertThat(result.getMetricValue(), equalTo(2.0d));
+    }
+
+    public void testSortByScriptAscending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(scriptSortOnS().order(SortOrder.ASC));
+        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(doubleField("s", 2), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(doubleField("s", 1), doubleField("m", 3.0)));
+                },
+                doubleFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
+        assertThat(result.getMetricValue(), equalTo(3.0d));
+    }
+
+    public void testSortByStringScriptFails() throws IOException {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "s", emptyMap());
+        TopMetricsAggregationBuilder builder = simpleBuilder(new ScriptSortBuilder(script, ScriptSortType.STRING));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> collect(builder, boostFoo(), writer -> {
+                    writer.addDocument(Arrays.asList(textField("s", "foo"), doubleField("m", 2.0)));
+                    writer.addDocument(Arrays.asList(textField("s", "bar"), doubleField("m", 3.0)));
+                },
+                textAndDoubleField()));
+        assertThat(e.getMessage(), equalTo("unsupported sort: only supported on numeric values"));
+    }
+
+    private InternalTopMetrics collectFromNewYorkAndLA(TopMetricsAggregationBuilder builder) throws IOException {
+        return collect(builder, new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(Arrays.asList(geoPointField("s", 40.7128, -74.0060), doubleField("m", 2.0)));
+            writer.addDocument(Arrays.asList(geoPointField("s", 34.0522, -118.2437), doubleField("m", 3.0)));
+        },
+        geoPointAndDoubleField());
+    }
+
+    public void testSortByGeoDistancDescending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.DESC));
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.2054632268631617E7)));
+        assertThat(result.getMetricValue(), equalTo(3.0d));
+    }
+
+    public void testSortByGeoDistanceAscending() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.ASC));
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getSortValue(), equalTo(SortValue.from(1.1062351376961706E7)));
+        assertThat(result.getMetricValue(), equalTo(2.0d));
+    }
+
+
     public void testBuckets() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
         TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.DOUBLE).field("c").subAggregation(builder);
@@ -248,6 +324,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         return new MappedFieldType[] {textFieldType("s"), numberFieldType(NumberType.DOUBLE, "m")};
     }
 
+    private MappedFieldType[] geoPointAndDoubleField() {
+        return new MappedFieldType[] {geoPointFieldType("s"), numberFieldType(NumberType.DOUBLE, "m")};
+    }
+
     private MappedFieldType numberFieldType(NumberType numberType, String name) {
         NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(numberType);
         type.setName(name);
@@ -257,6 +337,13 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     private MappedFieldType textFieldType(String name) {
         TextFieldMapper.TextFieldType type = new TextFieldMapper.TextFieldType();
         type.setName(name);
+        return type;
+    }
+
+    private MappedFieldType geoPointFieldType(String name) {
+        GeoPointFieldMapper.GeoPointFieldType type = new GeoPointFieldMapper.GeoPointFieldType();
+        type.setName(name);
+        type.setHasDocValues(true);
         return type;
     }
 
@@ -274,6 +361,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     private IndexableField textField(String name, String value) {
         return new Field(name, value, textFieldType(name));
+    }
+
+    private IndexableField geoPointField(String name, double lat, double lon) {
+        return new LatLonDocValuesField(name, lat, lon);
     }
 
     private InternalTopMetrics collect(TopMetricsAggregationBuilder builder, Query query,
@@ -296,5 +387,26 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 return search(indexSearcher, query, builder, fields);
             }
         }
+    }
+
+    /**
+     * Builds a simple script that reads the "s" field.
+     */
+    private ScriptSortBuilder scriptSortOnS() {
+        return new ScriptSortBuilder(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "s", emptyMap()), ScriptSortType.NUMBER);
+    }
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+                singletonMap("s", args -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, ScriptDocValues<?>> fields = (Map<String, ScriptDocValues<?>>) args.get("doc");
+                    ScriptDocValues.Doubles field = (ScriptDocValues.Doubles) fields.get("s");
+                    return field.getValue();
+                }),
+                emptyMap());
+        Map<String, ScriptEngine> engines = singletonMap(scriptEngine.getType(), scriptEngine);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
 }

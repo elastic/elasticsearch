@@ -160,7 +160,7 @@
                 metric:
                   field: v
                 sort: s.keyword
-  - match: { error.root_cause.0.reason: "unsupported sort: only supported on numeric fields" }
+  - match: { error.root_cause.0.reason: "unsupported sort: only supported on numeric values" }
 
 ---
 "sort by score":
@@ -194,10 +194,6 @@
 
 ---
 "sort by geo_distance":
-  - skip:
-      reason: in development
-      features: always
-
   - do:
       indices.create:
         index: test
@@ -214,9 +210,9 @@
           - '{"index": {}}'
           - '{"location": {"lat" : 40.7128, "lon" : -74.0060}, "name": "New York", "population": 8623000}'
           - '{"index": {}}'
-          - '{"location": {"lat" : 34.0522, "lon" : 118.2437}, "name": "Los Angeles", "population": 4000000}'
+          - '{"location": {"lat" : 34.0522, "lon" : -118.2437}, "name": "Los Angeles", "population": 4000000}'
           - '{"index": {}}'
-          - '{"location": {"lat" : 41.8781, "lon" : 87.6298}, "name": "Chicago", "population": 2716000}'
+          - '{"location": {"lat" : 41.8781, "lon" : -87.6298}, "name": "Chicago", "population": 2716000}'
 
   - do:
       search:
@@ -229,25 +225,9 @@
                   field: population
                 sort:
                   _geo_distance:
-                    location: "35.7796, 78.6382"
-                    unit: km
-  - match: { aggregations.pop.top.0.metrics.v: 8623000 }
-  - match: { aggregations.pop.top.0.sort: [809.2] }
-
-  - do:
-      search:
-        size: 0
-        body:
-          aggs:
-            tm:
-              top_metrics:
-                metric:
-                  field: v
-                sort:
-                  s: asc
-  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
-  - match: { aggregations.tm.top.0.sort: [1] }
-
+                    location: "35.7796, -78.6382"
+  - match: { aggregations.pop.top.0.metrics.population: 8623000 }
+  - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
 
 ---
 "inside terms":

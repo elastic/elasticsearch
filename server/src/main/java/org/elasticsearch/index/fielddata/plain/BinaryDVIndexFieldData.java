@@ -73,6 +73,6 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
             SortOrder sortOrder, DocValueFormat format) {
-        throw new IllegalArgumentException("only supported on numeric fields");
+        throw new IllegalArgumentException("only supported on numeric values");
     }
 }

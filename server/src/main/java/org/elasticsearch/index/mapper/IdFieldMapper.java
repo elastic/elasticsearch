@@ -208,8 +208,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
                         }
 
                         @Override
-                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                                SortOrder sortOrder, DocValueFormat format) {
+                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                                Nested nested, SortOrder sortOrder, DocValueFormat format) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
 

@@ -1692,7 +1692,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                              store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                         if (fileInfo.name().startsWith(VIRTUAL_DATA_BLOB_PREFIX)) {
                             final BytesRef hash = fileInfo.metadata().hash();
-                            indexOutput.writeBytes(hash.bytes, 0, hash.length);
+                            indexOutput.writeBytes(hash.bytes, hash.offset, hash.length);
                             recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), hash.length);
                         } else {
                             try (InputStream stream = maybeRateLimit(new SlicedInputStream(fileInfo.numberOfParts()) {

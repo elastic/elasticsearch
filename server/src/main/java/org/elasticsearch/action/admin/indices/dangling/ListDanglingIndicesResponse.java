@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,13 +87,6 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        int numNodes = this.getNodes().size();
-        int numFailures = this.failures().size();
-        int numSuccessful = numNodes - numFailures;
-
-        RestActions.buildNodesHeader(builder, params, numNodes, numSuccessful, numFailures, this.failures());
-
-        builder.startObject();
         builder.startArray("dangling_indices");
 
         for (AggregatedDanglingIndexInfo info : this.resultsByIndexUUID()) {
@@ -109,9 +101,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
             builder.endObject();
         }
 
-        builder.endArray();
-
-        return builder.endObject();
+        return builder.endArray();
     }
 
     @Override

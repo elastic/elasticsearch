@@ -104,7 +104,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                 // This flag is checked at this point so that we always check that the supplied index ID
                 // does correspond to a dangling index.
                 if (deleteRequest.isAcceptDataLoss() == false) {
-                    deleteListener.onFailure(new IllegalArgumentException("accept_data_loss must be set to true"));
+                    throw new IllegalArgumentException("accept_data_loss must be set to true");
                 }
 
                 String indexName = indexToDelete.getName();

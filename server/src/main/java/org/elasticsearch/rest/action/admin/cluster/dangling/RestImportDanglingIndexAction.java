@@ -27,7 +27,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -43,20 +42,10 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        String indexUUID = request.param("index_uuid");
-        boolean acceptDataLoss = false;
-
-        for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-            if ("accept_data_loss".equals(key)) {
-                acceptDataLoss = Boolean.parseBoolean(value);
-            } else {
-                throw new IllegalArgumentException("Unknown URL parameter [" + key + "]");
-            }
-        }
-
-        final ImportDanglingIndexRequest importRequest = new ImportDanglingIndexRequest(indexUUID, acceptDataLoss);
+        final ImportDanglingIndexRequest importRequest = new ImportDanglingIndexRequest(
+            request.param("index_uuid"),
+            request.paramAsBoolean("accept_data_loss", false)
+        );
 
         return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestStatusToXContentListener<>(channel));
     }

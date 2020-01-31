@@ -24,7 +24,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 
@@ -43,6 +43,8 @@ public class RestListDanglingIndicesAction extends BaseRestHandler {
     @Override
     public BaseRestHandler.RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         final ListDanglingIndicesRequest danglingIndicesRequest = new ListDanglingIndicesRequest();
-        return channel -> client.admin().cluster().listDanglingIndices(danglingIndicesRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin()
+            .cluster()
+            .listDanglingIndices(danglingIndicesRequest, new RestActions.NodesResponseRestListener<>(channel));
     }
 }

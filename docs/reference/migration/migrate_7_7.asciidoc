@@ -50,3 +50,18 @@ will fail to start.
 
 The `order` config of authentication realms must be unique in version 8.0.0.
 If you configure more than one realm of any type with the same order, the node will fail to start.
+
+[discrete]
+[[breaking_77_search_changes]]
+=== Search changes
+
+[discrete]
+==== Consistent rounding of range queries on `date_range` fields
+`range` queries on `date_range` field currently can have slightly differently
+boundaries than their equivalent query on a pure `date` field. This can e.g.
+happen when using date math or dates that don't specify up to the last
+millisecond. While queries on `date` field round up to the latest millisecond
+for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
+do this. The behavior is now the same for both field types like documented in
+<<range-query-date-math-rounding>>.
+

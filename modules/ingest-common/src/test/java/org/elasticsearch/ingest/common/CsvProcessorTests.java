@@ -158,7 +158,7 @@ public class CsvProcessorTests extends ESTestCase {
         items.keySet().stream().skip(numItems - 1).forEach(key -> assertFalse(ingestDocument.hasField(key)));
     }
 
-    public void testWrongStings() throws Exception {
+    public void testWrongStrings() throws Exception {
         assumeTrue("single run only", quote.isEmpty());
         expectThrows(IllegalArgumentException.class, () -> processDocument(new String[]{"a"}, "abc\"abc"));
         expectThrows(IllegalArgumentException.class, () -> processDocument(new String[]{"a"}, "\"abc\"asd"));
@@ -188,6 +188,19 @@ public class CsvProcessorTests extends ESTestCase {
         assertEquals("ooo", document.getFieldValue("d", String.class));
         assertEquals("jjj", document.getFieldValue("e", String.class));
         assertFalse(document.hasField("f"));
+    }
+
+    public void testIgnoreMissing() {
+        assumeTrue("single run only", quote.isEmpty());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = randomAlphaOfLength(5);
+        if (ingestDocument.hasField(fieldName)) {
+            ingestDocument.removeField(fieldName);
+        }
+        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', true);
+        processor.execute(ingestDocument);
+        CsvProcessor processor2 = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', false);
+        expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument));
     }
 
     public void testEmptyHeaders() throws Exception {

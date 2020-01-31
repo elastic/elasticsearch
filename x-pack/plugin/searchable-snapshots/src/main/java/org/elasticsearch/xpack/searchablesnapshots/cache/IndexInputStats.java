@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory.CacheBufferedIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,7 +19,8 @@ import java.util.function.LongConsumer;
  */
 public class IndexInputStats {
 
-    static final double SEEKING_THRESHOLD = 0.25d;
+    /* A threshold beyond which an index input seeking is counted as "large" */
+    static final ByteSizeValue SEEKING_THRESHOLD = new ByteSizeValue(8, ByteSizeUnit.MB);
 
     private final long fileLength;
 
@@ -76,14 +80,20 @@ public class IndexInputStats {
         if (delta == 0L) {
             return;
         }
-        final double threshold = fileLength * SEEKING_THRESHOLD;
-        LongConsumer incSeekCount;
-        if (delta >= 0) {
-            incSeekCount = delta < threshold ? forwardSmallSeeks::add : forwardLargeSeeks::add;
+        final boolean isLarge = isLargeSeek(delta);
+        if (delta > 0) {
+            if (isLarge) {
+                forwardLargeSeeks.add(delta);
+            } else {
+                forwardSmallSeeks.add(delta);
+            }
         } else {
-            incSeekCount = delta > (threshold * -1d) ? backwardSmallSeeks::add : backwardLargeSeeks::add;
+            if (isLarge) {
+                backwardLargeSeeks.add(delta);
+            } else {
+                backwardSmallSeeks.add(delta);
+            }
         }
-        incSeekCount.accept(delta);
     }
 
     long getFileLength() {
@@ -136,6 +146,11 @@ public class IndexInputStats {
 
     Counter getCachedBytesWritten() {
         return cachedBytesWritten;
+    }
+
+    @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
+    boolean isLargeSeek(long delta) {
+        return delta != Long.MIN_VALUE && Math.abs(delta) > SEEKING_THRESHOLD.getBytes();
     }
 
     static class Counter {

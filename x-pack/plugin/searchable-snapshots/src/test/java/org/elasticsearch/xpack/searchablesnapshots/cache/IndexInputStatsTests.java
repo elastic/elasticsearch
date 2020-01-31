@@ -63,10 +63,10 @@ public class IndexInputStatsTests extends ESTestCase {
 
             final long delta = seekToPosition - currentPosition;
             if (delta > 0) {
-                IndexInputStats.Counter forwardCounter = (delta < (fileLength * SEEKING_THRESHOLD)) ? fwSmallSeeks : fwLargeSeeks;
+                IndexInputStats.Counter forwardCounter = (delta <= SEEKING_THRESHOLD.getBytes()) ? fwSmallSeeks : fwLargeSeeks;
                 forwardCounter.add(delta);
             } else if (delta < 0) {
-                IndexInputStats.Counter backwardCounter = (delta > -(fileLength * SEEKING_THRESHOLD)) ? bwSmallSeeks : bwLargeSeeks;
+                IndexInputStats.Counter backwardCounter = (delta >= -1 * SEEKING_THRESHOLD.getBytes()) ? bwSmallSeeks : bwLargeSeeks;
                 backwardCounter.add(delta);
             }
         }

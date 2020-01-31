@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[getting-started-index-lifecycle-management]]
-== Getting started with {ilm}
+== Get started with {ilm}
 
 Let's jump into {ilm} ({ilm-init}) by working through a hands-on scenario.
 This section will leverage many new concepts unique to {ilm-init} that
@@ -90,6 +90,16 @@ PUT _template/datastream_template
 -----------------------
 // TEST[continued]
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/datastream_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 <1> match all indices starting with "datastream-". These will include all
     newly created indices from actions like rollover
 <2> the name of the lifecycle policy managing the index
@@ -160,7 +170,7 @@ GET datastream-*/_ilm/explain
 The above request will retrieve {ilm-init} execution information for all our
 managed indices.
 
-
+[[36818c6d9f434d387819c30bd9addb14]]
 [source,console-result]
 --------------------------------------------------
 {

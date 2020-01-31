@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -68,11 +69,10 @@ processResources {
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)
   }
-  boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
   String licenseKey = System.getProperty("license.key")
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
-  } else if (snapshot) {
+  } else if (BuildParams.isSnapshotBuild()) {
     licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')

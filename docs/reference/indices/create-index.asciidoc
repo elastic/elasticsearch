@@ -19,7 +19,7 @@ PUT /twitter
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
-You can use the create index API to add a new index to an {es} cluster. When 
+You can use the create index API to add a new index to an {es} cluster. When
 creating an index, you can specify the following:
 
 * Settings for the index
@@ -44,6 +44,7 @@ Index names must meet the following criteria:
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+- Names starting with `.` are deprecated, except for <<index-hidden,hidden indices>> and internal indices managed by plugins
 // end::index-name-reqs[]
 --
 

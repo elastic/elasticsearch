@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnboundCallNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -65,7 +66,7 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
@@ -149,19 +150,19 @@ public final class ECallLocal extends AExpression {
 
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            arguments.set(argument, expression.cast(scriptRoot, scope));
         }
 
         statement = true;
     }
 
     @Override
-    UnboundCallNode write() {
+    UnboundCallNode write(ClassNode classNode) {
         UnboundCallNode unboundCallNode = new UnboundCallNode();
 
         for (AExpression argument : arguments) {
-            unboundCallNode.addArgumentNode(argument.write());
+            unboundCallNode.addArgumentNode(argument.write(classNode));
         }
 
         unboundCallNode.setLocation(location);

@@ -140,6 +140,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     creationCheck.set(false);
                     logger.trace("not adding index template [{}] for [{}], because it already exists", templateName, getOrigin());
                 }
+            } else {
+                logger.trace("skipping the creation of index template [{}] for [{}], because its creation is in progress",
+                    templateName, getOrigin());
             }
         }
     }

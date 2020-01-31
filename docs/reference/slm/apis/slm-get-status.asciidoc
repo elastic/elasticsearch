@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[slm-api-get-status]]
 === Get {slm} status API
 

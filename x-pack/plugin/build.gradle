@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -65,8 +67,7 @@ integTest.runner {
 
   // TODO: fix this rest test to not depend on a hardcoded port!
   def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  boolean snapshot = Boolean.valueOf(System.getProperty("build.snapshot", "true"))
-  if (!snapshot) {
+  if (BuildParams.isSnapshotBuild() == false) {
     // these tests attempt to install basic/internal licenses signed against the dev/public.key
     // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
     // private key, these tests are blacklisted in non-snapshot test runs

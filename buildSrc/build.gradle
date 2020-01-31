@@ -273,8 +273,17 @@ class VersionPropertiesLoader {
       }
       elasticsearch += "-" + qualifier
     }
-    if ("true".equals(systemProperties.getProperty("build.snapshot", "true"))) {
-      elasticsearch += "-SNAPSHOT"
+    final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+    switch (buildSnapshotSystemProperty) {
+      case "true":
+        elasticsearch += "-SNAPSHOT"
+        break;
+      case "false":
+        // do nothing
+        break;
+      default:
+        throw new IllegalArgumentException(
+          "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
     }
     loadedProps.put("elasticsearch", elasticsearch)
   }

@@ -69,7 +69,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
@@ -497,7 +496,10 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         }
 
         // don't use random mapping as permits quadtree
-        String mapping = Strings.toString(usePrefixTrees ? createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE) : createDefaultMapping());
+        String mapping = Strings.toString(
+            usePrefixTrees ?
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE) :
+                createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
@@ -525,7 +527,10 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        String mapping = Strings.toString(randomBoolean() ? createDefaultMapping() : createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
+        String mapping = Strings.toString(
+            randomBoolean() ?
+                createDefaultMapping() :
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE));
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 

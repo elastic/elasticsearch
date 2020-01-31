@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.sql.expression.parser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -20,34 +19,33 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-
 
 public class ParameterTests extends ESTestCase {
 
     public void testSingleParameter() {
         Expression expression = new SqlParser().createExpression("a = \n?",
                 Collections.singletonList(
-                        new SqlTypedParamValue(DataType.KEYWORD.typeName(), "foo")
+                        new SqlTypedParamValue(KEYWORD.typeName(), "foo")
                 ));
         logger.info(expression);
         assertThat(expression, instanceOf(Equals.class));
         Expression right = ((Equals) expression).right();
         assertThat(right, instanceOf(Literal.class));
         Literal param = (Literal) right;
-        assertThat(param.dataType(), equalTo(DataType.KEYWORD));
-        assertThat(param.dataType(), equalTo(DataType.KEYWORD));
+        assertThat(param.dataType(), equalTo(KEYWORD));
+        assertThat(param.dataType(), equalTo(KEYWORD));
         assertThat(param.value(), equalTo("foo"));
     }
 
     public void testMultipleParameters() {
         Expression expression = new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                new SqlTypedParamValue(DataType.LONG.typeName(), 1L),
-                new SqlTypedParamValue(DataType.LONG.typeName(), 2L),
-                new SqlTypedParamValue(DataType.LONG.typeName(), 3L),
-                new SqlTypedParamValue(DataType.LONG.typeName(), 4L)
+                new SqlTypedParamValue(LONG.typeName(), 1L), new SqlTypedParamValue(LONG.typeName(), 2L),
+                new SqlTypedParamValue(LONG.typeName(), 3L), new SqlTypedParamValue(LONG.typeName(), 4L)
                 ));
         assertThat(expression, instanceOf(Sub.class));
         Sub sub = (Sub) expression;
@@ -64,9 +62,8 @@ public class ParameterTests extends ESTestCase {
     public void testNotEnoughParameters() {
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                        new SqlTypedParamValue(DataType.LONG.typeName(), 1L),
-                        new SqlTypedParamValue(DataType.LONG.typeName(), 2L),
-                        new SqlTypedParamValue(DataType.LONG.typeName(), 3L)
+                        new SqlTypedParamValue(LONG.typeName(), 1L), new SqlTypedParamValue(LONG.typeName(), 2L),
+                        new SqlTypedParamValue(LONG.typeName(), 3L)
                 )));
         assertThat(ex.getMessage(), containsString("Not enough actual parameters"));
     }

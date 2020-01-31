@@ -65,6 +65,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_IND
 import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -107,7 +108,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43950")
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -137,10 +137,17 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
 
         calledTimes.set(0);
-        // now delete one template from the cluster state and lets retry
-        ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyList(), nodes);
-        registry.clusterChanged(newEvent);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+
+        // attempting to register the event multiple times as a race condition can yield this test flaky, namely:
+        // when calling registry.clusterChanged(newEvent) the templateCreationsInProgress state that the IndexTemplateRegistry maintains
+        // might've not yet been updated to reflect that the first template registration was complete, so a second template registration
+        // will not be issued anymore, leaving calledTimes to 0
+        assertBusy(() -> {
+            // now delete one template from the cluster state and lets retry
+            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyList(), nodes);
+            registry.clusterChanged(newEvent);
+            assertThat(calledTimes.get(), greaterThan(1));
+        });
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {

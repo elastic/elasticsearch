@@ -174,13 +174,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Retrieves snapshot from repository
      *
-     * @param repositoryName  repository name
-     * @param snapshotId      snapshot id
+     * @param snapshotsInProgress snapshots in progress in the cluster state
+     * @param repositoryName      repository name
+     * @param snapshotId          snapshot id
      * @return snapshot
      * @throws SnapshotMissingException if snapshot is not found
      */
-    public SnapshotInfo snapshot(final String repositoryName, final SnapshotId snapshotId) {
-        List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, Collections.singletonList(snapshotId.getName()));
+    public SnapshotInfo snapshot(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
+        List<SnapshotsInProgress.Entry> entries =
+            currentSnapshots(snapshotsInProgress, repositoryName, Collections.singletonList(snapshotId.getName()));
         if (!entries.isEmpty()) {
             return inProgressSnapshot(entries.iterator().next());
         }
@@ -190,18 +192,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Returns a list of snapshots from repository sorted by snapshot creation date
      *
-     * @param repositoryName repository name
-     * @param snapshotIds       snapshots for which to fetch snapshot information
-     * @param ignoreUnavailable if true, snapshots that could not be read will only be logged with a warning,
-     *                          if false, they will throw an error
+     * @param snapshotsInProgress snapshots in progress in the cluster state
+     * @param repositoryName      repository name
+     * @param snapshotIds         snapshots for which to fetch snapshot information
+     * @param ignoreUnavailable   if true, snapshots that could not be read will only be logged with a warning,
+     *                            if false, they will throw an error
      * @return list of snapshots
      */
-    public List<SnapshotInfo> snapshots(final String repositoryName, final List<SnapshotId> snapshotIds, final boolean ignoreUnavailable) {
+    public List<SnapshotInfo> snapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName,
+                                        List<SnapshotId> snapshotIds, boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
-        final List<SnapshotsInProgress.Entry> entries =
-            currentSnapshots(repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
+        final List<SnapshotsInProgress.Entry> entries = currentSnapshots(
+            snapshotsInProgress, repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotSet.add(inProgressSnapshot(entry));
             snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId());
@@ -230,12 +234,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Returns a list of currently running snapshots from repository sorted by snapshot creation date
      *
+     * @param snapshotsInProgress snapshots in progress in the cluster state
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    public List<SnapshotInfo> currentSnapshots(final String repositoryName) {
+    public static List<SnapshotInfo> currentSnapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
-        List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, Collections.emptyList());
+        List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotsInProgress, repositoryName, Collections.emptyList());
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(inProgressSnapshot(entry));
         }
@@ -268,6 +273,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        Repository repository = repositoriesService.repository(request.repository());
+        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
@@ -303,7 +310,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     threadPool.absoluteTimeInMillis(),
                     RepositoryData.UNKNOWN_REPO_GEN,
                     null,
-                    request.userMetadata(), false
+                    userMeta, false
                 );
                 initializingSnapshots.add(newSnapshot.snapshot());
                 snapshots = new SnapshotsInProgress(newSnapshot);
@@ -326,7 +333,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final Snapshot current = newSnapshot.snapshot();
                     assert initializingSnapshots.contains(current);
                     assert indices != null;
-                    beginSnapshot(newState, newSnapshot, request.partial(), indices, new ActionListener<>() {
+                    beginSnapshot(newState, newSnapshot, request.partial(), indices, repository, new ActionListener<>() {
                         @Override
                         public void onResponse(final Snapshot snapshot) {
                             initializingSnapshots.remove(snapshot);
@@ -432,6 +439,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                final SnapshotsInProgress.Entry snapshot,
                                final boolean partial,
                                final List<String> indices,
+                               final Repository repository,
                                final ActionListener<Snapshot> userCreateSnapshotListener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
@@ -442,8 +450,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             protected void doRun() {
                 assert initializingSnapshots.contains(snapshot.snapshot());
-                Repository repository = repositoriesService.repository(snapshot.snapshot().getRepository());
-
                 if (repository.isReadOnly()) {
                     throw new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository");
                 }
@@ -673,12 +679,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * This method is executed on master node
      * </p>
      *
-     * @param repository repository id
-     * @param snapshots  list of snapshots that will be used as a filter, empty list means no snapshots are filtered
+     * @param snapshotsInProgress snapshots in progress in the cluster state
+     * @param repository          repository id
+     * @param snapshots           list of snapshots that will be used as a filter, empty list means no snapshots are filtered
      * @return list of metadata for currently running snapshots
      */
-    public List<SnapshotsInProgress.Entry> currentSnapshots(final String repository, final List<String> snapshots) {
-        SnapshotsInProgress snapshotsInProgress = clusterService.state().custom(SnapshotsInProgress.TYPE);
+    public static List<SnapshotsInProgress.Entry> currentSnapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repository,
+                                                                   List<String> snapshots) {
         if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
             return Collections.emptyList();
         }
@@ -1076,8 +1083,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                     ShardId shardId = shardStatus.key;
                     ShardSnapshotStatus status = shardStatus.value;
-                    if (status.state().failed()) {
+                    final ShardState state = status.state();
+                    if (state.failed()) {
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
+                    } else if (state.completed() == false) {
+                        shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, "skipped"));
+                    } else {
+                        assert state == ShardState.SUCCESS;
                     }
                 }
                 final ShardGenerations shardGenerations = buildGenerations(entry, metaData);
@@ -1217,7 +1229,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // if nothing found by the same name, then look in the cluster state for current in progress snapshots
             long repoGenId = repositoryData.getGenId();
             if (matchedEntry.isPresent() == false) {
-                Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(repositoryName, Collections.emptyList()).stream()
+                Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(
+                    clusterService.state().custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList()).stream()
                     .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
                 if (matchedInProgress.isPresent()) {
                     matchedEntry = matchedInProgress.map(s -> s.snapshot().getSnapshotId());
@@ -1266,9 +1279,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // don't allow snapshot deletions while a restore is taking place,
                     // otherwise we could end up deleting a snapshot that is being restored
                     // and the files the restore depends on would all be gone
-                    if (restoreInProgress.isEmpty() == false) {
-                        throw new ConcurrentSnapshotExecutionException(snapshot,
-                            "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
+
+                    for (RestoreInProgress.Entry entry : restoreInProgress) {
+                        if (entry.snapshot().equals(snapshot)) {
+                            throw new ConcurrentSnapshotExecutionException(snapshot,
+                                "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
+                        }
                     }
                 }
                 ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);

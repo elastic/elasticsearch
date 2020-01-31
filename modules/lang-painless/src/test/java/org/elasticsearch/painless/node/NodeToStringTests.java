@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FeatureTestObject;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
@@ -761,7 +761,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachArray() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", int.class, 5, false);
+        Variable v = new Variable(int.class, "test", false);
         AExpression e = new ENewArray(l, "int", Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)), true);
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachArray node = new SSubEachArray(l, v, e, b);
@@ -773,7 +773,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachIterable() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", int.class, 5, false);
+        Variable v = new Variable(int.class, "test", false);
         AExpression e = new EListInit(l, Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)));
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachIterable node = new SSubEachIterable(l, v, e, b);

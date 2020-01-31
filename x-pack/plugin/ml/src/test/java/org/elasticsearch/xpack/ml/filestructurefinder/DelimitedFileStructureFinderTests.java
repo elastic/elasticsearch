@@ -15,11 +15,14 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinFieldwiseCompareRows;
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
@@ -582,5 +585,40 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("b", DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
         assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
         assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
+    }
+
+    public void testMakeCsvProcessorSettings() {
+
+        String field = randomAlphaOfLength(10);
+        List<String> targetFields = Arrays.asList(generateRandomStringArray(10, field.length() - 1, false , false));
+        char separator = randomFrom(',', ';', '\t', '|');
+        char quote = randomFrom('"', '\'');
+        boolean trim = randomBoolean();
+        Map<String, Object> settings = DelimitedFileStructureFinder.makeCsvProcessorSettings(field, targetFields, separator, quote, trim);
+        assertThat(settings.get("field"), equalTo(field));
+        assertThat(settings.get("target_fields"), equalTo(targetFields));
+        assertThat(settings.get("ignore_missing"), equalTo(false));
+        if (separator == ',') {
+            assertThat(settings, not(hasKey("separator")));
+        } else {
+            assertThat(settings.get("separator"), equalTo(String.valueOf(separator)));
+        }
+        if (quote == '"') {
+            assertThat(settings, not(hasKey("quote")));
+        } else {
+            assertThat(settings.get("quote"), equalTo(String.valueOf(quote)));
+        }
+        if (trim) {
+            assertThat(settings.get("trim"), equalTo(true));
+        } else {
+            assertThat(settings, not(hasKey("trim")));
+        }
+    }
+
+    static Map<String, Object> randomCsvProcessorSettings() {
+        String field = randomAlphaOfLength(10);
+        return DelimitedFileStructureFinder.makeCsvProcessorSettings(field,
+            Arrays.asList(generateRandomStringArray(10, field.length() - 1, false , false)), randomFrom(',', ';', '\t', '|'),
+            randomFrom('"', '\''), randomBoolean());
     }
 }

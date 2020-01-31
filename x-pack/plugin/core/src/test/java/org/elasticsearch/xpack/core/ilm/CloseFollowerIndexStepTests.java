@@ -9,9 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
 
@@ -37,12 +34,6 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
 
     public void testCloseFollowingIndex() {
         IndexMetaData indexMetadata = getIndexMetaData();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
@@ -75,12 +66,6 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         IndexMetaData indexMetadata = getIndexMetaData();
 
         // Mock pause follow api call:
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
@@ -118,7 +103,6 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Client client = Mockito.mock(Client.class);
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
@@ -138,7 +122,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
     protected CloseFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new CloseFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new CloseFollowerIndexStep(stepKey, nextStepKey, client);
     }
 
     @Override

@@ -44,6 +44,28 @@
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
 
 ---
+"Translog retention settings are no long supported":
+  - skip:
+      version: " - 7.9.99"
+      reason: "translog retention settings are no longer supported in 8.0"
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.translog.retention.size: 128mb
+  - do:
+      indices.create:
+        index: test
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_settings:
+        index: test
+        body:
+          index.translog.retention.age: 1h
+
+---
 "Translog last modified age stats":
 
   - do:

@@ -110,7 +110,6 @@ Analysis::
 
 Authentication::
 * Add Debug/Trace logging for authentication {pull}49575[#49575] (issue: {issue}49473[#49473])
-* Change password API authenticating with a bearer token {pull}49694[#49694] (issue: {issue}48752[#48752])
 
 Authorization::
 * Increase Size and lower TTL on DLS BitSet Cache {pull}50535[#50535] (issues: {issue}43669[#43669], {issue}49260[#49260])
@@ -132,7 +131,6 @@ Cluster Coordination::
 * Remove custom metadata tool {pull}50813[#50813] (issue: {issue}48701[#48701])
 
 Distributed::
-* Flush instead of synced-flush inactive shards {pull}49126[#49126] (issues: {issue}31965[#31965], {issue}48430[#48430])
 * Use retention lease in peer recovery of closed indices {pull}48430[#48430] (issue: {issue}45136[#45136])
 
 Engine::
@@ -154,7 +152,6 @@ Features/ILM+SLM::
 
 Features/Ingest::
 * Foreach processor - fork recursive call  {pull}50514[#50514]
-* Add pipeline name to ingest metadata {pull}50467[#50467] (issue: {issue}42106[#42106])
 * Sync grok patterns with logstash patterns {pull}50381[#50381]
 * Replace required pipeline with final pipeline {pull}49470[#49470] (issue: {issue}49247[#49247])
 * Add templating support to enrich processor {pull}49093[#49093]
@@ -385,6 +382,8 @@ Features/ILM+SLM::
 * Change policy_id to list type in slm.get_lifecycle {pull}47766[#47766] (issue: {issue}47765[#47765])
 
 Features/Ingest::
+* Fix ignore_missing in CsvProcessor {pull}51600[#51600]
+* Don't overwrite target field with SetSecurityUserProcessor {pull}51454[#51454] (issue: {issue}51428[#51428])
 * Fix ingest simulate response document order if processor executes async {pull}50244[#50244]
 * Allow list of IPs in geoip ingest processor {pull}49573[#49573] (issue: {issue}46193[#46193])
 * Do not wrap ingest processor exception with IAE {pull}48816[#48816] (issue: {issue}48810[#48810])
@@ -417,6 +416,7 @@ Highlighting::
 * Fix invalid break iterator highlighting on keyword field {pull}49566[#49566]
 
 Infra/Core::
+* Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
 * Guess root cause support unwrap {pull}50525[#50525] (issue: {issue}50417[#50417])
 * Allow parsing timezone without fully provided time {pull}50178[#50178] (issue: {issue}49351[#49351])
 * [Java.time] Retain prefixed date pattern in formatter {pull}48703[#48703] (issue: {issue}48698[#48698])
@@ -462,6 +462,9 @@ Mapping::
 * Improve DateFieldMapper `ignore_malformed` handling {pull}50090[#50090] (issues: {issue}46675[#46675], {issue}50081[#50081])
 * Annotated text type should extend TextFieldType {pull}49555[#49555] (issue: {issue}49289[#49289])
 * Ensure parameters are updated when merging flattened mappings. {pull}48971[#48971] (issue: {issue}48907[#48907])
+
+Network::
+* Fix TransportMasterNodeAction not Retrying NodeClosedException {pull}51325[#51325]
 
 Percolator::
 * Correctly handle MSM for nested disjunctions {pull}50669[#50669] (issue: {issue}50305[#50305])
@@ -525,6 +528,9 @@ Transform::
 
 Engine::
 * Upgrade to Lucene 8.4.0. {pull}50518[#50518]
+
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
 
 
 

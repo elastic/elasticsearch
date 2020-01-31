@@ -33,6 +33,9 @@ This setting can also be changed via the cluster update settings api.
 Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
 
+IMPORTANT: Closed indices are ignored by many APIs. For instance, the shards of
+a closed index are not included in the output of the <<cat-shards>> API.
+
 [float]
 === Wait For Active Shards
 

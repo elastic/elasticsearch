@@ -494,9 +494,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testForceMergeAction() throws Exception {
         forceMergeActionWithCodec(null);
-        forceMergeActionWithCodec(CodecService.BEST_COMPRESSION_CODEC);
     }
-
 
     public void testShrinkAction() throws Exception {
         int numShards = 4;

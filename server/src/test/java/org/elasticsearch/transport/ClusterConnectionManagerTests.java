@@ -49,9 +49,9 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-public class ConnectionManagerTests extends ESTestCase {
+public class ClusterConnectionManagerTests extends ESTestCase {
 
-    private ConnectionManager connectionManager;
+    private ClusterConnectionManager connectionManager;
     private ThreadPool threadPool;
     private Transport transport;
     private ConnectionProfile connectionProfile;
@@ -59,11 +59,11 @@ public class ConnectionManagerTests extends ESTestCase {
     @Before
     public void createConnectionManager() {
         Settings settings = Settings.builder()
-            .put("node.name", ConnectionManagerTests.class.getSimpleName())
+            .put("node.name", ClusterConnectionManagerTests.class.getSimpleName())
             .build();
         threadPool = new ThreadPool(settings);
         transport = mock(Transport.class);
-        connectionManager = new ConnectionManager(settings, transport);
+        connectionManager = new ClusterConnectionManager(settings, transport);
         TimeValue oneSecond = new TimeValue(1000);
         TimeValue oneMinute = TimeValue.timeValueMinutes(1);
         connectionProfile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, oneSecond, oneSecond,
@@ -319,6 +319,11 @@ public class ConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public Version getVersion() {
+            return node.getVersion();
         }
 
         @Override

@@ -170,12 +170,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.from(),
                         queryBuilder.includeLower(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context);
+                        queryBuilder.getForceDateParser(), context::nowInMillis);
                 toInMillis = queryBuilder.to() == null ? null :
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(queryBuilder.to(),
                         queryBuilder.includeUpper(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context);
+                        queryBuilder.getForceDateParser(), context::nowInMillis);
             } else {
                 fromInMillis = toInMillis = null;
                 fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());

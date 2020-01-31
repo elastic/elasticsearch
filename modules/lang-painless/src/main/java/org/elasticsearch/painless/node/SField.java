@@ -23,8 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
 
-import java.util.Set;
-
 /**
  * Represents a member field for its parent class (internal only).
  */
@@ -58,11 +56,6 @@ public class SField extends ANode {
 
     public Object getInstance() {
         return instance;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
     }
 
     @Override

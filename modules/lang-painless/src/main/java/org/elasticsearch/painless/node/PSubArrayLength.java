@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array length field load.
@@ -41,11 +40,6 @@ final class PSubArrayLength extends AStoreable {
 
         this.type = Objects.requireNonNull(type);
         this.value = Objects.requireNonNull(value);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,6 +47,7 @@ import java.util.stream.StreamSupport;
 public class Realms implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Settings settings;
     private final Environment env;
@@ -186,7 +189,16 @@ public class Realms implements Iterable<Realm> {
         List<Realm> realms = new ArrayList<>();
         List<String> kerberosRealmNames = new ArrayList<>();
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
-        for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
+        Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
+        Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
+        for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
+            final RealmConfig.RealmIdentifier identifier = entry.getKey();
+            if (false == entry.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY)) {
+                missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+            } else {
+                orderToRealmOrderSettingKeys.computeIfAbsent(entry.getValue().get(RealmSettings.ORDER_SETTING_KEY), k -> new TreeSet<>())
+                    .add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+            }
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
@@ -236,6 +248,9 @@ public class Realms implements Iterable<Realm> {
         if (Strings.hasText(duplicateRealms)) {
             throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
         }
+
+        logDeprecationIfFound(missingOrderRealmSettingKeys, orderToRealmOrderSettingKeys);
+
         return realms;
     }
 
@@ -351,6 +366,26 @@ public class Realms implements Iterable<Realm> {
                 return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
             default:
                 throw new IllegalStateException("unknown enabled realm type [" + enabledRealmType + "]");
+        }
+    }
+
+    private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
+        if (missingOrderRealmSettingKeys.size() > 0) {
+            deprecationLogger.deprecated("Found realms without order config: [{}]. " +
+                    "In next major release, node will fail to start with missing realm order.",
+                String.join("; ", missingOrderRealmSettingKeys)
+            );
+        }
+        final List<String> duplicatedRealmOrderSettingKeys = orderToRealmOrderSettingKeys.entrySet()
+            .stream()
+            .filter(e -> e.getValue().size() > 1)
+            .map(e -> e.getKey() + ": " + String.join(",", e.getValue()))
+            .sorted()
+            .collect(Collectors.toList());
+        if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
+            deprecationLogger.deprecated("Found multiple realms configured with the same order: [{}]. " +
+                    "In next major release, node will fail to start with duplicated realm order.",
+                String.join("; ", duplicatedRealmOrderSettingKeys));
         }
     }
 

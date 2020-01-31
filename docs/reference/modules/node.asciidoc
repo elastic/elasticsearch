@@ -102,8 +102,11 @@ particular, indexing and searching your data can be very resource-intensive, so
 in large or high-throughput clusters it is a good idea to avoid using the 
 master-eligible nodes for tasks such as indexing and searching. You can do this 
 by configuring three of your nodes to be dedicated master-eligible nodes. 
-Dedicated master-eligible nodes only have the `master` role, allowing them to 
-focus on managing the cluster.
+Dedicated master-eligible nodes only have the `master` role, allowing them to
+focus on managing the cluster. While master nodes can also behave as 
+<<coordinating-node,coordinating nodes>> and route search and indexing requests
+from clients to data nodes, it is better _not_ to use dedicated master nodes for
+this purpose.
 
 To create a dedicated master-eligible node in the {default-dist}, set:
 

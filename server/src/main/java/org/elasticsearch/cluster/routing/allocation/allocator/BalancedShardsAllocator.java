@@ -1004,11 +1004,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 ShardRouting candidate = null;
                 for (ShardRouting shard : shardRoutings) {
                     final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
-                    if ((rebalanceDecision.type() != Type.YES) && (rebalanceDecision.type() != Type.THROTTLE)) {
+                    if (rebalanceDecision.type() == Type.NO) {
                         continue;
                     }
                     final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
-                    if ((allocationDecision.type() != Type.YES) && (allocationDecision.type() != Type.THROTTLE)) {
+                    if (allocationDecision.type() == Type.NO) {
                         continue;
                     }
                     candidate = shard;

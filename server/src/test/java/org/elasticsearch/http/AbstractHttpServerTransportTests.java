@@ -21,6 +21,8 @@ package org.elasticsearch.http;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -35,6 +37,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestControllerTests;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -190,7 +193,17 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             .build());
         try (AbstractHttpServerTransport transport =
                  new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
-                     new NullDispatcher(),
+                     new HttpServerTransport.Dispatcher() {
+                         @Override
+                         public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                             channel.sendResponse(emptyResponse(RestStatus.OK));
+                         }
+
+                         @Override
+                         public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                             channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                         }
+                     },
                      new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
                      @Override
@@ -223,7 +236,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "received request", traceLoggerName, Level.TRACE,
-                        ".*Incoming request \\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] on .*"));
+                        "\\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"));
+                appender.addExpectation(
+                    new MockLogAppender.PatternSeenEventExpectation(
+                        "sent response", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\] sent response to \\[.*"));
 
                 final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
@@ -235,14 +252,22 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation("received bad request", traceLoggerName, Level.TRACE,
-                        ".*Incoming request \\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] on .*"));
+                        "\\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"));
+                appender.addExpectation(
+                    new MockLogAppender.PatternSeenEventExpectation(
+                        "sent response", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\] sent response to \\[.*"));
                 transport.incomingRequestError(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel(), new RuntimeException());
                 appender.assertAllExpectationsMatched();
 
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation(
                         "received request", traceLoggerName, Level.TRACE,
-                        ".*Incoming request \\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] on .*"));
+                        "\\[\\d+\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
+                appender.addExpectation(
+                    new MockLogAppender.UnseenEventExpectation(
+                        "sent response", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\] sent response to \\[.*"));
 
                 final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
@@ -255,7 +280,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation("received bad request", traceLoggerName, Level.TRACE,
-                        ".*Incoming request \\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] on .*"));
+                        "\\[\\d+\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
+                appender.addExpectation(
+                    new MockLogAppender.UnseenEventExpectation(
+                        "sent response", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\] sent response to \\[.*"));
                 transport.dispatchRequest(
                     fakeRestRequestExcludedPath,
                     new RestControllerTests.AssertingChannel(fakeRestRequestExcludedPath, false, RestStatus.BAD_REQUEST),
@@ -266,6 +295,25 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.stop();
             }
         }
+    }
+
+    private static RestResponse emptyResponse(RestStatus status) {
+        return new RestResponse() {
+            @Override
+            public String contentType() {
+                return null;
+            }
+
+            @Override
+            public BytesReference content() {
+                return BytesArray.EMPTY;
+            }
+
+            @Override
+            public RestStatus status() {
+                return status;
+            }
+        };
     }
 
     private TransportAddress address(String host, int port) throws UnknownHostException {

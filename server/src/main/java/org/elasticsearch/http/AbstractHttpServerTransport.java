@@ -378,8 +378,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         final boolean isTracing = tracerLog.isTraceEnabled() && shouldTraceRequest(httpRequest.uri());
         final Logger trace;
         if (isTracing) {
-            tracerLog.trace(new ParameterizedMessage("Incoming request [{}][{}][{}] on [{}]", restRequest.hashCode(), httpRequest.method(),
-                httpRequest.uri(), httpChannel), exception);
+            tracerLog.trace(new ParameterizedMessage("[{}][{}][{}] received request from [{}]", restRequest.hashCode(),
+                httpRequest.method(), httpRequest.uri(), httpChannel), exception);
             trace = tracerLog;
         } else {
             trace = null;

@@ -85,7 +85,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Override
     public void sendResponse(RestResponse restResponse) {
         if (tracerLog != null) {
-            tracerLog.trace(new ParameterizedMessage("Sending response for [{}] to [{}]", request.hashCode(), httpChannel));
+            tracerLog.trace(new ParameterizedMessage("[{}] sent response to [{}]", request.hashCode(), httpChannel));
         }
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
         toClose.add(httpRequest::release);

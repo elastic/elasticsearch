@@ -5,8 +5,7 @@
   "order": 2147483647,
   "settings": {
     "index.number_of_shards": 1,
-    "index.number_of_replicas": 0,
-    "index.auto_expand_replicas": "0-1",
+    "index.number_of_replicas": 1,
     "index.lifecycle.name": "async-search",
     "index.lifecycle.rollover_alias": ".async-search-${xpack.async-search-template.version}",
     "index.format": 1

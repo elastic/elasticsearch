@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+// TODO: This class has become complicated enough that we should implement a xcontent serialization test
 public class ReindexTaskStateDoc implements ToXContentObject {
 
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
@@ -38,8 +39,8 @@ public class ReindexTaskStateDoc implements ToXContentObject {
             (ScrollableHitSource.Checkpoint) a[6]));
 
     private static final String REINDEX_REQUEST = "request";
-    private static final String ALLOCATION = "allocation";
     private static final String RESILIENT = "resilient";
+    private static final String ALLOCATION = "allocation";
     private static final String REINDEX_RESPONSE = "response";
     private static final String REINDEX_EXCEPTION = "exception";
     private static final String FAILURE_REST_STATUS = "failure_rest_status";
@@ -60,8 +61,8 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     }
 
     private final ReindexRequest reindexRequest;
-    private final Long allocationId;
     private final boolean resilient;
+    private final Long allocationId;
     private final BulkByScrollResponse reindexResponse;
     private final ElasticsearchException exception;
     private final RestStatus failureStatusCode;

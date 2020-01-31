@@ -63,11 +63,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         // todo: remove system property escape hatch in 8.0
         // todo: fix version constant on backport to 7.x
         if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
-                || System.getProperty("es.reindex.resilience", "true").equals("false")) {
+                || System.getProperty("es.reindex.persistent", "true").equals("false")) {
             return doPrepareRequest(request, client, true, true);
         }
 
-        boolean resilient = request.paramAsBoolean("resilient", true);
+        boolean resilient = System.getProperty("es.reindex.persistent.resilient", "true").equals("false") == false;
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request

@@ -107,12 +107,12 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         });
         successLatch.await();
 
-        ReindexTaskStateUpdater oldAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
+        ReindexTaskStateUpdater failedOverUpdater = new ReindexTaskStateUpdater(reindexClient, client().threadPool(),
             taskId, 1, ActionListener.wrap(() -> {}), () -> {});
         CountDownLatch failureLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        oldAllocationUpdater.assign(new ActionListener<>() {
+        failedOverUpdater.assign(new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 failureLatch.countDown();

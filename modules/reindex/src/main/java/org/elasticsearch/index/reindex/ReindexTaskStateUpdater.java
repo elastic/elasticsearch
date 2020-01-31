@@ -52,11 +52,11 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private ReindexTaskState lastState;
     private AtomicBoolean isDone = new AtomicBoolean();
 
-    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String taskId, long allocationId,
+    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
                                    ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
-        this.taskId = taskId;
+        this.taskId = persistentTaskId;
         this.allocationId = allocationId;
         this.finishedListener = finishedListener;
         this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;

@@ -89,7 +89,7 @@ node of the cluster:
 --------------------------------------------------
 POST _nodes/reload_secure_settings
 {
-  "reload_secure_settings": "s3cr3t" <1>
+  "reload_secure_settings": "s3cr3t"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -100,7 +100,7 @@ The following example uses a password for the {es} keystore on the local node:
 --------------------------------------------------
 POST _nodes/_local/reload_secure_settings
 {
-  "reload_secure_settings": "s3cr3t" <1>
+  "reload_secure_settings": "s3cr3t"
 }
 --------------------------------------------------
 // NOTCONSOLE

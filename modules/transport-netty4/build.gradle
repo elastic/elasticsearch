@@ -173,7 +173,10 @@ thirdPartyAudit {
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',
     'org.conscrypt.Conscrypt',
-    'org.conscrypt.HandshakeListener'
+    'org.conscrypt.HandshakeListener',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(

@@ -272,7 +272,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         ActionListener<Response> onStopListener = ActionListener.wrap(
             waitResponse -> transformConfigManager.refresh(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
-                logger.warn("Failed to refresh internal index after stop", e);
+                logger.warn("Could not refresh state, state information might be outdated", e);
                 listener.onResponse(waitResponse);
             })),
             listener::onFailure

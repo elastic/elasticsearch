@@ -327,11 +327,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
-            if (unmappedType != null) {
-                fieldType = context.getMapperService().unmappedFieldType(unmappedType);
-            } else {
-                throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
-            }
+            fieldType = resolveUnmappedType(context);
         }
 
         boolean reverse = order == SortOrder.DESC;
@@ -357,14 +353,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+        if (DOC_FIELD_NAME.equals(fieldName)) {
+            throw new IllegalArgumentException("sorting by _doc is not supported");
+        }
+
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
-            if (unmappedType != null) {
-                fieldType = context.getMapperService().unmappedFieldType(unmappedType);
-            } else {
-                throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
-            }
+            fieldType = resolveUnmappedType(context);
         }
 
         IndexFieldData<?> fieldData = context.getForField(fieldType);
@@ -373,10 +369,20 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         if (numericType != null) {
-            throw new IllegalArgumentException("not yet supported");
+            SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
+            NumericType resolvedType = resolveNumericType(numericType);
+            return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
+                    fieldType.docValueFormat(null, null));
         }
         return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
                 fieldType.docValueFormat(null, null));
+    }
+
+    private MappedFieldType resolveUnmappedType(QueryShardContext context) {
+        if (unmappedType == null) {
+            throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+        }
+        return context.getMapperService().unmappedFieldType(unmappedType);
     }
 
     private MultiValueMode localSortMode() {

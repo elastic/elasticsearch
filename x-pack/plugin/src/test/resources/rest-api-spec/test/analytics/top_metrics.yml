@@ -39,6 +39,21 @@
   - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
   - match: { aggregations.tm.top.0.sort: [1] }
 
+  - do:
+      search:
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metric:
+                  field: v
+                sort:
+                  s:
+                    order: asc
+                    numeric_type: date
+  - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.0.sort: [1] }
+
 ---
 "sort by double field":
   - do:

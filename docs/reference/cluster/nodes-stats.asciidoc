@@ -167,19 +167,9 @@ IP address and port for the node.
 (array of strings)
 Roles assigned to the node. See <<modules-node>>.
 
-`nodes.<node_id>.attributes.ml.machine_memory`::
-(string)
-Total bytes of memory used for {ml-docs}/index.html[machine learning].
-
-`nodes.<node_id>.attributes.xpack.installed`::
-(string)
-If `true`, X-Pack features are enabled. See <<license-settings>>.
-
-`nodes.<node_id>.attributes.ml.max_open_jobs`::
-(string)
-Maximum number of {ml-docs}/index.html[machine learning] jobs that can run
-simultaneously on the node. Based on the
-<<xpack.ml.max_open_jobs,xpack.ml.max_open_jobs>> setting.
+`nodes.<node_id>.attributes`::
+(object)
+Object containing a list of attributes for the node.
 
 [NOTE]
 ====

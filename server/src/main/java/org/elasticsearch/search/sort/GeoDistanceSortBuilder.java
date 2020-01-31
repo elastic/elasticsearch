@@ -526,7 +526,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     private GeoPoint[] localPoints() {
-     // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed
+        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed
         // on 2.x created indexes
         GeoPoint[] localPoints =  points.toArray(new GeoPoint[points.size()]);
         if (GeoValidationMethod.isIgnoreMalformed(validation) == false) {

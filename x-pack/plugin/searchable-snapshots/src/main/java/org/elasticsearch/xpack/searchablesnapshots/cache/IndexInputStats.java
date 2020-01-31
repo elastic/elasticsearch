@@ -21,6 +21,7 @@ public class IndexInputStats {
     private final long fileLength;
 
     private final LongAdder opened = new LongAdder();
+    private final LongAdder inner = new LongAdder();
     private final LongAdder closed = new LongAdder();
 
     private final Counter forwardSmallSeeks = new Counter();
@@ -43,6 +44,10 @@ public class IndexInputStats {
 
     public void incrementOpenCount() {
         opened.increment();
+    }
+
+    public void incrementInnerOpenCount() {
+        inner.increment();
     }
 
     public void incrementCloseCount() {
@@ -87,6 +92,10 @@ public class IndexInputStats {
 
     LongAdder getOpened() {
         return opened;
+    }
+
+    LongAdder getInnerOpened() {
+        return inner;
     }
 
     LongAdder getClosed() {

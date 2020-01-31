@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.randomCacheRangeSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -49,6 +50,30 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                         assertThat(inputStats.getOpened().longValue(), equalTo(i + 1L));
                         input.close();
                     }
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+    }
+
+    public void testInnerOpenCount() throws Exception {
+        final ByteSizeValue rangeSize = randomCacheRangeSize(random());
+        final CacheService noEvictionCacheService = new CacheService(new ByteSizeValue(1, ByteSizeUnit.GB), rangeSize);
+
+        executeTestCase(noEvictionCacheService,
+            (fileName, fileContent, cacheDirectory) -> {
+                try {
+                    assertThat( cacheDirectory.getStats(fileName), nullValue());
+
+                    final IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()));
+                    for (int j = 0; j < input.length(); j++) {
+                        input.readByte();
+                    }
+                    input.close();
+
+                    final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+                    assertThat("Inner IndexInput should have been opened for each cached range to write",
+                        inputStats.getInnerOpened().longValue(), equalTo(numberOfRanges(input.length(), rangeSize.getBytes())));
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }

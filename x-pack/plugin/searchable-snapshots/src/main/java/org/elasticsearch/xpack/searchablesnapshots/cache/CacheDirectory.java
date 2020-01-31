@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
@@ -36,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class CacheDirectory extends FilterDirectory {
 
+    private static final Logger logger = LogManager.getLogger(CacheDirectory.class);
     private static final int COPY_BUFFER_SIZE = 8192;
 
     private final Map<String, IndexInputStats> stats;
@@ -221,7 +225,6 @@ public class CacheDirectory extends FilterDirectory {
                         try {
                             // cache file was evicted during the range fetching, read bytes directly from source
                             bytesRead = readDirectly(pos, pos + len, buffer, off);
-                            stats.addDirectBytesRead(bytesRead);
                             continue;
                         } catch (Exception inner) {
                             e.addSuppressed(inner);
@@ -248,9 +251,13 @@ public class CacheDirectory extends FilterDirectory {
         @SuppressForbidden(reason = "Use positional writes on purpose")
         void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
+            final String fileName = cacheFileReference.getFileName();
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
+            logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] of file [{}] to cache file", start, end, fileName));
+
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
+            try (IndexInput input = in.openInput(fileName, ioContext)) {
+                stats.incrementInnerOpenCount();
                 if (start > 0) {
                     input.seek(start);
                 }
@@ -306,10 +313,13 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
+            final String fileName = cacheFileReference.getFileName();
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
+            logger.trace(() -> new ParameterizedMessage("direct reading of range [{}-{}] from file [{}]", start, end, fileName));
 
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
+            try (IndexInput input = in.openInput(fileName, ioContext)) {
+                stats.incrementInnerOpenCount();
                 if (start > 0) {
                     input.seek(start);
                 }
@@ -321,6 +331,7 @@ public class CacheDirectory extends FilterDirectory {
                     bytesCopied += len;
                     remaining -= len;
                 }
+                stats.addDirectBytesRead(bytesCopied);
             }
             return bytesCopied;
         }

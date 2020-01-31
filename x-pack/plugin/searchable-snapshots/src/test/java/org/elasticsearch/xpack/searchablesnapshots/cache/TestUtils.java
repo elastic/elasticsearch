@@ -23,9 +23,12 @@ final class TestUtils {
     static CacheService createCacheService(final Random random) {
         final ByteSizeValue cacheSize = new ByteSizeValue(randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB)));
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(random, 1, 100),
+        return new CacheService(cacheSize, randomCacheRangeSize(random));
+    }
+
+    static ByteSizeValue randomCacheRangeSize(final Random random) {
+        return new ByteSizeValue(randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
-        return new CacheService(cacheSize, rangeSize);
     }
 
     static long numberOfRanges(long fileSize, long rangeSize) {

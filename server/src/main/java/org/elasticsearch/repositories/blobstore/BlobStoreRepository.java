@@ -1519,6 +1519,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
+                // We can skip writing blobs where the metadata hash is equal to the blob's contents because we store the hash/contents
+                // directly in the shard level metadata in this case
                 final boolean needsWrite = md.hash().length != md.length();
                 indexTotalFileCount += md.length();
                 indexTotalNumberOfFiles++;
@@ -1535,6 +1537,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (needsWrite) {
                         filesToSnapshot.add(snapshotFileInfo);
                     }
+                    assert needsWrite || assertFileContentsMatchHash(snapshotFileInfo, store);
                 } else {
                     indexCommitPointFiles.add(existingFileInfo);
                 }
@@ -1629,6 +1632,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
+        try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
+            final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
+            indexInput.readBytes(tmp, 0, tmp.length);
+            assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        return true;
     }
 
     @Override

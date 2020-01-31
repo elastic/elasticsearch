@@ -29,6 +29,7 @@ import java.util.Map;
 public class ScopeTable {
 
     public static class Variable {
+
         protected final Class<?> type;
         protected final Type asmType;
         protected final String name;

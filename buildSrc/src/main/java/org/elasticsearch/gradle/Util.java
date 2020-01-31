@@ -21,6 +21,8 @@ package org.elasticsearch.gradle;
 
 import org.gradle.api.GradleException;
 
+import java.util.Locale;
+
 public class Util {
 
     public static boolean getBooleanProperty(String property, boolean defaultValue) {
@@ -35,5 +37,9 @@ public class Util {
         } else {
             throw new GradleException("Sysprop [" + property + "] must be [true] or [false] but was [" + propertyValue + "]");
         }
+    }
+
+    public static String capitalize(String s) {
+        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
     }
 }

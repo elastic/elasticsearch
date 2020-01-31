@@ -20,12 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -58,30 +58,30 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
-        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
-        index = locals.addVariable(location, int.class, "#index" + location.getOffset(), true);
+        array = scope.defineInternalVariable(location, expression.actual, "array" + location.getOffset(), true);
+        index = scope.defineInternalVariable(location, int.class, "index" + location.getOffset(), true);
         indexed = expression.actual.getComponentType();
-        cast = AnalyzerCaster.getLegalCast(location, indexed, variable.clazz, true, true);
+        cast = AnalyzerCaster.getLegalCast(location, indexed, variable.getType(), true, true);
     }
 
     @Override
-    ForEachSubArrayNode write() {
+    ForEachSubArrayNode write(ClassNode classNode) {
         ForEachSubArrayNode forEachSubArrayNode = new ForEachSubArrayNode();
 
-        forEachSubArrayNode.setConditionNode(expression.write());
-        forEachSubArrayNode.setBlockNode(block.write());
+        forEachSubArrayNode.setConditionNode(expression.write(classNode));
+        forEachSubArrayNode.setBlockNode(block.write(classNode));
 
         forEachSubArrayNode.setLocation(location);
-        forEachSubArrayNode.setVariableType(variable.clazz);
-        forEachSubArrayNode.setVariableName(variable.name);
+        forEachSubArrayNode.setVariableType(variable.getType());
+        forEachSubArrayNode.setVariableName(variable.getName());
         forEachSubArrayNode.setCast(cast);
-        forEachSubArrayNode.setArrayType(array.clazz);
-        forEachSubArrayNode.setArrayName(array.name.substring(1));
-        forEachSubArrayNode.setIndexType(index.clazz);
-        forEachSubArrayNode.setIndexName(index.name.substring(1));
+        forEachSubArrayNode.setArrayType(array.getType());
+        forEachSubArrayNode.setArrayName(array.getName());
+        forEachSubArrayNode.setIndexType(index.getType());
+        forEachSubArrayNode.setIndexName(index.getName());
         forEachSubArrayNode.setIndexedType(indexed);
         forEachSubArrayNode.setContinuous(false);
 
@@ -90,6 +90,6 @@ final class SSubEachArray extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
     }
 }

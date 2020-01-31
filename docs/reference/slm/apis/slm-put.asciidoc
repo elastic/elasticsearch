@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[slm-api-put-policy]]
 === Put snapshot lifecycle policy API
 ++++

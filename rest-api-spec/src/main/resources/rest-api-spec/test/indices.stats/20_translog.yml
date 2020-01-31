@@ -44,39 +44,26 @@
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
 
 ---
-"Translog retention settings are deprecated":
+"Translog retention settings are no long supported":
   - skip:
-      version: " - 7.99.99"
-      reason: "translog retention settings are deprecated in 8.0"
-      features: "warnings"
+      version: " - 7.9.99"
+      reason: "translog retention settings are no longer supported in 8.0"
   - do:
-      warnings:
-        - Translog retention settings [index.translog.retention.age] and [index.translog.retention.size]
-          are deprecated and effectively ignored. They will be removed in a future version.
+      catch: /illegal_argument_exception/
       indices.create:
         index: test
         body:
           settings:
             index.translog.retention.size: 128mb
   - do:
-      indices.put_settings:
+      indices.create:
         index: test
-        body:
-          index.number_of_replicas: 0
   - do:
-      warnings:
-        - Translog retention settings [index.translog.retention.age] and [index.translog.retention.size]
-          are deprecated and effectively ignored. They will be removed in a future version.
+      catch: /illegal_argument_exception/
       indices.put_settings:
         index: test
         body:
           index.translog.retention.age: 1h
-  - do:
-      indices.put_settings:
-        index: test
-        body:
-          index.translog.retention.age: null
-          index.translog.retention.size: null
 
 ---
 "Translog last modified age stats":

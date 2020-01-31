@@ -312,12 +312,12 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
-            final String fileName = cacheFileReference.getFileName();
             final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
-            logger.trace(() -> new ParameterizedMessage("direct reading of range [{}-{}] from file [{}]", start, end, fileName));
+            logger.trace(() ->
+                new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(fileName, ioContext)) {
+            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
                 stats.incrementInnerOpenCount();
                 if (start > 0) {
                     input.seek(start);

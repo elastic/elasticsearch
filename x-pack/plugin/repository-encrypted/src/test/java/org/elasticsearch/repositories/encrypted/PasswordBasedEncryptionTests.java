@@ -16,8 +16,8 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
     public void testEncryptAndDecryptEmpty() throws Exception {
         PasswordBasedEncryption encryptor = new PasswordBasedEncryption(new char[] {'p', 'a', 's', 's'},
                 SecureRandom.getInstance("SHA1PRNG"));
-        byte[] emptyEncrypted = encryptor.encrypt(new byte[0]);
-        byte[] ans = encryptor.decrypt(emptyEncrypted);
+        byte[] emptyEncrypted = encryptor.encrypt(new byte[0], null);
+        byte[] ans = encryptor.decrypt(emptyEncrypted, null);
         assertThat(ans.length, Matchers.is(0));
     }
 

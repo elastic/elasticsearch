@@ -70,8 +70,6 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             SecureString encryptionPassword = encryptionPasswordSetting.get(env.settings());
             cachedRepositoryPasswords.put(repositoryName, encryptionPassword.getChars());
         }
-        final ConsistentSettingsService consistentSettingsService = new ConsistentSettingsService(env.settings(), clusterService,
-                Set.of(ENCRYPTION_PASSWORD_SETTING));
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {
 
             @Override
@@ -105,10 +103,10 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
                 char[] repositoryPassword = cachedRepositoryPasswords.get(metaData.name());
-                PasswordBasedEncryption metadataEncryptor = new PasswordBasedEncryption(repositoryPassword,
+                PasswordBasedEncryption metadataEncryption = new PasswordBasedEncryption(repositoryPassword,
                         SecureRandom.getInstance(RAND_ALGO));
                 return new EncryptedRepository(metaData, registry, clusterService, (BlobStoreRepository) delegatedRepository,
-                        metadataEncryptor, consistentSettingsService);
+                        repositoryPassword);
             }
         });
     }

@@ -10,15 +10,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -33,25 +36,36 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
@@ -70,6 +84,11 @@ public final class EncryptedRepository extends BlobStoreRepository {
     // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
     // of {@link #MAX_PACKET_LENGTH_IN_BYTES}
     static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
+    // each snapshot metadata contains the salted password hash of the master node that started the snapshot
+    // this hash is then verified on each data node before the actual shard snapshot as well as on the
+    // master node that finalizes the snapshot (could be a different master node, if a master failover
+    // has occurred in the mean time)
+    private static final String PASSWORD_HASH_RESERVED_USER_METADATA_KEY = "__passwordHash";
 
     // The encryption scheme version number to which the current implementation conforms to.
     // The version number MUST be incremented whenever the format of the metadata, or
@@ -81,71 +100,72 @@ public final class EncryptedRepository extends BlobStoreRepository {
     // this is relative to the root path holding the encrypted blobs (i.e. the repository root path)
     private static final String ENCRYPTION_METADATA_ROOT = "encryption-metadata-v" + CURRENT_ENCRYPTION_VERSION_NUMBER;
 
+
     private final BlobStoreRepository delegatedRepository;
     private final KeyGenerator dataEncryptionKeyGenerator;
-    private final PasswordBasedEncryption metadataEncryptor;
-    private final ConsistentSettingsService consistentSettingsService;
+    private final PasswordBasedEncryption metadataEncryption;
     private final SecureRandom secureRandom;
-    private final SecureSetting<?> passwordSettingForThisRepo;
+    private final String passwordPublicHash;
+    private final HashVerifier passwordHashVerifier;
 
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
-                                  BlobStoreRepository delegatedRepository, PasswordBasedEncryption metadataEncryptor,
-                                  ConsistentSettingsService consistentSettingsService) throws NoSuchAlgorithmException {
+                                  BlobStoreRepository delegatedRepository, char[] password) throws NoSuchAlgorithmException {
         super(metadata, namedXContentRegistry, clusterService, delegatedRepository.basePath());
         this.delegatedRepository = delegatedRepository;
         this.dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
         this.dataEncryptionKeyGenerator.init(DATA_KEY_SIZE_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
-        this.metadataEncryptor = metadataEncryptor;
-        this.consistentSettingsService = consistentSettingsService;
+        this.metadataEncryption = new PasswordBasedEncryption(password, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
         this.secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
-        this.passwordSettingForThisRepo =
-                (SecureSetting<?>) EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name());
+        this.passwordPublicHash = computeSaltedPBKDF2Hash(password, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
+        this.passwordHashVerifier = new HashVerifier(password);
+    }
+
+    @Override
+    public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
+        Map<String, Object> snapshotUserMetadata = new HashMap<>();
+        snapshotUserMetadata.putAll(userMetadata);
+        // pin down the hash of the password that is checked for all the operations of this snapshot
+        snapshotUserMetadata.put(PASSWORD_HASH_RESERVED_USER_METADATA_KEY, this.passwordPublicHash);
+        return snapshotUserMetadata;
+    }
+
+    private void validatePasswordHash(Map<String, Object> snapshotUserMetadata, ActionListener<?> listener) {
+        Object repositoryPasswordHash = snapshotUserMetadata.get(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
+        if (repositoryPasswordHash == null || (false == repositoryPasswordHash instanceof String)) {
+            listener.onFailure(new IllegalStateException("Snapshot metadata does not contain the password hash or is invalid"));
+            return;
+        }
+        if (false == passwordHashVerifier.verify((String) repositoryPasswordHash)) {
+            listener.onFailure(new RepositoryException(metadata.name(),
+                    "Password mismatch for repository. The local node's value of the keystore secure setting [" +
+                            EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name()).getKey() +
+                            "] is different from the master node that started the snapshot"));
+            return;
+        }
+    }
+
+    @Override
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
+                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                 boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
+                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+        validatePasswordHash(userMetadata, listener);
+        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+                includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
     }
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
-        if (EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
-            if (consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
-                super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
-            } else {
-                listener.onFailure(new RepositoryException(metadata.name(),
-                        "Password mismatch for repository. The local node's value of the " +
-                                "keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's"));
-            }
-        } else {
-            listener.onFailure(LicenseUtils.newComplianceException(
-                    EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
-        }
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
+        validatePasswordHash(userMetadata, listener);
+        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, userMetadata,
+                listener);
     }
 
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState, ActionListener<Void> listener) {
-        if (false == consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
-            // the repository has a different password on the local node compared to the master node
-            // even though restoring the shard will surely fail (because we know that, by now, the master's password
-            // must be correct, otherwise this method will not get called) we let it pass-through in order to avoid
-            // having to manipulate the {@code recoveryState} argument
-            logger.error("Password mismatch for repository [" + metadata.name() + "]. The local node's value of the " +
-                    "keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's");
-        }
-        super.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, ActionListener.delegateResponse(listener,
-                (l, e) -> l.onFailure(new RepositoryException(metadata.name(), "Password mismatch for repository. " +
-                        "The local node's value of the keystore secure setting [" +
-                        passwordSettingForThisRepo.getKey() + "] is different from the master's"))));
-    }
-
-    @Override
-    public void verify(String seed, DiscoveryNode localNode) {
-        if (consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
-            super.verify(seed, localNode);
-        } else {
-            // the repository has a different password on the local node compared to the master node
-            throw new RepositoryVerificationException(metadata.name(), "Repository password mismatch. The local node's [" + localNode +
-                    "] value of the keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] is different from the master's");
-        }
+    public boolean isReadOnly() {
+        return false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed();
     }
 
     @Override
@@ -170,7 +190,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() {
-        return new EncryptedBlobStore(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
+        return new EncryptedBlobStore(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryption,
                 secureRandom);
     }
 
@@ -266,9 +286,10 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-            SecretKey dataEncryptionKey = dataEncryptionKeyGenerator.generateKey();
-            int nonce = nonceGenerator.nextInt();
-            // this is the metadata required to decrypt back the encrypted blob
+            final SecretKey dataEncryptionKey = dataEncryptionKeyGenerator.generateKey();
+            final int nonce = nonceGenerator.nextInt();
+            final long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
+            // this is the metadata required to decrypt back the (to be) encrypted blob
             BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(nonce, PACKET_LENGTH_IN_BYTES, dataEncryptionKey);
             // encrypt metadata
             final byte[] encryptedMetadata;
@@ -277,16 +298,44 @@ public final class EncryptedRepository extends BlobStoreRepository {
             } catch (IOException e) {
                 throw new IOException("Failure to encrypt metadata for blob [" + blobName + "]", e);
             }
-            // first write the encrypted metadata
-            try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
-                encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length,
-                        failIfAlreadyExists);
-            }
-            // afterwards write the encrypted data blob
-            long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
-            try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
-                    dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
-                delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
+            if (failIfAlreadyExists) {
+                // first TRY write the encrypted metadata
+                try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
+                    encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length, true);
+                } catch (IOException e) {
+                    boolean metadataExists = (false == encryptionMetadataBlobContainer.listBlobsByPrefix(blobName).isEmpty());
+                    if (metadataExists) {
+                        // existing metadata might be orphaned, the data blob might not exist, TRY write the data blob
+                        try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
+                                dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
+                            delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, true);
+                        }
+                        // writing the data blob succeeded, must have been an orphaned metadata
+                        // TRY again, but now OVERWRITE the metadata
+                        try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
+                            encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length, false);
+                        }
+                        return;
+                    } else {
+                        // "regular" IOException
+                        throw e;
+                    }
+                }
+                // afterwards write the encrypted data blob
+                try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
+                        dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
+                    delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, false);
+                }
+            } else {
+                // first overwrite the encrypted metadata
+                try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
+                    encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length, false);
+                }
+                // afterwards overwrite the encrypted data blob
+                try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
+                        dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
+                    delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, false);
+                }
             }
         }
 
@@ -371,6 +420,55 @@ public final class EncryptedRepository extends BlobStoreRepository {
                     }
                 }
             }
+        }
+    }
+
+    private static String computeSaltedPBKDF2Hash(char[] password, SecureRandom secureRandom) {
+        byte[] salt = new byte[16];
+        secureRandom.nextBytes(salt);
+        return computeSaltedPBKDF2Hash(salt, password);
+    }
+
+    private static String computeSaltedPBKDF2Hash(byte[] salt, char[] password) {
+        final int iterations = 10000;
+        final int keyLength = 512;
+        final PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyLength);
+        final byte[] hash;
+        try {
+            SecretKeyFactory pbkdf2KeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+            hash = pbkdf2KeyFactory.generateSecret(spec).getEncoded();
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new RuntimeException("Unexpected exception when computing PBKDF2 hash for the repository password", e);
+        }
+        return new String(Base64.getEncoder().encode(salt), StandardCharsets.UTF_8) + ":" +
+                new String(Base64.getEncoder().encode(hash), StandardCharsets.UTF_8);
+    }
+
+    private static class HashVerifier {
+        private final char[] password;
+        private final AtomicReference<String> lastVerifiedHash;
+
+        HashVerifier(char[] password) {
+            this.password = password;
+            this.lastVerifiedHash = new AtomicReference<>(null);
+        }
+
+        boolean verify(String saltedHash) {
+            Objects.requireNonNull(saltedHash);
+            if (saltedHash.equals(lastVerifiedHash.get())) {
+                return true;
+            }
+            String[] parts = saltedHash.split(":");
+            if (parts == null || parts.length != 2) {
+                return false;
+            }
+            String salt = parts[0];
+            String computedHash = computeSaltedPBKDF2Hash(Base64.getDecoder().decode(salt.getBytes(StandardCharsets.UTF_8)), password);
+            if (false == computedHash.equals(saltedHash)) {
+                return false;
+            }
+            lastVerifiedHash.set(computedHash);
+            return true;
         }
     }
 

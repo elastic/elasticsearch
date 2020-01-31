@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Describes the capabilities of a field in a single index.
@@ -65,14 +67,22 @@ public class IndexFieldCapabilities implements Writeable {
         this.isAggregatable = in.readBoolean();
 
         // Previously we also stored placeholders for the 'indices' arrays.
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            // Do nothing.
+        } else {
             in.readOptionalStringArray();
             in.readOptionalStringArray();
             in.readOptionalStringArray();
         }
 
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             meta = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            // Previously we stored meta information as a map of sets.
+            Map<String, Set<String>> wrappedMeta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
+            meta = wrappedMeta.entrySet().stream().collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().iterator().next()));
         } else {
             meta = Collections.emptyMap();
         }
@@ -92,8 +102,14 @@ public class IndexFieldCapabilities implements Writeable {
             out.writeOptionalStringArray(null);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
+        } else if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            // Previously we stored meta information as a map of sets.
+            Map<String, Set<String>> wrappedMeta = meta.entrySet().stream().collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> Set.of(entry.getValue())));
+            out.writeMap(wrappedMeta, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
     }
 

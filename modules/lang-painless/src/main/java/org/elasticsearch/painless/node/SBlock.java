@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
@@ -53,7 +52,7 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -70,7 +69,7 @@ public final class SBlock extends AStatement {
             statement.inLoop = inLoop;
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
-            statement.analyze(scriptRoot, locals);
+            statement.analyze(scriptRoot, scope);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -82,12 +81,18 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    BlockNode write(ClassNode classNode) {
+        BlockNode blockNode = new BlockNode();
+
         for (AStatement statement : statements) {
-            statement.continu = continu;
-            statement.brake = brake;
-            statement.write(classWriter, methodWriter, globals);
+            blockNode.addStatementNode(statement.write(classNode));
         }
+
+        blockNode.setLocation(location);
+        blockNode.setAllEscape(allEscape);
+        blockNode.setStatementCount(statementCount);
+
+        return blockNode;
     }
 
     @Override

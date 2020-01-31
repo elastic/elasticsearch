@@ -76,6 +76,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -340,7 +341,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final PlainActionFuture<String> future = PlainActionFuture.newFuture();
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true, future);
+                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true, emptyMap(), future);
                     future.actionGet();
                 });
                 future.actionGet();

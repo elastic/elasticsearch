@@ -23,7 +23,7 @@ public class UnsupportedEsField extends EsField {
     }
     
     public UnsupportedEsField(String name, String originalType, String inherited, Map<String, EsField> properties) {
-        super(name, DataType.UNSUPPORTED, properties, false);
+        super(name, DataTypes.UNSUPPORTED, properties, false);
         this.originalType = originalType;
         this.inherited = inherited;
     }

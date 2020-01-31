@@ -160,7 +160,6 @@ class BuildPlugin implements Plugin<Project> {
                     for (File dep : project.getConfigurations().getByName("extraJars").getFiles()){
                         cluster.extraJarFile(dep)
                     }
-                    cluster.setTestDistribution(TestDistribution.DEFAULT)
                     cluster.extraConfigFile("fips_java.security", securityProperties)
                     cluster.extraConfigFile("fips_java.policy", securityPolicy)
                     cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
@@ -426,7 +425,7 @@ class BuildPlugin implements Plugin<Project> {
                             dependencyNode.appendNode('groupId', dependency.group)
                             dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
                             dependencyNode.appendNode('version', dependency.version)
-                            dependencyNode.appendNode('scope', 'runtime')
+                            dependencyNode.appendNode('scope', 'compile')
                         }
                     }
                 }

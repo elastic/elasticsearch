@@ -53,9 +53,6 @@ import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
@@ -66,7 +63,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -90,7 +86,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -114,7 +109,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
-    public static final String SYNC_COMMIT_ID = "sync_id";
+    public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
@@ -583,22 +578,6 @@ public abstract class Engine implements Closeable {
 
     }
 
-    /**
-     * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
-     * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.
-     *
-     * @param syncId           id of this sync
-     * @param expectedCommitId the expected value of
-     * @return true if the sync commit was made, false o.w.
-     */
-    public abstract SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException;
-
-    public enum SyncedFlushResult {
-        SUCCESS,
-        COMMIT_MISMATCH,
-        PENDING_OPERATIONS
-    }
-
     protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
                                                 SearcherScope scope) throws EngineException {
         final Engine.Searcher searcher = searcherFactory.apply("get", scope);
@@ -1053,20 +1032,17 @@ public abstract class Engine implements Closeable {
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
-     * @return the commit Id for the resulting commit
      */
-    public abstract CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract void flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
      * documents in the lucene index to disk including a potentially heavy and durable fsync operation.
      * This operation is not going to block if another flush operation is currently running and won't write
      * a lucene commit if nothing needs to be committed.
-     *
-     * @return the commit Id for the resulting commit
      */
-    public final CommitId flush() throws EngineException {
-        return flush(false, false);
+    public final void flush() throws EngineException {
+        flush(false, false);
     }
 
 
@@ -1709,58 +1685,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class CommitId implements Writeable {
-
-        private final byte[] id;
-
-        public CommitId(byte[] id) {
-            assert id != null;
-            this.id = Arrays.copyOf(id, id.length);
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public CommitId(StreamInput in) throws IOException {
-            assert in != null;
-            this.id = in.readByteArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByteArray(id);
-        }
-
-        @Override
-        public String toString() {
-            return Base64.getEncoder().encodeToString(id);
-        }
-
-        public boolean idsEqual(byte[] id) {
-            return Arrays.equals(id, this.id);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            CommitId commitId = (CommitId) o;
-
-            return Arrays.equals(id, commitId.id);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(id);
-        }
-    }
-
     public static class IndexCommitRef implements Closeable {
         private final AtomicBoolean closed = new AtomicBoolean();
         private final CheckedRunnable<IOException> onClose;
@@ -1783,7 +1707,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+    public void onSettingsChanged() {
 
     }
 

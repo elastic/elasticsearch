@@ -86,7 +86,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
         Directory directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
         if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
             final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
-            directory = new CacheDirectory(directory, cacheService, cacheDir);
+            directory = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardPath.getShardId());
         }
         directory = new InMemoryNoOpCommitDirectory(directory);
 

@@ -62,10 +62,10 @@ public class IndexInputStatsTests extends ESTestCase {
             inputStats.incrementSeeks(currentPosition, seekToPosition);
 
             final long delta = seekToPosition - currentPosition;
-            if (delta >= 0) {
+            if (delta > 0) {
                 IndexInputStats.Counter forwardCounter = (delta < (fileLength * SEEKING_THRESHOLD)) ? fwSmallSeeks : fwLargeSeeks;
                 forwardCounter.add(delta);
-            } else {
+            } else if (delta < 0) {
                 IndexInputStats.Counter backwardCounter = (delta > -(fileLength * SEEKING_THRESHOLD)) ? bwSmallSeeks : bwLargeSeeks;
                 backwardCounter.add(delta);
             }
@@ -80,5 +80,17 @@ public class IndexInputStatsTests extends ESTestCase {
             bwSmallSeeks.total(), bwSmallSeeks.count(), bwSmallSeeks.min(), bwSmallSeeks.max());
         assertCounter(inputStats.getBackwardLargeSeeks(),
             bwLargeSeeks.total(), bwLargeSeeks.count(), bwLargeSeeks.min(), bwLargeSeeks.max());
+    }
+
+    public void testSeekToSamePosition() {
+        final IndexInputStats inputStats = new IndexInputStats(randomLongBetween(1L, 1_000L));
+        final long position = randomLongBetween(0L, inputStats.getFileLength());
+
+        inputStats.incrementSeeks(position, position);
+
+        assertCounter(inputStats.getForwardSmallSeeks(), 0L, 0L, 0L, 0L);
+        assertCounter(inputStats.getForwardLargeSeeks(), 0L, 0L, 0L, 0L);
+        assertCounter(inputStats.getBackwardSmallSeeks(), 0L, 0L, 0L, 0L);
+        assertCounter(inputStats.getBackwardLargeSeeks(), 0L, 0L, 0L, 0L);
     }
 }

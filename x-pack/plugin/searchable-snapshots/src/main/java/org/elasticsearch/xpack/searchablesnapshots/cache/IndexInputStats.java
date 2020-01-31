@@ -68,6 +68,9 @@ public class IndexInputStats {
 
     public void incrementSeeks(long currentPosition, long newPosition) {
         final long delta = newPosition - currentPosition;
+        if (delta == 0L) {
+            return;
+        }
         final double threshold = fileLength * SEEKING_THRESHOLD;
         LongConsumer incSeekCount;
         if (delta >= 0) {

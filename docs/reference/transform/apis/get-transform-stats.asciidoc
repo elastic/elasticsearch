@@ -77,13 +77,13 @@ sorted by the `id` value in ascending order. All of these properties are
 informational; you cannot update their values.
 
 `checkpointing`::
-(object) TBD
+(object) Contains statistics about <<transform-checkpoints,checkpoints>>.
 `checkpointing`.`changes_last_detected_at`:::
-(date) TBD
+(date) The timestamp when changes were last detected in the source indices.
 `checkpointing`.`last`:::
-(object) Contains information about the last completed checkpoint. 
+(object) Contains statistics about the last completed checkpoint. 
 `checkpointing`.`last`.`checkpoint`::::
-(TBD) TBD
+(TBD) A unique identifier for the checkpoint.
 `checkpointing`.`last`.`time_upper_bound_millis`::::
 (date) TBD
 `checkpointing`.`last`.`timestamp_millis`::::
@@ -111,9 +111,10 @@ example, `127.0.0.1:9300`.
 (string) The status of the {transform}, which can be one of the following values:
 +
 --
-* `indexing`
-* `started`
-* `stopped`
+* `indexing`: The {transform} is actively processing data and creating new
+documents.
+* `started`: The {transform} is running but not actively indexing data.
+* `stopped`: The {transform} is stopped.
 --
 
 `stats`::
@@ -123,25 +124,27 @@ example, `127.0.0.1:9300`.
 `stats`.`documents_processed`:::
 (TBD) The number of documents that have been processed.
 `stats`.`exponential_avg_checkpoint_duration_ms`:::
-(TBD) TBD
+(double) Exponential moving average of the duration of the checkpoint, in milliseconds.
 `stats`.`exponential_avg_documents_indexed`:::
-(TBD) TBD
+(double) Exponential moving average of the number of new documents that have been
+indexed.
 `stats`.`exponential_avg_documents_processed`:::
-(TBD) TBD
+(double) Exponential moving average of the number of documents that have been
+processed.
 `stats`.`index_failures`:::
-(TBD) The number of indexing failures.
+(long) The number of indexing failures.
 `stats`.`index_time_in_ms`:::
-(TBD) The amount of time spent indexing, in milliseconds.
+(long) The amount of time spent indexing, in milliseconds.
 `stats`.`index_total`:::
-(TBD) The number of indices created.
+(long) The number of indices created.
 `stats`.`pages_processed`:::
 (TBD) The number of pages processed.
 `stats`.`search_failures`:::
-(TBD) The number of search failures. 
+(long) The number of search failures. 
 `stats`.`search_time_in_ms`:::
-(TBD) The amount of time spent searching, in milliseconds.
+(long) The amount of time spent searching, in milliseconds.
 `stats`.`search_total`:::
-(TBD) TBD 
+(long) TBD 
 `stats`.`trigger_count`:::
 (TBD) TBD
   

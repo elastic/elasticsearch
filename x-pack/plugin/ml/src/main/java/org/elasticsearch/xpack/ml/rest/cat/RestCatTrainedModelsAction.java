@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -43,8 +44,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
 public class RestCatTrainedModelsAction extends AbstractCatAction {
-
-    private static final Logger logger = LogManager.getLogger(RestCatTrainedModelsAction.class);
 
     public RestCatTrainedModelsAction(RestController controller) {
         controller.registerHandler(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", this);
@@ -70,8 +69,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             modelsAction.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        statsRequest.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(),
-            statsRequest.isAllowNoResources()));
+        statsRequest.setAllowNoResources(true);
         modelsAction.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(),
             statsRequest.isAllowNoResources()));
 
@@ -156,11 +154,6 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         table.addCell("description", TableColumnAttributeBuilder.builder("The model description", false)
             .setAliases("d")
             .build());
-        table.addCell("data_frame_analytics_id", TableColumnAttributeBuilder.builder(
-            "The data frame analytics config id that created the model (if still available)",
-            false)
-            .setAliases("df", "dataFrameAnalytics")
-            .build());
 
         // Trained Model Stats
         table.addCell("ingest.pipelines", TableColumnAttributeBuilder.builder("The number of pipelines referencing the model")
@@ -183,6 +176,27 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             "The total count of failed ingest attempts with this model",
             false)
             .setAliases("if", "ingestFailed")
+            .build());
+
+        table.addCell("data_frame.id", TableColumnAttributeBuilder.builder(
+            "The data frame analytics config id that created the model (if still available)",
+            false)
+            .setAliases("dfid", "dataFrameAnalytics")
+            .build());
+        table.addCell("data_frame.create_time", TableColumnAttributeBuilder.builder(
+            "The time the data frame analytics config was created",
+            false)
+            .setAliases("dft", "dataFrameAnalyticsTime")
+            .build());
+        table.addCell("data_frame.source_index", TableColumnAttributeBuilder.builder(
+            "The source index used to train in the data frame analysis",
+            false)
+            .setAliases("dfsi", "dataFrameAnalyticsSrcIndex")
+            .build());
+        table.addCell("data_frame.analysis", TableColumnAttributeBuilder.builder(
+            "The analysis used by the data frame to build the model",
+            false)
+            .setAliases("dfa", "dataFrameAnalyticsAnalysis")
             .build());
 
         table.endHeaders();
@@ -219,10 +233,8 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
         assert configs.size() == stats.size();
 
-        Map<String, String> analyticsMap = analyticsConfigs.stream()
-            .map(DataFrameAnalyticsConfig::getId)
-            .collect(Collectors.toMap(Function.identity(), Function.identity()));
-        logger.warn("ANALYTICS MAP  " + analyticsMap);
+        Map<String, DataFrameAnalyticsConfig> analyticsMap = analyticsConfigs.stream()
+            .collect(Collectors.toMap(DataFrameAnalyticsConfig::getId, Function.identity()));
         Map<String, GetTrainedModelsStatsAction.Response.TrainedModelStats> statsMap = stats.stream()
             .collect(Collectors.toMap(GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId, Function.identity()));
 
@@ -237,8 +249,6 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.addCell(config.getCreateTime());
             table.addCell(config.getVersion().toString());
             table.addCell(config.getDescription());
-            String analyticsId = config.getTags().stream().filter(analyticsMap::containsKey).findFirst().orElse("__none__");
-            table.addCell(analyticsId);
 
             GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
             table.addCell(modelStats.getPipelineCount());
@@ -249,6 +259,20 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                 TimeValue.timeValueMillis(0));
             table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCurrent() : 0);
             table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestFailedCount() : 0);
+
+            DataFrameAnalyticsConfig dataFrameAnalyticsConfig = config.getTags()
+                .stream()
+                .filter(analyticsMap::containsKey)
+                .map(analyticsMap::get)
+                .findFirst()
+                .orElse(null);
+            table.addCell(dataFrameAnalyticsConfig == null ? "__none__" : dataFrameAnalyticsConfig.getId());
+            table.addCell(dataFrameAnalyticsConfig == null ? null : dataFrameAnalyticsConfig.getCreateTime());
+            table.addCell(dataFrameAnalyticsConfig == null ?
+                null :
+                Strings.arrayToCommaDelimitedString(dataFrameAnalyticsConfig.getSource().getIndex()));
+            DataFrameAnalysis analysis = dataFrameAnalyticsConfig == null ? null : dataFrameAnalyticsConfig.getAnalysis();
+            table.addCell(analysis == null ? null : analysis.getWriteableName());
 
             table.endRow();
         });

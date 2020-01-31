@@ -110,7 +110,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
             // we do this by default in core, but for monitoring this isn't needed and only adds noise.
-            .put("index.lifecycle.history_index_enabled", false)
+            .put("indices.lifecycle.history_index_enabled", false)
             .put("index.store.mock.check_index_on_close", false);
         return builder.build();
     }
@@ -831,8 +831,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 } else {
                     enqueueClusterAlertResponsesDoesNotExistYet(webServer);
                 }
-            // otherwise we need to delete them from the remote cluster
             } else {
+                // otherwise we need to delete them from the remote cluster
                 enqueueDeleteClusterAlertResponses(webServer);
             }
         } else {
@@ -845,8 +845,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 );
 
                 enqueueResponse(webServer, 200, responseBody);
-            // X-Pack is not installed
             } else {
+                // X-Pack is not installed
                 enqueueResponse(webServer, 404, "{}");
             }
         }

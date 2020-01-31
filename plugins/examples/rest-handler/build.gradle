@@ -29,6 +29,22 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
+configurations {
+  restSpec
+}
+
+dependencies {
+  restSpec project(':rest-api-spec')
+}
+
+processTestResources {
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    includeEmptyDirs = false
+    include 'rest-api-spec/api/**'
+  }
+  dependsOn configurations.restSpec
+}
+
 // No unit tests in this example
 test.enabled = false
 
@@ -43,6 +59,7 @@ integTest {
   dependsOn exampleFixture
   runner {
     nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
+    nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
   }
 }
 

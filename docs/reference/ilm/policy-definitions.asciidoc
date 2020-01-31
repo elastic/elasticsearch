@@ -88,7 +88,6 @@ of these operations are done in isolation in a unit called a "step". The
 to see which step our index is either to execute next, or is currently
 executing.
 
-[[ilm-policy-actions]]
 === Actions
 
 The below list shows the actions which are available in each phase.

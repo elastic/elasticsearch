@@ -71,7 +71,7 @@ PUT _ilm/policy/datastream_policy
 <3> Move the index into the delete phase 90 days after rollover.
 <4> Trigger the `delete` action when the index enters the delete phase.
 
-See <<ilm-policy-actions>> for the complete list of actions available in each phase.
+See <<_actions>> for the complete list of actions available in each phase.
 
 [float]
 [[ilm-gs-apply-policy]]

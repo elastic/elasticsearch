@@ -988,20 +988,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx) {
             final ModelIndex index = maxNode.getIndex(idx);
-            Decision decision = null;
             if (index != null) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
-                            minNode.getNodeId());
-                }
-                final AllocationDeciders deciders = allocation.deciders();
+                logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
                 final Iterable<ShardRouting> shardRoutings = StreamSupport.stream(index.spliterator(), false)
                     .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
                     .filter(maxNode::containsShard)
                     .sorted(BY_DESCENDING_SHARD_ID) // check in descending order of shard id so that the decision is deterministic
                     ::iterator;
 
-                ShardRouting candidate = null;
+                final AllocationDeciders deciders = allocation.deciders();
                 for (ShardRouting shard : shardRoutings) {
                     final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
                     if (rebalanceDecision.type() == Type.NO) {
@@ -1011,32 +1006,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (allocationDecision.type() == Type.NO) {
                         continue;
                     }
-                    candidate = shard;
-                    decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
-                    break;
-                }
 
-                if (candidate != null) {
-                    /* allocate on the model even if not throttled */
-                    maxNode.removeShard(candidate);
-                    long shardSize = allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                    final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
 
-                    if (decision.type() == Type.YES) { /* only allocate on the cluster if we are not throttled */
-                        logger.debug("Relocate shard [{}] from node [{}] to node [{}]", candidate, maxNode.getNodeId(),
-                                    minNode.getNodeId());
-                        /* now allocate on the cluster */
-                        minNode.addShard(routingNodes.relocateShard(candidate, minNode.getNodeId(), shardSize, allocation.changes()).v1());
+                    maxNode.removeShard(shard);
+                    long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+
+                    if (decision.type() == Type.YES) {
+                        /* only allocate on the cluster if we are not throttled */
+                        logger.debug("Relocate shard [{}] from node [{}] to node [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
+                        minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                         return true;
                     } else {
+                        /* allocate on the model even if throttled */
                         assert decision.type() == Type.THROTTLE;
-                        minNode.addShard(candidate.relocate(minNode.getNodeId(), shardSize));
+                        minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
+                        return false;
                     }
                 }
             }
-            if (logger.isTraceEnabled()) {
-                logger.trace("Couldn't find shard to relocate from node [{}] to node [{}] allocation decision [{}]",
-                    maxNode.getNodeId(), minNode.getNodeId(), decision == null ? "NO" : decision.type().name());
-            }
+            logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
         }
 

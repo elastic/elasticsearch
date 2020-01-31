@@ -76,8 +76,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      */
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 
-    BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format);
+    /**
+     * Build a sort implementation specialized for aggregations.
+     */
+    BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
+            Nested nested, SortOrder sortOrder, DocValueFormat format);
 
     /**
      * Clears any resources associated with this field data.

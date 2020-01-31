@@ -1111,11 +1111,13 @@ public final class InternalTestCluster extends TestCluster {
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
-            if (inFipsJvm()) {
-                builder.put("xpack.security.ssl.diagnose.trust", false);
-            }
+
             if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
-                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+                String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transportType);
+                if (inFipsJvm() && transportType.equals("security4")) {
+                    builder.put("xpack.security.ssl.diagnose.trust", false);
+                }
             } else {
                 builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
             }

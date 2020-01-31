@@ -116,6 +116,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         oldEsTestCase("es1.port", null);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51617")
     public void testEs090() throws IOException {
         oldEsTestCase("es090.port", null);
     }
@@ -128,6 +129,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         oldEsTestCase("es1.port", "11"); // 11 requests per second should give us a nice "funny" number on the scroll timeout
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51617")
     public void testEs090WithFunnyThrottle() throws IOException {
         oldEsTestCase("es090.port", "11"); // 11 requests per second should give us a nice "funny" number on the scroll timeout
     }

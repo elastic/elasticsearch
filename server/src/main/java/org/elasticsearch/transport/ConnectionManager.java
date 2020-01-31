@@ -57,11 +57,6 @@ public interface ConnectionManager extends Closeable {
         void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
     }
 
-    @FunctionalInterface
-    interface ConnectionIdentifier {
-        void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<DiscoveryNode> listener);
-    }
-
     final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();

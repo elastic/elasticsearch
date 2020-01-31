@@ -12,19 +12,59 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class CacheKeyTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createInstance(), this::copy, this::mutate);
     }
 
+    public void testBelongsTo() {
+        final CacheKey cacheKey = createInstance();
+
+        SnapshotId snapshotId = cacheKey.getSnapshotId();
+        IndexId indexId = cacheKey.getIndexId();
+        ShardId shardId = cacheKey.getShardId();
+
+        final boolean belongsTo;
+        switch (randomInt(2)) {
+            case 0:
+                snapshotId = randomValueOtherThan(cacheKey.getSnapshotId(), this::randomSnapshotId);
+                belongsTo = false;
+                break;
+            case 1:
+                indexId = randomValueOtherThan(cacheKey.getIndexId(), this::randomIndexId);
+                belongsTo = false;
+                break;
+            case 2:
+                shardId = randomValueOtherThan(cacheKey.getShardId(), this::randomShardId);
+                belongsTo = false;
+                break;
+            case 3:
+                belongsTo = true;
+                break;
+            default:
+                throw new AssertionError("Unsupported value");
+        }
+
+        assertThat(cacheKey.belongsTo(snapshotId, indexId, shardId), equalTo(belongsTo));
+    }
+
+    private SnapshotId randomSnapshotId() {
+        return new SnapshotId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
+    }
+
+    private IndexId randomIndexId() {
+        return new IndexId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
+    }
+
+    private ShardId randomShardId() {
+        return new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10), randomInt(5));
+    }
+
     private CacheKey createInstance() {
-        return new CacheKey(
-            new SnapshotId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
-            new IndexId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
-            new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10), randomInt(5)),
-            randomAlphaOfLengthBetween(5, 10)
-        );
+        return new CacheKey(randomSnapshotId(), randomIndexId(), randomShardId(), randomAlphaOfLengthBetween(5, 10));
     }
 
     private CacheKey copy(final CacheKey origin) {
@@ -51,21 +91,20 @@ public class CacheKeyTests extends ESTestCase {
 
         switch (randomInt(3)) {
             case 0:
-                snapshotId = new SnapshotId(randomAlphaOfLength(4), randomAlphaOfLength(4));
+                snapshotId = randomValueOtherThan(origin.getSnapshotId(), this::randomSnapshotId);
                 break;
             case 1:
-                indexId = new IndexId(randomAlphaOfLength(4), randomAlphaOfLength(4));
+                indexId = randomValueOtherThan(origin.getIndexId(), this::randomIndexId);
                 break;
             case 2:
-                shardId = new ShardId(randomAlphaOfLength(4), randomAlphaOfLength(4), randomIntBetween(6, 10));
+                shardId = randomValueOtherThan(origin.getShardId(), this::randomShardId);
                 break;
             case 3:
-                fileName = randomAlphaOfLength(15);
+                fileName = randomValueOtherThan(origin.getFileName(), () -> randomAlphaOfLengthBetween(5, 10));
                 break;
             default:
                 throw new AssertionError("Unsupported mutation");
         }
         return new CacheKey(snapshotId, indexId, shardId, fileName);
     }
-
 }

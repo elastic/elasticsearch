@@ -70,4 +70,10 @@ public class CacheKey {
             ", fileName='" + fileName + '\'' +
             ']';
     }
+
+    boolean belongsTo(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return Objects.equals(this.snapshotId, snapshotId)
+            && Objects.equals(this.indexId, indexId)
+            && Objects.equals(this.shardId, shardId);
+    }
 }

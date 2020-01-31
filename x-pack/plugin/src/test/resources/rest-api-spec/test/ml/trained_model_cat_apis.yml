@@ -90,11 +90,11 @@ setup:
 
   - do:
       cat.ml.trained_models:
-        h: id,license,df,ip
+        h: id,license,dfid,ip
         v: true
   - match:
       $body: |
-        /^  id                        \s+  license \s+ df           \s+ ip   \n
+        /^  id                        \s+  license \s+ dfid         \s+ ip   \n
            (a\-regression\-model\-0   \s+  \w+     \s+ __none__     \s+ \d+  \n)+
            (a\-regression\-model\-1   \s+  \w+     \s+ __none__     \s+ \d+  \n)+
            (lang_ident_model_1        \s+  \w+     \s+ prepackaged  \s+ \d+  \n)+  $/
@@ -102,9 +102,9 @@ setup:
   - do:
       cat.ml.trained_models:
         model_id: a-regression-model-1
-        h: id,license,df,ip
+        h: id,license,dfid,ip
         v: true
   - match:
       $body: |
-        /^  id                        \s+  license \s+ df           \s+ ip   \n
+        /^  id                        \s+  license \s+ dfid         \s+ ip   \n
            (a\-regression\-model\-1   \s+  \w+     \s+ __none__     \s+ \d+  \n)+ $/

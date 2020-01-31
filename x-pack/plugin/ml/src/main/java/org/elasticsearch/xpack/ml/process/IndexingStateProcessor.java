@@ -9,10 +9,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -22,6 +32,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 
 /**
@@ -88,7 +100,7 @@ public class IndexingStateProcessor implements StateProcessor {
             // Ignore completely empty chunks
             if (nextZeroByte > splitFrom) {
                 // No validation - assume the native process has formatted the state correctly
-                persist(bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
+                findAppropriateIndexAndPersist(bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
             }
             splitFrom = nextZeroByte + 1;
         }
@@ -98,11 +110,17 @@ public class IndexingStateProcessor implements StateProcessor {
         return bytesRef.slice(splitFrom, bytesRef.length() - splitFrom);
     }
 
-    void persist(BytesReference bytes) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexWriteAlias(), XContentType.JSON);
+    void findAppropriateIndexAndPersist(BytesReference bytes) throws IOException {
+        String stateDocId = extractDocId(bytes);
+        String indexOrAlias = getConcreteIndexOrWriteAlias(stateDocId);
+        persist(indexOrAlias, bytes);
+    }
+
+    void persist(String indexOrAlias, BytesReference bytes) throws IOException {
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
-            LOGGER.trace("[{}] Persisting job state document", jobId);
+            LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
             try {
                 resultsPersisterService.bulkIndexWithRetry(bulkRequest,
                     jobId,
@@ -117,12 +135,48 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     private static int findNextZeroByte(BytesReference bytesRef, int searchFrom, int splitFrom) {
-        for (int i = Math.max(searchFrom, splitFrom); i < bytesRef.length(); ++i) {
-            if (bytesRef.get(i) == 0) {
-                return i;
+        return bytesRef.indexOf((byte)0, Math.max(searchFrom, splitFrom));
+    }
+
+    @SuppressWarnings("unchecked")
+    static String extractDocId(BytesReference bytesRef) throws IOException {
+        int newLineMarkerIndex = bytesRef.indexOf((byte)'\n', 0);
+        String firstLine = newLineMarkerIndex != -1
+            ? bytesRef.slice(0, newLineMarkerIndex).utf8ToString()
+            : bytesRef.utf8ToString();
+        try (XContentParser parser =
+                 JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, firstLine)) {
+            Map<String, Object> map = parser.map();
+            if ((map.get("index") instanceof Map) == false) {
+                throw new IllegalStateException("Could not extract \"index\" field out of [" + firstLine + "]");
             }
+            map = (Map<String, Object>)map.get("index");
+            if ((map.get("_id") instanceof String) == false) {
+                throw new IllegalStateException("Could not extract \"index._id\" field out of [" + firstLine + "]");
+            }
+            return (String)map.get("_id");
         }
-        return -1;
+    }
+
+    private String getConcreteIndexOrWriteAlias(String documentId) {
+        Objects.requireNonNull(documentId);
+        SearchRequest searchRequest =
+            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .allowPartialSearchResults(false)
+                .source(
+                    new SearchSourceBuilder()
+                        .size(1)
+                        .trackTotalHits(false)
+                        .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(documentId))));
+        SearchResponse searchResponse =
+            resultsPersisterService.searchWithRetry(
+                searchRequest,
+                jobId,
+                () -> true,
+                (msg) -> auditor.warning(jobId, documentId + " " + msg));
+        return searchResponse.getHits().getHits().length > 0
+            ? searchResponse.getHits().getHits()[0].getIndex()
+            : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
     }
 }
 

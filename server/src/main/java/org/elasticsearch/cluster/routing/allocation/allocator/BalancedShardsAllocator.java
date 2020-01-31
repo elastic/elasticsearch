@@ -60,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -993,20 +994,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
                             minNode.getNodeId());
                 }
-                ShardRouting candidate = null;
                 final AllocationDeciders deciders = allocation.deciders();
-                final List<ShardRouting> shardRoutings = new ArrayList<>(index.numShards());
-                for (ShardRouting shard : index) {
-                    if (shard.started()) {
-                        // skip initializing, unassigned and relocating shards we can't relocate them anyway
-                        if (maxNode.containsShard(shard)) {
-                            shardRoutings.add(shard);
-                        }
-                    }
-                }
+                final Iterable<ShardRouting> shardRoutings = StreamSupport.stream(index.spliterator(), false)
+                    .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
+                    .filter(maxNode::containsShard)
+                    .sorted(BY_DESCENDING_SHARD_ID) // check in descending order of shard id so that the decision is deterministic
+                    ::iterator;
 
-                // look for a relocation candidate, in descending order of shard id so that the decision is deterministic
-                shardRoutings.sort(BY_DESCENDING_SHARD_ID);
+                ShardRouting candidate = null;
                 for (ShardRouting shard : shardRoutings) {
                     final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
                     if ((rebalanceDecision.type() != Type.YES) && (rebalanceDecision.type() != Type.THROTTLE)) {

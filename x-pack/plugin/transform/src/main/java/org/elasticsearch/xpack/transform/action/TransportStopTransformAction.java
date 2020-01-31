@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Respons
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -274,13 +273,10 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private ActionListener<Response> waitForStopListener(Request request, ActionListener<Response> listener) {
 
         ActionListener<Response> onStopListener = ActionListener.wrap(
-            waitResponse -> client.admin()
-                .indices()
-                .prepareRefresh(TransformInternalIndexConstants.LATEST_INDEX_NAME)
-                .execute(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
-                    logger.info("Failed to refresh internal index after delete", e);
-                    listener.onResponse(waitResponse);
-                })),
+            waitResponse -> transformConfigManager.refresh(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
+                logger.debug("Failed to refresh internal index after stop", e);
+                listener.onResponse(waitResponse);
+            })),
             listener::onFailure
         );
         return ActionListener.wrap(

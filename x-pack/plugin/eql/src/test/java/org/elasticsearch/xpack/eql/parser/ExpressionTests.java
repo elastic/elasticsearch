@@ -155,20 +155,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(new Or(null, lhs, rhs), booleanOr);
     }
 
-    /*
-    public void testWildcard() {
-        assertEquals(
-            expr("command_line == '* localgroup*'"),
-            expr("wildcard(command_line, '* localgroup*')")
-        );
-
-        assertEquals(
-            expr("command_line != '* localgroup*'"),
-            expr("not wildcard(command_line, '* localgroup*')")
-        );
-    }
-    */
-
     public void testInSet() {
         assertEquals(
             expr("name in ('net.exe')"),

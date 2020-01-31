@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.codecs.Codec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;

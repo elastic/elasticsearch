@@ -146,17 +146,7 @@ public class DockerUtils {
             throwDockerRequiredException(message);
         }
 
-        if (availability.version == null) {
-            final String message = String.format(
-                Locale.ROOT,
-                "Docker is required to run the following task%s, but it doesn't appear to be running: \n%s",
-                tasks.size() > 1 ? "s" : "",
-                String.join("\n", tasks)
-            );
-            throwDockerRequiredException(message);
-        }
-
-        if (availability.isVersionHighEnough == false) {
+        if (availability.lastCommand.isSuccess() && availability.isVersionHighEnough == false) {
             final String message = String.format(
                 Locale.ROOT,
                 "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
@@ -165,11 +155,19 @@ public class DockerUtils {
             throwDockerRequiredException(message);
         }
 
+        final String operation;
+        if (availability.version == null) {
+            operation = "getting docker version";
+        } else {
+            operation = "execute a privileged command";
+        }
+
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+            "a problem occurred while %s using Docker from [%s] yet it is required to run the following task%s: \n%s\n"
+                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
+            operation,
             availability.path,
             tasks.size() > 1 ? "s" : "",
             String.join("\n", tasks),
@@ -208,26 +206,14 @@ public class DockerUtils {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
 
-        try {
-            final ExecResult execResult = project.exec(spec -> {
-                // The redundant cast is to silence a compiler warning.
-                spec.setCommandLine((Object[]) args);
-                spec.setStandardOutput(stdout);
-                spec.setErrorOutput(stderr);
-            });
-            return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
-        } catch (GradleException ex) {
-            String error = stderr.toString().trim();
-            String output = stdout.toString().trim();
-            final String message = String.format(
-                Locale.ROOT,
-                "Error occurred running command [%s]:%s%s",
-                String.join(" ", args),
-                error.isEmpty() ? "" : "\n" + error,
-                output.isEmpty() ? "" : "\n" + output
-            );
-            throw new GradleException(message, ex);
-        }
+        final ExecResult execResult = project.exec(spec -> {
+            // The redundant cast is to silence a compiler warning.
+            spec.setCommandLine((Object[]) args);
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stderr);
+            spec.setIgnoreExitValue(true);
+        });
+        return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
     }
 
     /**

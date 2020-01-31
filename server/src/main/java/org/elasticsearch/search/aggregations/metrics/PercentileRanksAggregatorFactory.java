@@ -64,7 +64,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
 
                     // This should already have thrown but just in case
-                    throw new IllegalArgumentException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+                    throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
                 }
             }
         );
@@ -97,7 +97,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         // This should already have thrown but just in case
-        throw new IllegalArgumentException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+        throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
     }
 
     @Override

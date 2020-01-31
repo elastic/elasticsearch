@@ -106,38 +106,31 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
-
-    public void testSortByDoubleAscending() throws IOException {
-        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
+    
+    private InternalTopMetrics collectFromDoubles(TopMetricsAggregationBuilder builder) throws IOException {
+        return collect(builder, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
                     writer.addDocument(Arrays.asList(doubleField("s", 2.0), doubleField("m", 3.0)));
                 },
                 doubleFields());
+    }
+
+    public void testSortByDoubleAscending() throws IOException {
+        InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC)));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
         assertThat(result.getMetricValue(), equalTo(2.0d));
     }
 
     public void testSortByDoubleDescending() throws IOException {
-        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC));
-        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
-                    writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
-                    writer.addDocument(Arrays.asList(doubleField("s", 2.0), doubleField("m", 3.0)));
-                },
-                doubleFields());
+        InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC)));
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
         assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
         assertThat(result.getMetricValue(), equalTo(3.0d));
     }
 
     public void testSortByDoubleCastToLong() throws IOException {
-        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").setNumericType("long"));
-        InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
-                    writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
-                    writer.addDocument(Arrays.asList(doubleField("s", 2.0), doubleField("m", 3.0)));
-                },
-                doubleFields());
+        InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").setNumericType("long")));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getSortValue(), equalTo(SortValue.from(1)));
         assertThat(result.getMetricValue(), equalTo(2.0d));

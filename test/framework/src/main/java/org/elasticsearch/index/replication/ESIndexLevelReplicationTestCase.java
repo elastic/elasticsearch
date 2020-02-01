@@ -31,6 +31,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.MappingUpdatePerformer;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.bulk.TransportShardBulkActionNew;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
@@ -766,7 +767,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     private void executeShardBulkOnPrimary(IndexShard primary, BulkShardRequest request,
-        ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+        ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         for (BulkItemRequest itemRequest : request.items()) {
             if (itemRequest.request() instanceof IndexRequest) {
                 ((IndexRequest) itemRequest.request()).process(Version.CURRENT, null, index.getName());
@@ -776,12 +777,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
-            TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
-                null, ActionTestUtils.assertNoFailureListener(result -> {
-                    TransportWriteActionTestHelper.performPostWriteActions(primary, request,
-                        ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, logger);
-                    listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
-                }), threadPool);
+            TransportShardBulkActionNew.ShardOp shardOp = new TransportShardBulkActionNew.ShardOp(request, primary,
+                ActionTestUtils.assertNoFailureListener(listener::onResponse));
+            TransportShardBulkActionNew.performOnPrimary(shardOp, null, null, System::currentTimeMillis, noopMappingUpdater, null);
+            TransportWriteActionTestHelper.performPostWriteActions(primary, request, shardOp.locationToSync(), logger);
+            shardOp.getListener().onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
         }

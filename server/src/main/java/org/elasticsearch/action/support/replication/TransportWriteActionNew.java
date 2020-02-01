@@ -51,16 +51,16 @@ import java.util.concurrent.atomic.AtomicReference;
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
  * Allows performing async actions (e.g. refresh) after performing write operations on primary and replica shards
  */
-public abstract class TransportWriteAction<
+public abstract class TransportWriteActionNew<
             Request extends ReplicatedWriteRequest<Request>,
             ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
-                                   ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                   ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
+    protected TransportWriteActionNew(Settings settings, String actionName, TransportService transportService,
+                                      ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
+                                      ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
+                                      Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
               request, replicaRequest, executor, true, forceExecutionOnPrimary);
     }
@@ -249,7 +249,7 @@ public abstract class TransportWriteAction<
 
         AsyncAfterWriteAction(final IndexShard indexShard,
                              final WriteRequest<?> request,
-                             @Nullable final Translog.Location location,
+                             @Nullable final Location location,
                              final RespondingWriteResult respond,
                              final Logger logger) {
             this.indexShard = indexShard;

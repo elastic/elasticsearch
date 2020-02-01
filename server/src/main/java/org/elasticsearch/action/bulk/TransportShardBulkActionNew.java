@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -192,7 +191,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             public void onResponse(Void v) {
                 if (countDown.countDown()) {
                     WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = new WritePrimaryResult<>(context.getBulkShardRequest(),
-                        context.buildShardResponse(), context.getLocationToSync(), null, context.getPrimary(), logger);
+                        context.buildShardResponse(), context.getLocationToSync(), null, context.getPrimary());
                     result.finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
                 }
 
@@ -373,31 +372,6 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             }
             assert context.isInitial(); // either completed and moved to next or reset
         }
-
-
-        new ActionRunnable<>(null) {
-
-            @Override
-            protected void doRun() {
-                finishRequest();
-            }
-
-            @Override
-            public void onRejection(Exception e) {
-                onShardOperationFailure(shardOp, e);
-                finishRequest();
-            }
-
-            private void finishRequest() {
-
-
-                ActionListener.completeWith(listener,
-                    () -> new WritePrimaryResult<>(
-                        context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(), null,
-                        context.getPrimary(), logger));
-            }
-        }.run();
-
         return true;
 
 

@@ -126,15 +126,13 @@ public abstract class TransportWriteActionNew<
             Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
         public final Location location;
         public final IndexShard primary;
-        private final Logger logger;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
-                                  IndexShard primary, Logger logger) {
+                                  IndexShard primary) {
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
-            this.logger = logger;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
@@ -145,22 +143,7 @@ public abstract class TransportWriteActionNew<
             if (finalFailure != null) {
                 listener.onFailure(finalFailure);
             } else {
-                /*
-                 * We call this after replication because this might wait for a refresh and that can take a while.
-                 * This way we wait for the refresh in parallel on the primary and on the replica.
-                 */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
-                    @Override
-                    public void onSuccess(boolean forcedRefresh) {
-                        finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-                        listener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception ex) {
-                        listener.onFailure(ex);
-                    }
-                }, logger).run();
+                listener.onResponse(null);
             }
         }
     }

@@ -136,13 +136,13 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> shardQueue = new ConcurrentLinkedQueue<>();
 
-        private boolean attemptEnqueue(ShardOp shardOp) {
-            if (pendingOps.get() < MAX_QUEUED) {
+        private boolean attemptEnqueue(ShardOp shardOp, boolean allowReject) {
+            if (allowReject && pendingOps.get() >= MAX_QUEUED) {
+                return false;
+            } else {
                 pendingOps.incrementAndGet();
                 shardQueue.add(shardOp);
                 return true;
-            } else {
-                return false;
             }
         }
 
@@ -223,16 +223,18 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
                                            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ShardOp shardOp = new ShardOp(request, primary, listener);
-        enqueueAndSchedule(shardOp);
+        enqueueAndSchedule(shardOp, true);
     }
 
-    private void enqueueAndSchedule(ShardOp shardOp) {
+    private void enqueueAndSchedule(ShardOp shardOp, boolean allowReject) {
         ShardId shardId = shardOp.request.shardId();
         ShardQueue shardQueue = getOrCreateShardQueue(shardId);
-        if (shardQueue.attemptEnqueue(shardOp)) {
+        if (shardQueue.attemptEnqueue(shardOp, allowReject)) {
             try {
                 threadPool.executor(ThreadPool.Names.WRITE).execute(() -> performShardOperations(shardOp.indexShard));
             } catch (EsRejectedExecutionException e) {
+                // TODO: Currently if we are on a mapping callback, we need a way to handle this exception the existing implementation may
+                //  FSYNC on this thread!
                 if (shardQueue.remove(shardOp)) {
                     throw e;
                 }
@@ -271,7 +273,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                     opCompleted = false;
                 }
             } catch (Exception e) {
-                onShardOperationFailure(shardOp, e);
+                shardOp.getListener().onFailure(e);
             } finally {
                 if (opCompleted) {
                     completedOps.add(shardOp);
@@ -307,6 +309,10 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                 for (ShardOp op : completedOps) {
                     op.listener.onResponse(null);
                 }
+            }
+        } else {
+            for (ShardOp op : completedOps) {
+                op.listener.onResponse(null);
             }
         }
 
@@ -350,6 +356,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         return shardOpsToPerform;
     }
 
+    // TODO: Allow rejection after mapping logic
     private static void onShardOperationFailure(ShardOp shardOp, Exception e) {
         BulkPrimaryExecutionContext context = shardOp.context;
         while (context.hasMoreOperationsToExecute()) {
@@ -364,7 +371,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     private boolean performShardOperation(ShardOp shardOp) throws Exception {
         BulkShardRequest request = shardOp.request;
-        Runnable reschedule = () -> enqueueAndSchedule(shardOp);
+        Runnable reschedule = () -> enqueueAndSchedule(shardOp, false);
 
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         return performOnPrimary(shardOp, reschedule, updateHelper, threadPool::absoluteTimeInMillis,

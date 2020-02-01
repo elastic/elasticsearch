@@ -71,9 +71,17 @@ public class LoggingOutputStreamTests extends ESTestCase {
         assertTrue(loggingStream.lines.isEmpty());
     }
 
-    public void testFlushOnNewline() {
-        printStream.println("hello");
-        printStream.println("world");
+    // this test explicitly outputs the newlines instead of relying on println, to always test the unix behavior
+    public void testFlushOnUnixNewline() {
+        printStream.print("hello\n");
+        printStream.print("world\n");
+        assertThat(loggingStream.lines, contains("hello", "world"));
+    }
+
+    // this test explicitly outputs the newlines instead of relying on println, to always test the windows behavior
+    public void testFlushOnWindowsNewline() {
+        printStream.print("hello\r\n");
+        printStream.print("world\r\n");
         assertThat(loggingStream.lines, contains("hello", "world"));
     }
 

@@ -77,6 +77,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -121,10 +122,9 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     private ShardQueue getOrCreateShardQueue(ShardId shardId) {
         ShardQueue queue = shardQueues.get(shardId);
         if (queue == null) {
-            ShardQueue previous = shardQueues.putIfAbsent(shardId, new ShardQueue());
-            if (previous != null) {
-                queue = previous;
-            }
+            ShardQueue createdQueue = new ShardQueue();
+            ShardQueue previous = shardQueues.putIfAbsent(shardId, createdQueue);
+            queue = Objects.requireNonNullElse(previous, createdQueue);
         }
         return queue;
     }

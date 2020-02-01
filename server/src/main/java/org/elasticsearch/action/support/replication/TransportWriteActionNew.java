@@ -124,27 +124,9 @@ public abstract class TransportWriteActionNew<
      */
     public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
-        public final Location location;
-        public final IndexShard primary;
 
-        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
-                                  @Nullable Location location, @Nullable Exception operationFailure,
-                                  IndexShard primary) {
-            super(request, finalResponse, operationFailure);
-            this.location = location;
-            this.primary = primary;
-            assert location == null || operationFailure == null
-                    : "expected either failure to be null or translog location to be null, " +
-                    "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
-        }
-
-        @Override
-        public void runPostReplicationActions(ActionListener<Void> listener) {
-            if (finalFailure != null) {
-                listener.onFailure(finalFailure);
-            } else {
-                listener.onResponse(null);
-            }
+        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse) {
+            super(request, finalResponse, null);
         }
     }
 

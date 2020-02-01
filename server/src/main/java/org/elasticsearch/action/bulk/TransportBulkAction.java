@@ -92,7 +92,7 @@ import static java.util.Collections.emptyMap;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
- * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
+ * delegates to {@link TransportShardBulkActionNew} for shard-level bulk execution
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
@@ -490,7 +490,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+                client.executeLocally(TransportShardBulkActionNew.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
                         for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {

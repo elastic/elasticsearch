@@ -92,7 +92,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
 
-    private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportShardBulkActionNew.class);
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -103,7 +103,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                        MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, false);
+            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
@@ -131,7 +131,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     private static class ShardQueue {
 
-        private static final int MAX_QUEUED = 1000;
+        private static final int MAX_QUEUED = 800;
 
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> shardQueue = new ConcurrentLinkedQueue<>();
@@ -155,13 +155,13 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         }
     }
 
-    private static class ShardOp {
+    public static class ShardOp {
         private final BulkShardRequest request;
         private final IndexShard indexShard;
         private final BulkPrimaryExecutionContext context;
         private final ShardOpListener listener;
 
-        private ShardOp(BulkShardRequest request, IndexShard indexShard,
+        public ShardOp(BulkShardRequest request, IndexShard indexShard,
                         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
             this.request = request;
             this.indexShard = indexShard;
@@ -191,7 +191,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             public void onResponse(Void v) {
                 if (countDown.countDown()) {
                     WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = new WritePrimaryResult<>(context.getBulkShardRequest(),
-                        context.buildShardResponse(), context.getLocationToSync(), null, context.getPrimary());
+                        context.buildShardResponse());
                     result.finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
                 }
 
@@ -330,7 +330,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         Runnable reschedule = () -> enqueueAndSchedule(shardOp);
 
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        return newPerformOnPrimary(shardOp, reschedule, updateHelper, threadPool::absoluteTimeInMillis,
+        return performOnPrimary(shardOp, reschedule, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, mappingListener) -> {
                 assert update != null;
                 assert shardId != null;
@@ -354,7 +354,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
             }));
     }
 
-    public static boolean newPerformOnPrimary(
+    public static boolean performOnPrimary(
         ShardOp shardOp,
         Runnable reschedule,
         UpdateHelper updateHelper,
@@ -364,7 +364,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
         BulkPrimaryExecutionContext context = shardOp.context;
         while (context.hasMoreOperationsToExecute()) {
-            if (newExecuteBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
+            if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
                 reschedule) == false) {
                 // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                 // so we just break out here.
@@ -383,12 +383,10 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
      * a mapping update that will finish and invoke the listener on a different thread
      */
-    static boolean newExecuteBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper,
-                                             LongSupplier nowInMillisSupplier, MappingUpdatePerformer mappingUpdater,
-                                             Consumer<ActionListener<Void>> waitForMappingUpdate, Runnable rescheduler)
+    static boolean executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper,
+                                          LongSupplier nowInMillisSupplier, MappingUpdatePerformer mappingUpdater,
+                                          Consumer<ActionListener<Void>> waitForMappingUpdate, Runnable rescheduler)
         throws Exception {
-        // TODO: ItemDoneListener is more of a rescheduler
-
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         final UpdateHelper.Result updateResult;
@@ -582,6 +580,12 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
 
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        final Translog.Location location = performOnReplica(request, replica);
+        return new WriteReplicaResult<>(request, location, null, replica, logger);
+    }
+
+    public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica,
+                                                                        ActionListener<ReplicaResult> listener) throws Exception {
         final Translog.Location location = performOnReplica(request, replica);
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }

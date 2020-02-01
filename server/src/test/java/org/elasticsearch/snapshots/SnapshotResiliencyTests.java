@@ -66,7 +66,7 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.bulk.TransportShardBulkActionNew;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -1335,10 +1335,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         client, actionFilters, indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
                     ));
-                final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                final TransportShardBulkActionNew transportShardBulkAction = new TransportShardBulkActionNew(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
                     actionFilters);
-                actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
+                actions.put(TransportShardBulkActionNew.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
                     metaDataCreateIndexService,

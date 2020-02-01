@@ -96,7 +96,7 @@ public class GrammarTests extends ESTestCase {
                 if (line.isEmpty() == false && line.startsWith("//") == false) {
                     query.append(line);
 
-                    if (line.endsWith(";") == true) {
+                    if (line.endsWith(";")) {
                         query.setLength(query.length() - 1);
                         queries.add(new Tuple<>(query.toString(), lineNumber));
                         query.setLength(0);

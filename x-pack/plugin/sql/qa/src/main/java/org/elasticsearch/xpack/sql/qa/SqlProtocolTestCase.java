@@ -141,7 +141,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         Map<String, Object> map;
         boolean isBinaryResponse = mode != Mode.PLAIN;
         Response response = client().performRequest(request);
-        if (isBinaryResponse == true) {
+        if (isBinaryResponse) {
             map = XContentHelper.convertToMap(CborXContent.cborXContent, response.getEntity().getContent(), false);
         } else {
             map = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
@@ -154,7 +154,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(4, row.size());
         
-        if (isBinaryResponse == true) {
+        if (isBinaryResponse) {
             assertTrue(row.get(0) instanceof Float);
             assertEquals(row.get(0), 1234.34f);
             assertTrue(row.get(1) instanceof Float);
@@ -202,7 +202,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(2, column.size());
         }
         
-        List<Object> rows = (ArrayList<Object>) response.get(columnar == true ? "values" : "rows");
+        List<Object> rows = (ArrayList<Object>) response.get(columnar ? "values" : "rows");
         assertEquals(1, rows.size());
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(1, row.size());
@@ -257,7 +257,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             // set it explicitly or leave the default (null) as is
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
-            binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication == true);
+            binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication);
         } else {
             binaryCommunication = Mode.isDriver(m) || m == Mode.CLI;
         }
@@ -276,7 +276,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
-            if (binaryCommunication == true) {
+            if (binaryCommunication) {
                 return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
             }
             switch(format) {

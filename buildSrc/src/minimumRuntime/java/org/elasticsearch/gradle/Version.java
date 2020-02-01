@@ -60,7 +60,7 @@ public final class Version implements Comparable<Version> {
         Objects.requireNonNull(s);
         Matcher matcher = mode == Mode.STRICT ? pattern.matcher(s) : relaxedPattern.matcher(s);
         if (matcher.matches() == false) {
-            String expected = mode == Mode.STRICT == true
+            String expected = mode == Mode.STRICT
                 ? "major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
                 : "major.minor.revision[-extra]";
             throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);

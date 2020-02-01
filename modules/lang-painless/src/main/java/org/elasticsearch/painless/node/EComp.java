@@ -20,9 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -30,7 +30,6 @@ import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a comparison expression.
@@ -49,12 +48,6 @@ public final class EComp extends AExpression {
         this.operation = Objects.requireNonNull(operation);
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
     }
 
     @Override

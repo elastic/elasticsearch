@@ -244,7 +244,11 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                 // TODO: Currently if we are on a mapping callback, we need a way to handle this exception the existing implementation may
                 //  FSYNC on this thread!
                 if (shardQueue.remove(shardOp)) {
-                    throw e;
+                    if (allowReject) {
+                        throw e;
+                    } else {
+                        shardOp.getListener().onFailure(e);
+                    }
                 }
             }
         } else {

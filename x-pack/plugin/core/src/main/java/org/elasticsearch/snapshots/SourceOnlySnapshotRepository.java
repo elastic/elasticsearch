@@ -147,11 +147,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
-            snapshot.syncSnapshot(snapshotIndexCommit);
+            final List<String> newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
-            final long maxDoc = segmentInfos.totalMaxDoc();
-            tempStore.bootstrapNewHistory(maxDoc, maxDoc);
+            if (newFiles.isEmpty() == false) {
+                final long maxDoc = segmentInfos.totalMaxDoc();
+                tempStore.bootstrapNewHistory(maxDoc, maxDoc);
+            }
             store.incRef();
             toClose.add(1, store::decRef);
             DirectoryReader reader = DirectoryReader.open(tempStore.directory(),

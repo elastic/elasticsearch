@@ -147,11 +147,19 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         }
 
         private ShardOp poll() {
-            return shardQueue.poll();
+            ShardOp operation = shardQueue.poll();
+            if (operation != null) {
+                pendingOps.getAndDecrement();
+            }
+            return operation;
         }
 
         private boolean remove(ShardOp shardOp) {
-            return shardQueue.remove(shardOp);
+            boolean removed = shardQueue.remove(shardOp);
+            if (removed) {
+                pendingOps.getAndDecrement();
+            }
+            return removed;
         }
     }
 

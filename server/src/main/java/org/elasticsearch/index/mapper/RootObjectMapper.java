@@ -168,6 +168,9 @@ public class RootObjectMapper extends ObjectMapper {
                       }
                   ]
                 */
+                if (!(fieldNode instanceof List)) {
+                    throw new MapperParsingException("Dynamic template syntax error");
+                }
                 List<?> tmplNodes = (List<?>) fieldNode;
                 List<DynamicTemplate> templates = new ArrayList<>();
                 for (Object tmplNode : tmplNodes) {

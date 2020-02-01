@@ -9,7 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -17,9 +19,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public class RegressionConfig implements InferenceConfig {
 
-    public static final String NAME = "regression";
+    public static final ParseField NAME = new ParseField("regression");
     private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
     public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     private static final String DEFAULT_RESULTS_FIELD = "predicted_value";
@@ -33,6 +37,17 @@ public class RegressionConfig implements InferenceConfig {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
         return new RegressionConfig(resultsField);
+    }
+
+    private static final ConstructingObjectParser<RegressionConfig, Void> PARSER =
+            new ConstructingObjectParser<>(NAME.getPreferredName(), args -> new RegressionConfig((String) args[0]));
+
+    static {
+        PARSER.declareString(optionalConstructorArg(), RESULTS_FIELD);
+    }
+
+    public static RegressionConfig fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     private final String resultsField;
@@ -51,7 +66,7 @@ public class RegressionConfig implements InferenceConfig {
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return NAME.getPreferredName();
     }
 
     @Override
@@ -61,7 +76,7 @@ public class RegressionConfig implements InferenceConfig {
 
     @Override
     public String getName() {
-        return NAME;
+        return NAME.getPreferredName();
     }
 
     @Override

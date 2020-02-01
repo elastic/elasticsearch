@@ -1,83 +1,5 @@
 ---
-"Translog retention without soft_deletes":
-  - skip:
-      version:  " - 7.5.99"
-      reason:   "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            soft_deletes.enabled: false
-      warnings:
-        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
-          Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
-  - do:
-      cluster.health:
-        wait_for_no_initializing_shards: true
-        wait_for_events: languid
-  - do:
-      indices.stats:
-        metric: [ translog ]
-  - set: { indices.test.primaries.translog.size_in_bytes: creation_size }
-
-  - do:
-      index:
-        index: test
-        id:    1
-        body:  { "foo": "bar" }
-
-  - do:
-      indices.stats:
-        metric: [ translog ]
-  - gt: { indices.test.primaries.translog.size_in_bytes: $creation_size }
-  - match: { indices.test.primaries.translog.operations: 1 }
-# we can't check this yet as creation size will contain two empty translog generations. A single
-# non empty generation with one op may be smaller or larger than that.
-#  - gt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
-  - match: { indices.test.primaries.translog.uncommitted_operations: 1 }
-
-  - do:
-      indices.flush:
-        index: test
-
-  - do:
-      indices.stats:
-        metric: [ translog ]
-  - gt: { indices.test.primaries.translog.size_in_bytes: $creation_size }
-  - match: { indices.test.primaries.translog.operations: 1 }
-  ## creation translog size has some overhead due to an initial empty generation that will be trimmed later
-  - lt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
-  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
-
-  - do:
-      indices.put_settings:
-        index: test
-        body:
-          index.translog.retention.size: -1
-          index.translog.retention.age: -1
-
-  - do:
-      indices.flush:
-        index: test
-        force: true # force flush as we don't have pending ops
-
-  - do:
-      indices.stats:
-        metric: [ translog ]
-  ## creation translog size has some overhead due to an initial empty generation that will be trimmed later
-  - lte: { indices.test.primaries.translog.size_in_bytes: $creation_size }
-  - match: { indices.test.primaries.translog.operations: 0 }
-  - lte: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
-  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
-
----
-"Translog retention with soft_deletes":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "start ignoring translog retention policy with soft-deletes enabled in 7.4"
+"Translog retention":
   - do:
       indices.create:
         index: test
@@ -122,6 +44,28 @@
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
 
 ---
+"Translog retention settings are no long supported":
+  - skip:
+      version: " - 7.9.99"
+      reason: "translog retention settings are no longer supported in 8.0"
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.translog.retention.size: 128mb
+  - do:
+      indices.create:
+        index: test
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_settings:
+        index: test
+        body:
+          index.translog.retention.age: 1h
+
+---
 "Translog last modified age stats":
 
   - do:
@@ -136,69 +80,7 @@
   - gte: { indices.test.primaries.translog.earliest_last_modified_age: 0 }
 
 ---
-"Translog stats on closed indices without soft-deletes":
-  - skip:
-      version: " - 7.5.99"
-      reason:  "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            soft_deletes.enabled: false
-      warnings:
-        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
-          Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
-
-  - do:
-      cluster.health:
-        wait_for_no_initializing_shards: true
-        wait_for_events: languid
-  - do:
-      index:
-        index: test
-        id:    1
-        body:  { "foo": "bar" }
-
-  - do:
-      index:
-        index: test
-        id:    2
-        body:  { "foo": "bar" }
-
-  - do:
-      index:
-        index: test
-        id:    3
-        body:  { "foo": "bar" }
-
-  - do:
-      indices.stats:
-        metric: [ translog ]
-  - match: { indices.test.primaries.translog.operations: 3 }
-  - match: { indices.test.primaries.translog.uncommitted_operations: 3 }
-
-  - do:
-      indices.close:
-        index: test
-        wait_for_active_shards: 1
-  - is_true: acknowledged
-
-  - do:
-      indices.stats:
-        metric: [ translog ]
-        expand_wildcards: all
-        forbid_closed_indices: false
-  - match: { indices.test.primaries.translog.operations: 3 }
-  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
-
----
-"Translog stats on closed indices with soft-deletes":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "start ignoring translog retention policy with soft-deletes enabled in 7.4"
+"Translog stats on closed indices":
   - do:
       indices.create:
         index: test

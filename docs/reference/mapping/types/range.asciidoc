@@ -207,11 +207,6 @@ The following parameters are accepted by range types:
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
-
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) and `false`.

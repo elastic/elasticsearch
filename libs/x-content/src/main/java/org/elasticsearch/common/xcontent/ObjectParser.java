@@ -27,8 +27,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -140,8 +142,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             try {
                 o = parser.namedObject(categoryClass, field, context);
             } catch (NamedObjectNotFoundException e) {
-                // TODO It'd be lovely if we could the options here but we don't have the right stuff plumbed through. We'll get to it!
-                throw new XContentParseException(location, "[" + objectParser.name  + "] " + e.getBareMessage(), e);
+                Set<String> candidates = new HashSet<>(objectParser.fieldParserMap.keySet());
+                e.getCandidates().forEach(candidates::add);
+                String message = ErrorOnUnknown.IMPLEMENTATION.errorMessage(objectParser.name, field, candidates);
+                throw new XContentParseException(location, message, e);
             }
             consumer.accept(value, o);
         };

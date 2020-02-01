@@ -295,8 +295,8 @@ import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusAction;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusActionDeprecated;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -630,8 +630,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestFlushAction(restController));
         registerHandler.accept(new RestSyncedFlushAction(restController));
         registerHandler.accept(new RestForceMergeAction(restController));
-        registerHandler.accept(new RestUpgradeAction(restController));
-        registerHandler.accept(new RestUpgradeStatusAction(restController));
+        registerHandler.accept(new RestUpgradeActionDeprecated(restController));
+        registerHandler.accept(new RestUpgradeStatusActionDeprecated(restController));
         registerHandler.accept(new RestClearIndicesCacheAction(restController));
 
         registerHandler.accept(new RestIndexAction(restController, clusterService));

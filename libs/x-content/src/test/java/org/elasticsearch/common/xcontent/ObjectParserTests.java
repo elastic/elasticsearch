@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -803,7 +804,9 @@ public class ObjectParserTests extends ESTestCase {
         {
             XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
             XContentParseException ex = expectThrows(XContentParseException.class, () -> TopLevelNamedXConent.PARSER.parse(parser, null));
-            assertEquals("[1:2] [test] unable to parse Object with name [not_supported_field]: parser not found", ex.getMessage());
+            assertEquals("[1:2] [test] unknown field [not_supported_field]", ex.getMessage());
+            NamedObjectNotFoundException cause = (NamedObjectNotFoundException) ex.getCause();
+            assertThat(cause.getCandidates(), containsInAnyOrder("str", "int", "float", "bool"));
         }
     }
 

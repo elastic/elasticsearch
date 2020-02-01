@@ -19,10 +19,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -42,7 +42,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         return createRandom();
     }
 
-    public static Regression createRandom() {
+    private static Regression createRandom() {
         String dependentVariableName = randomAlphaOfLength(10);
         BoostedTreeParams boostedTreeParams = BoostedTreeParamsTests.createRandom();
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
@@ -106,11 +106,13 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public void testFieldCardinalityLimitsIsEmpty() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(anEmptyMap()));
+        assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
     }
 
-    public void testFieldMappingsToCopyIsNonEmpty() {
-        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
+    public void testGetExplicitlyMappedFields() {
+        assertThat(
+            new Regression("foo").getExplicitlyMappedFields(null, "results"),
+            hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
     }
 
     public void testGetStateDocId() {

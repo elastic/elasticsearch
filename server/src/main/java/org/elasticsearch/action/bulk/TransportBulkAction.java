@@ -307,7 +307,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             } else if (indexRequest.index() != null) {
                 // the index does not exist yet (and this is a valid request), so match index templates to look for pipelines
-                List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
+                List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index(), null);
                 assert (templates != null);
                 // order of templates are highest order first
                 for (final IndexTemplateMetaData template : templates) {

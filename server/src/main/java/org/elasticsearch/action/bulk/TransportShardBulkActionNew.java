@@ -248,6 +248,9 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         ShardId shardId = indexShard.shardId();
         ShardQueue shardQueue = shardQueues.get(shardId);
         ArrayList<ShardOp> shardOpsToPerform = pollOps(shardQueue);
+        if (shardOpsToPerform.isEmpty()) {
+            return;
+        }
 
         ArrayList<ShardOp> completedOps = new ArrayList<>(shardOpsToPerform.size());
         ArrayList<ShardOp> completedOpsWaitForRefresh = new ArrayList<>(0);
@@ -279,6 +282,10 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                     }
                 }
             }
+        }
+
+        if (completedOps.isEmpty()) {
+            return;
         }
 
         boolean needsFsync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST;
@@ -325,7 +332,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
     }
 
     private ArrayList<ShardOp> pollOps(ShardQueue shardQueue) {
-        ArrayList<ShardOp> shardOpsToPerform = new ArrayList<>(MAX_PERFORM_OPS);
+        ArrayList<ShardOp> shardOpsToPerform = new ArrayList<>(Math.min(MAX_PERFORM_OPS, shardQueue.pendingOps.get()));
         int i = 0;
         ShardOp polledOp;
         while (++i <= MAX_PERFORM_OPS && (polledOp = shardQueue.poll()) != null) {

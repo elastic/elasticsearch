@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfElseNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.singleton;
 
@@ -46,19 +45,6 @@ public final class SIfElse extends AStatement {
         this.condition = Objects.requireNonNull(condition);
         this.ifblock = ifblock;
         this.elseblock = elseblock;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
-        }
-
-        if (elseblock != null) {
-            elseblock.extractVariables(variables);
-        }
     }
 
     @Override

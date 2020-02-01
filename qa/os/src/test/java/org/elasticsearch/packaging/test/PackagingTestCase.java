@@ -328,7 +328,7 @@ public abstract class PackagingTestCase extends Assert {
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout, containsString(expectedMessage));
 
-        } else if (Platforms.WINDOWS == true) {
+        } else if (Platforms.WINDOWS) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background

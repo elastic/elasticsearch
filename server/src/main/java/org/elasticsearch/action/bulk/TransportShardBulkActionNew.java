@@ -287,39 +287,48 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         if (completedOps.isEmpty()) {
             return;
         }
-
-        boolean needsFsync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST;
-
         indexShard.afterWriteOperation();
 
-        if (needsFsync) {
-            indexShard.sync(maxLocation, (ex) -> {
-                if (ex == null) {
-                    for (ShardOp op : completedOps) {
-                        op.listener.onResponse(null);
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
+            if (maxLocation != null) {
+                indexShard.sync(maxLocation, (ex) -> {
+                    if (ex == null) {
+                        for (ShardOp op : completedOps) {
+                            op.listener.onResponse(null);
+                        }
+                    } else {
+                        for (ShardOp op : completedOps) {
+                            // TODO: Check if this is okay
+                            op.listener.onFailure(ex);
+                        }
                     }
-                } else {
-                    for (ShardOp op : completedOps) {
-                        // TODO: Check if this is okay
-                        op.listener.onFailure(ex);
-                    }
+                });
+            } else {
+                for (ShardOp op : completedOps) {
+                    op.listener.onResponse(null);
                 }
-            });
+            }
         }
 
         AtomicBoolean refreshed = new AtomicBoolean(false);
         if (completedOpsWaitForRefresh.isEmpty() == false) {
-            indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
-                if (forcedRefresh) {
-                    logger.warn("block until refresh ran out of slots and forced a refresh");
-                }
+            if (maxLocation != null) {
+                indexShard.addRefreshListener(maxLocation, forcedRefresh -> {
+                    if (forcedRefresh) {
+                        logger.warn("block until refresh ran out of slots and forced a refresh");
+                    }
 
-                refreshed.set(forcedRefresh);
+                    refreshed.set(forcedRefresh);
+                    for (ShardOp op : completedOpsWaitForRefresh) {
+                        op.listener.setForcedRefresh(forcedRefresh);
+                        op.listener.onResponse(null);
+                    }
+                });
+            } else {
                 for (ShardOp op : completedOpsWaitForRefresh) {
-                    op.listener.setForcedRefresh(forcedRefresh);
                     op.listener.onResponse(null);
                 }
-            });
+            }
         }
 
         if (refreshed.get() == false && completedOpsForceRefresh.isEmpty() == false) {

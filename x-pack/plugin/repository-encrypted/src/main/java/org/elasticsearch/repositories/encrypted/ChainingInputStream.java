@@ -73,6 +73,45 @@ public abstract class ChainingInputStream extends InputStream {
     private boolean closed;
 
     /**
+     * Returns a new {@link ChainingInputStream} that concatenates the bytes to be read from the first
+     * input stream with the bytes from the second input stream.
+     *
+     * @param first the input stream supplying the first bytes of the returned {@link ChainingInputStream}
+     * @param second the input stream supplying the bytes after the {@code first} input stream has been exhausted (and closed)
+     * @param markSupported whether the returned {@link ChainingInputStream} supports mark and reset
+     */
+    public static InputStream chain(InputStream first, InputStream second, boolean markSupported) {
+        Objects.requireNonNull(first);
+        Objects.requireNonNull(second);
+        if (markSupported && false == first.markSupported()) {
+            throw new IllegalArgumentException("The first input stream does not support mark");
+        }
+        if (markSupported && false == second.markSupported()) {
+            throw new IllegalArgumentException("The second input stream does not support mark");
+        }
+        return new ChainingInputStream() {
+
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) {
+                if (currentComponentIn == null) {
+                    return first;
+                } else if (currentComponentIn == first) {
+                    return second;
+                } else if (currentComponentIn == second){
+                    return null;
+                } else {
+                    throw new IllegalStateException("Unexpected component input stream");
+                }
+            }
+
+            @Override
+            public boolean markSupported() {
+                return markSupported;
+            }
+        };
+    }
+
+    /**
      * This method is responsible for generating the component input streams.
      * It is passed the current input stream and must return the successive one,
      * or {@code null} if the current component is the last one.

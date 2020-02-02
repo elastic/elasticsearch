@@ -155,6 +155,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
 
+    public static final String CONTEXT_MODE_API = XContentContext.API.toString();
+
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);

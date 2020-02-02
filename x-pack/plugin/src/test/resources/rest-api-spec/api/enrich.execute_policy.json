@@ -1,6 +1,8 @@
 {
   "enrich.execute_policy": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-execute-policy.html",
+    "documentation": {
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/execute-enrich-policy-api.html"
+    },
     "stability" : "stable",
     "url": {
       "paths": [

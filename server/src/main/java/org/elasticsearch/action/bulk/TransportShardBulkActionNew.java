@@ -278,7 +278,7 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
                     Translog.Location location = shardOp.context.getLocationToSync();
                     if (maxLocation == null) {
                         maxLocation = location;
-                    } else if (location.compareTo(maxLocation) > 0) {
+                    } else if (location != null && location.compareTo(maxLocation) > 0) {
                         maxLocation = location;
                     }
                 } else {

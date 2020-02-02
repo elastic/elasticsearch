@@ -67,16 +67,15 @@ public class SourceOnlySnapshot {
     }
 
     public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
-        long generation;
         Map<BytesRef, SegmentCommitInfo> existingSegments = new HashMap<>();
+        final SegmentInfos existingSegmentInfos;
         if (Lucene.indexExists(targetDirectory)) {
-            SegmentInfos existingsSegmentInfos = Lucene.readSegmentInfos(targetDirectory);
-            for (SegmentCommitInfo info : existingsSegmentInfos) {
+            existingSegmentInfos = Lucene.readSegmentInfos(targetDirectory);
+            for (SegmentCommitInfo info : existingSegmentInfos) {
                 existingSegments.put(new BytesRef(info.info.getId()), info);
             }
-            generation = existingsSegmentInfos.getGeneration();
         } else {
-            generation = 1;
+            existingSegmentInfos = null;
         }
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
@@ -95,8 +94,17 @@ public class SourceOnlySnapshot {
                     newInfos.add(newInfo);
                 }
             }
+            if (existingSegmentInfos != null && newInfos.equals(existingSegmentInfos.asList())) {
+                return Collections.emptyList();
+            }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
+            final long generation;
+            if (existingSegmentInfos == null) {
+                generation = 1;
+            } else {
+                generation = existingSegmentInfos.getGeneration();
+            }
             segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());

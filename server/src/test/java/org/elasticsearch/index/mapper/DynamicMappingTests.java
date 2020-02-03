@@ -607,7 +607,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                     .startObject()
-                        .startObject("dates")
+                        .startObject("dates_with_explicit_format")
                             .field("match_mapping_type", "date")
                             .field("match", "*3")
                             .startObject("mapping")

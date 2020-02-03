@@ -21,7 +21,7 @@ EQL queries require an event type and a matching condition. The `where` keyword 
 event_type where condition
 ----
 
-For example, the following EQL query matches `process` events with a `name`
+For example, the following EQL query matches `process` events with a `process.name`
 field value of `svchost.exe`:
 
 [source,eql]

@@ -180,7 +180,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             boolean realtime = randomBoolean();
             getRequest.realtime(realtime);
-            if (!realtime) {
+            if (realtime == false) {
                 expectedParams.put("realtime", "false");
             }
         }
@@ -218,7 +218,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             boolean realtime = randomBoolean();
             getRequest.realtime(realtime);
-            if (!realtime) {
+            if (realtime == false) {
                 expectedParams.put("realtime", "false");
             }
         }

@@ -190,7 +190,7 @@ setup:
         body:
           "size": 1
           "track_total_hits": 1
-          "sort": [{ "timestamp": "desc"}]
+          "sort": [{ "created_at": "desc"}]
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
@@ -199,7 +199,7 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: "gte" }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id:    "3" }
+  - match: { hits.hits.0._id: "3" }
 
   # same with aggs
   - do:
@@ -210,15 +210,15 @@ setup:
         body:
           "size": 1
           "track_total_hits": 1
-          "sort": [{ "timestamp": "desc"}]
+          "sort": [{ "created_at": "desc"}]
           "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } }
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
-  - match: { _shards.skipped: 2 }
+  - match: { _shards.skipped: 0 }
   - match: { _shards.failed: 0 }
-  - match: { hits.total.value: 3 }
-  - length: { hits.hits: 1 }
+  - match: { hits.total.value: 1 }
   - match: { hits.total.relation: "gte" }
-  - match: {hits.hits.0._id:    "1" }
+  - length: { hits.hits: 1 }
+  - match: {hits.hits.0._id: "3" }
   - length: { aggregations.idx_terms.buckets: 3 }

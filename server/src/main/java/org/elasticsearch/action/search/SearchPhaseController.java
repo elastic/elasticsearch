@@ -588,8 +588,8 @@ public final class SearchPhaseController {
         private final SearchProgressListener progressListener;
         private int numReducePhases = 0;
         private final TopDocsStats topDocsStats;
-        private final boolean performFinalReduce;
         private final int topNSize;
+        private final boolean performFinalReduce;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}

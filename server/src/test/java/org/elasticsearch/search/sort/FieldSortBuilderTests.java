@@ -27,12 +27,14 @@ import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -90,6 +92,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             "_first",
             Integer.toString(randomInt()),
             randomInt());
+
+
 
 
     public FieldSortBuilder randomFieldSortBuilder() {
@@ -567,11 +571,45 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     public void testIsBottomSortDisjoint() throws Exception {
-        QueryShardContext context = createMockShardContext();
-        assertFalse(isBottomSortDisjoint(context, null, null));
-        assertFalse(isBottomSortDisjoint(context, new SearchSourceBuilder(), null));
-        assertFalse(isBottomSortDisjoint(context,
-            new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")), null));
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(10, 30);
+            long maxValue = Long.MIN_VALUE;
+            long minValue = Long.MAX_VALUE;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, new KeywordAnalyzer())) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    long value = randomLongBetween(1, Long.MAX_VALUE-1);
+                    doc.add(new LongPoint("custom-date", value));
+                    doc.add(new SortedNumericDocValuesField("custom-date", value));
+                    writer.addDocument(doc);
+                    maxValue = Math.max(maxValue, value);
+                    minValue = Math.min(minValue, value);
+                }
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
+                    assertFalse(isBottomSortDisjoint(context, null, null));
+                    assertFalse(isBottomSortDisjoint(context, new SearchSourceBuilder(), null));
+                    assertFalse(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder().sort(SortBuilders.fieldSort("custom-date")), null));
+                    assertFalse(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder().sort(SortBuilders.fieldSort("custom-date")), new Object[]{minValue}));
+                    assertTrue(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder().sort(SortBuilders.fieldSort("custom-date")), new Object[]{minValue-1}));
+                    assertTrue(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder()
+                            .sort(SortBuilders.fieldSort("custom-date").order(SortOrder.DESC)), new Object[]{maxValue+1}));
+                    assertFalse(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder()
+                            .sort(SortBuilders.fieldSort("custom-date").order(SortOrder.DESC)), new Object[]{maxValue}));
+                    assertFalse(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder()
+                            .sort(SortBuilders.fieldSort("custom-date").order(SortOrder.DESC)), new Object[]{minValue}));
+                    assertFalse(isBottomSortDisjoint(context,
+                        new SearchSourceBuilder()
+                            .sort(SortBuilders.fieldSort("custom-date")), new Object[]{maxValue+1}));
+                }
+            }
+        }
     }
 
     @Override

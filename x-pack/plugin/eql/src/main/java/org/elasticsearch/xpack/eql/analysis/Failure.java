@@ -32,7 +32,7 @@ class Failure {
 
     @Override
     public int hashCode() {
-        return Objects.hash(node);
+        return Objects.hash(message, node);
     }
 
     @Override
@@ -46,7 +46,7 @@ class Failure {
         }
 
         Failure other = (Failure) obj;
-        return Objects.equals(node, other.node);
+        return Objects.equals(message, other.message) && Objects.equals(node, other.node);
     }
 
     @Override

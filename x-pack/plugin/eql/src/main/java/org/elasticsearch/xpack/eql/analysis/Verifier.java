@@ -66,7 +66,7 @@ public class Verifier {
                             return;
                         }
                         if (ae instanceof Unresolvable) {
-                            // handle Attributes different to provide more context
+                            // handle Attributes differently to provide more context
                             if (ae instanceof UnresolvedAttribute) {
                                 UnresolvedAttribute ua = (UnresolvedAttribute) ae;
                                 // only work out the synonyms for raw unresolved attributes

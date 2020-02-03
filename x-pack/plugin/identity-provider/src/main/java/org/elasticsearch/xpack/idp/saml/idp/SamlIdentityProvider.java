@@ -7,7 +7,10 @@
 package org.elasticsearch.xpack.idp.saml.idp;
 
 
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.opensaml.security.x509.X509Credential;
+
+import java.util.Map;
 
 /**
  * SAML 2.0 configuration information about this IdP
@@ -21,4 +24,6 @@ public interface SamlIdentityProvider {
     String getSingleLogoutEndpoint(String binding);
 
     X509Credential getSigningCredential();
+
+    Map<String, SamlServiceProvider> getRegisteredServiceProviders();
 }

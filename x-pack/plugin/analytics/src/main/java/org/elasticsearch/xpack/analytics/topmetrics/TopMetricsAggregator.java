@@ -75,7 +75,7 @@ class TopMetricsAggregator extends MetricsAggregator {
         // TODO allow configuration of value mode
         NumericDoubleValues metricValues = MultiValueMode.AVG.select(metricValueSource.doubleValues(ctx));
 
-        return new LeafBucketCollector() { // TODO do we need to extend *Base*? It doesn't look like we use it.
+        return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (leafSort.collectIfCompetitive(doc, bucket)) {

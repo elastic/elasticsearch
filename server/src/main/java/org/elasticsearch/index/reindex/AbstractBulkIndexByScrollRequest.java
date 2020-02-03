@@ -53,6 +53,11 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
         super(searchRequest, setDefaults);
     }
 
+    protected AbstractBulkIndexByScrollRequest(AbstractBulkIndexByScrollRequest<Self> original) {
+        super(original);
+        this.script = original.script;
+    }
+
     /**
      * Script to modify the documents before they are processed.
      */

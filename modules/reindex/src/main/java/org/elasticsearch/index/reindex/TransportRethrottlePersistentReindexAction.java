@@ -37,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
+// todo: change to empty response since tasks API is low-level
 public class TransportRethrottlePersistentReindexAction extends
     HandledTransportAction<RethrottlePersistentReindexAction.Request, ListTasksResponse> {
 
@@ -63,7 +64,7 @@ public class TransportRethrottlePersistentReindexAction extends
             (delegate, state) -> {
                 ReindexTaskStateDoc newStateDoc = state.getStateDoc().withRequestsPerSecond(request.getRequestsPerSecond());
                 reindexIndexClient.updateReindexTaskDoc(request.getPersistentTaskId(), newStateDoc,
-                    state.getPrimaryTerm(), state.getSeqNo(), new ActionListener<ReindexTaskState>() {
+                    state.getPrimaryTerm(), state.getSeqNo(), new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskState reindexTaskState) {
                             rethrottleAllocatedTask(reindexTaskState.getStateDoc(), request,

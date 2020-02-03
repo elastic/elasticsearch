@@ -32,7 +32,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.index.reindex.ReindexIndexClient.REINDEX_ALIAS;
 
@@ -50,7 +49,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final TaskId ephemeralTaskId;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
     private final Runnable onCheckpointAssignmentConflict;
-    private Consumer<Float> requestsPerSecondObserver;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
     private ReindexTaskState lastState;
@@ -58,7 +56,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
                                    TaskId ephemeralTaskId, ActionListener<ReindexTaskStateDoc> finishedListener,
-                                   Runnable onCheckpointAssignmentConflict, Consumer<Float> requestsPerSecondObserver) {
+                                   Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.persistentTaskId = persistentTaskId;
@@ -66,7 +64,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         this.ephemeralTaskId = ephemeralTaskId;
         this.finishedListener = finishedListener;
         this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
-        this.requestsPerSecondObserver = requestsPerSecondObserver;
     }
 
     public void assign(ActionListener<ReindexTaskStateDoc> listener) {
@@ -167,7 +164,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                             } else {
                                 lastState = reindexTaskState;
                                 logger.info("After allocation verification, allocation still valid");
-                                requestsPerSecondObserver.accept(doc.getRequestsPerSecond());
                             }
                             // Proceed regardless of whether the allocation is valid or not. If it is invalid,
                             // onCheckpointAssignmentConflict will stop the reindexing. If it is valid, we

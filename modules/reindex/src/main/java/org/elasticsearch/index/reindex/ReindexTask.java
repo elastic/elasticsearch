@@ -139,21 +139,6 @@ public class ReindexTask extends AllocatedPersistentTask {
         return childTask;
     }
 
-    private void rethrottle(float requestsPerSecond) {
-        TransportRethrottleAction.rethrottle(logger, client.getLocalNodeId(), client, childTask, requestsPerSecond,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(TaskInfo taskInfo) {
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assert false : e;
-                    logger.error("Unable to rethrottle [{}]", getPersistentTaskId());
-                }
-            });
-    }
-
     private void execute(ReindexTaskParams reindexTaskParams) {
         long allocationId = getAllocationId();
         ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, client.threadPool(), getPersistentTaskId(),
@@ -168,19 +153,19 @@ public class ReindexTask extends AllocatedPersistentTask {
                 logger.info("Reindex task failed", e);
                 updateClusterStateToFailed(reindexTaskParams.shouldStoreResult(), ReindexPersistentTaskState.Status.DONE, e);
             }
-        }, this::handleCheckpointAssignmentConflict, this::rethrottle);
+        }, this::handleCheckpointAssignmentConflict);
 
         taskUpdater.assign(new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
-                ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+                ReindexRequest reindexRequest = stateDoc.getRethrottledReindexRequest();
                 description = reindexRequest.getDescription();
-                reindexer.initTask(childTask, reindexRequest, stateDoc.getRequestsPerSecond(), new ActionListener<>() {
+                reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
                         // TODO: need to store status in state so we can continue from it.
                         transientStatus = childTask.getStatus();
-                        performReindex(reindexTaskParams, stateDoc, taskUpdater);
+                        performReindex(reindexRequest, reindexTaskParams, stateDoc, taskUpdater);
                     }
 
                     @Override
@@ -254,8 +239,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void performReindex(ReindexTaskParams reindexTaskParams, ReindexTaskStateDoc stateDoc, ReindexTaskStateUpdater taskUpdater) {
-        ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+    private void performReindex(ReindexRequest reindexRequest, ReindexTaskParams reindexTaskParams, ReindexTaskStateDoc stateDoc,
+                                ReindexTaskStateUpdater taskUpdater) {
         ScrollableHitSource.Checkpoint initialCheckpoint = stateDoc.getCheckpoint();
         ThreadContext threadContext = client.threadPool().getThreadContext();
 

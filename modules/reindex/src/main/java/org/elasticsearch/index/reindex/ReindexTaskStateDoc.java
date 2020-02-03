@@ -154,6 +154,14 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         return reindexRequest;
     }
 
+    public ReindexRequest getRethrottledReindexRequest() {
+        if (reindexRequest.getRequestsPerSecond() != requestsPerSecond) {
+            return new ReindexRequest(reindexRequest).setRequestsPerSecond(requestsPerSecond);
+        } else {
+            return reindexRequest;
+        }
+    }
+
     public BulkByScrollResponse getReindexResponse() {
         return reindexResponse;
     }

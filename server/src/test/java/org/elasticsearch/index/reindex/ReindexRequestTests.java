@@ -373,6 +373,12 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
     }
 
+    public void testCopyConstructor() {
+        ReindexRequest testInstance = createTestInstance();
+        ReindexRequest copy = new ReindexRequest(testInstance);
+        assertEqualInstances(testInstance, copy);
+    }
+
     private RemoteInfo buildRemoteInfoHostTestCase(String hostInRest) throws IOException {
         Map<String, Object> remote = new HashMap<>();
         remote.put("host", hostInRest);

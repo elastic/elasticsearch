@@ -124,12 +124,14 @@ public class MockNode extends Node {
     @Override
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
-                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService) {
+                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
+                                             CircuitBreakerService circuitBreakerService) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase,
-                responseCollectorService);
+                responseCollectorService, circuitBreakerService);
         }
-        return new MockSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+        return new MockSearchService(clusterService, indicesService, threadPool, scriptService,
+            bigArrays, fetchPhase, circuitBreakerService);
     }
 
     @Override

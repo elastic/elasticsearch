@@ -41,10 +41,8 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
@@ -109,7 +107,6 @@ public class ClassNode extends IRNode {
     private Printer debugStream;
     private ScriptRoot scriptRoot;
     private boolean doesMethodEscape;
-    private final Set<String> extractedVariables = new HashSet<>();
 
     public void setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
         this.scriptClassInfo = scriptClassInfo;
@@ -157,18 +154,6 @@ public class ClassNode extends IRNode {
 
     public boolean doesMethodEscape() {
         return doesMethodEscape;
-    }
-
-    public void addExtractedVariable(String extractedVariable) {
-        extractedVariables.add(extractedVariable);
-    }
-
-    public boolean containsExtractedVariable(String extractedVariable) {
-        return extractedVariables.contains(extractedVariable);
-    }
-
-    public Set<String> getExtractedVariables() {
-        return extractedVariables;
     }
 
     /* ---- end node data ---- */
@@ -299,7 +284,7 @@ public class ClassNode extends IRNode {
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
             MethodWriter ifaceMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, needsMethod);
             ifaceMethod.visitCode();
-            ifaceMethod.push(extractedVariables.contains(name));
+            ifaceMethod.push(scriptRoot.getUsedVariables().contains(name));
             ifaceMethod.returnValue();
             ifaceMethod.endMethod();
         }
@@ -355,7 +340,7 @@ public class ClassNode extends IRNode {
             String name = method.getName().substring(3);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
-            if (extractedVariables.contains(name)) {
+            if (scriptRoot.getUsedVariables().contains(name)) {
                 Variable variable = scopeTable.defineVariable(returnType, name);
 
                 methodWriter.loadThis();

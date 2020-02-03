@@ -71,6 +71,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> testClusters."${baseName}-leader".allTransportPortURI.last()}")
       nonInputProperties.systemProperty('tests.follower_host', "${-> testClusters."${baseName}-follower".allHttpSocketURI.last()}")
       nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> testClusters."${baseName}-follower".allTransportPortURI.last()}")
+      nonInputProperties.systemProperty('tests.rest.spec_root', project.sourceSets.test.output.resourcesDir)
     }
   }
 

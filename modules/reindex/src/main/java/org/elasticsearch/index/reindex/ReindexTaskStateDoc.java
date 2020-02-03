@@ -36,8 +36,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (Long) a[1],
             toTaskId((String) a[2]), (BulkByScrollResponse) a[3], (ElasticsearchException) a[4], (Integer) a[5],
-            (ScrollableHitSource.Checkpoint) a[6],
-            (float) a[7]));
+            (ScrollableHitSource.Checkpoint) a[6], (float) a[7]));
 
     private static final String REINDEX_REQUEST = "request";
     private static final String ALLOCATION = "allocation";

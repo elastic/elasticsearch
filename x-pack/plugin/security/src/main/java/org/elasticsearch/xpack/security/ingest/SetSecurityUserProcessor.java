@@ -87,31 +87,39 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case API_KEY:
-                    final HashMap<String, Object> apiKey = new HashMap<>();
+                    final String apiKey = "api_key";
+                    final Object existingApiKeyField = userObject.get(apiKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> apiKeyField =
+                        existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
                     Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
                     if (apiKeyName != null) {
-                        apiKey.put("name", apiKeyName);
+                        apiKeyField.put("name", apiKeyName);
                     }
                     Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
                     if (apiKeyId != null) {
-                        apiKey.put("id", apiKeyId);
+                        apiKeyField.put("id", apiKeyId);
                     }
-                    if (false == apiKey.isEmpty()) {
-                        userObject.put("api_key", apiKey);
+                    if (false == apiKeyField.isEmpty()) {
+                        userObject.put(apiKey, apiKeyField);
                     }
                     break;
                 case REALM:
+                    final String realmKey = "realm";
+                    final Object existingRealmField = userObject.get(realmKey);
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> realmField =
+                        existingRealmField instanceof Map ? (Map<String, Object>) existingRealmField : new HashMap<>();
                     final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
-                    final Object realmType = ApiKeyService.getCreatorRealmType(authentication);
-                    final HashMap<String, Object> realm = new HashMap<>();
                     if (realmName != null) {
-                        realm.put("name", realmName);
+                        realmField.put("name", realmName);
                     }
+                    final Object realmType = ApiKeyService.getCreatorRealmType(authentication);
                     if (realmType != null) {
-                        realm.put("type", realmType);
+                        realmField.put("type", realmType);
                     }
-                    if (false == realm.isEmpty()) {
-                        userObject.put("realm", realm);
+                    if (false == realmField.isEmpty()) {
+                        userObject.put(realmKey, realmField);
                     }
                     break;
                 case AUTHENTICATION_TYPE:

@@ -273,10 +273,8 @@ public class ApiKeyService {
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getLookedUpBy() == null ?
-                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
-            .field("realm_type", authentication.getLookedUpBy() == null ?
-                authentication.getAuthenticatedBy().getType() : authentication.getLookedUpBy().getType())
+            .field("realm", authentication.getNominalRealm().getName())
+            .field("realm_type", authentication.getNominalRealm().getType())
             .endObject()
             .endObject();
 
@@ -886,7 +884,7 @@ public class ApiKeyService {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
-            return authentication.getAuthenticatedBy().getName();
+            return authentication.getNominalRealm().getName();
         }
     }
 
@@ -901,7 +899,7 @@ public class ApiKeyService {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
         } else {
-            return authentication.getAuthenticatedBy().getType();
+            return authentication.getNominalRealm().getType();
         }
     }
 

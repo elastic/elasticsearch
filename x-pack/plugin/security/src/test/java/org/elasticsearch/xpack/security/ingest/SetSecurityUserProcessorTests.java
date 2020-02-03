@@ -209,4 +209,31 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result.get("authentication_type"), equalTo("API_KEY"));
     }
 
+    public void testWillNotOverwriteExistingApiKeyAndRealm() throws Exception {
+        User user = new User(null, null, null);
+        Authentication.RealmRef realmRef = new Authentication.RealmRef(
+            ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, new Authentication(user, realmRef, null, Version.CURRENT,
+            Authentication.AuthenticationType.API_KEY,
+            Map.of(
+                ApiKeyService.API_KEY_ID_KEY, "api_key_id",
+                ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
+                ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
+                ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
+            )));
+
+        IngestDocument ingestDocument = new IngestDocument(IngestDocument.deepCopyMap(Map.of(
+            "_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))
+        )), new HashMap<>());
+        SetSecurityUserProcessor processor = new SetSecurityUserProcessor("_tag", threadContext, "_field", EnumSet.allOf(Property.class));
+        processor.execute(ingestDocument);
+
+        Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
+        assertThat(result.size(), equalTo(3));
+        assertThat(((Map) result.get("api_key")).get("version"), equalTo(42));
+        assertThat(((Map) result.get("realm")).get("id"), equalTo(7));
+    }
+
 }

@@ -225,7 +225,7 @@ cannot end in an odd number of backslashes.
 ====
 
 [discrete]
-[[eql-syntax-non-alpha-field-namess]]
+[[eql-syntax-non-alpha-field-names]]
 ==== Non-alphanumeric field names
 
 Field names containing non-alphanumeric characters, such as underscores (`_`),

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
+import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.planner.Planner;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -97,7 +98,6 @@ public class EqlSession {
 
     private LogicalPlan doParse(String eql, List<Object> params) {
         Check.isTrue(params.isEmpty(), "Parameters were given despite being ignored - server bug");
-        //LogicalPlan plan = new EqlParser().createStatement(eql);
-        throw new UnsupportedOperationException();
+        return new EqlParser().createStatement(eql);
     }
 }

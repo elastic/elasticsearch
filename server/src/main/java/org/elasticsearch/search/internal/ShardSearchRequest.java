@@ -37,17 +37,21 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -56,6 +60,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * Shard level request that represents a search.
@@ -77,6 +84,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final OriginalIndices originalIndices;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
+    private Object[] rawBottomSortValues;
 
     //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
@@ -95,7 +103,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             shardId,
             numberOfShards,
             searchRequest.searchType(),
-            searchRequest.source(),
+            searchRequest.source() != null ? searchRequest.source().shallowCopy() : null,
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,
@@ -172,8 +180,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         preference = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+            rawBottomSortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
+            rawBottomSortValues = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -211,6 +221,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            out.writeOptionalArray(Lucene::writeSortValue, rawBottomSortValues);
         }
     }
 
@@ -286,11 +297,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return preference;
     }
 
-    /**
-     * Returns true if the caller can handle null response {@link QuerySearchResult#nullInstance()}.
-     * Defaults to false since the coordinator node needs at least one shard response to build the global
-     * response.
-     */
+    public void setRawBottomSortValues(Object[] values) {
+        this.rawBottomSortValues = values;
+    }
+
+    public Object[] getRawBottomSortValues() {
+        return  rawBottomSortValues;
+    }
+
     public boolean canReturnNullResponseIfMatchNoDocs() {
         return canReturnNullResponseIfMatchNoDocs;
     }
@@ -343,6 +357,21 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
+
+            QueryShardContext shardContext = ctx.convertToShardContext();
+            if (shardContext != null
+                    && FieldSortBuilder.isBottomSortDisjoint(shardContext, newSource, request.getRawBottomSortValues())) {
+                newSource = newSource.shallowCopy();
+                if (newSource.trackTotalHitsUpTo() == TRACK_TOTAL_HITS_DISABLED
+                        && newSource.aggregations() == null) {
+                    newSource.query(new MatchNoneQueryBuilder());
+                } else {
+                    newSource.size(0);
+                }
+                request.source(newSource);
+                request.setRawBottomSortValues(null);
+            }
+
             if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
                 return this;
             } else {

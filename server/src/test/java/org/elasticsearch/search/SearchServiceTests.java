@@ -19,11 +19,23 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.lucene.codecs.CompoundFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.codecs.lucene70.Lucene70Codec;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -872,7 +884,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         {
             CountDownLatch latch = new CountDownLatch(1);
-            shardRequest.setMatchNoDocsReturnNullResponse(true);
+            shardRequest.canReturnNullResponseIfMatchNoDocs(true);
             service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchPhaseResult result) {
@@ -897,5 +909,32 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             });
             latch.await();
         }
+    }
+
+    public void test() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig();
+        Lucene70Codec codec = new Lucene70Codec();
+        Lucene50PostingsFormat pf = new Lucene50PostingsFormat();
+        config.setCodec(new FilterCodec("lucene7", codec) {
+            @Override
+            public CompoundFormat compoundFormat() {
+                return super.compoundFormat();
+            }
+
+            @Override
+            public PostingsFormat postingsFormat() {
+                return pf;
+            }
+        });
+        Directory dir = new RAMDirectory();
+        IndexWriter writer = new IndexWriter(dir, config);
+        for (int i = 0; i < 10; i++) {
+            Document doc = new Document();
+            doc.add(new TextField("text", "hello", Field.Store.YES));
+            writer.addDocument(doc);
+        }
+        writer.commit();
+        writer.close();
+        dir.close();
     }
 }

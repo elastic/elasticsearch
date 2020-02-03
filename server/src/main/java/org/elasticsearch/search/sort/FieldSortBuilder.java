@@ -60,6 +60,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
 import static org.elasticsearch.index.search.NestedHelper.parentObject;
@@ -392,6 +393,28 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return null;
         }
         return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+    }
+
+    public static boolean isBottomSortDisjoint(QueryShardContext context,
+                                               SearchSourceBuilder source,
+                                               Object[] rawBottomSortValues) throws IOException {
+        if (rawBottomSortValues == null || rawBottomSortValues.length == 0) {
+            return false;
+        }
+        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
+        if (fieldSort == null) {
+            return false;
+        }
+        MappedFieldType fieldType = context.fieldMapper(fieldSort.getFieldName());
+        if (fieldType == null) {
+            // unmapped
+            return true;
+        }
+        Object minValue = fieldSort.order() == SortOrder.DESC ? rawBottomSortValues[0] : null;
+        Object maxValue = fieldSort.order() == SortOrder.DESC ? null : rawBottomSortValues[0];
+        MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.searcher().getIndexReader(), minValue, maxValue,
+            true, true, null, DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(), context);
+        return relation == MappedFieldType.Relation.DISJOINT;
     }
 
     /**

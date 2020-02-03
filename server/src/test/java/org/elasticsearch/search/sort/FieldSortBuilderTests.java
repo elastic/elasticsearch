@@ -69,6 +69,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
 import static org.elasticsearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
+import static org.elasticsearch.search.sort.FieldSortBuilder.isBottomSortDisjoint;
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -563,6 +564,14 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 }
             }
         }
+    }
+
+    public void testIsBottomSortDisjoint() throws Exception {
+        QueryShardContext context = createMockShardContext();
+        assertFalse(isBottomSortDisjoint(context, null, null));
+        assertFalse(isBottomSortDisjoint(context, new SearchSourceBuilder(), null));
+        assertFalse(isBottomSortDisjoint(context,
+            new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")), null));
     }
 
     @Override

@@ -20,22 +20,33 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
 final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
+    private final Supplier<TopDocs> topDocsSupplier;
+    private final int topDocsSize;
     private final SearchProgressListener progressListener;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
@@ -49,9 +60,10 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
                 executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
                 searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
+        this.topDocsSize = getTopDocsSize(request);
+        this.topDocsSupplier = getTopDocsSupplier(request, results);
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
-        final SearchProgressListener progressListener = task.getProgressListener();
         final SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
             sourceBuilder == null || sourceBuilder.size() != 0);
@@ -59,8 +71,9 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
+        ShardSearchRequest request = rewriteShardRequest(buildShardSearchRequest(shardIt));
         getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
-            buildShardSearchRequest(shardIt), getTask(), listener);
+            request, getTask(), listener);
     }
 
     @Override
@@ -71,5 +84,48 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
         return new FetchSearchPhase(results, searchPhaseController, context);
+    }
+
+    ShardSearchRequest rewriteShardRequest(ShardSearchRequest request) {
+        TopDocs topDocs = topDocsSupplier.get();
+        if (topDocs != null && topDocs instanceof TopFieldDocs) {
+            SearchSourceBuilder source = request.source();
+            int trackTotalHits = source.trackTotalHitsUpTo() == null ? DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                source.trackTotalHitsUpTo();
+            if (topDocs.totalHits.value >= trackTotalHits) {
+                SearchSourceBuilder newSource = source.shallowCopy();
+                newSource.trackTotalHits(false);
+                if (topDocs.scoreDocs.length >= topDocsSize) {
+                    FieldDoc bottomDoc = (FieldDoc) topDocs.scoreDocs[topDocs.scoreDocs.length-1];
+                    request.setRawBottomSortValues(bottomDoc.fields);
+                }
+                request.source(newSource);
+            }
+        }
+        return request;
+    }
+
+    static Supplier<TopDocs> getTopDocsSupplier(SearchRequest request, SearchPhaseResults<SearchPhaseResult> searchPhaseResults) {
+        if (searchPhaseResults instanceof SearchPhaseController.QueryPhaseResultConsumer == false) {
+            return () -> null;
+        }
+        int size = getTopDocsSize(request);
+        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+        if (size == 0
+                || fieldSort == null
+                || fieldSort.getNestedSort() != null
+                || (fieldSort.missing() != null && "_last".equals(fieldSort.missing()) == false)) {
+            return () -> null;
+        }
+        return ((SearchPhaseController.QueryPhaseResultConsumer) searchPhaseResults)::getBufferTopDocs;
+    }
+
+    static int getTopDocsSize(SearchRequest request) {
+        if (request.source() == null) {
+            return SearchService.DEFAULT_SIZE;
+        }
+        SearchSourceBuilder source = request.source();
+        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) +
+            (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 }

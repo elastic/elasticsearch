@@ -67,6 +67,8 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction.getTopDocsSize;
+
 public final class SearchPhaseController {
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -587,6 +589,7 @@ public final class SearchPhaseController {
         private int numReducePhases = 0;
         private final TopDocsStats topDocsStats;
         private final boolean performFinalReduce;
+        private final int topNSize;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
@@ -597,9 +600,9 @@ public final class SearchPhaseController {
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
-        private QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
-                                         int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
-                                         int trackTotalHitsUpTo, boolean performFinalReduce) {
+        QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
+                                 int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
+                                 int trackTotalHitsUpTo, int topNSize, boolean performFinalReduce) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -620,6 +623,7 @@ public final class SearchPhaseController {
             this.hasAggs = hasAggs;
             this.bufferSize = bufferSize;
             this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
+            this.topNSize = topNSize;
             this.performFinalReduce = performFinalReduce;
         }
 
@@ -643,7 +647,7 @@ public final class SearchPhaseController {
                     if (hasTopDocs) {
                         TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
                             // we have to merge here in the same way we collect on a shard
-                            querySearchResult.from() + querySearchResult.size(), 0);
+                            topNSize, 0);
                         Arrays.fill(topDocsBuffer, null);
                         topDocsBuffer[0] = reducedTopDocs;
                     }
@@ -666,6 +670,15 @@ public final class SearchPhaseController {
                 }
             }
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
+        }
+
+        public TopDocs getBufferTopDocs() {
+            if (hasTopDocs) {
+                synchronized (this) {
+                    return topDocsBuffer[0];
+                }
+            }
+            return null;
         }
 
         private synchronized List<InternalAggregations> getRemainingAggs() {
@@ -718,9 +731,10 @@ public final class SearchPhaseController {
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
+                int topNSize = getTopDocsSize(request);
                 // only use this if there are aggs and if there are more shards than we should reduce at once
                 return new QueryPhaseResultConsumer(listener, this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
-                    trackTotalHitsUpTo, request.isFinalReduce());
+                    trackTotalHitsUpTo, topNSize, request.isFinalReduce());
             }
         }
         return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {

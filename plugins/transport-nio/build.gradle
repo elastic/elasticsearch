@@ -131,6 +131,9 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
@@ -153,14 +156,6 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
 
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
-  )
-}
-
-if (BuildParams.inFipsJvm == false) {
-  // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-  // a FIPS JVM with BouncyCastleFIPS Provider
-  thirdPartyAudit.ignoreMissingClasses(
-    'org.bouncycastle.asn1.x500.X500Name'
   )
 }
 

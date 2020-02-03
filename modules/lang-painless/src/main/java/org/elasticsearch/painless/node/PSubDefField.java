@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
@@ -43,18 +43,13 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
-    DotSubDefNode write() {
+    DotSubDefNode write(ClassNode classNode) {
         DotSubDefNode dotSubDefNode = new DotSubDefNode();
 
         dotSubDefNode.setLocation(location);

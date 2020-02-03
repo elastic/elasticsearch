@@ -474,7 +474,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             });
                         }
 
-                        if (isMatching.get() == true) {
+                        if (isMatching.get()) {
                             // move grouping in front
                             groupings.remove(group);
                             groupings.add(0, group);

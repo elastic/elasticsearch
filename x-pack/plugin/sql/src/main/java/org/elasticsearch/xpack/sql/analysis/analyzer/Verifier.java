@@ -707,7 +707,7 @@ public final class Verifier {
             Filter filter = (Filter) p;
             if ((filter.child() instanceof Aggregate) == false) {
                 filter.condition().forEachDown(e -> {
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e)) == true) {
+                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
                         localFailures.add(
                                 fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
                     }

@@ -261,7 +261,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             }), initialCheckpoint, (checkpoint, status) -> {
                 transientStatus = status;
                 taskUpdater.onCheckpoint(checkpoint, status);
-            }, true);
+            }, stateDoc.isResilient());
         }
         // send this after we started reindex to ensure sub-tasks are created.
         sendStartedNotification(reindexTaskParams.shouldStoreResult());

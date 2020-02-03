@@ -28,39 +28,12 @@ import java.util.Objects;
  */
 public class GrammarTests extends ESTestCase {
 
-    public void testStrings() throws Exception {
-        assertEquals("hello\"world", AstBuilder.unquoteString("'hello\"world'"));
-        assertEquals("hello'world", AstBuilder.unquoteString("\"hello'world\""));
-        assertEquals("hello\nworld", AstBuilder.unquoteString("'hello\\nworld'"));
-        assertEquals("hello\\\nworld", AstBuilder.unquoteString("'hello\\\\\\nworld'"));
-        assertEquals("hello\\\"world", AstBuilder.unquoteString("'hello\\\\\\\"world'"));
-
-        // test for unescaped strings: ?"...." or ?'....'
-        assertEquals("hello\"world", AstBuilder.unquoteString("?'hello\"world'"));
-        assertEquals("hello\\\"world", AstBuilder.unquoteString("?'hello\\\"world'"));
-        assertEquals("hello'world", AstBuilder.unquoteString("?\"hello'world\""));
-        assertEquals("hello\\nworld", AstBuilder.unquoteString("?'hello\\nworld'"));
-        assertEquals("hello\\\\nworld", AstBuilder.unquoteString("?'hello\\\\nworld'"));
-        assertEquals("hello\\\\\\nworld", AstBuilder.unquoteString("?'hello\\\\\\nworld'"));
-        assertEquals("hello\\\\\\\"world", AstBuilder.unquoteString("?'hello\\\\\\\"world'"));
-    }
-
     public void testSupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
         List<Tuple<String, Integer>> lines = readQueries("/queries-supported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
-
-            try {
-                parser.createStatement(q);
-            } catch (ParsingException pe) {
-                if (pe.getErrorMessage().startsWith("Does not know how to handle")) {
-                    // ignore for now
-                } else {
-                    throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
-                        pe.getErrorMessage() + " inside statement <{}>", q);
-                }
-            }
+            parser.createStatement(q);
         }
     }
     public void testUnsupportedQueries() throws Exception {

@@ -69,7 +69,7 @@ xpack.security.http.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <3
     must be a location within the {es} configuration directory.
 --
 
-.. If you secured the certificate with a password, add that password to a secure 
+.. If you secured the keystore or the private key with a password, add that password to a secure 
 setting in {es}.
 +
 --

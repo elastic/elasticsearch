@@ -9,8 +9,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
@@ -123,7 +123,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -169,7 +169,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -219,7 +219,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
      * An abstract class that provides functionality common to both the auto and
      * interactive setup modes.
      */
-    private abstract class SetupCommand extends EnvironmentAwareCommand {
+    private abstract class SetupCommand extends KeyStoreAwareCommand {
 
         boolean shouldPrompt;
 
@@ -246,10 +246,9 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
         }
 
-        void setupOptions(OptionSet options, Environment env) throws Exception {
+        void setupOptions(Terminal terminal, OptionSet options, Environment env) throws Exception {
             keyStoreWrapper = keyStoreFunction.apply(env);
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            decryptKeyStore(keyStoreWrapper, terminal);
 
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);

@@ -22,21 +22,22 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 import org.objectweb.asm.Label;
 
 public class ElvisNode extends BinaryNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
 
-        getLeftNode().write(classWriter, methodWriter, globals);
+        getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
         methodWriter.dup();
         methodWriter.ifNonNull(end);
         methodWriter.pop();
-        getRightNode().write(classWriter, methodWriter, globals);
+        getRightNode().write(classWriter, methodWriter, globals, scopeTable);
         methodWriter.mark(end);
     }
 }

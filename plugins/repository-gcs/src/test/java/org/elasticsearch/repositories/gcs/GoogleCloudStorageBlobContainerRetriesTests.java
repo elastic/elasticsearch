@@ -33,7 +33,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
@@ -244,10 +243,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
-                Optional<Tuple<String, BytesArray>> content = parseMultipartRequestBody(exchange.getRequestBody());
+                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo("write_blob_max_retries"));
-                if (Objects.deepEquals(bytes, content.get().v2().array())) {
+                if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
                     byte[] response = ("{\"bucket\":\"bucket\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);

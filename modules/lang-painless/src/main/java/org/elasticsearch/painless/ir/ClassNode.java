@@ -22,17 +22,18 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.invoke.MethodType;
@@ -40,10 +41,8 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
@@ -107,10 +106,7 @@ public class ClassNode extends IRNode {
     private String sourceText;
     private Printer debugStream;
     private ScriptRoot scriptRoot;
-    private Locals mainMethod;
     private boolean doesMethodEscape;
-    private final Set<String> extractedVariables = new HashSet<>();
-    private final List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
 
     public void setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
         this.scriptClassInfo = scriptClassInfo;
@@ -152,36 +148,12 @@ public class ClassNode extends IRNode {
         return scriptRoot;
     }
 
-    public void setMainMethod(Locals mainMethod) {
-        this.mainMethod = mainMethod;
-    }
-
-    public Locals getMainMethod() {
-        return mainMethod;
-    }
-
     public void setMethodEscape(boolean doesMethodEscape) {
         this.doesMethodEscape = doesMethodEscape;
     }
 
     public boolean doesMethodEscape() {
         return doesMethodEscape;
-    }
-
-    public void addExtractedVariable(String extractedVariable) {
-        extractedVariables.add(extractedVariable);
-    }
-
-    public boolean containsExtractedVariable(String extractedVariable) {
-        return extractedVariables.contains(extractedVariable);
-    }
-
-    public Set<String> getExtractedVariables() {
-        return extractedVariables;
-    }
-
-    public List<org.objectweb.asm.commons.Method> getGetMethods() {
-        return getMethods;
     }
 
     /* ---- end node data ---- */
@@ -276,17 +248,17 @@ public class ClassNode extends IRNode {
         // Write the method defined in the interface:
         MethodWriter executeMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, scriptClassInfo.getExecuteMethod());
         executeMethod.visitCode();
-        write(classWriter, executeMethod, globals);
+        write(classWriter, executeMethod, globals, new ScopeTable());
         executeMethod.endMethod();
 
         // Write all fields:
         for (FieldNode fieldNode : fieldNodes) {
-            fieldNode.write(classWriter, null, null);
+            fieldNode.write(classWriter, null, null, null);
         }
 
         // Write all functions:
         for (FunctionNode functionNode : functionNodes) {
-            functionNode.write(classWriter, null, globals);
+            functionNode.write(classWriter, null, globals, new ScopeTable());
         }
 
         // Write the constants
@@ -312,7 +284,7 @@ public class ClassNode extends IRNode {
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
             MethodWriter ifaceMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, needsMethod);
             ifaceMethod.visitCode();
-            ifaceMethod.push(extractedVariables.contains(name));
+            ifaceMethod.push(scriptRoot.getUsedVariables().contains(name));
             ifaceMethod.returnValue();
             ifaceMethod.endMethod();
         }
@@ -335,7 +307,7 @@ public class ClassNode extends IRNode {
     }
 
     @Override
-    protected void write(org.elasticsearch.painless.ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         // We wrap the whole method in a few try/catches to handle and/or convert other exceptions to ScriptException
         Label startTry = new Label();
         Label endTry = new Label();
@@ -344,28 +316,41 @@ public class ClassNode extends IRNode {
         Label endCatch = new Label();
         methodWriter.mark(startTry);
 
+        scopeTable.defineInternalVariable(Object.class, "this");
+
+        // Method arguments
+        for (ScriptClassInfo.MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
+            scopeTable.defineVariable(arg.getClazz(), arg.getName());
+        }
+
         if (scriptRoot.getCompilerSettings().getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
-            Variable loop = mainMethod.getVariable(null, Locals.LOOP);
+            Variable loop = scopeTable.defineInternalVariable(int.class, "loop");
 
             methodWriter.push(scriptRoot.getCompilerSettings().getMaxLoopCounter());
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        for (org.objectweb.asm.commons.Method method : getMethods) {
+        for (int getMethodIndex = 0; getMethodIndex < scriptClassInfo.getGetMethods().size(); ++getMethodIndex) {
+            Method method = scriptClassInfo.getGetMethods().get(getMethodIndex);
+            Class<?> returnType = scriptClassInfo.getGetReturns().get(getMethodIndex);
+
             String name = method.getName().substring(3);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-            Variable variable = mainMethod.getVariable(null, name);
 
-            methodWriter.loadThis();
-            methodWriter.invokeVirtual(Type.getType(scriptClassInfo.getBaseClass()), method);
-            methodWriter.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
+            if (scriptRoot.getUsedVariables().contains(name)) {
+                Variable variable = scopeTable.defineVariable(returnType, name);
+
+                methodWriter.loadThis();
+                methodWriter.invokeVirtual(Type.getType(scriptClassInfo.getBaseClass()), method);
+                methodWriter.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
+            }
         }
 
         for (StatementNode statementNode : statementNodes) {
-            statementNode.write(classWriter, methodWriter, globals);
+            statementNode.write(classWriter, methodWriter, globals, scopeTable);
         }
 
         if (doesMethodEscape == false) {

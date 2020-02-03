@@ -342,6 +342,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testHavingOnNested() {
         assertEquals("1:51: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
                 error("SELECT int FROM test GROUP BY int HAVING AVG(YEAR(dep.start_date)) > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS average FROM test GROUP BY int HAVING average > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date, dep.end_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS a, MAX(MONTH(dep.end_date)) AS b " +
+                        "FROM test GROUP BY int " +
+                        "HAVING a > 1980 AND b < 10"));
     }
 
     public void testWhereOnNested() {
@@ -349,15 +355,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test WHERE YEAR(dep.start_date) + 10 > 0"));
         assertEquals("1:13: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
                 error("SELECT YEAR(dep.start_date) + 10 AS a FROM test WHERE int > 10 AND (int < 3 OR NOT (a > 5))"));
-        accept("SELECT int FROM test WHERE dep.start_date > CAST('2020-01-30' AS datetime) AND " +
-                "(int > 10 OR dep.end_date IS NULL)");
-        accept("SELECT int FROM test WHERE dep.start_date > CAST('2020-01-30'as datetime) AND " +
+        accept("SELECT int FROM test WHERE dep.start_date > CAST('2020-01-30'AS date) " +
+                "AND (int > 10 OR dep.end_date IS NULL)");
+        accept("SELECT int FROM test WHERE dep.start_date > CAST('2020-01-30' AS date) AND " +
                 "(int > 10 OR dep.end_date IS NULL) OR NOT(dep.start_date >= '2020-01-01')");
     }
 
     public void testOrderByOnNested() {
         assertEquals("1:36: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
                 error("SELECT int FROM test ORDER BY YEAR(dep.start_date) + 10"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10  FROM test ORDER BY 1"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                        "[dep.start_date, dep.end_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a, MONTH(dep.end_date) - 10 as b FROM test ORDER BY 1, 2"));
         accept("SELECT int FROM test ORDER BY dep.start_date, dep.end_date");
     }
 

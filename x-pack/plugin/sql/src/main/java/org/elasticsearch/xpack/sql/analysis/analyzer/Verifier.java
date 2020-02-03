@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
@@ -699,13 +700,33 @@ public final class Verifier {
     }
 
     private static void checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(LogicalPlan p, Set<Failure> localFailures) {
+        // collect Attribute sources
+        // only Aliases are interesting since these are the only ones that hide expressions
+        // FieldAttribute for example are self replicating.
+        final Map<ExpressionId, Expression> collectRefs = new LinkedHashMap<>();
+        p.forEachUp(plan -> plan.forEachExpressionsUp(e -> {
+            if (e instanceof Alias) {
+                Alias a = (Alias) e;
+                collectRefs.put(a.id(), a.child());
+            }
+        }));
+        p.forEachDown(project -> project.projections().forEach(e -> collectRefs.putIfAbsent(e.id(), e)), Project.class);
+
         List<FieldAttribute> nested = new ArrayList<>();
         Consumer<FieldAttribute> matchNested = fa -> {
             if (fa.isNested()) {
                 nested.add(fa);
             }
         };
-        Consumer<Expression> checkForNested = e -> e.forEachUp(matchNested, FieldAttribute.class);
+        Consumer<Expression> checkForNested = e -> {
+            Expression expr = e;
+            if (e instanceof NamedExpression) {
+                expr = collectRefs.getOrDefault(((NamedExpression) e).id(), e);
+
+            }
+            expr.forEachUp(matchNested, FieldAttribute.class);
+        };
+
         Consumer<ScalarFunction> checkForNestedInFunction =  f -> f.forEachDown(
                 arg -> arg.forEachUp(matchNested, FieldAttribute.class));
 
@@ -744,8 +765,14 @@ public final class Verifier {
         }
 
         // check in order by (scalars not allowed)
-        p.forEachDown(ob -> ob.order().forEach(o -> o.forEachUp(e ->
-                e.forEachUp(checkForNestedInFunction, ScalarFunction.class)
+        p.forEachDown(ob -> ob.order().forEach(o -> o.forEachUp(e -> {
+                    Expression expr = e;
+                    if (e instanceof NamedExpression) {
+                        expr = collectRefs.getOrDefault(((NamedExpression) e).id(), e);
+
+                    }
+                    expr.forEachUp(checkForNestedInFunction, ScalarFunction.class);
+                }
         )), OrderBy.class);
         if (!nested.isEmpty()) {
             localFailures.add(

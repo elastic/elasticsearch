@@ -176,7 +176,7 @@ The following example string matches any value that ends with `.txt`.
 ===== Escaped characters 
 
 When used within a string, special characters, such as a carriage return or
-double quote (`"`), must be escaped with a preceding `\`.
+double quote (`"`), must be escaped with a preceding backslash (`\`).
 
 [source,eql]
 ----
@@ -202,13 +202,27 @@ double quote (`"`), must be escaped with a preceding `\`.
 [[eql-syntax-raw-strings]]
 ===== Raw strings
 
-Raw strings are preceded by a question mark (`?`), which escapes all special
-characters in the string except single quote (`'`) and double quote (`"`).
+Raw strings are preceded by a question mark (`?`) and treat backslashes (`\`) as
+literal characters.
 
 [source,eql]
 ----
-?"String with literal 'slash' \ characters included"
+?"String with a literal 'blackslash' \ character included"
 ----
+
+You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
+the backslash remains in the resulting string.
+
+[source,eql]
+----
+?"\""
+----
+
+[NOTE]
+====
+Raw strings cannot contain only a single backslash. Additionally, raw strings
+cannot end in an odd number of backslashes.
+====
 
 [discrete]
 [[eql-syntax-non-alpha-field-namess]]

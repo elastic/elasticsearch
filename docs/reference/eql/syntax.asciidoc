@@ -142,7 +142,7 @@ Multiplies the values to the left and right of the operator.
 Divides the value to the left of the operator by the value to the right.
 
 `%` (modulo)::
-Divides the value to the left of the operator by the value to the right. Returns  only the remainder.
+Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 ====
 
 [discrete]

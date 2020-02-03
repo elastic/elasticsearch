@@ -95,7 +95,7 @@ you can re-use it by supplying its location when prompted.
 +
 --
 Copy the applicable files into the {es} configuration directory on each
-node. There is no need to copy the CA file to this directory.
+node.
 
 For each additional Elastic product that you want to configure, copy the
 certificates to the relevant configuration directory. 

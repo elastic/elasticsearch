@@ -952,6 +952,12 @@ public class MetaDataCreateIndexService {
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {
+        if (IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_8_0_0) &&
+            (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
+            throw new IllegalArgumentException("Translog retention settings [index.translog.retention.age] " +
+                "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings");
+        }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {

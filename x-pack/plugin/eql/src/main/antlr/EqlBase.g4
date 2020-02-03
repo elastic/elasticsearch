@@ -73,30 +73,25 @@ expression
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
     | relationship=IDENTIFIER OF subquery                                 #processCheck
-    | predicated                                                          #booleanDefault
+    | valueExpression                                                     #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
     ;
 
-// workaround for:
-//  https://github.com/antlr/antlr4/issues/780
-//  https://github.com/antlr/antlr4/issues/781
-predicated
-    : valueExpression predicate?
-    ;
-
-// dedicated calls for each branch are not used to reuse the NOT handling across them
-// instead the property kind is used for differentiation
-predicate
-    : NOT? kind=IN LP valueExpression (COMMA valueExpression)* RP
-    ;
 
 valueExpression
-    : primaryExpression                                                                 #valueExpressionDefault
+    : primaryExpression predicate?                                                      #valueExpressionDefault
     | operator=(MINUS | PLUS) valueExpression                                           #arithmeticUnary
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    ;
+
+// workaround for
+//   https://github.com/antlr/antlr4/issues/780
+//   https://github.com/antlr/antlr4/issues/781
+predicate
+    : NOT? kind=IN LP expression (COMMA expression)* RP
     ;
 
 primaryExpression

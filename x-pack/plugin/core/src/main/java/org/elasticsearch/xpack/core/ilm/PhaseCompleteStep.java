@@ -15,4 +15,8 @@ public class PhaseCompleteStep extends Step {
     public PhaseCompleteStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
+
+    public static PhaseCompleteStep finalStep(String phase) {
+        return new PhaseCompleteStep(new StepKey(phase, NAME, NAME), null);
+    }
 }

@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a function reference.
@@ -49,11 +48,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // do nothing
-    }
-
-    @Override
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
         function = new SFunction(
@@ -61,7 +55,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
                 Collections.singletonList("int"), Collections.singletonList("size"),
                 new SBlock(location, Collections.singletonList(code)), true);
         function.generateSignature(scriptRoot.getPainlessLookup());
-        function.extractVariables(null);
         function.analyze(scriptRoot);
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
         //scriptRoot.getClassNode().addFunction(function);

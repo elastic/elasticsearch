@@ -872,7 +872,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         {
             CountDownLatch latch = new CountDownLatch(1);
-            shardRequest.setMatchNoDocsReturnNullResponse(true);
+            shardRequest.canReturnNullResponseIfMatchNoDocs(true);
             service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchPhaseResult result) {

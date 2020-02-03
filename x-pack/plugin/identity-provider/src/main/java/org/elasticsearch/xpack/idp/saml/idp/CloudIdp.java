@@ -41,9 +41,15 @@ public class CloudIdp implements SamlIdentityProvider {
     public CloudIdp(Environment env, Settings settings) {
         this.entityId = require(settings, IDP_ENTITY_ID);
         this.ssoEndpoints.put("redirect", require(settings, IDP_SSO_REDIRECT_ENDPOINT));
-        this.ssoEndpoints.computeIfAbsent("post", v -> settings.get(IDP_SSO_POST_ENDPOINT.getKey()));
-        this.sloEndpoints.computeIfAbsent("post", v -> settings.get(IDP_SLO_POST_ENDPOINT.getKey()));
-        this.sloEndpoints.computeIfAbsent("redirect", v -> settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
+        if (settings.hasValue(IDP_SSO_POST_ENDPOINT.getKey())) {
+            this.ssoEndpoints.put("post", settings.get(IDP_SSO_POST_ENDPOINT.getKey()));
+        }
+        if (settings.hasValue(IDP_SLO_POST_ENDPOINT.getKey())) {
+            this.sloEndpoints.put("post", settings.get(IDP_SLO_POST_ENDPOINT.getKey()));
+        }
+        if (settings.hasValue(IDP_SLO_REDIRECT_ENDPOINT.getKey())) {
+            this.sloEndpoints.put("redirect", settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
+        }
         this.signingCredential = buildSigningCredential(env, settings);
     }
 

@@ -211,13 +211,16 @@ characters in the string except single quote (`'`) and double quote (`"`).
 ----
 
 [discrete]
-[[eql-syntax-nested-fields]]
-==== Nested fields
+[[eql-syntax-non-alpha-field-namess]]
+==== Non-alphanumeric field names
 
-When using dot notation to specify nested object fields, the field name and path
-are escaped using backticks (+++`+++).
+Field names containing non-alphanumeric characters, such as underscores (`_`),
+dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 
 [source,eql]
 ----
-`obj1.name`
+`my_field`
+`my.field`
+`my-field`
+`my field`
 ----

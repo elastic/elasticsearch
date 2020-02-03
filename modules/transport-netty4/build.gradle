@@ -172,7 +172,10 @@ thirdPartyAudit {
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',
     'org.conscrypt.Conscrypt',
-    'org.conscrypt.HandshakeListener'
+    'org.conscrypt.HandshakeListener',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
@@ -193,13 +196,5 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
-  )
-}
-
-if (BuildParams.inFipsJvm == false) {
-  // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-  // a FIPS JVM with BouncyCastleFIPS Provider
-  thirdPartyAudit.ignoreMissingClasses(
-    'org.bouncycastle.asn1.x500.X500Name'
   )
 }

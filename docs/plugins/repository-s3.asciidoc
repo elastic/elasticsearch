@@ -5,7 +5,7 @@ The S3 repository plugin adds support for using AWS S3 as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit
-http://www.elastic.co/cloud.*
+https://www.elastic.co/cloud/.*
 
 :plugin_name: repository-s3
 include::install_remove.asciidoc[]

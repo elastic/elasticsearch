@@ -84,7 +84,7 @@ subprojects {
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'http://www.elastic.co')
+            developer.appendNode('url', 'https://www.elastic.co')
           }
         }
       }

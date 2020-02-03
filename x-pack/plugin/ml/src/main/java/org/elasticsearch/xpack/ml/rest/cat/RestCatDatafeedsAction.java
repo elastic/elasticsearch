@@ -43,7 +43,9 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
         request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
             request.allowNoDatafeeds()));
-        return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
+        return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE,
+            request,
+            new RestResponseListener<GetDatafeedsStatsAction.Response>(channel) {
             @Override
             public RestResponse buildResponse(GetDatafeedsStatsAction.Response getDatafeedsStatsRespons) throws Exception {
                 return RestTable.buildResponse(buildTable(restRequest, getDatafeedsStatsRespons), channel);

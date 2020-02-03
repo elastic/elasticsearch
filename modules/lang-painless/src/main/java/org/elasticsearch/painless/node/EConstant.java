@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Set;
 
 /**
  * Represents a constant inserted into the tree replacing
@@ -39,12 +38,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (constant instanceof String) {
             actual = String.class;
         } else if (constant instanceof Double) {
@@ -69,7 +63,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    ConstantNode write() {
+    ConstantNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
 
         constantNode.setLocation(location);

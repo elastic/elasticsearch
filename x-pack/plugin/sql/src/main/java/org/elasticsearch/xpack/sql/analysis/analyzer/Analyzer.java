@@ -812,7 +812,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (p.child() instanceof Filter) {
                     Filter f = (Filter) p.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
                             return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
@@ -826,7 +826,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (a.child() instanceof Filter) {
                     Filter f = (Filter) a.child();
                     Expression condition = f.condition();
-                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                    if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
                             return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
@@ -998,7 +998,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                             // folding might not work (it might wait for the optimizer)
                             // so check whether any column is referenced
-                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                            && n.anyMatch(e -> e instanceof FieldAttribute)) {
                         return f;
                     }
                 }

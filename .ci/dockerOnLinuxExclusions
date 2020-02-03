@@ -4,9 +4,7 @@
 # Docker tests to be skipped on that OS. If /etc/os-release doesn't exist
 # (as is the case on centos-6, for example) then that OS will again be
 # excluded.
-centos-6
 debian-8
 opensuse-15-1
-ol-6.10
 ol-7.7
 sles-12

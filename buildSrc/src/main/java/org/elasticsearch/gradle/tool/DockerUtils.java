@@ -53,19 +53,19 @@ public class DockerUtils {
             // Since we use a multi-stage Docker build, check the Docker version since 17.05
             lastResult = runCommand(project, dockerPath, "version", "--format", "{{.Server.Version}}");
 
-            if (lastResult.isSuccess() == true) {
+            if (lastResult.isSuccess()) {
                 version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
 
                 isVersionHighEnough = version.onOrAfter("17.05.0");
 
-                if (isVersionHighEnough == true) {
+                if (isVersionHighEnough) {
                     // Check that we can execute a privileged command
                     lastResult = runCommand(project, dockerPath, "images");
                 }
             }
         }
 
-        boolean isAvailable = isVersionHighEnough && lastResult.isSuccess() == true;
+        boolean isAvailable = isVersionHighEnough && lastResult.isSuccess();
 
         return new DockerAvailability(isAvailable, isVersionHighEnough, dockerPath, version, lastResult);
     }
@@ -125,7 +125,7 @@ public class DockerUtils {
     public static void assertDockerIsAvailable(Project project, List<String> tasks) {
         DockerAvailability availability = getDockerAvailability(project);
 
-        if (availability.isAvailable == true) {
+        if (availability.isAvailable) {
             return;
         }
 

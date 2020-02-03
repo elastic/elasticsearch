@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an explicit cast.
@@ -43,12 +43,7 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
         if (actual == null) {
@@ -57,21 +52,21 @@ public final class EExplicit extends AExpression {
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(scriptRoot, locals);
-        child = child.cast(scriptRoot, locals);
+        child.analyze(scriptRoot, scope);
+        child = child.cast(scriptRoot, scope);
     }
 
     @Override
-    ExpressionNode write() {
+    ExpressionNode write(ClassNode classNode) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
-    AExpression cast(ScriptRoot scriptRoot, Locals locals) {
+    AExpression cast(ScriptRoot scriptRoot, Scope scope) {
         child.expected = expected;
         child.explicit = explicit;
         child.internal = internal;
 
-        return child.cast(scriptRoot, locals);
+        return child.cast(scriptRoot, scope);
     }
 
     @Override

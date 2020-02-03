@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Set;
 
 /**
  * Represents a null constant.
@@ -37,12 +36,7 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from null constant."));
         }
@@ -62,7 +56,7 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    NullNode write() {
+    NullNode write(ClassNode classNode) {
         NullNode nullNode = new NullNode();
 
         nullNode.setLocation(location);

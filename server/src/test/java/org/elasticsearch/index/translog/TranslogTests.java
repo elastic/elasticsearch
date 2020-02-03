@@ -2657,9 +2657,9 @@ public class TranslogTests extends ESTestCase {
                             committing = true;
                             failableTLog.getDeletionPolicy().setTranslogGenerationOfLastCommit(failableTLog.currentFileGeneration());
                             failableTLog.getDeletionPolicy().setMinTranslogGenerationForRecovery(failableTLog.currentFileGeneration());
+                            syncedDocs.clear();
                             failableTLog.trimUnreferencedReaders();
                             committing = false;
-                            syncedDocs.clear();
                         }
                     }
                     // we survived all the randomness!!!
@@ -2675,7 +2675,7 @@ public class TranslogTests extends ESTestCase {
                     assertEquals(failableTLog.getTragicException(), ex);
                 } catch (RuntimeException ex) {
                     assertEquals(ex.getMessage(), "simulated");
-                    assertEquals(failableTLog.getTragicException(), ex);
+                    assertNull("Don't consider failures while trimming unreferenced readers as tragedy", failableTLog.getTragicException());
                 } finally {
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {

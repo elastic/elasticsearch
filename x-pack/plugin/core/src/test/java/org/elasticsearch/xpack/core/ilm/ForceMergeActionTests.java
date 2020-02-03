@@ -129,6 +129,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51822")
     public void testToSteps() {
         ForceMergeAction instance = createTestInstance();
         if (instance.getCodec() != null && CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec())) {

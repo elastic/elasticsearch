@@ -20,11 +20,14 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
+import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,6 +49,7 @@ public final class AggregationResultUtils {
         tempMap.put(ScriptedMetric.class.getName(), new ScriptedMetricAggExtractor());
         tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
+        tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -111,6 +115,8 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoCentroid.class.getName());
         } else if (aggregation instanceof GeoBounds) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoBounds.class.getName());
+        } else if (aggregation instanceof Percentiles) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -187,6 +193,21 @@ public final class AggregationResultUtils {
             } else {
                 return aggregation.getValueAsString();
             }
+        }
+    }
+
+    static class PercentilesAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, String fieldType) {
+            Percentiles aggregation = (Percentiles) agg;
+
+            HashMap<String, Double> percentiles = new HashMap<>();
+
+            for (Percentile p : aggregation) {
+                percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+            }
+
+            return percentiles;
         }
     }
 

@@ -21,12 +21,12 @@ Privileges to list and view details on existing repositories and snapshots.
 
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
-This includes snapshotting, updating settings, and rerouting. It also includes 
-obtaining snapshot and restore status. This privilege does not include the 
+This includes snapshotting, updating settings, and rerouting. It also includes
+obtaining snapshot and restore status. This privilege does not include the
 ability to manage security.
 
 `manage_api_key`::
-All security-related operations on {es} API keys including 
+All security-related operations on {es} API keys including
 <<security-api-create-api-key,creating new API keys>>,
 <<security-api-get-api-key,retrieving information about API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
@@ -45,10 +45,10 @@ owned by other users.
 --
 
 `manage_ccr`::
-All {ccr} operations related to managing follower indices and auto-follow 
-patterns. It also includes the authority to grant the privileges necessary to 
-manage follower indices and auto-follow patterns. This privilege is necessary 
-only on clusters that contain follower indices. 
+All {ccr} operations related to managing follower indices and auto-follow
+patterns. It also includes the authority to grant the privileges necessary to
+manage follower indices and auto-follow patterns. This privilege is necessary
+only on clusters that contain follower indices.
 
 `manage_transform`::
 All operations related to managing {transforms}.
@@ -83,7 +83,7 @@ to initiate and manage OpenID Connect authentication on behalf of other users.
 
 `manage_own_api_key`::
 All security-related operations on {es} API keys that are owned by the current
-authenticated user. The operations include 
+authenticated user. The operations include
 <<security-api-create-api-key,creating new API keys>>,
 <<security-api-get-api-key,retrieving information about API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
@@ -119,7 +119,7 @@ security roles of the user who created or updated them.
 --
 
 `monitor`::
-All cluster read-only operations, like cluster health and state, hot threads, 
+All cluster read-only operations, like cluster health and state, hot threads,
 node info, node and cluster stats, and pending cluster tasks.
 
 `monitor_transform`::
@@ -131,16 +131,16 @@ model snapshots, or results.
 
 `monitor_rollup`::
 All read-only rollup operations, such as viewing the list of historical and
-currently running rollup jobs and their capabilities. 
+currently running rollup jobs and their capabilities.
 
 `monitor_watcher`::
 All read-only watcher operations, such as getting a watch and watcher stats.
 
 `read_ccr`::
-All read-only {ccr} operations, such as getting information about indices and 
-metadata for leader indices in the cluster. It also includes the authority to 
-check whether users have the appropriate privileges to follow leader indices. 
-This privilege is necessary only on clusters that contain leader indices. 
+All read-only {ccr} operations, such as getting information about indices and
+metadata for leader indices in the cluster. It also includes the authority to
+check whether users have the appropriate privileges to follow leader indices.
+This privilege is necessary only on clusters that contain leader indices.
 
 `read_ilm`::
 All read-only {Ilm} operations, such as getting policies and checking the
@@ -204,6 +204,10 @@ Privilege to delete an index.
 Privilege to index and update documents. Also grants access to the update
 mapping action.
 
+`maintenance`::
+Permits refresh, flush, synced flush and force merge index administration operations.
+No privilege to read or write index data or otherwise manage the index.
+
 `manage`::
 All `monitor` privileges plus index administration (aliases, analyze, cache clear,
 close, delete, exists, flush, mapping, open, force merge, refresh, settings,
@@ -211,8 +215,8 @@ search shards, templates, validate).
 
 `manage_follow_index`::
 All actions that are required to manage the lifecycle of a follower index, which
-includes creating a follower index, closing it, and converting it to a regular 
-index. This privilege is necessary only on clusters that contain follower indices. 
+includes creating a follower index, closing it, and converting it to a regular
+index. This privilege is necessary only on clusters that contain follower indices.
 
 `manage_ilm`::
 All {Ilm} operations relating to managing the execution of policies of an index
@@ -225,7 +229,7 @@ includes <<ccr-post-forget-follower,forgetting a follower>>. This
 privilege is necessary only on clusters that contain leader indices.
 
 `monitor`::
-All actions that are required for monitoring (recovery, segments info, index 
+All actions that are required for monitoring (recovery, segments info, index
 stats and status).
 
 `read`::
@@ -258,14 +262,14 @@ sequence.) For more information, see
 [[application-privileges]]
 ==== Application privileges
 
-Application privileges are managed within {es} and can be retrieved with the 
-<<security-api-has-privileges,has privileges API>> and the 
-<<security-api-get-privileges,get application privileges API>>. They do 
-not, however, grant access to any actions or resources within {es}. Their 
-purpose is to enable applications to represent and store their own privilege 
-models within {es} roles. 
+Application privileges are managed within {es} and can be retrieved with the
+<<security-api-has-privileges,has privileges API>> and the
+<<security-api-get-privileges,get application privileges API>>. They do
+not, however, grant access to any actions or resources within {es}. Their
+purpose is to enable applications to represent and store their own privilege
+models within {es} roles.
 
-To create application privileges, use the 
-<<security-api-put-privileges,add application privileges API>>. You can 
-then associate these application privileges with roles, as described in 
-<<defining-roles>>. 
+To create application privileges, use the
+<<security-api-put-privileges,add application privileges API>>. You can
+then associate these application privileges with roles, as described in
+<<defining-roles>>.

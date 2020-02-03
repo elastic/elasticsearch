@@ -24,6 +24,7 @@ import io.netty.buffer.Unpooled;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -70,7 +71,8 @@ class ByteBufUtils {
     }
 
     static BytesReference toBytesReference(final ByteBuf buffer) {
-        return new ByteBufBytesReference(buffer, buffer.readableBytes());
+        final int readableBytes = buffer.readableBytes();
+        return readableBytes == 0 ? BytesArray.EMPTY : new ByteBufBytesReference(buffer, readableBytes);
     }
 
     private static class ByteBufBytesReference extends AbstractBytesReference {

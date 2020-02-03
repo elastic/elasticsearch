@@ -109,7 +109,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                 case 5:
                     // Read clone or slice concurrently
                     final int cloneCount = between(1, 3);
-                    final CountDownLatch countDownLatch = new CountDownLatch(1 + cloneCount);
+                    final CountDownLatch startLatch = new CountDownLatch(1 + cloneCount);
+                    final CountDownLatch finishLatch = new CountDownLatch(cloneCount);
 
                     final PlainActionFuture<byte[]> mainThreadResultFuture = new PlainActionFuture<>();
                     final int mainThreadReadStart = readPos;
@@ -133,8 +134,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                                     final int sliceEnd = between(readEnd, length);
                                     clone = indexInput.slice("concurrent slice (0, " + sliceEnd + ") of " + indexInput, 0L, sliceEnd);
                                 }
-                                countDownLatch.countDown();
-                                countDownLatch.await();
+                                startLatch.countDown();
+                                startLatch.await();
                                 clone.seek(readStart);
                                 final byte[] cloneResult = randomReadAndSlice(clone, readEnd);
                                 if (randomBoolean()) {
@@ -156,19 +157,25 @@ public class ESIndexInputTestCase extends ESTestCase {
                             }
 
                             @Override
+                            public void onAfter() {
+                                finishLatch.countDown();
+                            }
+
+                            @Override
                             public void onRejection(Exception e) {
                                 // all threads are busy, and queueing can lead this test to deadlock, so we need take no action
-                                countDownLatch.countDown();
+                                startLatch.countDown();
                             }
                         });
                     }
 
                     try {
-                        countDownLatch.countDown();
-                        countDownLatch.await();
+                        startLatch.countDown();
+                        startLatch.await();
                         ActionListener.completeWith(mainThreadResultFuture, () -> randomReadAndSlice(indexInput, mainThreadReadEnd));
                         System.arraycopy(mainThreadResultFuture.actionGet(), readPos, output, readPos, mainThreadReadEnd - readPos);
                         readPos = mainThreadReadEnd;
+                        finishLatch.await();
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }

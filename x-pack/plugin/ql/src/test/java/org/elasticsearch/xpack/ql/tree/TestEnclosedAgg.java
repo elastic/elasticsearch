@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
@@ -39,6 +40,6 @@ public class TestEnclosedAgg extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataTypes.DOUBLE;
     }
 }

@@ -6,10 +6,14 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -21,7 +25,12 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +45,13 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin, EnginePlugin {
 
     private final SetOnce<RepositoriesService> repositoriesService;
+    private final SetOnce<CacheService> cacheService;
+    private final Settings settings;
 
-    public SearchableSnapshots() {
+    public SearchableSnapshots(final Settings settings) {
         this.repositoriesService = new SetOnce<>();
+        this.cacheService = new SetOnce<>();
+        this.settings = settings;
     }
 
     @Override
@@ -46,7 +59,28 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         return List.of(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING,
             SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING,
-            SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING);
+            SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING,
+            SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING,
+            CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
+        );
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final ResourceWatcherService resourceWatcherService,
+            final ScriptService scriptService,
+            final NamedXContentRegistry xContentRegistry,
+            final Environment environment,
+            final NodeEnvironment nodeEnvironment,
+            final NamedWriteableRegistry namedWriteableRegistry) {
+
+        final CacheService cacheService = new CacheService(settings);
+        this.cacheService.set(cacheService);
+        return List.of(cacheService);
     }
 
     @Override
@@ -57,7 +91,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY,
-            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get));
+            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get));
     }
 
     @Override

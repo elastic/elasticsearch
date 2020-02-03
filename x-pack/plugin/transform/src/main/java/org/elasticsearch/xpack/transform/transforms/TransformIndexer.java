@@ -480,6 +480,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         } else if (unwrappedException instanceof ScriptException) {
             handleScriptException((ScriptException) unwrappedException);
             // irrecoverable error without special handling
+        } else if (unwrappedException instanceof BulkIndexingException && ((BulkIndexingException) unwrappedException).isIrrecoverable()) {
+            handleIrrecoverableBulkIndexingException((BulkIndexingException) unwrappedException);
         } else if (unwrappedException instanceof IndexNotFoundException
             || unwrappedException instanceof AggregationResultUtils.AggregationExtractionException
             || unwrappedException instanceof TransformConfigReloadingException) {
@@ -834,9 +836,21 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         failIndexer(message);
     }
 
+    /**
+     * Handle permanent bulk indexing exception case. This is error is irrecoverable.
+     *
+     * @param bulkIndexingException BulkIndexingException thrown
+     */
+    private void handleIrrecoverableBulkIndexingException(BulkIndexingException bulkIndexingException) {
+        String message = TransformMessages.getMessage(
+            TransformMessages.LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR,
+            bulkIndexingException.getDetailedMessage()
+        );
+        failIndexer(message);
+    }
+
     protected void failIndexer(String failureMessage) {
-        logger.error("[{}] transform has failed; experienced: [{}].", getJobId(), failureMessage);
-        auditor.error(getJobId(), failureMessage);
+        // note: logging and audit is done as part of context.markAsFailed
         context.markAsFailed(failureMessage);
     }
 

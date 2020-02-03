@@ -38,7 +38,6 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -132,8 +131,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
-    @TestIssueLogging(value = "org.elasticsearch.gateway.PersistedClusterStateService:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/51329")
     public void testSeqNoCASLinearizability() {
         final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 

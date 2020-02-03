@@ -32,9 +32,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -170,6 +172,7 @@ public class RootObjectMapper extends ObjectMapper {
                 */
                 List<?> tmplNodes = (List<?>) fieldNode;
                 List<DynamicTemplate> templates = new ArrayList<>();
+                Set<String> templatesAlreadyDefinded = new HashSet<>();
                 for (Object tmplNode : tmplNodes) {
                     Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
                     if (tmpl.size() != 1) {
@@ -180,7 +183,12 @@ public class RootObjectMapper extends ObjectMapper {
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
                     if (template != null) {
+                        if (templatesAlreadyDefinded.contains(templateName)) {
+                            throw new MapperParsingException("A dynamic template cannot be defined twice, but a template with name ["
+                                    + templateName + "] has already been defined.");
+                        }
                         templates.add(template);
+                        templatesAlreadyDefinded.add(template.name());
                     }
                 }
                 builder.dynamicTemplates(templates);

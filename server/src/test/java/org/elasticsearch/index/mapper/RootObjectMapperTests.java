@@ -160,6 +160,38 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
+    public void testDynamicTemplatesDuplicationThrows() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type")
+                        .startArray("dynamic_templates")
+                            .startObject()
+                                .startObject("my_template")
+                                    .field("match_mapping_type", "string")
+                                    .startObject("mapping")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject()
+                                .startObject("my_template")
+                                .field("match_mapping_type", "string")
+                                .startObject("mapping")
+                                    .field("type", "keyword")
+                                .endObject()
+                            .endObject()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endObject());
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping: A dynamic template cannot be defined twice, but a template with name [my_template]"
+                + " has already been defined.", ex.getMessage());
+
+    }
+
     public void testIllegalFormatField() throws Exception {
         String dynamicMapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()

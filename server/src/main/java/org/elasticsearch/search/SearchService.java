@@ -360,13 +360,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        assert request.isMatchNoDocsReturnNullResponse() == false || request.numberOfShards() > 1
+        assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         rewriteShardRequest(request, ActionListener.wrap(
             context -> {
                 try {
                     ShardSearchRequest rewritten = context.request;
-                    if (rewritten.isMatchNoDocsReturnNullResponse()
+                    if (rewritten.canReturnNullResponseIfMatchNoDocs()
                             && canRewriteToMatchNone(rewritten.source())
                             && rewritten.source().query() instanceof MatchNoneQueryBuilder) {
                         onMatchNoDocs(context, listener);

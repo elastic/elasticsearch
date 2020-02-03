@@ -467,9 +467,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void onShardResult(Result result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        hasShardResponse.set(true);
         successfulOps.incrementAndGet();
         results.consumeResult(result);
+        hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
@@ -610,7 +610,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
-        shardRequest.setMatchNoDocsReturnNullResponse(hasShardResponse.get());
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get());
         return shardRequest;
     }
 

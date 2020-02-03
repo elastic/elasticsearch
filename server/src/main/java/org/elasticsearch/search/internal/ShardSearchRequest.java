@@ -76,7 +76,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final String preference;
     private final OriginalIndices originalIndices;
 
-    private boolean matchNoDocsReturnNullResponse;
+    private boolean canReturnNullResponseIfMatchNoDocs;
 
     //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
@@ -171,9 +171,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            matchNoDocsReturnNullResponse = in.readBoolean();
+            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
         } else {
-            matchNoDocsReturnNullResponse = false;
+            canReturnNullResponseIfMatchNoDocs = false;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -210,7 +210,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalString(preference);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(matchNoDocsReturnNullResponse);
+            out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
         }
     }
 
@@ -291,12 +291,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * Defaults to false since the coordinator node needs at least one shard response to build the global
      * response.
      */
-    public boolean isMatchNoDocsReturnNullResponse() {
-        return matchNoDocsReturnNullResponse;
+    public boolean canReturnNullResponseIfMatchNoDocs() {
+        return canReturnNullResponseIfMatchNoDocs;
     }
 
-    public void setMatchNoDocsReturnNullResponse(boolean value) {
-        this.matchNoDocsReturnNullResponse = value;
+    public void canReturnNullResponseIfMatchNoDocs(boolean value) {
+        this.canReturnNullResponseIfMatchNoDocs = value;
     }
 
     /**

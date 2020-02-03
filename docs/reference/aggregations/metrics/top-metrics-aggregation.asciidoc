@@ -146,3 +146,79 @@ Which returns:
 }
 ----
 // TESTRESPONSE
+
+===== Mixed sort types
+
+Sorting `top_metrics` by a field that has different types across different
+indices producs somewhat suprising results: floating point fields are
+always sorted *before* whole number fields.
+
+[source,console,id=search-aggregations-metrics-top-metrics-mixed-sort]
+----
+POST /test/_bulk?refresh
+{"index": {"_index": "test1"}}
+{"s": 1, "v": 3.1415}
+{"index": {"_index": "test1"}}
+{"s": 2, "v": 1}
+{"index": {"_index": "test2"}}
+{"s": 3.1, "v": 2.71828}
+POST /test*/_search?filter_path=aggregations
+{
+  "aggs": {
+    "tm": {
+      "top_metrics": {
+        "metric": {"field": "v"},
+        "sort": {"s": "asc"}
+      }
+    }
+  }
+}
+----
+
+Which returns:
+
+[source,js]
+----
+{
+  "aggregations": {
+    "tm": {
+      "top": [ {"sort": [3.0999999046325684], "metrics": {"v": 2.718280076980591 } } ]
+    }
+  }
+}
+----
+// TESTRESPONSE
+
+While this is better than an error it *probably* isn't what you were going for.
+You can explictly cast the floating point fields to integers or the way around
+with something like:
+
+[source,console]
+----
+POST /test*/_search?filter_path=aggregations
+{
+  "aggs": {
+    "tm": {
+      "top_metrics": {
+        "metric": {"field": "v"},
+        "sort": {"s": {"order": "asc", "numeric_type": "long"}}
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+Which returns the much more expected:
+
+[source,js]
+----
+{
+  "aggregations": {
+    "tm": {
+      "top": [ {"sort": [1], "metrics": {"v": 3.1414999961853027 } } ]
+    }
+  }
+}
+----
+// TESTRESPONSE

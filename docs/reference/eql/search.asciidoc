@@ -35,18 +35,12 @@ specified in the `rule` parameter. The EQL query matches events with an
 GET sec_logs/_eql/search
 {
   "rule": """
-    process where `process.name` == "cmd.exe"
+    process where process.name == "cmd.exe"
   """
 }
 ----
 // TEST[continued]
 
-Note a few things about this request:
-
-* In the EQL query, the `process.name` field is specified using dot notation.
-Because dot (`.`) is a reserved character for EQL in {es}, the field name must
-be escaped using backticks (`+++`+++`).
-
-* Because the `sec_log` index follows the ECS, you don't need to specify the
+Because the `sec_log` index follows the ECS, you don't need to specify the
 event type or timestamp fields. The request uses the `event.category` and
 `@timestamp` fields by default.

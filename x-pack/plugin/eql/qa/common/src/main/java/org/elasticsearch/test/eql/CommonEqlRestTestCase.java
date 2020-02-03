@@ -6,6 +6,7 @@
 package org.elasticsearch.test.eql;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 
@@ -60,6 +62,11 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             400, "query doesn't support values of type: VALUE_NULL"));
         searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"query\": {}}",
             400, "query malformed, empty clause found"));
+    }
+
+    @BeforeClass
+    public static void checkForSnapshot() {
+        assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
     }
 
     @Before

@@ -264,7 +264,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
          * Creates the list of GroupBy keys
          */
         static GroupingContext groupBy(List<? extends Expression> groupings) {
-            if (groupings.isEmpty() == true) {
+            if (groupings.isEmpty()) {
                 return null;
             }
 

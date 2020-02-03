@@ -19,13 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
-import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Set;
 
 /**
  * Represents a member field for its parent class (internal only).
@@ -63,21 +59,7 @@ public class SField extends ANode {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
-
-    @Override
-    public StatementNode write() {
-        throw new UnsupportedOperationException();
-    }
-
-    FieldNode writeField() {
+    FieldNode write(ClassNode classNode) {
         FieldNode fieldNode = new FieldNode();
 
         fieldNode.setLocation(location);

@@ -226,7 +226,8 @@ public class RestoreService implements ClusterStateApplier {
                         RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
                         // Check if the snapshot to restore is currently being deleted
                         SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+                        if (deletionsInProgress != null
+                            && deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshot().equals(snapshot))) {
                             throw new ConcurrentSnapshotExecutionException(snapshot,
                                 "cannot restore a snapshot while a snapshot deletion is in-progress [" +
                                     deletionsInProgress.getEntries().get(0).getSnapshot() + "]");
@@ -269,7 +270,8 @@ public class RestoreService implements ClusterStateApplier {
                                 if (currentIndexMetaData == null) {
                                     // Index doesn't exist - create it and start recovery
                                     // Make sure that the index we are about to create has a validate name
-                                    MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
+                                    boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(snapshotIndexMetaData.getSettings());
+                                    createIndexService.validateIndexName(renamedIndexName, currentState, isHidden);
                                     createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
                                     IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                         .state(IndexMetaData.State.OPEN)

@@ -9,9 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
 
@@ -29,7 +26,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     protected OpenFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new OpenFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new OpenFollowerIndexStep(stepKey, nextStepKey, client);
     }
 
     @Override
@@ -56,15 +53,20 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
         return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetaData.State.OPEN)
+            .state(IndexMetaData.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
     }
 
     public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
-        IndexMetaData indexMetadata = getIndexMetaData();
-        Client client = Mockito.mock(Client.class);
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetaData.State.OPEN)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
@@ -81,19 +83,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     }
 
     public void testOpenFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetaData.State.CLOSE)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Mockito.doAnswer(invocation -> {
             OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
@@ -130,12 +120,6 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {

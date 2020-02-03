@@ -137,6 +137,45 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}
 
+`cluster_name`::
+(string)
+Name of the cluster. Based on the <<cluster.name>> setting.
+
+`nodes.<node_id>.timestamp`::
+(integer)
+Time the node stats were collected for this response. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`nodes.<node_id>.name`::
+(string)
+Human-readable identifier for the node. Based on the <<node.name>> setting.
+
+`nodes.<node_id>.transport_address`::
+(string)
+Host and port for the <<modules-transport,transport layer>>, used for internal
+communication between nodes in a cluster.
+
+`nodes.<node_id>.host`::
+(string)
+Network host for the node, based on the <<network.host>> setting.
+
+`nodes.<node_id>.ip`::
+(string)
+IP address and port for the node.
+
+`nodes.<node_id>.roles`::
+(array of strings)
+Roles assigned to the node. See <<modules-node>>.
+
+`nodes.<node_id>.attributes`::
+(object)
+Object containing a list of attributes for the node.
+
+[NOTE]
+====
+The remaining node statistics are grouped by section. Each statistic is keyed by `nodes.<node_id>`.
+====
+
 [[cluster-nodes-stats-api-response-body-indices]]
 ===== `indices` section
 
@@ -475,8 +514,8 @@ for <<parent-join,join>> fields.
 
 `indices.segments.max_unsafe_auto_id_timestamp`::
 (integer)
-Timestamp of the
-most recent retry request.
+Time of the most recently retried indexing request. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 
 `indices.segments.file_sizes.size_in_bytes`::
 (integer)
@@ -1120,8 +1159,6 @@ Number of compatible differences between published cluster states.
 
 [%collapsible]
 ====
-The `adaptive_selection` statistics are keyed by node. For each node:
-
 `adaptive_selection.outgoing_searches`::
     The number of outstanding search requests from the node these stats are for 
     to the keyed node.

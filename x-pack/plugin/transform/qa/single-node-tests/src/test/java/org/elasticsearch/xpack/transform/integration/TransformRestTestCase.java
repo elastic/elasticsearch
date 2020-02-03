@@ -170,20 +170,20 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createReviewsIndex(indexName, 1000);
     }
 
-    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query) throws IOException {
-        createPivotReviewsTransform(transformId, dataFrameIndex, query, null);
+    protected void createPivotReviewsTransform(String transformId, String transformIndex, String query) throws IOException {
+        createPivotReviewsTransform(transformId, transformIndex, query, null);
     }
 
-    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline)
+    protected void createPivotReviewsTransform(String transformId, String transformIndex, String query, String pipeline)
         throws IOException {
-        createPivotReviewsTransform(transformId, dataFrameIndex, query, pipeline, null);
+        createPivotReviewsTransform(transformId, transformIndex, query, pipeline, null);
     }
 
-    protected void createContinuousPivotReviewsTransform(String transformId, String dataFrameIndex, String authHeader) throws IOException {
+    protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
-        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
-        String config = "{ \"dest\": {\"index\":\"" + dataFrameIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+        String config = "{ \"dest\": {\"index\":\"" + transformIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
         // Set frequency high for testing
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
             + " \"frequency\": \"1s\","
@@ -200,22 +200,22 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + " } } } }"
             + "}";
 
-        createDataframeTransformRequest.setJsonEntity(config);
+        createTransformRequest.setJsonEntity(config);
 
-        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
-        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline, String authHeader)
+    protected void createPivotReviewsTransform(String transformId, String transformIndex, String query, String pipeline, String authHeader)
         throws IOException {
-        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
         String config = "{";
 
         if (pipeline != null) {
-            config += " \"dest\": {\"index\":\"" + dataFrameIndex + "\", \"pipeline\":\"" + pipeline + "\"},";
+            config += " \"dest\": {\"index\":\"" + transformIndex + "\", \"pipeline\":\"" + pipeline + "\"},";
         } else {
-            config += " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+            config += " \"dest\": {\"index\":\"" + transformIndex + "\"},";
         }
 
         if (query != null) {
@@ -238,10 +238,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "\"frequency\":\"1s\""
             + "}";
 
-        createDataframeTransformRequest.setJsonEntity(config);
+        createTransformRequest.setJsonEntity(config);
 
-        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
-        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void startTransform(String transformId) throws IOException {
@@ -271,38 +271,38 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
-        startAndWaitForTransform(transformId, dataFrameIndex, null);
+    protected void startAndWaitForTransform(String transformId, String transformIndex) throws Exception {
+        startAndWaitForTransform(transformId, transformIndex, null);
     }
 
-    protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
-        startAndWaitForTransform(transformId, dataFrameIndex, authHeader, new String[0]);
+    protected void startAndWaitForTransform(String transformId, String transformIndex, String authHeader) throws Exception {
+        startAndWaitForTransform(transformId, transformIndex, authHeader, new String[0]);
     }
 
-    protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader, String... warnings)
+    protected void startAndWaitForTransform(String transformId, String transformIndex, String authHeader, String... warnings)
         throws Exception {
         // start the transform
         startTransform(transformId, authHeader, warnings);
-        assertTrue(indexExists(dataFrameIndex));
-        // wait until the dataframe has been created and all data is available
-        waitForDataFrameCheckpoint(transformId);
+        assertTrue(indexExists(transformIndex));
+        // wait until the transform has been created and all data is available
+        waitForTransformCheckpoint(transformId);
 
-        waitForDataFrameStopped(transformId);
-        refreshIndex(dataFrameIndex);
+        waitForTransformStopped(transformId);
+        refreshIndex(transformIndex);
     }
 
-    protected void startAndWaitForContinuousTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
-        startAndWaitForContinuousTransform(transformId, dataFrameIndex, authHeader, 1L);
+    protected void startAndWaitForContinuousTransform(String transformId, String transformIndex, String authHeader) throws Exception {
+        startAndWaitForContinuousTransform(transformId, transformIndex, authHeader, 1L);
     }
 
-    protected void startAndWaitForContinuousTransform(String transformId, String dataFrameIndex, String authHeader, long checkpoint)
+    protected void startAndWaitForContinuousTransform(String transformId, String transformIndex, String authHeader, long checkpoint)
         throws Exception {
         // start the transform
         startTransform(transformId, authHeader, new String[0]);
-        assertTrue(indexExists(dataFrameIndex));
-        // wait until the dataframe has been created and all data is available
+        assertTrue(indexExists(transformIndex));
+        // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId, checkpoint);
-        refreshIndex(dataFrameIndex);
+        refreshIndex(transformIndex);
     }
 
     protected Request createRequestWithAuth(final String method, final String endpoint, final String authHeader) {
@@ -317,16 +317,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return request;
     }
 
-    void waitForDataFrameStopped(String transformId) throws Exception {
+    void waitForTransformStopped(String transformId) throws Exception {
         assertBusy(() -> { assertEquals("stopped", getTransformState(transformId)); }, 15, TimeUnit.SECONDS);
     }
 
-    void waitForDataFrameCheckpoint(String transformId) throws Exception {
+    void waitForTransformCheckpoint(String transformId) throws Exception {
         waitForTransformCheckpoint(transformId, 1L);
     }
 
     void waitForTransformCheckpoint(String transformId, long checkpoint) throws Exception {
-        assertBusy(() -> assertEquals(checkpoint, getDataFrameCheckpoint(transformId)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertEquals(checkpoint, getTransformCheckpoint(transformId)), 30, TimeUnit.SECONDS);
     }
 
     void refreshIndex(String index) throws IOException {
@@ -412,7 +412,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
             assertEquals(0, XContentMapValues.extractValue("hits.total.value", searchResult));
         } catch (ResponseException e) {
-            // 404 here just means we had no data frame transforms, true for some tests
+            // 404 here just means we had no transforms, true for some tests
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
             }
@@ -423,10 +423,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TransformField.TASK_NAME) == false);
     }
 
-    static int getDataFrameCheckpoint(String transformId) throws IOException {
+    static int getTransformCheckpoint(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", getTransformEndpoint() + transformId + "/_stats"));
 
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+
+        // assert that the transform did not fail
+        assertNotEquals("failed", XContentMapValues.extractValue("state", transformStatsAsMap));
         return (int) XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStatsAsMap);
     }
 

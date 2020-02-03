@@ -103,9 +103,9 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
-        String dataFrameIndex = "failure_pivot_reviews";
-        createDestinationIndexWithBadMapping(dataFrameIndex);
-        createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
+        String transformIndex = "failure_pivot_reviews";
+        createDestinationIndexWithBadMapping(transformIndex);
+        createContinuousPivotReviewsTransform(transformId, transformIndex, null);
         failureTransforms.add(transformId);
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);

@@ -306,10 +306,6 @@ public class QueryPhase implements SearchPhase {
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                 queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
-            if (searchContext.getProfilers() != null) {
-                ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());
-                queryResult.profileResults(shardResults);
-            }
             return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);

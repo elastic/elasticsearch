@@ -15,11 +15,11 @@
  * KIND, either express or implied.  See the License for the
  */
 
-
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.redline_rpm.header.Flags
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.info.BuildParams
+import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -231,6 +231,10 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
       fileMode 0644
     }
+    into('/usr/share/elasticsearch/bin') {
+      from "${packagingFiles}/systemd/systemd-entrypoint"
+      fileMode 0755
+    }
 
     // ========= sysV init =========
     configurationFile '/etc/init.d/elasticsearch'
@@ -281,7 +285,7 @@ ospackage {
   url 'https://www.elastic.co/'
 
   // signing setup
-  if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
+  if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?

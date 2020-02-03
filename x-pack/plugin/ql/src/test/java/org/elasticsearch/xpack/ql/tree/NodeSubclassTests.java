@@ -23,12 +23,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfNull;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.tree.NodeTests.ChildrenAreAProperty;
@@ -49,7 +44,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -91,9 +85,6 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
-
-    protected static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(Iif.class, IfConditional.class, IfNull.class,
-            In.class, InPipe.class);
 
     private final Class<T> subclass;
 
@@ -572,7 +563,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     protected boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
-        return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
+        return false;
     }
 
     private List<?> makeListOfSameSizeOtherThan(Type listType, List<?> original) throws Exception {

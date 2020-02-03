@@ -72,6 +72,56 @@ setup:
                }
             }
           }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: yyy-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag3"],
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: zzz-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag3"],
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
 ---
 "Test get given missing trained model":
 
@@ -102,15 +152,20 @@ setup:
   - do:
       ml.get_trained_models:
         model_id: "*"
-  - match: { count: 4 }
+  - match: { count: 6 }
+  - length: { trained_model_configs: 6 }
   - match: { trained_model_configs.0.model_id: "a-classification-model" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
   - match: { trained_model_configs.2.model_id: "a-regression-model-1" }
+  - match: { trained_model_configs.3.model_id: "lang_ident_model_1" }
+  - match: { trained_model_configs.4.model_id: "yyy-classification-model" }
+  - match: { trained_model_configs.5.model_id: "zzz-classification-model" }
 
   - do:
       ml.get_trained_models:
         model_id: "a-regression*"
   - match: { count: 2 }
+  - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
 
@@ -119,7 +174,8 @@ setup:
         model_id: "*"
         from: 0
         size: 2
-  - match: { count: 4 }
+  - match: { count: 6 }
+  - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "a-classification-model" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
 
@@ -128,8 +184,78 @@ setup:
         model_id: "*"
         from: 1
         size: 1
-  - match: { count: 4 }
+  - match: { count: 6 }
+  - length: { trained_model_configs: 1 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        from: 2
+        size: 2
+  - match: { count: 6 }
+  - length: { trained_model_configs: 2 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
+  - match: { trained_model_configs.1.model_id: "lang_ident_model_1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        from: 3
+        size: 1
+  - match: { count: 6 }
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        from: 3
+        size: 2
+  - match: { count: 6 }
+  - length: { trained_model_configs: 2 }
+  - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
+  - match: { trained_model_configs.1.model_id: "yyy-classification-model" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        from: 4
+        size: 2
+  - match: { count: 6 }
+  - length: { trained_model_configs: 2 }
+  - match: { trained_model_configs.0.model_id: "yyy-classification-model" }
+  - match: { trained_model_configs.1.model_id: "zzz-classification-model" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "a-*,lang*,zzz*"
+        allow_no_match: true
+        from: 3
+        size: 1
+  - match: { count: 5 }
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "a-*,lang*,zzz*"
+        allow_no_match: true
+        from: 4
+        size: 1
+  - match: { count: 5 }
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "zzz-classification-model" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "a-*,lang*,zzz*"
+        from: 4
+        size: 100
+  - match: { count: 5 }
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "zzz-classification-model" }
+
 ---
 "Test get models with tags":
   - do:

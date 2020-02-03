@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an if block.
@@ -43,19 +43,10 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
+        condition.analyze(scriptRoot, scope);
+        condition = condition.cast(scriptRoot, scope);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -69,7 +60,7 @@ public final class SIf extends AStatement {
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        ifblock.analyze(scriptRoot, Locals.newLocalScope(locals));
+        ifblock.analyze(scriptRoot, scope.newLocalScope());
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
@@ -77,11 +68,11 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    IfNode write() {
+    IfNode write(ClassNode classNode) {
         IfNode ifNode = new IfNode();
 
-        ifNode.setConditionNode(condition.write());
-        ifNode.setBlockNode(ifblock.write());
+        ifNode.setConditionNode(condition.write(classNode));
+        ifNode.setBlockNode(ifblock.write(classNode));
 
         ifNode.setLocation(location);
 

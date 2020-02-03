@@ -155,20 +155,13 @@ public class DockerUtils {
             throwDockerRequiredException(message);
         }
 
-        final String operation;
-        if (availability.version == null) {
-            operation = "getting docker version";
-        } else {
-            operation = "execute a privileged command";
-        }
-
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred while %s using Docker from [%s] yet it is required to run the following task%s: \n%s\n"
+            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
                 + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
-            operation,
             availability.path,
+            availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",
             String.join("\n", tasks),
             availability.lastCommand.exitCode,

@@ -145,7 +145,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     void assertNoMaster(final String node) throws Exception {
-        assertNoMaster(node, null, TimeValue.timeValueSeconds(10));
+        assertNoMaster(node, null, TimeValue.timeValueSeconds(30));
     }
 
     void assertNoMaster(final String node, TimeValue maxWaitTime) throws Exception {
@@ -176,7 +176,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
             assertThat("node [" + node + "] still has [" + masterNode + "] as master",
                     oldMasterNode, not(equalTo(masterNode)));
-        }, 10, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
     void assertMaster(String masterNode, List<String> nodes) throws Exception {

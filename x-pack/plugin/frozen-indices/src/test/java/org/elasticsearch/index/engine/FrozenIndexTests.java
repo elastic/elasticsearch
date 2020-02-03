@@ -123,8 +123,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         int numRefreshes = 0;
         for (int i = 0; i < numRequests; i++) {
             numRefreshes++;
-            // make sure that we don't share the frozen reader in
-            // concurrent requests
+            // make sure that we don't share the frozen reader in concurrent requests since we acquire the
+            // searcher and rewrite the request outside of the search-throttle thread pool
             CountDownLatch reqLatch = new CountDownLatch(1);
             switch (randomFrom(Arrays.asList(0, 1, 2))) {
                 case 0:

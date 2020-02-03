@@ -20,14 +20,14 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats;
 import java.io.IOException;
 import java.util.List;
 
-public class SeachableSnapshotsStatsResponse
-    extends BaseNodesResponse<SeachableSnapshotsStatsResponse.NodeStatsResponse> implements ToXContentObject {
+public class SearchableSnapshotsStatsResponse
+    extends BaseNodesResponse<SearchableSnapshotsStatsResponse.NodeStatsResponse> implements ToXContentObject {
 
-    SeachableSnapshotsStatsResponse(StreamInput in) throws IOException {
+    SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    SeachableSnapshotsStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
+    SearchableSnapshotsStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 

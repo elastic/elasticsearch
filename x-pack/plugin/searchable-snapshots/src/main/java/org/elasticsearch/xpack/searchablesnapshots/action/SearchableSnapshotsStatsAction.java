@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class SeachableSnapshotsStatsAction extends ActionType<SeachableSnapshotsStatsResponse> {
+public class SearchableSnapshotsStatsAction extends ActionType<SearchableSnapshotsStatsResponse> {
 
-    public static final SeachableSnapshotsStatsAction INSTANCE = new SeachableSnapshotsStatsAction();
+    public static final SearchableSnapshotsStatsAction INSTANCE = new SearchableSnapshotsStatsAction();
     static final String NAME = "cluster:monitor/xpack/searchable_snapshots/stats";
 
-    private SeachableSnapshotsStatsAction() {
-        super(NAME, SeachableSnapshotsStatsResponse::new);
+    private SearchableSnapshotsStatsAction() {
+        super(NAME, SearchableSnapshotsStatsResponse::new);
     }
 }

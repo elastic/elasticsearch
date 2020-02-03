@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.Counter;
 import org.elasticsearch.xpack.searchablesnapshots.InMemoryNoOpCommitDirectory;
-import org.elasticsearch.xpack.searchablesnapshots.action.SeachableSnapshotsStatsRequest.NodeStatsRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.SeachableSnapshotsStatsResponse.NodeStatsResponse;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest.NodeStatsRequest;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse.NodeStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
 
@@ -40,32 +40,32 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
-public class TransportSeachableSnapshotsStatsAction extends TransportNodesAction<SeachableSnapshotsStatsRequest,
-                                                                                SeachableSnapshotsStatsResponse,
+public class TransportSearchableSnapshotsStatsAction extends TransportNodesAction<SearchableSnapshotsStatsRequest,
+    SearchableSnapshotsStatsResponse,
                                                                                 NodeStatsRequest,
                                                                                 NodeStatsResponse> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportSeachableSnapshotsStatsAction(final ThreadPool threadPool,
-                                                  final ClusterService clusterService,
-                                                  final TransportService transportService,
-                                                  final ActionFilters actionFilters,
-                                                  final IndicesService indicesService) {
-        super(SeachableSnapshotsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            SeachableSnapshotsStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.GENERIC, NodeStatsResponse.class);
+    public TransportSearchableSnapshotsStatsAction(final ThreadPool threadPool,
+                                                   final ClusterService clusterService,
+                                                   final TransportService transportService,
+                                                   final ActionFilters actionFilters,
+                                                   final IndicesService indicesService) {
+        super(SearchableSnapshotsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            SearchableSnapshotsStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.GENERIC, NodeStatsResponse.class);
         this.indicesService = Objects.requireNonNull(indicesService);
     }
 
     @Override
-    protected SeachableSnapshotsStatsResponse newResponse(SeachableSnapshotsStatsRequest request, List<NodeStatsResponse> responses,
-                                                          List<FailedNodeException> failures) {
-        return new SeachableSnapshotsStatsResponse(clusterService.getClusterName(), responses, failures);
+    protected SearchableSnapshotsStatsResponse newResponse(SearchableSnapshotsStatsRequest request, List<NodeStatsResponse> responses,
+                                                           List<FailedNodeException> failures) {
+        return new SearchableSnapshotsStatsResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
-    protected NodeStatsRequest newNodeRequest(SeachableSnapshotsStatsRequest request) {
+    protected NodeStatsRequest newNodeRequest(SearchableSnapshotsStatsRequest request) {
         return new NodeStatsRequest();
     }
 

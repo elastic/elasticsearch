@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class SeachableSnapshotsStatsRequest extends BaseNodesRequest<SeachableSnapshotsStatsRequest> {
+public class SearchableSnapshotsStatsRequest extends BaseNodesRequest<SearchableSnapshotsStatsRequest> {
 
-    SeachableSnapshotsStatsRequest(StreamInput in) throws IOException {
+    SearchableSnapshotsStatsRequest(StreamInput in) throws IOException {
         super(in);
     }
 
-    public SeachableSnapshotsStatsRequest(String... nodesIds) {
+    public SearchableSnapshotsStatsRequest(String... nodesIds) {
         super(nodesIds);
     }
 

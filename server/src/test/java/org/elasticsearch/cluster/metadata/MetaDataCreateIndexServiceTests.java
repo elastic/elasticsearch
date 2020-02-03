@@ -88,6 +88,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
@@ -951,7 +952,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
     }
 
-    public void testValidateTranslogRetentionSettings() {
+    public void testRejectTranslogRetentionSettings() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
@@ -959,6 +960,27 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         } else {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
+        if (randomBoolean()) {
+            settings.put(SETTING_INDEX_VERSION_CREATED.getKey(),
+                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT));
+        }
+        request.settings(settings.build());
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS));
+        assertThat(error.getMessage(), equalTo("Translog retention settings [index.translog.retention.age] " +
+            "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings"));
+    }
+
+    public void testDeprecateTranslogRetentionSettings() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
+        } else {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
+        }
+        settings.put(SETTING_INDEX_VERSION_CREATED.getKey(), VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
         request.settings(settings.build());
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);

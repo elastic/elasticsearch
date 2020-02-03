@@ -8,7 +8,6 @@ parameters that are used by <<mapping-types,field mappings>>:
 The following mapping parameters are common to some or all field datatypes:
 
 * <<analyzer,`analyzer`>>
-* <<mapping-boost,`boost`>>
 * <<coerce,`coerce`>>
 * <<copy-to,`copy_to`>>
 * <<doc-values,`doc_values`>>
@@ -37,8 +36,6 @@ The following mapping parameters are common to some or all field datatypes:
 
 
 include::params/analyzer.asciidoc[]
-
-include::params/boost.asciidoc[]
 
 include::params/coerce.asciidoc[]
 

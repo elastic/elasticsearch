@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[eql-run-search]]
+[[eql-search]]
 == Run an EQL search
 
 experimental::[]

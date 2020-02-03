@@ -56,6 +56,7 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -208,6 +209,25 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Shell.Result result = startElasticsearchTtyPassword("wrong");
         // error will be on stdout for "expect"
         assertThat(result.stdout, containsString(ERROR_INCORRECT_PASSWORD));
+    }
+
+    /**
+     * If we have an encrypted keystore, we shouldn't require a password to
+     * view help information.
+     */
+    public void test44EncryptedKeystoreAllowsHelpMessage() throws Exception {
+        assumeTrue("users call elasticsearch directly in archive case",
+            distribution.isArchive());
+
+        String password = "keystorepass";
+
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
+
+        assertPasswordProtectedKeystore();
+        Shell.Result r = installation.executables().elasticsearch.run("--help");
+        assertThat(r.stdout, startsWith("Starts Elasticsearch"));
     }
 
     public void test50KeystorePasswordFromFile() throws Exception {

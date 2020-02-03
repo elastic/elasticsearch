@@ -24,6 +24,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -68,7 +69,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-public class Monitoring extends Plugin implements ActionPlugin {
+public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
 
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
@@ -79,6 +80,8 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     protected final Settings settings;
     private final boolean enabled;
+
+    private Exporters exporters;
 
     public Monitoring(Settings settings) {
         this.settings = settings;
@@ -110,8 +113,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
-        final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(),
-            threadPool.getThreadContext());
+        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
@@ -177,5 +179,14 @@ public class Monitoring extends Plugin implements ActionPlugin {
     public List<String> getSettingsFilter() {
         final String exportersKey = "xpack.monitoring.exporters.";
         return List.of(exportersKey + "*.auth.*", exportersKey + "*.ssl.*");
+    }
+
+    @Override
+    public void reload(Settings settings) throws Exception {
+        final List<String> changedExporters = HttpExporter.loadSettings(settings);
+        for (String changedExporter : changedExporters) {
+            final Settings settingsForChangedExporter = settings.filter(x -> x.startsWith("xpack.monitoring.exporters." + changedExporter));
+            exporters.setExportersSetting(settingsForChangedExporter);
+        }
     }
 }

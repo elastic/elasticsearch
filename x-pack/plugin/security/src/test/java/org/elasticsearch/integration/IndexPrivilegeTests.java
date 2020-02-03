@@ -69,6 +69,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'b'\n" +
                     "      privileges: [ monitor ]\n" +
+                    "maintenance_a_role:\n" +
+                    "  indices:\n" +
+                    "    - names: 'a'\n" +
+                    "      privileges: [ maintenance ]\n" +
                     "read_write_a_role:\n" +
                     "  indices:\n" +
                     "    - names: 'a'\n" +
@@ -96,6 +100,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "read_write_all_role:u12\n" +
             "create_c_role:u11\n" +
             "monitor_b_role:u14\n" +
+            "maintenance_a_role:u15\n" +
             "read_write_a_role:u12\n" +
             "delete_b_role:u11\n" +
             "index_a_role:u13\n";
@@ -129,7 +134,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "u11:" + usersPasswdHashed + "\n" +
             "u12:" + usersPasswdHashed + "\n" +
             "u13:" + usersPasswdHashed + "\n" +
-            "u14:" + usersPasswdHashed + "\n";
+            "u14:" + usersPasswdHashed + "\n" +
+            "u15:" + usersPasswdHashed + "\n" ;
     }
 
     @Override
@@ -308,12 +314,14 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u11", "manage", "b");
         assertUserIsDenied("u11", "index", "b");
         assertUserIsDenied("u11", "search", "b");
+        assertUserIsDenied("u11", "maintenance", "b");
         assertUserIsAllowed("u11", "delete", "b");
 
         assertAccessIsAllowed("admin", "DELETE", "/c");
         assertUserIsAllowed("u11", "create_index", "c");
         assertUserIsDenied("u11", "data_access", "c");
         assertUserIsDenied("u11", "monitor", "c");
+        assertUserIsDenied("u11", "maintenance", "c");
 
         assertAccessIsDenied("u11",
                 "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
@@ -385,6 +393,11 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
+    public void testUserU15() throws Exception {
+        assertUserIsAllowed("u15", "maintenance", "a");
+        assertUserIsDenied("u15", "crud", "a");
+    }
+
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
         try {
             Request request = new Request("GET", "/");
@@ -416,6 +429,20 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "PUT", "/" + index);
                 } else {
                     assertAccessIsDenied(user, "PUT", "/" + index);
+                }
+                break;
+
+            case "maintenance" :
+                if (userIsAllowed) {
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_flush/synced");
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
+                } else {
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                 }
                 break;
 

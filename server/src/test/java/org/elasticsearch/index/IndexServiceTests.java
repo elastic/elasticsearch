@@ -376,11 +376,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
         client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         client().admin().indices().prepareFlush("test").get();
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), -1)
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), -1))
-            .get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
     }

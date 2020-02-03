@@ -126,7 +126,9 @@ public final class PasswordBasedEncryption {
         byte[] resultCiphertext = new byte[saltAndEncryptionKey.v1().length + iv.length + encryptedData.length];
         // prepend salt
         System.arraycopy(saltAndEncryptionKey.v1(), 0, resultCiphertext, 0, saltAndEncryptionKey.v1().length);
+        // follow-up with the iv
         System.arraycopy(iv, 0, resultCiphertext, saltAndEncryptionKey.v1().length, iv.length);
+        // and finally conclude the result with the ciphertext (the output of the cipher)
         System.arraycopy(encryptedData, 0, resultCiphertext, saltAndEncryptionKey.v1().length + iv.length, encryptedData.length);
         return resultCiphertext;
     }

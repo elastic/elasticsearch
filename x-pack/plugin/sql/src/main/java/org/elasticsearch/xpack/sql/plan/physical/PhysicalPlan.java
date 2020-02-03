@@ -13,6 +13,12 @@ import org.elasticsearch.xpack.sql.session.Rows;
 
 import java.util.List;
 
+/**
+ * A PhysicalPlan is "how" a LogicalPlan (the "what") actually gets translated into one or more queries.
+ *
+ * LogicalPlan = I want to get from DEN to SFO
+ * PhysicalPlan = take Delta, DEN to SJC, then SJC to SFO
+ */
 public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> implements Executable {
 
     private Schema lazySchema;

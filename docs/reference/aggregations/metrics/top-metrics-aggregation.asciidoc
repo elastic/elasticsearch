@@ -3,7 +3,7 @@
 [[search-aggregations-metrics-top-metrics]]
 === Top Metrics Aggregation
 
-experimental[We expect to change the response format of this aggregation as we add more features.]
+experimental[We expect to change the response format of this aggregation as we add more features., https://github.com/elastic/elasticsearch/issues/51813]
 
 The `top_metrics` aggregation selects metrics from the document with the largest or smallest "sort"
 value. For example, This gets the value of the `v` field on the document with the largest value of `s`:
@@ -61,13 +61,15 @@ request. So,
 
 `"sort": {"s": "desc"}`:: gets metrics from the document with the highest `s`
 `"sort": {"s": "asc"}`:: gets the metrics from the document with the lowest `s`
-`"sort": {"_geo_distance": {"location": "35.7796, 78.6382"}}`::
+`"sort": {"_geo_distance": {"location": "35.7796, -78.6382"}}`::
   gets metrics from the documents with `location` *closest* to `35.7796, -78.6382`
 `"sort": "_score"`:: gets metrics from the document with the highest score
 
 ==== `metric`
 
-At this point `metric` supports only `{"field": "field_name"}`. Expect more to come here.
+At this point `metric` supports only `{"field": "field_name"}` and all metrics
+are returned as double precision floating point numbers. Expect more to
+come here.
 
 ==== Examples
 

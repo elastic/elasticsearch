@@ -41,12 +41,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 
-import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
-import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;

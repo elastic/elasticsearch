@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**

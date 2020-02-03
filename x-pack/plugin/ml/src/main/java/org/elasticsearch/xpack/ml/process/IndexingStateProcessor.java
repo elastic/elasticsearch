@@ -112,6 +112,9 @@ public class IndexingStateProcessor implements StateProcessor {
 
     void findAppropriateIndexAndPersist(BytesReference bytes) throws IOException {
         String stateDocId = extractDocId(bytes);
+        if (stateDocId == null) {
+            return;
+        }
         String indexOrAlias = getConcreteIndexOrWriteAlias(stateDocId);
         persist(indexOrAlias, bytes);
     }
@@ -140,22 +143,36 @@ public class IndexingStateProcessor implements StateProcessor {
 
     @SuppressWarnings("unchecked")
     static String extractDocId(BytesReference bytesRef) throws IOException {
-        int newLineMarkerIndex = bytesRef.indexOf((byte)'\n', 0);
-        String firstLine = newLineMarkerIndex != -1
-            ? bytesRef.slice(0, newLineMarkerIndex).utf8ToString()
-            : bytesRef.utf8ToString();
+        String firstNonBlankLine = extractFirstNonBlankLine(bytesRef);
+        if (firstNonBlankLine == null) {
+            return null;
+        }
         try (XContentParser parser =
-                 JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, firstLine)) {
+                 JsonXContent.jsonXContent.createParser(
+                     NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, firstNonBlankLine)) {
             Map<String, Object> map = parser.map();
             if ((map.get("index") instanceof Map) == false) {
-                throw new IllegalStateException("Could not extract \"index\" field out of [" + firstLine + "]");
+                throw new IllegalStateException("Could not extract \"index\" field out of [" + firstNonBlankLine + "]");
             }
             map = (Map<String, Object>)map.get("index");
             if ((map.get("_id") instanceof String) == false) {
-                throw new IllegalStateException("Could not extract \"index._id\" field out of [" + firstLine + "]");
+                throw new IllegalStateException("Could not extract \"index._id\" field out of [" + firstNonBlankLine + "]");
             }
             return (String)map.get("_id");
         }
+    }
+
+    private static String extractFirstNonBlankLine(BytesReference bytesRef) {
+        for (int searchFrom = 0; searchFrom < bytesRef.length();) {
+            int newLineMarkerIndex = bytesRef.indexOf((byte) '\n', searchFrom);
+            int searchTo = newLineMarkerIndex != -1 ? newLineMarkerIndex : bytesRef.length();
+            String line = bytesRef.slice(searchFrom, searchTo - searchFrom).utf8ToString();
+            if (line.isBlank() == false) {
+                return line;
+            }
+            searchFrom = newLineMarkerIndex != -1 ? newLineMarkerIndex + 1 : bytesRef.length();
+        }
+        return null;
     }
 
     private String getConcreteIndexOrWriteAlias(String documentId) {

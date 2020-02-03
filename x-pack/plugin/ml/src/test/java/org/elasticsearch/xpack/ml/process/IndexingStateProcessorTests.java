@@ -24,9 +24,11 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,6 +49,7 @@ import static org.mockito.Mockito.when;
 public class IndexingStateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = ""
+            + "        \n"
             + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
             + "{ \"field\" : \"value1\" }\n"
             + "\0"
@@ -122,18 +125,24 @@ public class IndexingStateProcessorTests extends ESTestCase {
         verify(stateProcessor, never()).persist(any(), any());
     }
 
-    public void testStateReadGivenConsecutiveSpacesFollowedByZeroByte() throws IOException {
-        String bytes = "        \n\0";
-        ByteArrayInputStream stream = new ByteArrayInputStream(bytes.getBytes(StandardCharsets.UTF_8));
+    public void testStateReadGivenSpacesAndNewLineCharactersFollowedByZeroByte() throws IOException {
+        Function<String, InputStream> stringToInputStream = s -> new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8));
 
-        Exception e = expectThrows(IllegalStateException.class, () -> stateProcessor.process(stream));
-        assertThat(e.getMessage(), containsString("Could not extract \"index\" field"));
+        stateProcessor.process(stringToInputStream.apply("\0"));
+        stateProcessor.process(stringToInputStream.apply(" \0"));
+        stateProcessor.process(stringToInputStream.apply("\n\0"));
+        stateProcessor.process(stringToInputStream.apply("            \0"));
+        stateProcessor.process(stringToInputStream.apply("        \n  \0"));
+        stateProcessor.process(stringToInputStream.apply("      \n\n  \0"));
+        stateProcessor.process(stringToInputStream.apply("    \n  \n  \0"));
+        stateProcessor.process(stringToInputStream.apply("  \n    \n  \0"));
+        stateProcessor.process(stringToInputStream.apply("\n      \n  \0"));
 
         verify(stateProcessor, never()).persist(any(), any());
     }
 
     public void testStateReadGivenNoIndexField() throws IOException {
-        String bytes = "{}\0";
+        String bytes = "  \n    \n  \n \n\n   {}\0";
         ByteArrayInputStream stream = new ByteArrayInputStream(bytes.getBytes(StandardCharsets.UTF_8));
 
         Exception e = expectThrows(IllegalStateException.class, () -> stateProcessor.process(stream));
@@ -143,7 +152,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testStateReadGivenNoIdField() throws IOException {
-        String bytes = "{\"index\": {}}\0";
+        String bytes = "  \n \n    \n   {\"index\": {}}\0";
         ByteArrayInputStream stream = new ByteArrayInputStream(bytes.getBytes(StandardCharsets.UTF_8));
 
         Exception e = expectThrows(IllegalStateException.class, () -> stateProcessor.process(stream));

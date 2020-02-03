@@ -84,9 +84,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        if (tracerLog != null) {
-            tracerLog.trace(new ParameterizedMessage("[{}] sent response to [{}]", request.hashCode(), httpChannel));
-        }
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
         toClose.add(httpRequest::release);
         if (isCloseConnection()) {
@@ -94,6 +91,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
 
         boolean success = false;
+        String opaque = null;
+        String contentLength = null;
         try {
             final BytesReference content = restResponse.content();
             if (content instanceof Releasable) {
@@ -115,7 +114,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // TODO: Ideally we should move the setting of Cors headers into :server
             // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
-            String opaque = request.header(X_OPAQUE_ID);
+            opaque = request.header(X_OPAQUE_ID);
             if (opaque != null) {
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
             }
@@ -127,7 +126,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             // If our response has no content-length, calculate and set one
-            setHeaderField(httpResponse, CONTENT_LENGTH, String.valueOf(restResponse.content().length()), false);
+            contentLength = String.valueOf(restResponse.content().length());
+            setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
 
             addCookies(httpResponse);
 
@@ -143,6 +143,11 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 Releasables.close(toClose);
             }
+            if (tracerLog != null) {
+                tracerLog.trace(new ParameterizedMessage("[{}][{}][{}][{}][{}] sent response to [{}] success [{}]", request.getRequestId(),
+                    opaque, restResponse.status(), restResponse.contentType(), contentLength, httpChannel, success));
+            }
+
         }
     }
 

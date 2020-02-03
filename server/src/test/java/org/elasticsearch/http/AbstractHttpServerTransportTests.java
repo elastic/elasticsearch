@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,6 +39,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -228,36 +230,43 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.start();
                 Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
 
+                final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "received request", traceLoggerName, Level.TRACE,
-                        "\\[\\d+\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"));
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"));
+
+                final boolean badRequest = randomBoolean();
 
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "sent response", traceLoggerName, Level.TRACE,
-                        "\\[\\d+\\] sent response to \\[.*"));
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[" +
+                            (badRequest ? "BAD_REQUEST" : "OK")
+                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"));
 
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation(
                         "received other request", traceLoggerName, Level.TRACE,
-                        "\\[\\d+\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
 
                 final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
                     .withPath("/internal/test")
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .build();
 
-                if (randomBoolean()) {
-                    transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
-                } else {
+                if (badRequest) {
                     transport.incomingRequestError(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel(),
                         new RuntimeException());
+                } else {
+                    transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
                 }
 
                 final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
                     .withPath("/internal/testNotSeen")
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .build();
 
                 if (randomBoolean()) {

@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -377,8 +378,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         final Logger trace;
         if (tracerLog.isTraceEnabled() && shouldTraceRequest(httpRequest.uri())) {
-            tracerLog.trace(new ParameterizedMessage("[{}][{}][{}] received request from [{}]", restRequest.hashCode(),
-                httpRequest.method(), httpRequest.uri(), httpChannel), exception);
+            tracerLog.trace(new ParameterizedMessage("[{}][{}][{}][{}] received request from [{}]", restRequest.getRequestId(),
+                restRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel), exception);
             trace = tracerLog;
         } else {
             trace = null;

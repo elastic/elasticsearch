@@ -7,10 +7,17 @@
 package org.elasticsearch.xpack.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.Build;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
 
 public class EqlRestIT extends ESClientYamlSuiteTestCase {
+
+    @BeforeClass
+    public static void checkForSnapshot() {
+        assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
+    }
 
     public EqlRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -29,7 +30,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -49,14 +49,7 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression value : values) {
-            value.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
@@ -81,17 +74,17 @@ public final class EListInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            values.set(index, expression.cast(scriptRoot, locals));
+            expression.analyze(scriptRoot, scope);
+            values.set(index, expression.cast(scriptRoot, scope));
         }
     }
 
     @Override
-    ListInitializationNode write() {
+    ListInitializationNode write(ClassNode classNode) {
         ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (AExpression value : values) {
-            listInitializationNode.addArgumentNode(value.write());
+            listInitializationNode.addArgumentNode(value.write(classNode));
         }
 
         listInitializationNode.setLocation(location);

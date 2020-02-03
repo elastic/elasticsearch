@@ -25,11 +25,16 @@ import java.util.Set;
  * of the same, so that we can start a shard on a completely readonly data set.
  */
 public class InMemoryNoOpCommitDirectory extends FilterDirectory {
+
     private final Directory realDirectory;
 
     InMemoryNoOpCommitDirectory(Directory realDirectory) {
         super(new ByteBuffersDirectory(NoLockFactory.INSTANCE));
         this.realDirectory = realDirectory;
+    }
+
+    public Directory getRealDirectory() {
+        return realDirectory;
     }
 
     @Override

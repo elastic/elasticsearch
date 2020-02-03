@@ -64,6 +64,22 @@ public class CacheDirectory extends FilterDirectory {
         return new CacheKey(snapshotId, indexId, shardId, fileName);
     }
 
+    public SnapshotId getSnapshotId() {
+        return snapshotId;
+    }
+
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public Map<String, IndexInputStats> getStats() {
+        return stats;
+    }
+
     // pkg private for tests
     @Nullable IndexInputStats getStats(String name) {
         return stats.get(name);

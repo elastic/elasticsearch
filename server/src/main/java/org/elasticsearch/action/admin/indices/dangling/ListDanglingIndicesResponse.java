@@ -70,8 +70,8 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
 
                 if (byIndexUUID.containsKey(indexUUID) == false) {
                     AggregatedDanglingIndexInfo aggregatedInfo = new AggregatedDanglingIndexInfo(
-                        info.getIndexName(),
                         indexUUID,
+                        info.getIndexName(),
                         info.getCreationDate()
                     );
 

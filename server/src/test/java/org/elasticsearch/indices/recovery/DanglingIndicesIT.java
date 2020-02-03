@@ -374,7 +374,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * we add an entry to the index graveyard, the graveyard size must be
      * greater than 1. To test deletes, we set the index graveyard size to
      * 1, then create two indices and delete them both while one node in
-     * the cluster is stopped. The deletion of the second push the deletion
+     * the cluster is stopped. The deletion of the second pushes the deletion
      * of the first out of the graveyard. When the stopped node is resumed,
      * only the second index will be found into the graveyard and the the
      * other will be considered dangling, and can therefore be listed and

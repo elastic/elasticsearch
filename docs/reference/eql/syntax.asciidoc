@@ -195,7 +195,6 @@ double quote (`"`), must be escaped with a preceding `\`.
 |`\\`             | A backslash (`\`) character
 |`\"`             | A double quote (`"`) character
 |`\'`             | A single quote (`'`) character
-|`\*`             | A wildcard (`*`) character
 |====
 ====
 

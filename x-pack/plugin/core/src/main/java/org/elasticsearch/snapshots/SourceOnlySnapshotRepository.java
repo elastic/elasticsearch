@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -21,7 +20,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +43,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -103,14 +100,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
             // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
-            ImmutableOpenMap<String, MappingMetaData> mappings = index.getMappings();
-            Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
-            while (iterator.hasNext()) {
-                ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
+            MappingMetaData mmd = index.mapping();
+            if (mmd != null) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
-                final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string()
-                    + " } }";
-                indexMetadataBuilder.putMapping(next.key, mapping);
+                final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
+                indexMetadataBuilder.putMapping(mapping);
             }
             indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
                 .put(SOURCE_ONLY.getKey(), true)
@@ -125,7 +119,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(
@@ -165,7 +159,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
-                ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+                userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);

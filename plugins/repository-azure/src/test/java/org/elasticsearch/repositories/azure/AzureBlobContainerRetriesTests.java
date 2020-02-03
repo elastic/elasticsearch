@@ -24,6 +24,7 @@ import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import fixture.azure.AzureHttpHandler;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -71,13 +72,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -184,7 +185,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 }
             }
             if (randomBoolean()) {
-                TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
             }
             exchange.close();
         });
@@ -209,7 +210,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
                         exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     } else {
-                        TestUtils.sendError(exchange, RestStatus.BAD_REQUEST);
+                        AzureHttpHandler.sendError(exchange, RestStatus.BAD_REQUEST);
                     }
                     exchange.close();
                     return;
@@ -220,7 +221,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                         Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
                     } else {
                         Streams.readFully(exchange.getRequestBody());
-                        TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                        AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                     }
                 }
                 exchange.close();
@@ -282,7 +283,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
             if (randomBoolean()) {
                 Streams.readFully(exchange.getRequestBody());
-                TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
             }
             exchange.close();
         });

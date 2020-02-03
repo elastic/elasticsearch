@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -41,11 +43,11 @@ if (!isEclipse && !isIdea) {
       }
     }
   }
-  
+
   configurations {
     java12Compile.extendsFrom(compile)
   }
-  
+
   dependencies {
     java12Compile sourceSets.main.output
   }
@@ -57,7 +59,7 @@ if (!isEclipse && !isIdea) {
 
   forbiddenApisJava12 {
     doFirst {
-      if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
+      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_12) {
         targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
       }
     }
@@ -94,7 +96,6 @@ dependencies {
   compile "org.apache.lucene:lucene-queries:${versions.lucene}"
   compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
@@ -135,6 +136,22 @@ dependencies {
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+
+// Until this project is always being formatted with spotless, we need to
+// guard against `spotless()` not existing.
+try {
+  spotless {
+    java {
+      // Contains large data tables that do not format well.
+      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
+    }
+  }
+}
+catch (Exception e) {
+  if (e.getMessage().contains("Could not find method spotless") == false) {
+    throw e;
+  }
+}
 
 forbiddenPatterns {
   exclude '**/*.json'
@@ -188,7 +205,7 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -304,9 +321,9 @@ dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
-            // keep the following org.elasticsearch jars in
-            (it.name == 'jna' ||
-             it.name == 'securesm')
+      // keep the following org.elasticsearch jars in
+      (it.name == 'jna' ||
+        it.name == 'securesm')
   }
 }
 
@@ -315,13 +332,13 @@ task integTest(type: Test) {
   description = 'Multi-node tests'
   mustRunAfter test
 
-   include '**/*IT.class'
+  include '**/*IT.class'
 }
 
 check.dependsOn integTest
 
 task internalClusterTest {
-   dependsOn integTest
+  dependsOn integTest
 }
 
 

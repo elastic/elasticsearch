@@ -19,21 +19,32 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -41,11 +52,16 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
+import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
 import static org.elasticsearch.index.search.NestedHelper.parentObject;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
@@ -360,6 +376,116 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
+     * Return true if the primary sort in the provided <code>source</code>
+     * is an instance of {@link FieldSortBuilder}.
+     */
+    public static boolean hasPrimaryFieldSort(SearchSourceBuilder source) {
+        return getPrimaryFieldSortOrNull(source) != null;
+    }
+
+    /**
+     * Return the {@link FieldSortBuilder} if the primary sort in the provided <code>source</code>
+     * is an instance of this class, null otherwise.
+     */
+    public static FieldSortBuilder getPrimaryFieldSortOrNull(SearchSourceBuilder source) {
+        if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
+            return null;
+        }
+        return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+    }
+
+    /**
+     * Return a {@link Function} that converts a serialized point into a {@link Number} according to the provided
+     * {@link SortField}. This is needed for {@link SortField} that converts values from one type to another using
+     * {@link FieldSortBuilder#setNumericType(String)} )} (e.g.: long to double).
+     */
+    private static Function<byte[], Comparable> numericPointConverter(SortField sortField, NumberFieldType numberFieldType) {
+        switch (IndexSortConfig.getSortFieldType(sortField)) {
+            case LONG:
+                return v -> numberFieldType.parsePoint(v).longValue();
+
+            case INT:
+                return v -> numberFieldType.parsePoint(v).intValue();
+
+            case DOUBLE:
+                return v -> numberFieldType.parsePoint(v).doubleValue();
+
+            case FLOAT:
+                return v -> numberFieldType.parsePoint(v).floatValue();
+
+            default:
+                return v -> null;
+        }
+    }
+
+    /**
+     * Return a {@link Function} that converts a serialized date point into a {@link Long} according to the provided
+     * {@link NumericType}.
+     */
+    private static Function<byte[], Comparable> datePointConverter(DateFieldType dateFieldType, String numericTypeStr) {
+        if (numericTypeStr != null) {
+            NumericType numericType = resolveNumericType(numericTypeStr);
+            if (dateFieldType.resolution() == MILLISECONDS && numericType == NumericType.DATE_NANOSECONDS) {
+                return v -> DateUtils.toNanoSeconds(LongPoint.decodeDimension(v, 0));
+            } else if (dateFieldType.resolution() == NANOSECONDS && numericType == NumericType.DATE) {
+                return v -> DateUtils.toMilliSeconds(LongPoint.decodeDimension(v, 0));
+            }
+        }
+        return v -> LongPoint.decodeDimension(v, 0);
+    }
+
+    /**
+     * Return the {@link MinAndMax} indexed value from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
+     * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
+     * and configurations return <code>null</code>.
+     */
+    public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+        SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+        SortField sortField = sort.sort.getSort()[0];
+        if (sortField.getField() == null) {
+            return null;
+        }
+        IndexReader reader = context.getIndexReader();
+        MappedFieldType fieldType = context.fieldMapper(sortField.getField());
+        if (reader == null || (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE)) {
+            return null;
+        }
+        String fieldName = fieldType.name();
+        switch (IndexSortConfig.getSortFieldType(sortField)) {
+            case LONG:
+            case INT:
+            case DOUBLE:
+            case FLOAT:
+                final Function<byte[], Comparable> converter;
+                if (fieldType instanceof NumberFieldType) {
+                    converter = numericPointConverter(sortField, (NumberFieldType) fieldType);
+                } else if (fieldType instanceof DateFieldType) {
+                    converter = datePointConverter((DateFieldType) fieldType, sortBuilder.getNumericType());
+                } else {
+                    return null;
+                }
+                if (PointValues.size(reader, fieldName) == 0) {
+                    return null;
+                }
+                final Comparable min = converter.apply(PointValues.getMinPackedValue(reader, fieldName));
+                final Comparable max = converter.apply(PointValues.getMaxPackedValue(reader, fieldName));
+                return MinAndMax.newMinMax(min, max);
+
+            case STRING:
+            case STRING_VAL:
+                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                    Terms terms = MultiTerms.getTerms(reader, fieldName);
+                    if (terms == null) {
+                        return null;
+                    }
+                    return terms.getMin() != null ? MinAndMax.newMinMax(terms.getMin(), terms.getMax()) : null;
+                }
+                break;
+        }
+        return null;
+    }
+
+    /**
      * Throws an exception if max children is not located at top level nested sort.
      */
     static void validateMaxChildrenExistOnlyInTopLevelNestedSort(QueryShardContext context, NestedSortBuilder nestedSort) {
@@ -437,7 +563,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return PARSER.parse(parser, new FieldSortBuilder(fieldName), null);
     }
 
-    private static ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
+    private static final ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);

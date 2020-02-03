@@ -41,6 +41,7 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 import static org.elasticsearch.client.transform.DeleteTransformRequest.FORCE;
 import static org.elasticsearch.client.transform.GetTransformRequest.ALLOW_NO_MATCH;
 import static org.elasticsearch.client.transform.PutTransformRequest.DEFER_VALIDATION;
+import static org.elasticsearch.client.transform.StopTransformRequest.WAIT_FOR_CHECKPOINT;
 
 final class TransformRequestConverters {
 
@@ -134,6 +135,9 @@ final class TransformRequestConverters {
         }
         if (stopRequest.getAllowNoMatch() != null) {
             request.addParameter(ALLOW_NO_MATCH, stopRequest.getAllowNoMatch().toString());
+        }
+        if (stopRequest.getWaitForCheckpoint() != null) {
+            request.addParameter(WAIT_FOR_CHECKPOINT, stopRequest.getWaitForCheckpoint().toString());
         }
         request.addParameters(params.asMap());
         return request;

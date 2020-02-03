@@ -24,12 +24,10 @@ final class VectorDVAtomicFieldData implements AtomicFieldData {
 
     private final LeafReader reader;
     private final String field;
-    private final boolean isDense;
 
-    VectorDVAtomicFieldData(LeafReader reader, String field, boolean isDense) {
+    VectorDVAtomicFieldData(LeafReader reader, String field) {
         this.reader = reader;
         this.field = field;
-        this.isDense = isDense;
     }
 
     @Override
@@ -51,11 +49,7 @@ final class VectorDVAtomicFieldData implements AtomicFieldData {
     public ScriptDocValues<BytesRef> getScriptValues() {
         try {
             final BinaryDocValues values = DocValues.getBinary(reader, field);
-            if (isDense) {
-                return new VectorScriptDocValues.DenseVectorScriptDocValues(values);
-            } else {
-                return new VectorScriptDocValues.SparseVectorScriptDocValues(values);
-            }
+            return new DenseVectorScriptDocValues(values);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);
         }

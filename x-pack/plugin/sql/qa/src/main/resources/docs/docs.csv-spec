@@ -318,8 +318,9 @@ SIN              |SCALAR
 SINH             |SCALAR         
 SQRT             |SCALAR         
 TAN              |SCALAR         
-TRUNCATE         |SCALAR         
-ASCII            |SCALAR         
+TRUNC            |SCALAR
+TRUNCATE         |SCALAR
+ASCII            |SCALAR
 BIT_LENGTH       |SCALAR         
 CHAR             |SCALAR         
 CHARACTER_LENGTH |SCALAR         
@@ -875,9 +876,9 @@ dtIntervalPlusInterval
 // tag::dtIntervalPlusInterval
 SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
 
-    result     
+    result
 ---------------
-+1 00:53:00.0                       
++1 00:53:00
 
 // end::dtIntervalPlusInterval
 ;
@@ -908,9 +909,9 @@ dtIntervalMinusInterval
 // tag::dtIntervalMinusInterval
 SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 
-    result     
+    result
 ---------------
-+0 22:00:00.0  
++0 22:00:00
 // end::dtIntervalMinusInterval
 ;
 
@@ -938,7 +939,7 @@ SELECT -2 * INTERVAL '3' YEARS AS result;
 
 ///////////////////////////////
 //
-// Order by
+// Order By
 //
 ///////////////////////////////
 
@@ -2032,7 +2033,7 @@ SELECT TRUNCATE(-345.153, -1) AS trimmed;
 
 mathTruncateWithPositiveParameter
 // tag::mathTruncateWithPositiveParameter
-SELECT TRUNCATE(-345.153, 1) AS trimmed;
+SELECT TRUNC(-345.153, 1) AS trimmed;
 
     trimmed
 ---------------
@@ -2494,6 +2495,27 @@ SELECT DATE_DIFF('week', '2019-09-04T11:22:33.000Z'::datetime, '2016-12-08T22:33
 ------------------------
 -143
 // end::dateDiffDateTimeWeeks
+;
+
+dateDiffDateTimeHours
+// tag::dateDiffDateTimeHours
+SELECT DATEDIFF('hours', '2019-11-10T12:10:00.000Z'::datetime, '2019-11-10T23:59:59.999Z'::datetime) AS "diffInHours";
+
+      diffInHours
+------------------------
+11
+// end::dateDiffDateTimeHours
+;
+
+
+dateDiffDateTimeMinutes
+// tag::dateDiffDateTimeMinutes
+SELECT DATEDIFF('minute', '2019-11-10T12:10:00.000Z'::datetime, '2019-11-10T12:15:59.999Z'::datetime) AS "diffInMinutes";
+
+      diffInMinutes
+------------------------
+5
+// end::dateDiffDateTimeMinutes
 ;
 
 dateDiffDateTimeSeconds

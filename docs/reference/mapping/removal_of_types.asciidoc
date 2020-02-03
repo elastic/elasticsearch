@@ -42,7 +42,7 @@ field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-<<mapping-parent-field,parent-child relationship>>
+<<parent-join,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 
@@ -456,7 +456,7 @@ See some examples of interactions with Elasticsearch with this option set to `fa
 
 [source,console]
 --------------------------------------------------
-PUT index?include_type_name=false
+PUT index
 {
   "mappings": {
     "properties": { <1>
@@ -472,7 +472,7 @@ PUT index?include_type_name=false
 
 [source,console]
 --------------------------------------------------
-PUT index/_mappings?include_type_name=false
+PUT index/_mappings
 {
   "properties": { <1>
     "bar": {
@@ -487,7 +487,7 @@ PUT index/_mappings?include_type_name=false
 
 [source,console]
 --------------------------------------------------
-GET index/_mappings?include_type_name=false
+GET index/_mappings
 --------------------------------------------------
 // TEST[continued]
 
@@ -622,28 +622,12 @@ PUT _template/template1
   }
 }
 
-PUT _template/template2?include_type_name=true
-{
-  "index_patterns":[ "index-2-*" ],
-  "mappings": {
-    "type": {
-      "properties": {
-        "foo": {
-          "type": "keyword"
-        }
-      }
-    }
-  }
-}
-
-PUT index-1-01?include_type_name=true
+PUT index-1-01
 {
   "mappings": {
-    "type": {
-      "properties": {
-        "bar": {
-          "type": "long"
-        }
+    "properties": {
+      "bar": {
+        "type": "long"
       }
     }
   }
@@ -660,6 +644,16 @@ PUT index-2-01
   }
 }
 --------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template1
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 In case of implicit index creation, because of documents that get indexed in
 an index that doesn't exist yet, the template is always honored. This is

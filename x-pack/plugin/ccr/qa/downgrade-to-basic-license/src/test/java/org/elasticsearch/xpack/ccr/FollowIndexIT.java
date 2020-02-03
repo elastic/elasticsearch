@@ -9,11 +9,9 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.JsonLogLine;
 import org.elasticsearch.common.logging.JsonLogsStream;
-import org.elasticsearch.common.settings.Settings;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -114,12 +112,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     }
 
     private void createNewIndexAndIndexDocs(RestClient client, String index) throws IOException {
-        Settings settings = Settings.builder()
-                                    .put("index.soft_deletes.enabled", true)
-                                    .build();
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
-            ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+        request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
         assertOK(client.performRequest(request));
 
         for (int i = 0; i < 5; i++) {

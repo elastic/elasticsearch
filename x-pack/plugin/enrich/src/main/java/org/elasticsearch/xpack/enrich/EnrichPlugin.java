@@ -24,11 +24,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -57,42 +58,68 @@ import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
-public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
 
-    static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING =
-        Setting.intSetting("enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
+    static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING = Setting.intSetting(
+        "enrich.fetch_size",
+        10000,
+        1,
+        1000000,
+        Setting.Property.NodeScope
+    );
 
-    static final Setting<Integer> ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS =
-        Setting.intSetting("enrich.max_concurrent_policy_executions", 50, 1, Setting.Property.NodeScope);
+    static final Setting<Integer> ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS = Setting.intSetting(
+        "enrich.max_concurrent_policy_executions",
+        50,
+        1,
+        Setting.Property.NodeScope
+    );
 
-    static final Setting<TimeValue> ENRICH_CLEANUP_PERIOD =
-        Setting.timeSetting("enrich.cleanup_period", new TimeValue(15, TimeUnit.MINUTES), Setting.Property.NodeScope);
+    static final Setting<TimeValue> ENRICH_CLEANUP_PERIOD = Setting.timeSetting(
+        "enrich.cleanup_period",
+        new TimeValue(15, TimeUnit.MINUTES),
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<Integer> COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS =
-        Setting.intSetting("enrich.coordinator_proxy.max_concurrent_requests", 8, 1, 10000, Setting.Property.NodeScope);
+    public static final Setting<Integer> COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS = Setting.intSetting(
+        "enrich.coordinator_proxy.max_concurrent_requests",
+        8,
+        1,
+        10000,
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<Integer> COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST =
-        Setting.intSetting("enrich.coordinator_proxy.max_lookups_per_request", 128, 1, 10000, Setting.Property.NodeScope);
+    public static final Setting<Integer> COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST = Setting.intSetting(
+        "enrich.coordinator_proxy.max_lookups_per_request",
+        128,
+        1,
+        10000,
+        Setting.Property.NodeScope
+    );
 
-    static final Setting<Integer> ENRICH_MAX_FORCE_MERGE_ATTEMPTS =
-        Setting.intSetting("enrich.max_force_merge_attempts", 3, 1, 10, Setting.Property.NodeScope);
+    static final Setting<Integer> ENRICH_MAX_FORCE_MERGE_ATTEMPTS = Setting.intSetting(
+        "enrich.max_force_merge_attempts",
+        3,
+        1,
+        10,
+        Setting.Property.NodeScope
+    );
 
     private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
-    public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME,
-            settings -> {
-                int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
-                int maxLookupsPerRequest = COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings);
-                return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
-            },
-            val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME),
-            Setting.Property.NodeScope);
+    public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME, settings -> {
+        int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
+        int maxLookupsPerRequest = COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings);
+        return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
+    }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Boolean enabled;
@@ -108,18 +135,18 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             return Map.of();
         }
 
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
     }
 
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return List.of(
-                new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class)
-            );
+            return List.of(new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class));
         }
 
         return List.of(
@@ -135,10 +162,15 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         );
     }
 
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (enabled == false) {
             return List.of();
         }
@@ -153,31 +185,42 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         if (enabled == false) {
             return List.of();
         }
 
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
-        EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(settings, client,
-            clusterService, threadPool, enrichPolicyLocks);
-        enrichPolicyMaintenanceService.initialize();
-        return List.of(
-            enrichPolicyLocks,
-            new EnrichCoordinatorProxyAction.Coordinator(client, settings),
-            enrichPolicyMaintenanceService
+        EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(
+            settings,
+            client,
+            clusterService,
+            threadPool,
+            enrichPolicyLocks
         );
+        enrichPolicyMaintenanceService.initialize();
+        return List.of(enrichPolicyLocks, new EnrichCoordinatorProxyAction.Coordinator(client, settings), enrichPolicyMaintenanceService);
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, EnrichMetadata.TYPE,
-                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in))
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                EnrichMetadata.TYPE,
+                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in)
+            )
         );
     }
 
@@ -198,6 +241,13 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS
+        );
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.singletonList(
+            new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );
     }
 }

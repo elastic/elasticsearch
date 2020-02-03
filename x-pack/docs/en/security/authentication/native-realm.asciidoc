@@ -7,15 +7,9 @@ realm. You can use the REST APIs or Kibana to add and remove users, assign user
 roles, and manage user passwords.
 
 [[native-realm-configuration]]
-[float]
 ==== Configuring a native realm
 
-See <<configuring-native-realm>>. 
-
-[[native-settings]]
-==== Native realm settings
-
-See <<ref-native-settings>>. 
+include::configuring-native-realm.asciidoc[]
 
 [[managing-native-users]]
 ==== Managing native users

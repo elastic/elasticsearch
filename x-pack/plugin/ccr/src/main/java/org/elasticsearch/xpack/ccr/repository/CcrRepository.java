@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.ccr.repository;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -83,6 +85,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -209,10 +212,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         imdBuilder.settings(leaderIndexMetaData.getSettings());
 
         // Copy mappings from leader IMD to follow IMD
-        for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
-            imdBuilder.putMapping(cursor.value);
-        }
-
+        imdBuilder.putMapping(leaderIndexMetaData.mapping());
         imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
         // We assert that insync allocation ids are not empty in `PrimaryShardAllocator`
         for (IntObjectCursor<Set<String>> entry : leaderIndexMetaData.getInSyncAllocationIds()) {
@@ -223,26 +223,30 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public RepositoryData getRepositoryData() {
-        Client remoteClient = getRemoteClusterClient();
-        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true)
-            .get(ccrSettings.getRecoveryActionTimeout());
-        MetaData remoteMetaData = response.getState().getMetaData();
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Client remoteClient = getRemoteClusterClient();
+            ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true)
+                .get(ccrSettings.getRecoveryActionTimeout());
+            MetaData remoteMetaData = response.getState().getMetaData();
 
-        Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-        Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
-        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
+            Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
+            Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
-        ImmutableOpenMap<String, IndexMetaData> remoteIndices = remoteMetaData.getIndices();
-        for (String indexName : remoteMetaData.getConcreteAllIndices()) {
-            // Both the Snapshot name and UUID are set to _latest_
-            SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
-            copiedSnapshotIds.put(indexName, snapshotId);
-            snapshotStates.put(indexName, SnapshotState.SUCCESS);
-            Index index = remoteIndices.get(indexName).getIndex();
-            indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
-        }
-        return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY);
+            ImmutableOpenMap<String, IndexMetaData> remoteIndices = remoteMetaData.getIndices();
+            for (String indexName : remoteMetaData.getConcreteAllIndices()) {
+                // Both the Snapshot name and UUID are set to _latest_
+                SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
+                copiedSnapshotIds.put(indexName, snapshotId);
+                snapshotStates.put(indexName, SnapshotState.SUCCESS);
+                snapshotVersions.put(indexName, Version.CURRENT);
+                Index index = remoteIndices.get(indexName).getIndex();
+                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
+            }
+            return new RepositoryData(1, copiedSnapshotIds, snapshotStates, snapshotVersions, indexSnapshots, ShardGenerations.EMPTY);
+        });
     }
 
     @Override
@@ -290,31 +294,37 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              ActionListener<String> listener) {
+                              Map<String, Object> userMetadata, ActionListener<String> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        // TODO: Add timeouts to network calls / the restore process.
-        createEmptyStore(store);
-        ShardId shardId = store.shardId();
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                             ActionListener<Void> listener) {
+        final ShardId shardId = store.shardId();
+        final LinkedList<Closeable> toClose = new LinkedList<>();
+        final ActionListener<Void> restoreListener = ActionListener.runBefore(ActionListener.delegateResponse(listener,
+            (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))),
+            () -> IOUtils.close(toClose));
+        try {
+            // TODO: Add timeouts to network calls / the restore process.
+            createEmptyStore(store);
 
-        final Map<String, String> ccrMetaData = store.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-        final String leaderIndexName = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-        final String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-        final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
-        final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
+            final Map<String, String> ccrMetaData = store.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+            final String leaderIndexName = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+            final String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+            final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
+            final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
-        final Client remoteClient = getRemoteClusterClient();
+            final Client remoteClient = getRemoteClusterClient();
 
-        final String retentionLeaseId =
+            final String retentionLeaseId =
                 retentionLeaseId(localClusterName, shardId.getIndex(), remoteClusterAlias, leaderIndex);
 
-        acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
+            acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        // schedule renewals to run during the restore
-        final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
+            // schedule renewals to run during the restore
+            final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
                 () -> {
                     logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
                     final ThreadContext threadContext = threadPool.getThreadContext();
@@ -322,37 +332,41 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         // we have to execute under the system context so that if security is enabled the renewal is authorized
                         threadContext.markAsSystemContext();
                         CcrRetentionLeases.asyncRenewRetentionLease(
-                                leaderShardId,
-                                retentionLeaseId,
-                                RETAIN_ALL,
-                                remoteClient,
-                                ActionListener.wrap(
-                                        r -> {},
-                                        e -> {
-                                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                            assert cause instanceof ElasticsearchSecurityException == false : cause;
-                                            if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
-                                                logger.warn(new ParameterizedMessage(
-                                                    "{} background renewal of retention lease [{}] failed during restore", shardId,
-                                                    retentionLeaseId), cause);
-                                            }
-                                        }));
+                            leaderShardId,
+                            retentionLeaseId,
+                            RETAIN_ALL,
+                            remoteClient,
+                            ActionListener.wrap(
+                                r -> {},
+                                e -> {
+                                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                    assert cause instanceof ElasticsearchSecurityException == false : cause;
+                                    if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                                        logger.warn(new ParameterizedMessage(
+                                            "{} background renewal of retention lease [{}] failed during restore", shardId,
+                                            retentionLeaseId), cause);
+                                    }
+                                }));
                     }
                 },
                 CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(store.indexSettings().getNodeSettings()),
                 Ccr.CCR_THREAD_POOL_NAME);
-
-        // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
-        //  response, we should be able to retry by creating a new session.
-        try (RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState)) {
-            restoreSession.restoreFiles(store);
-            updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
+            toClose.add(() -> {
+                logger.trace(
+                    "{} canceling background renewal of retention lease [{}] at the end of restore", shardId, retentionLeaseId);
+                renewable.cancel();
+            });
+            // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
+            //  response, we should be able to retry by creating a new session.
+            final RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState);
+            toClose.addFirst(restoreSession); // Some tests depend on closing session before cancelling retention lease renewal
+            restoreSession.restoreFiles(store, ActionListener.wrap(v -> {
+                logger.trace("[{}] completed CCR restore", shardId);
+                updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
+                restoreListener.onResponse(null);
+            }, restoreListener::onFailure));
         } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
-        } finally {
-            logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId,
-                retentionLeaseId);
-            renewable.cancel();
+            restoreListener.onFailure(e);
         }
     }
 
@@ -410,6 +424,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
+    @Override
+    public void updateState(ClusterState state) {
+    }
+
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
                                 Client followerClient, Index followerIndex) {
         final PlainActionFuture<IndexMetaData> indexMetadataFuture = new PlainActionFuture<>();
@@ -462,25 +480,25 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.throttleListener = throttleListener;
         }
 
-        void restoreFiles(Store store) {
+        void restoreFiles(Store store, ActionListener<Void> listener) {
             ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetaData fileMetaData : sourceMetaData) {
                 ByteSizeValue fileSize = new ByteSizeValue(fileMetaData.length());
                 fileInfos.add(new FileInfo(fileMetaData.name(), fileMetaData, fileSize));
             }
             SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos);
-            restore(snapshotFiles, store);
+            restore(snapshotFiles, store, listener);
         }
 
         @Override
-        protected void restoreFiles(List<FileInfo> filesToRecover, Store store) {
+        protected void restoreFiles(List<FileInfo> filesToRecover, Store store, ActionListener<Void> allFilesListener) {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
-            final PlainActionFuture<Void> restoreFilesFuture = new PlainActionFuture<>();
             final List<StoreFileMetaData> mds = filesToRecover.stream().map(FileInfo::metadata).collect(Collectors.toList());
             final MultiFileTransfer<FileChunk> multiFileTransfer = new MultiFileTransfer<>(
-                logger, threadPool.getThreadContext(), restoreFilesFuture, ccrSettings.getMaxConcurrentFileChunks(), mds) {
+                logger, threadPool.getThreadContext(), allFilesListener, ccrSettings.getMaxConcurrentFileChunks(), mds) {
 
-                final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {});
+                final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
+                });
                 long offset = 0;
 
                 @Override
@@ -498,11 +516,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 @Override
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     final ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> threadedListener
-                        = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, ActionListener.wrap(
-                            r -> {
-                                writeFileChunk(request.md, r);
-                                listener.onResponse(null);
-                            }, listener::onFailure), false);
+                        = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, ActionListener.wrap(r -> {
+                            writeFileChunk(request.md, r);
+                            listener.onResponse(null);
+                        }, listener::onFailure), false);
 
                     remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE,
                         new GetCcrRestoreFileChunkRequest(node, sessionUUID, request.md.name(), request.bytesRequested),
@@ -511,7 +528,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
 
                 private void writeFileChunk(StoreFileMetaData md,
-                                            GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse r) throws Exception {
+                    GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse r) throws Exception {
                     final int actualChunkSize = r.getChunk().length();
                     logger.trace("[{}] [{}] got response for file [{}], offset: {}, length: {}",
                         shardId, snapshotId, md.name(), r.getOffset(), actualChunkSize);
@@ -547,8 +564,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
             };
             multiFileTransfer.start();
-            restoreFilesFuture.actionGet();
-            logger.trace("[{}] completed CCR restore", shardId);
         }
 
         @Override

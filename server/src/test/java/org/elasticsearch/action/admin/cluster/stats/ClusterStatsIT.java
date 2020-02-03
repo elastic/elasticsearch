@@ -134,7 +134,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         // add another node, replicas should get assigned
         internalCluster().startNode();
         ensureGreen();
-        index("test1", "type", "1", "f", "f");
+        indexDoc("test1", "1", "f", "f");
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
@@ -164,7 +164,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startNodes(randomIntBetween(1, 3));
-        index("test1", "type", "1", "f", "f");
+        indexDoc("test1", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();

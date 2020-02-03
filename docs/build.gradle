@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
@@ -23,23 +25,30 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/anomaly-detection/transforms.asciidoc',
-        'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-category.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-record.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
-        'reference/ml/anomaly-detection/apis/post-data.asciidoc',
-        'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
-        'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
+    if (BuildParams.isSnapshotBuild()) {
+      setting 'xpack.autoscaling.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
+    }
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
@@ -71,6 +80,10 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   if (subproj.path.startsWith(':plugins:repository-')) {
     return
   }
+  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+    return
+  }
   // FIXME
   subproj.afterEvaluate { // need to wait until the project has been configured
     testClusters.integTest {
@@ -85,10 +98,18 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  exclude 'build-idea'
+  exclude 'build-eclipse'
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
 }
 
 listSnippets.docs = buildRestTests.docs
@@ -118,20 +139,20 @@ Closure setupTwitter = { String name, int count ->
           index: twitter
           refresh: true
           body: |'''
-    for (int i = 0; i < count; i++) {
-      String user, text
-      if (i == 0) {
-        user = 'kimchy'
-        text = 'trying out Elasticsearch'
-      } else {
-        user = 'test'
-        text = "some message with the number $i"
-      }
-      buildRestTests.setups[name] += """
+  for (int i = 0; i < count; i++) {
+    String user, text
+    if (i == 0) {
+      user = 'kimchy'
+      text = 'trying out Elasticsearch'
+    } else {
+      user = 'test'
+      text = "some message with the number $i"
+    }
+    buildRestTests.setups[name] += """
             {"index":{"_id": "$i"}}
             {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
-    }
   }
+}
 setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
 setupTwitter('huge_twitter', 1200)
@@ -179,7 +200,7 @@ buildRestTests.setups['ledger'] = '''
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
             {"index":{}}
-            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
             {"index":{}}
@@ -503,7 +524,7 @@ buildRestTests.setups['latency'] = '''
 for (int i = 0; i < 100; i++) {
   def value = i
   if (i % 10) {
-    value = i*10
+    value = i * 10
   }
   buildRestTests.setups['latency'] += """
             {"index":{}}
@@ -550,14 +571,12 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
-          include_type_name: true
           index: library
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              book:
                 properties:
                   name:
                     type: text
@@ -962,7 +981,7 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "job_id":"farequote",
           "indexes":"farequote"
           }
-'''          
+'''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
         indices.create:
@@ -972,12 +991,11 @@ buildRestTests.setups['server_metrics_index'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              metric:
-                properties:
-                  timestamp:
-                    type: date
-                  total:
-                    type: long
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
 '''
 buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
   - do:
@@ -1038,6 +1056,29 @@ buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metr
             }
           }
 '''
+buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/anomaly_detectors/total-requests
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
 buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
   - do:
       ml.put_datafeed:
@@ -1048,10 +1089,27 @@ buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server
           "indexes":"server-metrics"
           }
 '''
+buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/datafeeds/datafeed-total-requests
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
 buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
   - do:
       ml.open_job:
         job_id: "total-requests"
+'''
+buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
+  - do:
+      raw:
+        method: POST 
+        path: _ml/anomaly_detectors/total-requests/_open
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
@@ -1184,7 +1242,23 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
-buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + '''
+buildRestTests.setups['add_timestamp_pipeline'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+'''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
   - do:
       raw:
         method: PUT

@@ -22,33 +22,33 @@ apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
 dependencies {
-    compile project(':libs:elasticsearch-core')
+  compile project(':libs:elasticsearch-core')
 
-    compile "org.yaml:snakeyaml:${versions.snakeyaml}"
-    compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-    compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-    compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-    testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
-    }
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+  }
 
 }
 
 forbiddenApisMain {
-    // x-content does not depend on server
-    // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
-    replaceSignatureFiles 'jdk-signatures'
+  // x-content does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-thirdPartyAudit.ignoreMissingClasses (
-    // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-    'com.fasterxml.jackson.databind.ObjectMapper',
+thirdPartyAudit.ignoreMissingClasses(
+  // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+  'com.fasterxml.jackson.databind.ObjectMapper',
 )
 
 dependencyLicenses {

@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -75,7 +74,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -128,7 +126,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
 
         final Map<String, String> additionalSettings = new HashMap<>();
-        additionalSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
         additionalSettings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
@@ -137,7 +134,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         logger.info("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex(leaderIndex, "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
             }
@@ -371,8 +368,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
         final int numberOfShards = randomIntBetween(1, 4);
-        final String leaderIndexSettings =
-                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
@@ -464,8 +460,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
         final int numberOfShards = randomIntBetween(1, 4);
-        final String leaderIndexSettings =
-                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
@@ -536,7 +531,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -556,7 +550,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -572,7 +565,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         logger.debug("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex(leaderIndex, "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
             }
@@ -620,7 +613,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -727,7 +719,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 4);
         final int numberOfReplicas = randomIntBetween(0, 1);
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -754,7 +745,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = 1;
         final int numberOfReplicas = 1;
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -777,37 +767,42 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     (connection, requestId, action, request, options) -> {
                         if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
                             || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
-                            senderTransportService.clearAllRules();
                             final RetentionLeaseActions.RenewRequest renewRequest = (RetentionLeaseActions.RenewRequest) request;
-                            final String primaryShardNodeId =
-                                getLeaderCluster()
-                                    .clusterService()
-                                    .state()
-                                    .routingTable()
-                                    .index(leaderIndex)
-                                    .shard(renewRequest.getShardId().id())
-                                    .primaryShard()
-                                    .currentNodeId();
-                            final String primaryShardNodeName =
-                                getLeaderCluster().clusterService().state().nodes().get(primaryShardNodeId).getName();
-                            final IndexShard primary =
-                                getLeaderCluster()
-                                    .getInstance(IndicesService.class, primaryShardNodeName)
-                                    .getShardOrNull(renewRequest.getShardId());
-                            final CountDownLatch innerLatch = new CountDownLatch(1);
-                            // this forces the background renewal from following to face a retention lease not found exception
-                            primary.removeRetentionLease(
-                                getRetentionLeaseId(followerIndex, leaderIndex),
-                                ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString())));
-
-                            try {
-                                innerLatch.await();
-                            } catch (final InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                fail(e.toString());
+                            final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
+                            if (retentionLeaseId.equals(renewRequest.getId())) {
+                                logger.info("--> intercepting renewal request for retention lease [{}]", retentionLeaseId);
+                                senderTransportService.clearAllRules();
+                                final String primaryShardNodeId =
+                                    getLeaderCluster()
+                                        .clusterService()
+                                        .state()
+                                        .routingTable()
+                                        .index(leaderIndex)
+                                        .shard(renewRequest.getShardId().id())
+                                        .primaryShard()
+                                        .currentNodeId();
+                                final String primaryShardNodeName =
+                                    getLeaderCluster().clusterService().state().nodes().get(primaryShardNodeId).getName();
+                                final IndexShard primary =
+                                    getLeaderCluster()
+                                        .getInstance(IndicesService.class, primaryShardNodeName)
+                                        .getShardOrNull(renewRequest.getShardId());
+                                final CountDownLatch innerLatch = new CountDownLatch(1);
+                                try {
+                                    // this forces the background renewal from following to face a retention lease not found exception
+                                    logger.info("--> removing retention lease [{}] on the leader", retentionLeaseId);
+                                    primary.removeRetentionLease(retentionLeaseId,
+                                        ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString())));
+                                    logger.info("--> waiting for the removed retention lease [{}] to be synced on the leader",
+                                        retentionLeaseId);
+                                    innerLatch.await();
+                                    logger.info("--> removed retention lease [{}] on the leader", retentionLeaseId);
+                                } catch (final Exception e) {
+                                    throw new AssertionError("failed to remove retention lease [" + retentionLeaseId + "] on the leader");
+                                } finally {
+                                    latch.countDown();
+                                }
                             }
-
-                            latch.countDown();
                         }
                         connection.sendRequest(requestId, action, request, options);
                     });
@@ -850,7 +845,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfShards = 1;
         final int numberOfReplicas = 1;
         final Map<String, String> additionalIndexSettings = new HashMap<>();
-        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
         additionalIndexSettings.put(
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueMillis(200).getStringRep());
@@ -877,6 +871,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                             if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
                                     || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
                                 final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
+                                logger.info("--> blocking renewal request for retention lease [{}] until unfollowed", retentionLeaseId);
                                 try {
                                     removeLeaseLatch.countDown();
                                     unfollowLatch.await();
@@ -939,8 +934,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
         final int numberOfShards = randomIntBetween(1, 4);
-        final String leaderIndexSettings =
-                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
@@ -1069,8 +1063,10 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     private void assertExpectedDocument(final String followerIndex, final int value) {
         final GetResponse getResponse = followerClient().prepareGet(followerIndex, Integer.toString(value)).get();
         assertTrue("doc with id [" + value + "] is missing", getResponse.isExists());
-        assertTrue((getResponse.getSource().containsKey("f")));
-        assertThat(getResponse.getSource().get("f"), equalTo(value));
+        if (sourceEnabled) {
+            assertTrue((getResponse.getSource().containsKey("f")));
+            assertThat(getResponse.getSource().get("f"), equalTo(value));
+        }
     }
 
 }

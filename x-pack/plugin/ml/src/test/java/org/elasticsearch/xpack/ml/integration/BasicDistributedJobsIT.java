@@ -68,6 +68,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
@@ -79,7 +81,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44566")
     public void testFailOverBasics_withDataFeeder() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
@@ -110,6 +111,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
         StartDatafeedAction.Request startDataFeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDataFeedRequest);
 
@@ -149,7 +153,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
 
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
 
         IndexRequest indexRequest = new IndexRequest("data");

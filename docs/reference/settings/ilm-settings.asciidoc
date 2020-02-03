@@ -10,6 +10,15 @@ These are the settings available for configuring Index Lifecycle Management
 Whether ILM is enabled or disabled, setting this to `false` disables any
 ILM REST API endpoints and functionality. Defaults to `true`.
 
+`indices.lifecycle.poll_interval`::
+(<<time-units, time units>>) How often {ilm} checks for indices that meet policy
+criteria. Defaults to `10m`.
+
+`indices.lifecycle.history_index_enabled`::
+Whether ILM's history index is enabled. If enabled, ILM will record the
+history of actions taken as part of ILM policies to the `ilm-history-*`
+indices. Defaults to `true`.
+
 ==== Index level settings
 These index-level {ilm-init} settings are typically configured through index
 templates. For more information, see <<ilm-gs-create-policy>>.
@@ -22,10 +31,6 @@ The index alias to update when the index rolls over. Specify when using a
 policy that contains a rollover action. When the index rolls over, the alias is
 updated to reflect that the index is no longer the write index. For more
 information about rollover, see <<using-policies-rollover>>.
-
-`indices.lifecycle.poll_interval`::
-(<<time-units, time units>>) How often {ilm} checks for indices that meet policy
-criteria. Defaults to `10m`.
 
 `index.lifecycle.parse_origination_date`::
 When configured to `true` the origination date will be parsed from the index

@@ -92,15 +92,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class StoreTests extends ESTestCase {
 
@@ -977,65 +979,20 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
-    public void testCanReadOldCorruptionMarker() throws IOException {
+    public void testCorruptionMarkerVersionCheck() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
-        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
 
-        CorruptIndexException exception = new CorruptIndexException("foo", "bar");
-        String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(exception.getMessage());
-            output.writeString(ExceptionsHelper.stackTrace(exception));
-            CodecUtil.writeFooter(output);
+        try (Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId))) {
+            final String corruptionMarkerName = Store.CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
+            try (IndexOutput output = dir.createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
+                CodecUtil.writeHeader(output, Store.CODEC, Store.CORRUPTED_MARKER_CODEC_VERSION + randomFrom(1, 2, -1, -2, -3));
+                // we only need the header to trigger the exception
+            }
+            final IOException ioException = expectThrows(IOException.class, store::failIfCorrupted);
+            assertThat(ioException, anyOf(instanceOf(IndexFormatTooOldException.class), instanceOf(IndexFormatTooNewException.class)));
+            assertThat(ioException.getMessage(), containsString(corruptionMarkerName));
         }
-        try {
-            store.failIfCorrupted();
-            fail("should be corrupted");
-        } catch (CorruptIndexException e) {
-            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
-            assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
-        }
-
-        store.removeCorruptionMarker();
-
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(exception.getMessage());
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be corrupted");
-        } catch (CorruptIndexException e) {
-            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
-            assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
-        }
-
-        store.removeCorruptionMarker();
-
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START - 1); // corrupted header
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be too old");
-        } catch (IndexFormatTooOldException e) {
-        }
-
-        store.removeCorruptionMarker();
-        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION+1); // corrupted header
-            CodecUtil.writeFooter(output);
-        }
-        try {
-            store.failIfCorrupted();
-            fail("should be too new");
-        } catch (IndexFormatTooNewException e) {
-        }
-        store.close();
     }
 
     public void testHistoryUUIDCanBeForced() throws IOException {

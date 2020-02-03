@@ -41,6 +41,7 @@ import java.util.Collection;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.NULL_VALUE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -336,16 +337,16 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testMultiField() throws Exception {
         int numDocs = randomIntBetween(10, 100);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("pin")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
             .startObject("fields")
             .startObject("geohash").field("type", "keyword").endObject()  // test geohash as keyword
             .startObject("latlon").field("type", "keyword").endObject()  // test geohash as string
             .endObject()
-            .endObject().endObject().endObject().endObject());
+            .endObject().endObject().endObject());
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
-            .addMapping("pin", mapping, XContentType.JSON);
+            .setMapping(mapping);
         mappingRequest.execute().actionGet();
 
         // create index and add random test points
@@ -425,6 +426,32 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+    }
+
+    /**
+     * Test the fix for a bug that would read the value of field "ignore_z_value" for "ignore_malformed"
+     * when setting the "null_value" field. See PR https://github.com/elastic/elasticsearch/pull/49645
+     */
+    public void testNullValueWithIgnoreMalformed() throws Exception {
+        // Set ignore_z_value = false and ignore_malformed = true and test that a malformed point for null_value is normalized.
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("type")
+                .startObject("properties").startObject("location")
+                    .field("type", "geo_point")
+                    .field(IGNORE_Z_VALUE.getPreferredName(), false)
+                    .field(IGNORE_MALFORMED, true)
+                    .field(NULL_VALUE, "91,181")
+                .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        Object nullValue = ((GeoPointFieldMapper) fieldMapper).fieldType().nullValue();
+        // geo_point [91, 181] should have been normalized to [89, 1]
+        assertThat(nullValue, equalTo(new GeoPoint(89, 1)));
     }
 
     public void testInvalidGeohashIgnored() throws Exception {

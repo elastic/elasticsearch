@@ -10,7 +10,7 @@ contents of the connection are encrypted. Clients and nodes that connect via
 TLS to the LDAP server need to have the LDAP server's certificate or the 
 server's root CA certificate installed in their keystore or truststore. 
 
-For more information, see <<configuring-ldap-realm>>. 
+For more information, see <<ldap-realm>>. 
 
 . Configure the realm's TLS settings on each node to trust certificates signed 
 by the CA that signed your LDAP server certificates. The following example 

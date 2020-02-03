@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 
@@ -6,138 +7,138 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
-    // Currently needed for ml tests are using the building for datafeed and job config)
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
+  // Currently needed for ml tests are using the building for datafeed and job config)
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-    testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
-    testCompile project(':x-pack:qa')
+  testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
+  testCompile project(':x-pack:qa')
 }
 
 licenseHeaders {
-    approvedLicenses << 'Apache'
+  approvedLicenses << 'Apache'
 }
 
 forbiddenPatterns {
-    exclude '**/system_key'
+  exclude '**/system_key'
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
 tasks.register("bwcTest") {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
-    from project(':x-pack:plugin:core')
-            .files(
-                    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-                    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
-            )
-    into outputDir
+  from project(':x-pack:plugin:core')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
+  into outputDir
 }
 
 configurations {
-    restSpec
+  restSpec
 }
 
 dependencies {
-    restSpec project(':rest-api-spec')
+  restSpec project(':rest-api-spec')
 }
 
 processTestResources {
-    dependsOn configurations.restSpec
-    from ({ zipTree(configurations.restSpec.singleFile) }) {
-        include 'rest-api-spec/api/**'
-    }
-    from (project(xpackModule('core')).sourceSets.test.resources) {
-        include 'rest-api-spec/api/**'
-    }
+  dependsOn configurations.restSpec
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
+  from(project(xpackModule('core')).sourceSets.test.resources) {
+    include 'rest-api-spec/api/**'
+  }
 }
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
-    String baseName = "v${bwcVersion}"
+  String baseName = "v${bwcVersion}"
 
-    testClusters {
-        "${baseName}" {
-            testDistribution = "DEFAULT"
-            versions = [bwcVersion.toString(), project.version]
-            numberOfNodes = 2
-            setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-            javaHome = project.file(project.ext.runtimeJavaHome)
-            user username: "test_user", password: "x-pack-test-password"
+  testClusters {
+    "${baseName}" {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 2
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      user username: "test_user", password: "x-pack-test-password"
 
-            setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-            // some tests rely on the translog not being flushed
-            setting 'indices.memory.shard_inactive_time', '20m'
-            setting 'xpack.security.enabled', 'true'
-            setting 'xpack.security.transport.ssl.enabled', 'true'
-            setting 'xpack.license.self_generated.type', 'trial'
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      // some tests rely on the translog not being flushed
+      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'xpack.security.enabled', 'true'
+      setting 'xpack.security.transport.ssl.enabled', 'true'
+      setting 'xpack.license.self_generated.type', 'trial'
 
-            extraConfigFile 'testnode.pem', file("${outputDir}/testnode.pem")
-            extraConfigFile 'testnode.crt', file("${outputDir}/testnode.crt")
+      extraConfigFile 'testnode.pem', file("${outputDir}/testnode.pem")
+      extraConfigFile 'testnode.crt', file("${outputDir}/testnode.crt")
 
-            keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
-            setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+      keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
+      setting 'xpack.watcher.encrypt_sensitive_data', 'true'
 
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        }
+      setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+      setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+      keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     }
+  }
 
-    tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
-        mustRunAfter(precommit)
-        useCluster testClusters."${baseName}"
-        dependsOn copyTestNodeKeyMaterial
-        doFirst {
-            project.delete("${buildDir}/cluster/shared/repo/${baseName}")
-        }
-        systemProperty 'tests.is_old_cluster', 'true'
-        systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
+  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+    mustRunAfter(precommit)
+    useCluster testClusters."${baseName}"
+    dependsOn copyTestNodeKeyMaterial
+    doFirst {
+      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
+    systemProperty 'tests.is_old_cluster', 'true'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
+    exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
+  }
 
 
-    tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
-        mustRunAfter(precommit)
-        useCluster testClusters."${baseName}"
-        dependsOn "${baseName}#oldClusterTest"
-        doFirst {
-            testClusters."${baseName}".goToNextVersion()
-        }
-        systemProperty 'tests.is_old_cluster', 'false'
-        systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
+  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+    mustRunAfter(precommit)
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#oldClusterTest"
+    doFirst {
+      testClusters."${baseName}".goToNextVersion()
     }
+    systemProperty 'tests.is_old_cluster', 'false'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+    exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
+    exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
+  }
 
-    tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
-        it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
-        it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-        it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-        it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
-    }
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
 
-    tasks.register("${baseName}#bwcTest") {
-        dependsOn "${baseName}#upgradedClusterTest"
-    }
+  tasks.register("${baseName}#bwcTest") {
+    dependsOn "${baseName}#upgradedClusterTest"
+  }
 
-    if (project.bwc_tests_enabled) {
-        bwcTest.dependsOn("${baseName}#bwcTest")
-    }
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn("${baseName}#bwcTest")
+  }
 }
 
 task bwcTestSnapshots {
-    if (project.bwc_tests_enabled) {
-        for (final def version : bwcVersions.unreleasedIndexCompatible) {
-            dependsOn "v${version}#bwcTest"
-        }
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
+      dependsOn "v${version}#bwcTest"
     }
+  }
 }
 
 check.dependsOn(bwcTestSnapshots)

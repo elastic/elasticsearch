@@ -80,10 +80,10 @@ public class IndexSortIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", "1")
                 .putList("index.sort.field", "date", "numeric_dv", "keyword_dv")
             )
-            .addMapping("test", TEST_MAPPING)
+            .setMapping(TEST_MAPPING)
             .get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i))
+            client().prepareIndex("test").setId(Integer.toString(i))
                 .setSource("numeric_dv", randomInt(), "keyword_dv", randomAlphaOfLengthBetween(10, 20))
                 .get();
         }
@@ -99,7 +99,7 @@ public class IndexSortIT extends ESIntegTestCase {
                     .put(indexSettings())
                     .putList("index.sort.field", "invalid_field")
                 )
-                .addMapping("test", TEST_MAPPING)
+                .setMapping(TEST_MAPPING)
                 .get()
         );
         assertThat(exc.getMessage(), containsString("unknown index sort field:[invalid_field]"));
@@ -110,7 +110,7 @@ public class IndexSortIT extends ESIntegTestCase {
                     .put(indexSettings())
                     .putList("index.sort.field", "numeric")
                 )
-                .addMapping("test", TEST_MAPPING)
+                .setMapping(TEST_MAPPING)
                 .get()
         );
         assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[numeric]"));
@@ -121,7 +121,7 @@ public class IndexSortIT extends ESIntegTestCase {
                     .put(indexSettings())
                     .putList("index.sort.field", "keyword")
                 )
-                .addMapping("test", TEST_MAPPING)
+                .setMapping(TEST_MAPPING)
                 .get()
         );
         assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[keyword]"));

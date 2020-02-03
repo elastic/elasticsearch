@@ -66,6 +66,8 @@ class SnippetsTask extends DefaultTask {
         exclude 'build.gradle'
         // That is where the snippets go, not where they come from!
         exclude 'build'
+        exclude 'build-idea'
+        exclude 'build-eclipse'
     }
 
     /**

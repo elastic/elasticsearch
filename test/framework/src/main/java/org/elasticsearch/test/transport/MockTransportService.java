@@ -48,7 +48,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -91,6 +91,8 @@ public final class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
+
+    private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -158,7 +160,7 @@ public final class MockTransportService extends TransportService {
                                  Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                  @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         super(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new StubbableConnectionManager(new ConnectionManager(settings, transport), settings, transport));
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport)));
         this.original = transport.getDelegate();
     }
 
@@ -505,27 +507,36 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        Transport.Connection connection = super.openConnection(node, profile);
-
-        synchronized (openConnections) {
-            openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
-            connection.addCloseListener(ActionListener.wrap(() -> {
-                synchronized (openConnections) {
-                    List<Transport.Connection> connections = openConnections.get(node);
-                    boolean remove = connections.remove(connection);
-                    assert remove : "Should have removed connection";
-                    if (connections.isEmpty()) {
-                        openConnections.remove(node);
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
+        super.openConnection(node, connectionProfile, ActionListener.delegateFailure(listener, (l, connection) -> {
+            synchronized (openConnections) {
+                openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
+                connection.addCloseListener(ActionListener.wrap(() -> {
+                    synchronized (openConnections) {
+                        List<Transport.Connection> connections = openConnections.get(node);
+                        boolean remove = connections.remove(connection);
+                        assert remove : "Should have removed connection";
+                        if (connections.isEmpty()) {
+                            openConnections.remove(node);
+                        }
+                        if (openConnections.isEmpty()) {
+                            openConnections.notifyAll();
+                        }
                     }
-                    if (openConnections.isEmpty()) {
-                        openConnections.notifyAll();
-                    }
-                }
-            }));
-        }
+                }));
+            }
+            l.onResponse(connection);
+        }));
+    }
 
-        return connection;
+    public void addOnStopListener(Runnable listener) {
+        onStopListeners.add(listener);
+    }
+
+    @Override
+    protected void doStop() {
+        onStopListeners.forEach(Runnable::run);
+        super.doStop();
     }
 
     @Override

@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class CopyToMapperTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void testCopyToFieldsParsing() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("copy_test")
                 .field("type", "text")
                 .array("copy_to", "another_field", "cyclic_test")
@@ -70,8 +70,8 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject());
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper("type1");
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper();
         Mapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
@@ -118,10 +118,10 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type1")
+        client().admin().indices().preparePutMapping("test")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        docMapper = index.mapperService().documentMapper("type1");
+        docMapper = index.mapperService().documentMapper();
         fieldMapper = docMapper.mappers().getMapper("new_field");
         assertThat(fieldMapper.typeName(), equalTo("long"));
     }

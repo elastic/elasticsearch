@@ -21,10 +21,11 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,14 +50,14 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index("test", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");
         assertIndexInMetaState(masterNode, "test");
     }
 
-    public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
-        // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
+    public void testIndexFilesAreRemovedIfAllShardsFromIndexRemoved() throws Exception {
+        // this test checks that the index data is removed from a data only node once all shards have been allocated away from it
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         List<String> nodeNames= internalCluster().startDataOnlyNodes(2);
         String node1 = nodeNames.get(0);
@@ -65,12 +66,14 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String index = "index";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0)
             .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
-        index(index, "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index(index, "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);
+        assertIndexDirectoryExists(node1, resolveIndex);
         assertIndexDirectoryDeleted(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
+        assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
@@ -79,7 +82,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
+        assertIndexDirectoryExists(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
+        assertIndexDirectoryDeleted(masterNode, resolveIndex);
+
+        client().admin().indices().prepareDelete(index).get();
+        assertIndexDirectoryDeleted(node1, resolveIndex);
+        assertIndexDirectoryDeleted(node2, resolveIndex);
     }
 
     @SuppressWarnings("unchecked")
@@ -102,7 +111,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().getMetaData().index(index).getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin().indices().preparePutMapping(index).setType("_doc").setSource(jsonBuilder().startObject()
+        client().admin().indices().preparePutMapping(index).setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("integer_field")
                 .field("type", "integer")
@@ -129,7 +138,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin().indices().preparePutMapping(index).setType("_doc").setSource(jsonBuilder().startObject()
+        client().admin().indices().preparePutMapping(index).setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("float_field")
                 .field("type", "float")
@@ -156,17 +165,19 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     protected void assertIndexDirectoryDeleted(final String nodeName, final Index index) throws Exception {
-        assertBusy(() -> {
-            logger.info("checking if index directory exists...");
-            assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
-                indexDirectoryExists(nodeName, index));
-        }
+        assertBusy(() -> assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
+            indexDirectoryExists(nodeName, index))
+        );
+    }
+
+    protected void assertIndexDirectoryExists(final String nodeName, final Index index) throws Exception {
+        assertBusy(() -> assertTrue("Expecting index directory of " + index + " to exist on node " + nodeName,
+            indexDirectoryExists(nodeName, index))
         );
     }
 
     protected void assertIndexInMetaState(final String nodeName, final String indexName) throws Exception {
         assertBusy(() -> {
-            logger.info("checking if meta state exists...");
             try {
                 assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName,
                     getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
@@ -190,8 +201,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) {
-        GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = nodeMetaState.getMetaData();
-        return nodeMetaData.getIndices();
+        final Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, nodeName);
+        return coordinator.getApplierState().getMetaData().getIndices();
     }
 }

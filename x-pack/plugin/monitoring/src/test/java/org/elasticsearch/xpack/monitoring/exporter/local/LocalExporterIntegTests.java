@@ -76,7 +76,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 // indexing some random documents
                 IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
                 for (int i = 0; i < indexRequestBuilders.length; i++) {
-                    indexRequestBuilders[i] = client().prepareIndex("test", "type", Integer.toString(i))
+                    indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                             .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);

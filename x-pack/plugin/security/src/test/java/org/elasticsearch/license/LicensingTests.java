@@ -129,14 +129,14 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testEnableDisableBehaviour() throws Exception {
-        IndexResponse indexResponse = index("test", "type", jsonBuilder()
+        IndexResponse indexResponse = index("test", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
-        indexResponse = index("test1", "type", jsonBuilder()
+        indexResponse = index("test1", jsonBuilder()
                 .startObject()
                 .field("name", "value1")
                 .endObject());

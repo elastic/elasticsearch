@@ -92,45 +92,50 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.category.tokenizer", "standard")
                 .put("index.analysis.analyzer.category.filter", "lowercase")
         );
-        assertAcked(builder.addMapping("test", createMapping()));
+        assertAcked(builder.setMapping(createMapping()));
         ensureGreen();
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "test", "theone").setSource(
+        builders.add(client().prepareIndex("test").setId("theone").setSource(
+                "id", "theone",
                 "full_name", "Captain America",
                 "first_name", "Captain",
                 "last_name", "America",
                 "category", "marvel hero",
                 "skill", 15,
                 "int-field", 25));
-        builders.add(client().prepareIndex("test", "test", "theother").setSource(
+        builders.add(client().prepareIndex("test").setId("theother").setSource(
+                "id", "theother",
                 "full_name", "marvel hero",
                 "first_name", "marvel",
                 "last_name", "hero",
                 "category", "bogus",
                 "skill", 5));
 
-        builders.add(client().prepareIndex("test", "test", "ultimate1").setSource(
+        builders.add(client().prepareIndex("test").setId("ultimate1").setSource(
+                "id", "ultimate1",
                 "full_name", "Alpha the Ultimate Mutant",
                 "first_name", "Alpha the",
                 "last_name", "Ultimate Mutant",
                 "category", "marvel hero",
                 "skill", 1));
-        builders.add(client().prepareIndex("test", "test", "ultimate2").setSource(
+        builders.add(client().prepareIndex("test").setId("ultimate2").setSource(
                 "full_name", "Man the Ultimate Ninja",
                 "first_name", "Man the Ultimate",
                 "last_name", "Ninja",
                 "category", "marvel hero",
                 "skill", 3));
 
-        builders.add(client().prepareIndex("test", "test", "anotherhero").setSource(
+        builders.add(client().prepareIndex("test").setId("anotherhero").setSource(
+                "id", "anotherhero",
                 "full_name", "ultimate",
                 "first_name", "wolferine",
                 "last_name", "",
                 "category", "marvel hero",
                 "skill", 1));
 
-        builders.add(client().prepareIndex("test", "test", "nowHero").setSource(
+        builders.add(client().prepareIndex("test").setId("nowHero").setSource(
+                "id", "nowHero",
                 "full_name", "now sort of",
                 "first_name", "now",
                 "last_name", "",
@@ -146,7 +151,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String first = RandomPicks.randomFrom(random(), firstNames);
             String last = randomPickExcept(lastNames, first);
-            builders.add(client().prepareIndex("test", "test", "" + i).setSource(
+            builders.add(client().prepareIndex("test").setId("" + i).setSource(
+                    "id", i,
                     "full_name", first + " " + last,
                     "first_name", first,
                     "last_name", last,
@@ -157,8 +163,11 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("test")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
+                .startObject("id")
+                .field("type", "keyword")
+                .endObject()
                 .startObject("full_name")
                 .field("type", "text")
                 .field("copy_to", "full_name_phrase")
@@ -274,17 +283,17 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             }
             MultiMatchQueryBuilder multiMatchQueryBuilder = randomizeType(multiMatchQuery(builder.toString(), field));
             SearchResponse multiMatchResp = client().prepareSearch("test")
-                    // _id sort field is a tie, in case hits have the same score,
+                    // id sort field is a tie, in case hits have the same score,
                     // the hits will be sorted the same consistently
                     .addSort("_score", SortOrder.DESC)
-                    .addSort("_id", SortOrder.ASC)
+                    .addSort("id", SortOrder.ASC)
                     .setQuery(multiMatchQueryBuilder).get();
             MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(field, builder.toString());
 
             SearchResponse matchResp = client().prepareSearch("test")
-                    // _id tie sort
+                    // id tie sort
                     .addSort("_score", SortOrder.DESC)
-                    .addSort("_id", SortOrder.ASC)
+                    .addSort("id", SortOrder.ASC)
                     .setQuery(matchQueryBuilder).get();
             assertThat("field: " + field + " query: " + builder.toString(), multiMatchResp.getHits().getTotalHits().value,
                     equalTo(matchResp.getHits().getTotalHits().value));
@@ -312,12 +321,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category") :
                         multiMatchQuery("marvel hero captain america", "*_name", randomBoolean() ? "category" : "categ*");
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(randomizeType(multiMatchQueryBuilder
                                 .operator(Operator.OR).type(type))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(disMaxQuery().
                                 add(matchQuery("full_name", "marvel hero captain america"))
                                 .add(matchQuery("first_name", "marvel hero captain america"))
@@ -335,12 +344,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category") :
                         multiMatchQuery("captain america", "*_name", randomBoolean() ? "category" : "categ*");
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(randomizeType(multiMatchQueryBuilder
                                 .operator(op).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch).type(type))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(randomBoolean() ? termQuery("full_name", "captain america") :
                                     matchQuery("full_name", "captain america").operator(op))
@@ -354,12 +363,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(randomizeType(multiMatchQuery("capta", "full_name", "first_name", "last_name", "category")
                                 .type(MatchQuery.Type.PHRASE_PREFIX).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(matchPhrasePrefixQuery("full_name", "capta"))
                                 .should(matchPhrasePrefixQuery("first_name", "capta"))
@@ -373,17 +382,17 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 SearchResponse left;
                 if (randomBoolean()) {
                     left = client().prepareSearch("test").setSize(numDocs)
-                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
                                     .type(MatchQuery.Type.PHRASE).minimumShouldMatch(minShouldMatch))).get();
                 } else {
                     left = client().prepareSearch("test").setSize(numDocs)
-                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
                                     .type(MatchQuery.Type.PHRASE).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
                 }
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(matchPhraseQuery("full_name", "captain america"))
                                 .should(matchPhraseQuery("first_name", "captain america"))
@@ -617,13 +626,13 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_SHARDS, 3)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 );
-        assertAcked(builder.addMapping("type", "title", "type=text", "body", "type=text"));
+        assertAcked(builder.setMapping("title", "type=text", "body", "type=text"));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(idx, "type", "1").setSource(
+        builders.add(client().prepareIndex(idx).setId("1").setSource(
                 "title", "foo",
                 "body", "bar"));
-        builders.add(client().prepareIndex(idx, "type", "2").setSource(
+        builders.add(client().prepareIndex(idx).setId("2").setSource(
                 "title", "bar",
                 "body", "foo"));
         indexRandom(true, false, builders);

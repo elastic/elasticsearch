@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -22,6 +20,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
@@ -32,17 +31,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
-
     public RestSqlQueryAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
-                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, Protocol.SQL_QUERY_REST_ENDPOINT, this,
-                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
     }
 
     @Override
@@ -58,14 +49,22 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
          * like everything else. We want to stick as closely as possible to
          * Elasticsearch's defaults though, while still layering in ways to
-         * control the output more easilly.
+         * control the output more easily.
          *
          * First we find the string that the user used to specify the response
-         * format. If there is a {@code format} paramter we use that. If there
+         * format. If there is a {@code format} parameter we use that. If there
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
-        String accept = request.param("format");
+        String accept = null;
+
+        if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
+                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
+            // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
+            accept = XContentType.CBOR.name();
+        } else {
+            accept = request.param("format");
+        }
         if (accept == null) {
             accept = request.header("Accept");
             if ("*/*".equals(accept)) {

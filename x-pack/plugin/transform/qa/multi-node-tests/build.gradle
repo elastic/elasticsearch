@@ -14,10 +14,10 @@ File nodeKey = file("$keystoreDir/testnode.pem")
 File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects it there
 task copyKeyCerts(type: Copy) {
-    from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-        include 'testnode.crt', 'testnode.pem'
-    }
-    into keystoreDir
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
+  }
+  into keystoreDir
 }
 // Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)

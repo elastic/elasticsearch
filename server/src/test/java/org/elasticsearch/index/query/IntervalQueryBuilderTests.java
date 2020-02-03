@@ -19,22 +19,29 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -50,7 +57,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, true));
     }
 
     private static final String[] filters = new String[]{
@@ -82,43 +89,61 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
-    private IntervalsSourceProvider createRandomSource(int depth) {
-        if (depth > 3) {
-            return createRandomMatch(depth + 1);
+    private static IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
+        if (depth > 2) {
+            return createRandomMatch(depth + 1, useScripts);
         }
         switch (randomInt(20)) {
             case 0:
             case 1:
-                int orCount = randomInt(4) + 1;
-                List<IntervalsSourceProvider> orSources = new ArrayList<>();
-                for (int i = 0; i < orCount; i++) {
-                    orSources.add(createRandomSource(depth + 1));
-                }
-                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1));
+                return createRandomDisjunction(depth, useScripts);
             case 2:
             case 3:
-                int count = randomInt(5) + 1;
-                List<IntervalsSourceProvider> subSources = new ArrayList<>();
-                for (int i = 0; i < count; i++) {
-                    subSources.add(createRandomSource(depth + 1));
-                }
-                boolean ordered = randomBoolean();
-                int maxGaps = randomInt(5) - 1;
-                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1);
-                return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+                return createRandomCombine(depth, useScripts);
             default:
-                return createRandomMatch(depth + 1);
+                return createRandomMatch(depth + 1, useScripts);
         }
     }
 
-    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth) {
+    static IntervalsSourceProvider.Disjunction createRandomDisjunction(int depth, boolean useScripts) {
+        int orCount = randomInt(4) + 1;
+        List<IntervalsSourceProvider> orSources = createRandomSourceList(depth, useScripts, orCount);
+        return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
+    }
+
+    static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
+        int count = randomInt(5) + 1;
+        List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
+        boolean ordered = randomBoolean();
+        int maxGaps = randomInt(5) - 1;
+        IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
+        return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+    }
+
+    static List<IntervalsSourceProvider> createRandomSourceList(int depth, boolean useScripts, int count) {
+        List<IntervalsSourceProvider> subSources = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            subSources.add(createRandomSource(depth + 1, useScripts));
+        }
+        return subSources;
+    }
+
+    private static IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth, boolean useScripts) {
         if (depth < 3 && randomInt(20) > 18) {
-            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+            return createRandomNonNullFilter(depth, useScripts);
         }
         return null;
     }
 
-    private IntervalsSourceProvider createRandomMatch(int depth) {
+    static IntervalsSourceProvider.IntervalFilter createRandomNonNullFilter(int depth, boolean useScripts) {
+        if (useScripts == false || randomBoolean()) {
+            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1, false), randomFrom(filters));
+        }
+        return new IntervalsSourceProvider.IntervalFilter(
+            new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap()));
+    }
+
+    static IntervalsSourceProvider.Match createRandomMatch(int depth, boolean useScripts) {
         String useField = rarely() ? MASKED_FIELD : null;
         int wordCount = randomInt(4) + 1;
         List<String> words = new ArrayList<>();
@@ -129,12 +154,41 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         boolean mOrdered = randomBoolean();
         int maxMGaps = randomInt(5) - 1;
         String analyzer = randomFrom("simple", "keyword", "whitespace");
-        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1), useField);
+        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1, useScripts), useField);
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        IntervalQueryBuilder queryBuilder = new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, false));
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        IntervalsSourceProvider.IntervalFilter scriptFilter = new IntervalsSourceProvider.IntervalFilter(
+            new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap())
+        );
+        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, true, "simple", scriptFilter, null);
+        queryBuilder = new IntervalQueryBuilder(STRING_FIELD_NAME, source);
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query with scripts should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override
     protected void doAssertLuceneQuery(IntervalQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(IntervalQuery.class));
+    }
+
+    @Override
+    public IntervalQueryBuilder mutateInstance(IntervalQueryBuilder instance) throws IOException {
+        if (randomBoolean()) {
+            return super.mutateInstance(instance); // just change name/boost
+        }
+        if (randomBoolean()) {
+            return new IntervalQueryBuilder(STRING_FIELD_NAME_2, instance.getSourceProvider());
+        }
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, true));
     }
 
     public void testMatchInterval() throws IOException {
@@ -395,7 +449,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
             "\"prefix\" : { \"prefix\" : \"term\" } } } }";
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.prefix(new BytesRef("term")));
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, XIntervals.prefix(new BytesRef("term")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
@@ -422,7 +476,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"prefix\" : { \"prefix\" : \"t\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.or(
-            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.wildcard(new BytesRef("t?"))),
+            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", XIntervals.wildcard(new BytesRef("t?"))),
             Intervals.term("t")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
@@ -454,7 +508,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"wildcard\" : { \"pattern\" : \"Te?m\" } } } }";
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m")));
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, XIntervals.wildcard(new BytesRef("te?m")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
@@ -468,14 +522,14 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"wildcard\" : { \"pattern\" : \"Te?m\", \"analyzer\" : \"keyword\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(keyword_json);
-        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard(new BytesRef("Te?m")));
+        expected = new IntervalQuery(STRING_FIELD_NAME, XIntervals.wildcard(new BytesRef("Te?m")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String fixed_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
             "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
-        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("te?m"))));
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, XIntervals.wildcard(new BytesRef("te?m"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String fixed_field_json_no_positions = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
@@ -490,8 +544,62 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
         expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD,
-            Intervals.wildcard(new BytesRef("Te?m"))));
+            XIntervals.wildcard(new BytesRef("Te?m"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
+    private static IntervalsSource buildFuzzySource(String term, String label, int prefixLength, boolean transpositions, int editDistance) {
+        FuzzyQuery fq = new FuzzyQuery(new Term("field", term), editDistance, prefixLength, 128, transpositions);
+        CompiledAutomaton[] automata = fq.getAutomata();
+        return XIntervals.multiterm(automata[automata.length - 1], label);
+    }
+
+    public void testFuzzy() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"fuzzy\" : { \"term\" : \"Term\" } } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+
+        Query expected = new IntervalQuery(STRING_FIELD_NAME,
+            buildFuzzySource("term", "Term", FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH, true, Fuzziness.AUTO.asDistance("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String json_with_prefix = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2 } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json_with_prefix);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            buildFuzzySource("term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String json_with_fuzziness = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"fuzziness\" : \"1\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json_with_fuzziness);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            buildFuzzySource("term", "Term", 2, true, Fuzziness.ONE.asDistance("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String json_no_transpositions = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"transpositions\" : false } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json_no_transpositions);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            buildFuzzySource("term", "Term", 2, false, Fuzziness.AUTO.asDistance("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String json_with_analyzer = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"analyzer\" : \"keyword\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json_with_analyzer);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            buildFuzzySource("Term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String json_with_fixfield = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"fuzziness\" : \"1\", " +
+            "\"use_field\" : \"" + MASKED_FIELD + "\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json_with_fixfield);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD,
+            buildFuzzySource("term", "Term", 2, true, Fuzziness.ONE.asDistance("term"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
     }
 
 }

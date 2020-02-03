@@ -86,16 +86,6 @@ public class PivotTests extends ESTestCase {
         return namedXContentRegistry;
     }
 
-
-    /*
-      Had to disable warnings because tests get random date histo configs, and changing to
-      new interval format was non-trivial.  Best for ML team to fix
-     */
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
-
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig(new String[]{"existing_source_index"}, QueryConfig.matchAll());
         Pivot pivot = new Pivot(getValidPivotConfig());
@@ -266,7 +256,7 @@ public class PivotTests extends ESTestCase {
         }));
 
         assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
-        if (expectValid == true && exceptionHolder.get() != null) {
+        if (expectValid && exceptionHolder.get() != null) {
             throw exceptionHolder.get();
         } else if (expectValid == false && exceptionHolder.get() == null) {
             fail("Expected config to be invalid");

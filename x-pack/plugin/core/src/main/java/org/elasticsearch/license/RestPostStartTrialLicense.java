@@ -6,9 +6,7 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,19 +22,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartTrialLicense.class));
-
     RestPostStartTrialLicense(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license/start_trial", this,
-                POST, "/_xpack/license/start_trial", deprecationLogger);
+        controller.registerHandler(POST, "/_license/start_trial", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
-        startTrialRequest.setType(request.param("type", "trial"));
+        startTrialRequest.setType(request.param("type", License.LicenseType.TRIAL.getTypeName()));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         return channel -> client.execute(PostStartTrialAction.INSTANCE, startTrialRequest,
                 new RestBuilderListener<>(channel) {

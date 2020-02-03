@@ -70,8 +70,9 @@ public class EnrichPolicyLocks {
             Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
             boolean acquired = runLock.tryAcquire();
             if (acquired == false) {
-                throw new EsRejectedExecutionException("Could not obtain lock because policy execution for ["  + policyName +
-                    "] is already in progress.");
+                throw new EsRejectedExecutionException(
+                    "Could not obtain lock because policy execution for [" + policyName + "] is already in progress."
+                );
             }
             policyRunCounter.incrementAndGet();
         } finally {
@@ -105,8 +106,7 @@ public class EnrichPolicyLocks {
      */
     boolean isSameState(EnrichPolicyExecutionState previousState) {
         EnrichPolicyExecutionState currentState = captureExecutionState();
-        return currentState.anyPolicyInFlight == previousState.anyPolicyInFlight &&
-            currentState.executions == previousState.executions;
+        return currentState.anyPolicyInFlight == previousState.anyPolicyInFlight && currentState.executions == previousState.executions;
     }
 
     /**

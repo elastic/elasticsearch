@@ -47,7 +47,9 @@ This will instruct all JVMs (including any that run cli tools such as creating t
 to suspend and initiate a debug connection on port incrementing from `5005`.
 As such the IDE needs to be instructed to listen for connections on this port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
-recommended to have the option to aut restart checked.
+recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
+is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting
+needs to be configured with a greater value (ie 10 or more).
 
 ==== Distribution
 
@@ -261,6 +263,10 @@ If you want to just run the precommit checks:
 
 Some of these checks will require `docker-compose` installed for bringing up
 test fixtures. If it's not present those checks will be skipped automatically.
+The host running Docker (or VM if you're using Docker Desktop) needs 4GB of
+memory or some of the containers will fail to start. You can tell that you
+are short of memory if containers are exiting quickly after starting with
+code 137 (128 + 9, where 9 means SIGKILL).
 
 == Testing the REST layer
 

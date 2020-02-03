@@ -35,10 +35,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
-        indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "a"),
-                client().prepareIndex("test", "test", "2").setSource("foo", "a"),
-                client().prepareIndex("test", "test", "3").setSource("foo", "b"),
-                client().prepareIndex("test", "test", "4").setSource("foo", "c"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "a"),
+                client().prepareIndex("test").setId("2").setSource("foo", "a"),
+                client().prepareIndex("test").setId("3").setSource("foo", "b"),
+                client().prepareIndex("test").setId("4").setSource("foo", "c"));
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
@@ -73,10 +73,10 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
 
     public void testSlices() throws Exception {
         indexRandom(true,
-            client().prepareIndex("test", "test", "1").setSource("foo", "a"),
-            client().prepareIndex("test", "test", "2").setSource("foo", "a"),
-            client().prepareIndex("test", "test", "3").setSource("foo", "b"),
-            client().prepareIndex("test", "test", "4").setSource("foo", "c"));
+            client().prepareIndex("test").setId("1").setSource("foo", "a"),
+            client().prepareIndex("test").setId("2").setSource("foo", "a"),
+            client().prepareIndex("test").setId("3").setSource("foo", "b"),
+            client().prepareIndex("test").setId("4").setSource("foo", "c"));
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
@@ -134,7 +134,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName, "test", Integer.toString(i)).setSource("foo", "a"));
+                docs.get(indexName).add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
             }
         }
 

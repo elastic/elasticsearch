@@ -78,7 +78,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setRouting(routingValue)
                 .setSource("field", "value1")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -119,7 +119,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setRouting(routingValue)
                 .setSource("field", "value1")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -144,7 +144,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setRouting(routingValue)
                 .setSource("field", "value1")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -217,7 +217,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         String secondRoutingValue = "1";
         logger.info("--> indexing with id [{}], and routing [{}]", routingValue, secondRoutingValue);
-        client().prepareIndex("test", "type1", routingValue)
+        client().prepareIndex("test").setId(routingValue)
                 .setRouting(secondRoutingValue)
                 .setSource("field", "value1")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -332,9 +332,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                                                     .startObject()
-                                                    .startObject("type1")
+                                                    .startObject("_doc")
                                                     .startObject("_routing")
                                                     .field("required", true)
                                                     .endObject()
@@ -346,13 +346,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias(), "type1", "1").setRouting(routingValue).setSource("field", "value1")
+        client().prepareIndex(indexOrAlias()).setId("1").setRouting(routingValue).setSource("field", "value1")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should fail");
 
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
-            client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").get();
+            client().prepareIndex(indexOrAlias()).setId("1").setSource("field", "value1").get();
             fail("index with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -443,7 +443,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     public void testRequiredRoutingBulk() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                                                     .startObject("_routing").field("required", true).endObject()
                                                     .endObject().endObject())
                 .execute().actionGet();
@@ -532,9 +532,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                                                     .startObject()
-                                                    .startObject("type1")
+                                                    .startObject("_doc")
                                                     .startObject("_routing")
                                                     .field("required", true)
                                                     .endObject()
@@ -545,9 +545,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias(), "type1", "1").setRouting(routingValue).setSource("field", "value1").get();
+        client().prepareIndex(indexOrAlias()).setId("1").setRouting(routingValue).setSource("field", "value1").get();
         logger.info("--> indexing with id [2], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias(), "type1", "2").setRouting(routingValue).setSource("field", "value2")
+        client().prepareIndex(indexOrAlias()).setId("2").setRouting(routingValue).setSource("field", "value2")
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         logger.info("--> verifying get with id [1] with routing [0], should succeed");

@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -39,16 +36,11 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-    private static final Logger logger = LogManager.getLogger(RestMonitoringBulkAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
     public RestMonitoringBulkAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
-            POST, "/_xpack/monitoring/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
-            PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
+        controller.registerHandler(POST, "/_monitoring/bulk", this);
+        controller.registerHandler(PUT, "/_monitoring/bulk", this);
 
         final List<String> allVersions = Arrays.asList(
                 MonitoringTemplateUtils.TEMPLATE_VERSION,

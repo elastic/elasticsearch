@@ -69,6 +69,19 @@ FROM test_emp ORDER BY 1 LIMIT 5;
 10005   | 1      | 10005
 ;
 
+caseWithErroneousResultsForFalseConditions
+schema::bytes_in:i|bytes_out:i|div:i
+SELECT bytes_in, bytes_out, CASE WHEN bytes_in = 0 THEN NULL WHEN bytes_in < 10 THEN bytes_in * 20 ELSE bytes_out / bytes_in END div FROM logs ORDER BY bytes_in LIMIT 5;
+
+   bytes_in    |   bytes_out   |      div
+---------------+---------------+---------------
+0              |128            |null
+0              |null           |null
+8              |null           |160
+8              |null           |160
+8              |null           |160
+;
+
 caseWhere
 SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' ELSE 'LongName' END = 'LongName'
 ORDER BY emp_no LIMIT 10;
@@ -265,6 +278,19 @@ SELECT emp_no, IIF(NULL, emp_no) AS IIF_1, IIF(NULL, emp_no, languages) AS IIF_2
 10005   | null  | 1     | 10005
 ;
 
+iifWithErroneousResultsForFalseCondition
+schema::bytes_in:i|bytes_out:i|div:i
+SELECT bytes_in, bytes_out, IIF(bytes_in < 10, IIF(bytes_in = 0, NULL, bytes_in * 10), bytes_out / bytes_in) div FROM logs ORDER BY bytes_in LIMIT 5;
+
+   bytes_in    |   bytes_out   |      div
+---------------+---------------+---------------
+0              |128            |null
+0              |null           |null
+8              |null           |80
+8              |null           |80
+8              |null           |80
+;
+
 iifWhere
 SELECT last_name FROM test_emp WHERE IIF(LENGTH(last_name) < 7, 'ShortName') IS NOT NULL ORDER BY emp_no LIMIT 10;
 
@@ -415,7 +441,7 @@ SELECT ISNULL(birth_date, INTERVAL '23:45' HOUR TO MINUTES + {d '2019-09-17'}) A
          c:ts           |    salary:i     |      birth_date:ts     |       hire_date:ts        
 ------------------------+-----------------+------------------------+------------------------
 1956-12-13T00:00:00.000Z|74999            |1956-12-13T00:00:00.000Z|1985-11-20T00:00:00.000Z
-2019-09-17T00:00:00.000Z|74970            |null                    |1989-09-02T00:00:00.000Z
+2019-09-17T23:45:00.000Z|74970            |null                    |1989-09-02T00:00:00.000Z
 1957-05-23T00:00:00.000Z|74572            |1957-05-23T00:00:00.000Z|1989-02-10T00:00:00.000Z
 1962-07-10T00:00:00.000Z|73851            |1962-07-10T00:00:00.000Z|1989-07-07T00:00:00.000Z
 1953-01-23T00:00:00.000Z|73717            |1953-01-23T00:00:00.000Z|1999-04-30T00:00:00.000Z

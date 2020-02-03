@@ -3,11 +3,7 @@
 === Active Directory user authentication
 
 You can configure {stack} {security-features} to communicate with Active
-Directory to authenticate users. To integrate with Active Directory, you
-configure an `active_directory` realm and map Active Directory users and groups
-to roles in the <<mapping-roles, role mapping file>>.
-
-See <<configuring-ad-realm>>.
+Directory to authenticate users. See <<ad-realm-configuration>>.
 
 The {security-features} use LDAP to communicate with Active Directory, so
 `active_directory` realms are similar to <<ldap-realm, `ldap` realms>>. Like
@@ -33,25 +29,10 @@ Active Directory. Once the user has been found, the Active Directory realm then
 retrieves the user's group memberships from the `tokenGroups` attribute on the
 user's entry in Active Directory.
 
-[[ad-load-balancing]]
-==== Load balancing and failover
-The `load_balance.type` setting can be used at the realm level to configure how
-the {security-features} should interact with multiple Active Directory servers.
-Two modes of operation are supported: failover and load balancing.
+[[ad-realm-configuration]]
+==== Configuring an Active Directory realm
 
-See
-<<load-balancing>>.
-
-[[ad-settings]]
-==== Active Directory realm settings
-
-See
-<<ref-ad-settings>>.
-
-[[mapping-roles-ad]]
-==== Mapping Active Directory users and groups to roles
-
-See <<configuring-ad-realm>>. 
+include::configuring-active-directory-realm.asciidoc[]
 
 [[ad-user-metadata]]
 ==== User metadata in Active Directory realms
@@ -72,6 +53,15 @@ This metadata is returned in the
 
 Additional metadata can be extracted from the Active Directory server by configuring
 the `metadata` setting on the Active Directory realm.
+
+[[ad-load-balancing]]
+==== Load balancing and failover
+The `load_balance.type` setting can be used at the realm level to configure how
+the {security-features} should interact with multiple Active Directory servers.
+Two modes of operation are supported: failover and load balancing.
+
+See
+<<load-balancing>>.
 
 [[active-directory-ssl]]
 ==== Setting up SSL between Elasticsearch and Active Directory

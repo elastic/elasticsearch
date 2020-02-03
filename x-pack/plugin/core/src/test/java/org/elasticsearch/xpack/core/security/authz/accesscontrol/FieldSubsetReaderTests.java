@@ -1019,7 +1019,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
                 .put(IndexMetaData.builder("index")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("doc", MAPPING_TEST_ITEM)).build();
+                        .putMapping(MAPPING_TEST_ITEM)).build();
 
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"*inner1"}, Strings.EMPTY_ARRAY);
@@ -1170,7 +1170,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             "}";
 
     private static final String MAPPING_TEST_ITEM = "{\n" +
-            "  \"doc\": {\n" +
+            "  \"_doc\": {\n" +
             "    \"properties\" : {\n" +
             "      \"field_text\" : {\n" +
             "        \"type\":\"text\"\n" +

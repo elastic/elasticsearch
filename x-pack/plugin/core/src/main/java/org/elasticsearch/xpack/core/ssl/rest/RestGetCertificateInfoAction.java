@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.rest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -27,14 +25,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetCertificateInfoAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetCertificateInfoAction.class));
-
     public RestGetCertificateInfoAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_ssl/certificates", this,
-            GET, "/_xpack/ssl/certificates", deprecationLogger);
+        controller.registerHandler(GET, "/_ssl/certificates", this);
     }
 
     @Override

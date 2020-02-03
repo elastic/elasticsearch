@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -71,7 +72,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -130,7 +131,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, ValueType.DATE);
+        super(name, CoreValuesSourceType.ANY, ValueType.DATE);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
@@ -151,7 +152,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY, ValueType.DATE);
+        super(in, CoreValuesSourceType.ANY, ValueType.DATE);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -163,7 +164,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     protected ValuesSourceType resolveScriptAny(Script script) {
         // TODO: No idea how we'd support Range scripts here.
-        return ValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.NUMERIC;
     }
 
 
@@ -284,7 +285,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return offset(parseStringOffset(offset));
     }
 
-    static long parseStringOffset(String offset) {
+    /**
+     * Parse the string specification of an offset. 
+     */
+    public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {
             return -TimeValue
                     .parseTimeValue(offset.substring(1), null, DateHistogramAggregationBuilder.class.getSimpleName() + ".parseOffset")
@@ -489,13 +493,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
-        final Rounding rounding = dateHistogramInterval.createRounding(tz);
+        final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;
         if (tz == rewrittenTimeZone) {
             shardRounding = rounding;
         } else {
-            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone);
+            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, offset);
         }
 
         ExtendedBounds roundedBounds = null;
@@ -503,7 +507,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // parse any string bounds to longs and round
             roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, config, offset, order, keyed, minDocCount,
+        return new DateHistogramAggregatorFactory(name, config, order, keyed, minDocCount,
                 rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 

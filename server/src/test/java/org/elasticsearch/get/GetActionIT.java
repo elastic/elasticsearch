@@ -70,7 +70,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleGet() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
+                .setMapping("field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null))));
         ensureGreen();
@@ -79,7 +79,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         logger.info("--> non realtime get 1");
         response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
@@ -169,7 +169,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> update doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").get();
 
         logger.info("--> realtime get 1");
         response = client().prepareGet(indexOrAlias(), "1").get();
@@ -179,7 +179,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_1"));
 
         logger.info("--> update doc 1 again");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1_2", "field2", "value2_2").get();
 
         response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
@@ -204,7 +204,7 @@ public class GetActionIT extends ESIntegTestCase {
             client().admin().indices().prepareCreate("index3")
                 .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
         }
-        IndexResponse indexResponse = client().prepareIndex("index1", "type", "id")
+        IndexResponse indexResponse = client().prepareIndex("index1").setId("id")
             .setSource(Collections.singletonMap("foo", "bar")).get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
@@ -219,7 +219,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleMultiGet() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
-                .addMapping("type1", "field", "type=keyword,store=true")
+                .setMapping("field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
@@ -228,7 +228,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         response = client().prepareMultiGet()
@@ -271,20 +271,19 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetDocWithMultivaluedFields() throws Exception {
-        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("field").field("type", "text").field("store", true).endObject()
-                .endObject()
                 .endObject().endObject());
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping1, XContentType.JSON));
+                .setMapping(mapping1));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "1").get();
         assertThat(response.isExists(), equalTo(false));
         assertThat(response.isExists(), equalTo(false));
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
         response = client().prepareGet("test", "1").setStoredFields("field").get();
@@ -317,7 +316,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
@@ -361,7 +360,7 @@ public class GetActionIT extends ESIntegTestCase {
         }
 
         logger.info("--> index doc 1 again, so increasing the version");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
@@ -417,7 +416,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
@@ -469,7 +468,7 @@ public class GetActionIT extends ESIntegTestCase {
 
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
@@ -524,14 +523,14 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").startObject("properties")
                         .startObject("field2").field("type", "text").endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject())
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
 
-        client().prepareIndex("test", "my-type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
                 .get();
 
@@ -553,7 +552,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("my-index")
             // multi types in 5.6
             .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("my-type", jsonBuilder().startObject().startObject("my-type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                                 .startObject("field3").field("type", "object").startObject("properties")
@@ -588,7 +587,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index", "my-type", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index").setId("1").setSource(source, XContentType.JSON).get();
 
         logger.info("checking real time retrieval");
 
@@ -663,7 +662,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        index("test", "_doc", "1", doc);
+        index("test", "1", doc);
         String[] fieldsList = {"suggest"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "1", fieldsList);
@@ -686,7 +685,7 @@ public class GetActionIT extends ESIntegTestCase {
                 .addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
 
         String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
@@ -780,7 +779,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"text1\": \"some text.\"\n," +
                 "  \"text2\": \"more text.\"\n" +
                 "}\n";
-        index("test", "_doc", "1", doc);
+        index("test", "1", doc);
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String docId, String[] fields) {

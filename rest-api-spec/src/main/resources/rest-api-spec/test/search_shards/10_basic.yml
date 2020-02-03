@@ -69,7 +69,6 @@
   - gte: { indices.test_index.filter.bool.should.0.term.field.boost: 1.0 }
   - lte: { indices.test_index.filter.bool.should.1.term.field.boost: 1.0 }
   - gte: { indices.test_index.filter.bool.should.1.term.field.boost: 1.0 }
-  - match: { indices.test_index.filter.bool.adjust_pure_negative: true}
   - lte: { indices.test_index.filter.bool.boost: 1.0 }
   - gte: { indices.test_index.filter.bool.boost: 1.0 }
 

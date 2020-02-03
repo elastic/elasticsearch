@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class SimpleNestedIT extends ESIntegTestCase {
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "nested1", "type=nested"));
+                .setMapping("nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -69,7 +69,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -114,7 +114,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         // add another doc, one that would match if it was not nested...
 
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -166,7 +166,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testMultiNested() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")
                         .startObject("nested2").field("type", "nested").endObject()
@@ -174,7 +174,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()));
 
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -246,7 +246,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build())
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1")
                         .field("type", "text")
                         .endObject()
@@ -261,7 +261,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureGreen();
 
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -276,7 +276,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
 
 
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("field1", "value2")
                 .startArray("nested1")
                 .startObject()
@@ -297,7 +297,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testExplain() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
                         .endObject()
@@ -305,7 +305,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -335,7 +335,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
                         .startObject("properties")
@@ -348,7 +348,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", 1)
                 .startArray("nested1")
                 .startObject()
@@ -359,7 +359,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject()).get();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("field1", 2)
                 .startArray("nested1")
                 .startObject()
@@ -370,7 +370,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject()).get();
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("3").setSource(jsonBuilder().startObject()
                 .field("field1", 3)
                 .startArray("nested1")
                 .startObject()
@@ -419,7 +419,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
                             .startObject("properties")
@@ -434,7 +434,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", 1)
                 .startArray("nested1")
                 .startObject()
@@ -447,7 +447,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject()).get();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("field1", 2)
                 .startArray("nested1")
                 .startObject()
@@ -462,7 +462,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
         // Doc with missing nested docs if nested filter is used
         refresh();
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("3").setSource(jsonBuilder().startObject()
                 .field("field1", 3)
                 .startArray("nested1")
                 .startObject()
@@ -522,8 +522,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testNestedSortWithMultiLevelFiltering() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("type1", "{\n"
-                + "  \"type1\": {\n"
+            .setMapping("{\n"
                 + "    \"properties\": {\n"
                 + "      \"acl\": {\n"
                 + "        \"type\": \"nested\",\n"
@@ -545,11 +544,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 + "        }\n"
                 + "      }\n"
                 + "    }\n"
-                + "  }\n"
-                + "}", XContentType.JSON));
+                + "}"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("{\n"
+        client().prepareIndex("test").setId("1").setSource("{\n"
             + "  \"acl\": [\n"
             + "    {\n"
             + "      \"access_id\": 1,\n"
@@ -598,7 +596,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             + "  ]\n"
             + "}", XContentType.JSON).get();
 
-        client().prepareIndex("test", "type1", "2").setSource("{\n"
+        client().prepareIndex("test").setId("2").setSource("{\n"
             + "  \"acl\": [\n"
             + "    {\n"
             + "      \"access_id\": 1,\n"
@@ -738,7 +736,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     public void testLeakingSortValues() throws Exception {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder().put("number_of_shards", 1))
-            .addMapping("test-type", "{\n"
+            .setMapping("{\"_doc\":{\n"
                     + "        \"dynamic\": \"strict\",\n"
                     + "        \"properties\": {\n"
                     + "          \"nested1\": {\n"
@@ -758,10 +756,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
                     + "            }\n"
                     + "          }\n"
                     + "        }\n"
-                    + "      }\n", XContentType.JSON));
+                    + "      }}\n"));
             ensureGreen();
 
-            client().prepareIndex("test", "test-type", "1").setSource("{\n"
+            client().prepareIndex("test").setId("1").setSource("{\n"
                     + "  \"nested1\": [\n"
                     + "    {\n"
                     + "      \"nested2\": [\n"
@@ -774,7 +772,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                     + " ]\n"
                     + "}", XContentType.JSON).get();
 
-            client().prepareIndex("test", "test-type", "2").setSource("{\n"
+            client().prepareIndex("test").setId("2").setSource("{\n"
                     + "  \"nested1\": [\n"
                     + "    {\n"
                     + "      \"nested2\": [\n"
@@ -809,9 +807,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("grand_parent_values")
                                     .field("type", "long")
@@ -838,7 +836,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureGreen();
 
         // sum: 11
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder()
             .startObject()
                 .field("grand_parent_values", 1L)
                 .startArray("parent")
@@ -877,7 +875,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .endObject()).get();
 
         // sum: 7
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder()
             .startObject()
                 .field("grand_parent_values", 2L)
                     .startArray("parent")
@@ -916,7 +914,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
 
         // sum: 2
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder()
+        client().prepareIndex("test").setId("3").setSource(jsonBuilder()
             .startObject()
                 .field("grand_parent_values", 3L)
                 .startArray("parent")
@@ -1199,7 +1197,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     // Issue #9305
     public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(jsonBuilder().startObject().startObject("properties")
                 .startObject("officelocation").field("type", "text").endObject()
                 .startObject("users")
                     .field("type", "nested")
@@ -1217,7 +1215,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject()));
 
-        IndexResponse indexResponse1 = client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+        IndexResponse indexResponse1 = client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("officelocation", "gendale")
                 .startArray("users")
                     .startObject()
@@ -1266,7 +1264,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
         assertTrue(indexResponse1.getShardInfo().getSuccessful() > 0);
 
-        IndexResponse indexResponse2 = client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject()
+        IndexResponse indexResponse2 = client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("officelocation", "gendale")
                 .startArray("users")
                     .startObject()
@@ -1347,11 +1345,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate("test")
                         .setSettings(settingsBuilder)
-                        .addMapping("type")
         );
 
-        client().prepareIndex("test", "type", "0").setSource("field", "value").get();
-        client().prepareIndex("test", "type", "1").setSource("field", "value").get();
+        client().prepareIndex("test").setId("0").setSource("field", "value").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
         ensureSearchable("test");
 
@@ -1361,18 +1358,18 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         // Now add nested mapping
         assertAcked(
-                client().admin().indices().preparePutMapping("test").setType("type").setSource("array1", "type=nested")
+                client().admin().indices().preparePutMapping("test").setSource("array1", "type=nested")
         );
 
         XContentBuilder builder = jsonBuilder().startObject()
                     .startArray("array1").startObject().field("field1", "value1").endObject().endArray()
                 .endObject();
         // index simple data
-        client().prepareIndex("test", "type", "2").setSource(builder).get();
-        client().prepareIndex("test", "type", "3").setSource(builder).get();
-        client().prepareIndex("test", "type", "4").setSource(builder).get();
-        client().prepareIndex("test", "type", "5").setSource(builder).get();
-        client().prepareIndex("test", "type", "6").setSource(builder).get();
+        client().prepareIndex("test").setId("2").setSource(builder).get();
+        client().prepareIndex("test").setId("3").setSource(builder).get();
+        client().prepareIndex("test").setId("4").setSource(builder).get();
+        client().prepareIndex("test").setId("5").setSource(builder).get();
+        client().prepareIndex("test").setId("6").setSource(builder).get();
         refresh();
         ensureSearchable("test");
 

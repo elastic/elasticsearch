@@ -15,7 +15,7 @@ See <<shard-request-cache>> for more details.
 There are many occasions when aggregations are required but search hits are not.  For these cases the hits can be ignored by
 setting `size=0`. For example:
 
-[source,console]
+[source,console,id=returning-only-agg-results-example]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -41,7 +41,7 @@ at response time.
 
 Consider this example where we want to associate the color blue with our `terms` aggregation.
 
-[source,console]
+[source,console,id=agg-metadata-example]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -92,7 +92,7 @@ Considering the following <<search-aggregations-bucket-datehistogram-aggregation
 `tweets_over_time` which has a sub <<search-aggregations-metrics-top-hits-aggregation, 'top_hits` aggregation>> named
  `top_users`:
 
-[source,console]
+[source,console,id=returning-aggregation-type-example]
 --------------------------------------------------
 GET /twitter/_search?typed_keys
 {

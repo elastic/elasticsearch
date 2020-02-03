@@ -20,14 +20,14 @@ one of the following:
 * an IP address or hostname, to add all matching nodes to the subset.
 * a pattern, using `*` wildcards, which adds all nodes to the subset
   whose name, address or hostname matches the pattern.
-* `master:true`, `data:true`, `ingest:true`, `voting_only:true` or
+* `master:true`, `data:true`, `ingest:true`, `voting_only:true`, `ml:true`, or
   `coordinating_only:true`, which respectively add to the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
-  nodes, and all coordinating-only nodes.
-* `master:false`, `data:false`, `ingest:false`, `voting_only:true`, or
-  `coordinating_only:false`, which respectively remove from the subset all
+  nodes, all machine learning nodes, and all coordinating-only nodes.
+* `master:false`, `data:false`, `ingest:false`, `voting_only:true`, `ml:false`,
+  or `coordinating_only:false`, which respectively remove from the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
-  nodes and all coordinating-only nodes.
+  nodes, all machine learning nodes, and all coordinating-only nodes.
 * a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`,
   which adds to the subset all nodes with a custom node attribute whose name
   and value match the respective patterns. Custom node attributes are
@@ -98,6 +98,8 @@ include::cluster/nodes-usage.asciidoc[]
 include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
+
+include::cluster/nodes-reload-secure-settings.asciidoc[]
 
 include::cluster/nodes-stats.asciidoc[]
 

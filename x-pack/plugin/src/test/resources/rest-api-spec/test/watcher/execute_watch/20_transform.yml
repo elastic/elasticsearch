@@ -188,5 +188,5 @@ setup:
   - match: { watch_record.state: "executed" }
   - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.result.transform.status: "failure" }
-  - match: { watch_record.result.transform.reason: "no [query] registered for [does_not_exist]" }
+  - match: { watch_record.result.transform.reason: "unknown query [does_not_exist]" }
   - is_true: watch_record.result.transform.error

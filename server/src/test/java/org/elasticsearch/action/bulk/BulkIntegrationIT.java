@@ -20,13 +20,16 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,12 +46,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
+import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
     @Override
@@ -155,5 +165,38 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             .get();
 
         assertTrue(acknowledgedResponse.isAcknowledged());
+    }
+
+    /** This test ensures that index deletion makes indexing fail quickly, not wait on the index that has disappeared */
+    public void testDeleteIndexWhileIndexing() throws Exception {
+        String index = "deleted_while_indexing";
+        createIndex(index);
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread[] threads = new Thread[between(1, 4)];
+        AtomicInteger docID = new AtomicInteger();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false && docID.get() < 5000) {
+                    String id = Integer.toString(docID.incrementAndGet());
+                    try {
+                        IndexResponse response = client().prepareIndex(index).setId(id)
+                            .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
+                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
+                    } catch (ElasticsearchException ignore) {
+                        logger.info("--> fail to index id={}", id);
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        ensureGreen(index);
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(1)));
+        assertAcked(client().admin().indices().prepareDelete(index));
+        stopped.set(true);
+        for (Thread thread : threads) {
+            thread.join(ReplicationRequest.DEFAULT_TIMEOUT.millis() / 2);
+            assertFalse(thread.isAlive());
+        }
     }
 }

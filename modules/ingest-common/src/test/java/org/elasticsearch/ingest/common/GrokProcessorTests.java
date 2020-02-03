@@ -45,6 +45,16 @@ public class GrokProcessorTests extends ESTestCase {
         assertThat(doc.getFieldValue("one", String.class), equalTo("1"));
     }
 
+    public void testIgnoreCase() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "A");
+        GrokProcessor processor = new GrokProcessor(randomAlphaOfLength(10), Collections.emptyMap(),
+            Collections.singletonList("(?<a>(?i)A)"), fieldName, false, false, MatcherWatchdog.noop());
+        processor.execute(doc);
+        assertThat(doc.getFieldValue("a", String.class), equalTo("A"));
+    }
+
     public void testNoMatch() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());

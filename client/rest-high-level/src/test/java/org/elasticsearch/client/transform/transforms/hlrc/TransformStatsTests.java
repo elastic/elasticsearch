@@ -19,123 +19,42 @@
 
 package org.elasticsearch.client.transform.transforms.hlrc;
 
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.client.transform.transforms.NodeAttributes;
+import org.elasticsearch.client.transform.transforms.TransformCheckpointStats;
+import org.elasticsearch.client.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.client.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.client.transform.transforms.TransformProgress;
+import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-public class TransformStatsTests extends AbstractHlrcXContentTestCase<TransformStats,
+import static org.hamcrest.Matchers.equalTo;
+
+public class TransformStatsTests extends AbstractResponseTestCase<org.elasticsearch.xpack.core.transform.transforms.TransformStats,
     org.elasticsearch.client.transform.transforms.TransformStats> {
 
-    public static NodeAttributes fromHlrc(org.elasticsearch.client.transform.transforms.NodeAttributes attributes) {
-        return attributes == null ? null : new NodeAttributes(attributes.getId(),
-            attributes.getName(),
-            attributes.getEphemeralId(),
-            attributes.getTransportAddress(),
-            attributes.getAttributes());
-    }
-
-    public static TransformStats
-        fromHlrc(org.elasticsearch.client.transform.transforms.TransformStats instance) {
-
-        return new TransformStats(instance.getId(),
-            TransformStats.State.fromString(instance.getState().value()),
-            instance.getReason(),
-            fromHlrc(instance.getNode()),
-            TransformIndexerStatsTests.fromHlrc(instance.getIndexerStats()),
-            TransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
-    }
-
-    @Override
-    public org.elasticsearch.client.transform.transforms.TransformStats doHlrcParseInstance(XContentParser parser)
-            throws IOException {
-        return org.elasticsearch.client.transform.transforms.TransformStats.fromXContent(parser);
-    }
-
-    @Override
-    public TransformStats convertHlrcToInternal(
-        org.elasticsearch.client.transform.transforms.TransformStats instance) {
-        return new TransformStats(instance.getId(),
-                TransformStats.State.fromString(instance.getState().value()),
-                instance.getReason(),
-                fromHlrc(instance.getNode()),
-                TransformIndexerStatsTests.fromHlrc(instance.getIndexerStats()),
-                TransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
-    }
-
-    public static TransformStats randomTransformStats() {
-        return new TransformStats(randomAlphaOfLength(10),
-            randomFrom(TransformStats.State.values()),
-            randomBoolean() ? null : randomAlphaOfLength(100),
-            randomBoolean() ? null : randomNodeAttributes(),
-            randomStats(),
-            TransformCheckpointingInfoTests.randomTransformCheckpointingInfo());
-    }
-
-    @Override
-    protected TransformStats createTestInstance() {
-        return randomTransformStats();
-    }
-
-    @Override
-    protected TransformStats doParseInstance(XContentParser parser) throws IOException {
-        return TransformStats.PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.contains("position") || field.equals("node.attributes");
-    }
-
-    public static TransformProgress randomTransformProgress() {
-        Long totalDocs = randomBoolean() ? null : randomNonNegativeLong();
-        Long docsRemaining = totalDocs != null ? randomLongBetween(0, totalDocs) : null;
-        return new TransformProgress(
-            totalDocs,
-            docsRemaining,
-            totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
-            randomBoolean() ? null : randomNonNegativeLong());
-    }
-
-    public static TransformCheckpointingInfo randomTransformCheckpointingInfo() {
-        return new TransformCheckpointingInfo(randomTransformCheckpointStats(),
-            randomTransformCheckpointStats(), randomNonNegativeLong(),
-            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
-    }
-
-    public static TransformCheckpointStats randomTransformCheckpointStats() {
-        return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
-            TransformIndexerPositionTests.randomTransformIndexerPosition(),
-            randomBoolean() ? null : TransformProgressTests.randomTransformProgress(),
-            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
-    }
-
-    public static NodeAttributes randomNodeAttributes() {
+    public static org.elasticsearch.xpack.core.transform.transforms.NodeAttributes randomNodeAttributes() {
         int numberOfAttributes = randomIntBetween(1, 10);
         Map<String, String> attributes = new HashMap<>(numberOfAttributes);
         for(int i = 0; i < numberOfAttributes; i++) {
             String val = randomAlphaOfLength(10);
             attributes.put("key-"+i, val);
         }
-        return new NodeAttributes(randomAlphaOfLength(10),
+        return new org.elasticsearch.xpack.core.transform.transforms.NodeAttributes(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             attributes);
     }
 
-    public static TransformIndexerStats randomStats() {
-        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
+    public static org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats randomStats() {
+        return new org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
@@ -143,14 +62,100 @@ public class TransformStatsTests extends AbstractHlrcXContentTestCase<TransformS
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble());
     }
-
     @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    protected org.elasticsearch.xpack.core.transform.transforms.TransformStats createServerTestInstance(XContentType xContentType) {
+        return new org.elasticsearch.xpack.core.transform.transforms.TransformStats(randomAlphaOfLength(10),
+            randomFrom(org.elasticsearch.xpack.core.transform.transforms.TransformStats.State.values()),
+            randomBoolean() ? null : randomAlphaOfLength(100),
+            randomBoolean() ? null : randomNodeAttributes(),
+            randomStats(),
+            TransformCheckpointingInfoTests.randomTransformCheckpointingInfo());
     }
 
     @Override
-    protected String[] getShuffleFieldsExceptions() {
-        return new String[] { "position" };
+    protected TransformStats doParseToClientInstance(XContentParser parser) throws IOException {
+        return TransformStats.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TransformStats serverTestInstance,
+                                   TransformStats clientInstance) {
+        assertThat(serverTestInstance.getId(), equalTo(clientInstance.getId()));
+        assertThat(serverTestInstance.getState().value(), equalTo(clientInstance.getState().value()));
+        assertTransformIndexerStats(serverTestInstance.getIndexerStats(), clientInstance.getIndexerStats());
+        assertTransformCheckpointInfo(serverTestInstance.getCheckpointingInfo(), clientInstance.getCheckpointingInfo());
+        assertNodeAttributes(serverTestInstance.getNode(), clientInstance.getNode());
+        assertThat(serverTestInstance.getReason(), equalTo(clientInstance.getReason()));
+    }
+
+    private void assertNodeAttributes(org.elasticsearch.xpack.core.transform.transforms.NodeAttributes serverTestInstance,
+                                      NodeAttributes clientInstance) {
+        if (serverTestInstance == null || clientInstance == null) {
+            assertNull(serverTestInstance);
+            assertNull(clientInstance);
+            return;
+        }
+        assertThat(serverTestInstance.getAttributes(), equalTo(clientInstance.getAttributes()));
+        assertThat(serverTestInstance.getEphemeralId(), equalTo(clientInstance.getEphemeralId()));
+        assertThat(serverTestInstance.getId(), equalTo(clientInstance.getId()));
+        assertThat(serverTestInstance.getName(), equalTo(clientInstance.getName()));
+        assertThat(serverTestInstance.getTransportAddress(), equalTo(clientInstance.getTransportAddress()));
+    }
+
+    public static void assertTransformProgress(org.elasticsearch.xpack.core.transform.transforms.TransformProgress serverTestInstance,
+                                         TransformProgress clientInstance) {
+        if (serverTestInstance == null || clientInstance == null) {
+            assertNull(serverTestInstance);
+            assertNull(clientInstance);
+            return;
+        }
+        assertThat(serverTestInstance.getPercentComplete(), equalTo(clientInstance.getPercentComplete()));
+        assertThat(serverTestInstance.getDocumentsProcessed(), equalTo(clientInstance.getDocumentsProcessed()));
+        assertThat(serverTestInstance.getTotalDocs(), equalTo(clientInstance.getTotalDocs()));
+        assertThat(serverTestInstance.getDocumentsIndexed(), equalTo(clientInstance.getDocumentsIndexed()));
+    }
+
+    public static void assertPosition(org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition serverTestInstance,
+                                TransformIndexerPosition clientInstance) {
+        assertThat(serverTestInstance.getIndexerPosition(), equalTo(clientInstance.getIndexerPosition()));
+        assertThat(serverTestInstance.getBucketsPosition(), equalTo(clientInstance.getBucketsPosition()));
+    }
+
+
+    public static void assertTransformCheckpointStats(
+            org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats serverTestInstance,
+            TransformCheckpointStats clientInstance) {
+        assertTransformProgress(serverTestInstance.getCheckpointProgress(), clientInstance.getCheckpointProgress());
+        assertThat(serverTestInstance.getCheckpoint(), equalTo(clientInstance.getCheckpoint()));
+        assertPosition(serverTestInstance.getPosition(), clientInstance.getPosition());
+        assertThat(serverTestInstance.getTimestampMillis(), equalTo(clientInstance.getTimestampMillis()));
+        assertThat(serverTestInstance.getTimeUpperBoundMillis(), equalTo(clientInstance.getTimeUpperBoundMillis()));
+    }
+
+    public static void assertTransformCheckpointInfo(
+            org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo serverTestInstance,
+            TransformCheckpointingInfo clientInstance) {
+        assertTransformCheckpointStats(serverTestInstance.getNext(), clientInstance.getNext());
+        assertTransformCheckpointStats(serverTestInstance.getLast(), clientInstance.getLast());
+        assertThat(serverTestInstance.getChangesLastDetectedAt(), equalTo(clientInstance.getChangesLastDetectedAt()));
+        assertThat(serverTestInstance.getOperationsBehind(), equalTo(clientInstance.getOperationsBehind()));
+    }
+
+    public static void assertTransformIndexerStats(
+            org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats serverTestInstance,
+            TransformIndexerStats clientInstance) {
+        assertThat(serverTestInstance.getExpAvgCheckpointDurationMs(), equalTo(clientInstance.getExpAvgCheckpointDurationMs()));
+        assertThat(serverTestInstance.getExpAvgDocumentsProcessed(), equalTo(clientInstance.getExpAvgDocumentsProcessed()));
+        assertThat(serverTestInstance.getExpAvgDocumentsIndexed(), equalTo(clientInstance.getExpAvgDocumentsIndexed()));
+        assertThat(serverTestInstance.getNumPages(), equalTo(clientInstance.getNumPages()));
+        assertThat(serverTestInstance.getIndexFailures(), equalTo(clientInstance.getIndexFailures()));
+        assertThat(serverTestInstance.getIndexTime(), equalTo(clientInstance.getIndexTime()));
+        assertThat(serverTestInstance.getIndexTotal(), equalTo(clientInstance.getIndexTotal()));
+        assertThat(serverTestInstance.getNumDocuments(), equalTo(clientInstance.getNumDocuments()));
+        assertThat(serverTestInstance.getNumInvocations(), equalTo(clientInstance.getNumInvocations()));
+        assertThat(serverTestInstance.getOutputDocuments(), equalTo(clientInstance.getOutputDocuments()));
+        assertThat(serverTestInstance.getSearchFailures(), equalTo(clientInstance.getSearchFailures()));
+        assertThat(serverTestInstance.getSearchTime(), equalTo(clientInstance.getSearchTime()));
+        assertThat(serverTestInstance.getSearchTotal(), equalTo(clientInstance.getSearchTotal()));
     }
 }

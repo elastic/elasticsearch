@@ -86,7 +86,7 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testSimpleNested() throws Exception {
-        assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject().startObject("article")
+        assertAcked(prepareCreate("articles").setMapping(jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("comments")
                     .field("type", "nested")
@@ -103,7 +103,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
                 .startArray("comments")
                 .startObject().field("message", "fox eat quick").endObject()
@@ -111,7 +111,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .startObject().field("message", "rabbit got away").endObject()
                 .endArray()
                 .endObject()));
-        requests.add(client().prepareIndex("articles", "article", "2").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("2").setSource(jsonBuilder().startObject()
                 .field("title", "big gray elephant")
                 .startArray("comments")
                     .startObject().field("message", "elephant captured").endObject()
@@ -181,7 +181,7 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testRandomNested() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "field1", "type=nested", "field2", "type=nested"));
+        assertAcked(prepareCreate("idx").setMapping("field1", "type=nested", "field2", "type=nested"));
         int numDocs = scaledRandomIntBetween(25, 100);
         List<IndexRequestBuilder> requestBuilders = new ArrayList<>();
 
@@ -201,7 +201,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 source.startObject().field("x", "y").endObject();
             }
             source.endArray().endObject();
-            requestBuilders.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource(source));
+            requestBuilders.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, requestBuilders);
 
@@ -244,8 +244,8 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testNestedMultipleLayers() throws Exception {
-        assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject()
-                .startObject("article").startObject("properties")
+        assertAcked(prepareCreate("articles").setMapping(jsonBuilder().startObject()
+                .startObject("_doc").startObject("properties")
                     .startObject("comments")
                         .field("type", "nested")
                         .startObject("properties")
@@ -266,7 +266,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
                 .startArray("comments")
                 .startObject()
@@ -275,7 +275,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject()));
-        requests.add(client().prepareIndex("articles", "article", "2").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("2").setSource(jsonBuilder().startObject()
                 .field("title", "big gray elephant")
                 .startArray("comments")
                     .startObject()
@@ -358,10 +358,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     // Issue #9723
     public void testNestedDefinedAsObject() throws Exception {
-        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=text"));
+        assertAcked(prepareCreate("articles").setMapping("comments", "type=nested", "title", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
                 .startObject("comments").field("message", "fox eat quick").endObject()
                 .endObject()));
@@ -387,7 +387,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         // number_of_shards = 1, because then we catch the expected exception in the same way.
                         // (See expectThrows(...) below)
                         .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                        .addMapping("article", jsonBuilder().startObject()
+                        .setMapping(jsonBuilder().startObject()
                                         .startObject("properties")
                                             .startObject("comments")
                                                 .field("type", "object")
@@ -401,7 +401,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
                 .startArray("comments")
                     .startObject()
@@ -464,7 +464,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         // index the message in an object form instead of an array
         requests = new ArrayList<>();
-        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("articles").setId("1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
                 .startObject("comments").startObject("messages").field("message", "fox eat quick").endObject().endObject()
                 .endObject()));
@@ -486,7 +486,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testMatchesQueriesNestedInnerHits() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("type1")
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("nested1")
                 .field("type", "nested")
@@ -502,12 +502,12 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        assertAcked(prepareCreate("test").setMapping(builder));
         ensureGreen();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = randomIntBetween(2, 35);
-        requests.add(client().prepareIndex("test", "type1", "0").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("test").setId("0").setSource(jsonBuilder().startObject()
                 .field("field1", 0)
                 .startArray("nested1")
                 .startObject()
@@ -520,7 +520,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject()));
-        requests.add(client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        requests.add(client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("field1", 1)
                 .startArray("nested1")
                 .startObject()
@@ -535,7 +535,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()));
 
         for (int i = 2; i < numDocs; i++) {
-            requests.add(client().prepareIndex("test", "type1", String.valueOf(i)).setSource(jsonBuilder().startObject()
+            requests.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource(jsonBuilder().startObject()
                     .field("field1", i)
                     .startArray("nested1")
                     .startObject()
@@ -589,8 +589,8 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testNestedSource() throws Exception {
-        assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
-        client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
+        assertAcked(prepareCreate("index1").setMapping("comments", "type=nested"));
+        client().prepareIndex("index1").setId("1").setSource(jsonBuilder().startObject()
                 .field("message", "quick brown fox")
                 .startArray("comments")
                 .startObject().field("message", "fox eat quick").field("x", "y").endObject()
@@ -648,11 +648,11 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1")
-            .addMapping("_doc", "nested_type", "type=nested")
+            .setMapping("nested_type", "type=nested")
         );
         createIndex("index2");
-        client().prepareIndex("index1", "_doc", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
+        client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
+        client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("index1", "index2")
@@ -668,11 +668,11 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
-        assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
+        assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
         client().admin().indices().prepareUpdateSettings("index2")
             .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
             .get();
-        client().prepareIndex("index2", "type", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("index2").setId("1").setSource(jsonBuilder().startObject()
             .startArray("nested")
             .startObject()
             .field("field", "value1")
@@ -692,8 +692,8 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testTooHighResultWindow() throws Exception {
-        assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
-        client().prepareIndex("index2", "type", "1").setSource(jsonBuilder().startObject()
+        assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
+        client().prepareIndex("index2").setId("1").setSource(jsonBuilder().startObject()
             .startArray("nested")
             .startObject()
             .field("field", "value1")

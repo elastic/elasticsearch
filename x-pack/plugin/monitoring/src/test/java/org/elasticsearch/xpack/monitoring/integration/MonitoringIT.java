@@ -184,7 +184,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final boolean createAPMIndex = randomBoolean();
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
 
-        assertThat(client().prepareIndex(indexName, "doc", "0")
+        assertThat(client().prepareIndex(indexName).setId("0")
                            .setRefreshPolicy("true")
                            .setSource("{\"field\":\"value\"}", XContentType.JSON)
                            .get()

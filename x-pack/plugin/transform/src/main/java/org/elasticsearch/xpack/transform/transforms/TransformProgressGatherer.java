@@ -26,53 +26,63 @@ import java.util.function.Function;
  */
 public final class TransformProgressGatherer {
 
+    private Client client;
+
+    TransformProgressGatherer(Client client) {
+        this.client = client;
+    }
+
     /**
      * This gathers the total docs given the config and search
      *
-     * @param client ES Client to make queries
      * @param filterQuery The adapted filter that can optionally take into account checkpoint information
      * @param config The transform config containing headers, source, pivot, etc. information
      * @param progressListener The listener to notify when progress object has been created
      */
-    public static void getInitialProgress(Client client,
-                                          QueryBuilder filterQuery,
-                                          TransformConfig config,
-                                          ActionListener<TransformProgress> progressListener) {
+    public void getInitialProgress(QueryBuilder filterQuery, TransformConfig config, ActionListener<TransformProgress> progressListener) {
         SearchRequest request = getSearchRequest(config, filterQuery);
 
-        ActionListener<SearchResponse> searchResponseActionListener = ActionListener.wrap(
-            searchResponse -> progressListener.onResponse(searchResponseToTransformProgressFunction().apply(searchResponse)),
-            progressListener::onFailure
-        );
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(),
-            ClientHelper.TRANSFORM_ORIGIN,
-            client,
-            SearchAction.INSTANCE,
-            request,
-            searchResponseActionListener);
+        ActionListener<SearchResponse> searchResponseActionListener = ActionListener
+            .wrap(
+                searchResponse -> progressListener.onResponse(searchResponseToTransformProgressFunction().apply(searchResponse)),
+                progressListener::onFailure
+            );
+        ClientHelper
+            .executeWithHeadersAsync(
+                config.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
+                SearchAction.INSTANCE,
+                request,
+                searchResponseActionListener
+            );
     }
 
     public static SearchRequest getSearchRequest(TransformConfig config, QueryBuilder filteredQuery) {
         SearchRequest request = new SearchRequest(config.getSource().getIndex());
         request.allowPartialSearchResults(false);
         BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
-        config.getPivotConfig()
+        config
+            .getPivotConfig()
             .getGroupConfig()
             .getGroups()
             .values()
             // TODO change once we allow missing_buckets
             .forEach(src -> existsClauses.must(QueryBuilders.existsQuery(src.getField())));
 
-        request.source(new SearchSourceBuilder()
-            .size(0)
-            .trackTotalHits(true)
-            .query(QueryBuilders.boolQuery()
-                .filter(filteredQuery)
-                .filter(existsClauses)));
+        request
+            .source(
+                new SearchSourceBuilder()
+                    .size(0)
+                    .trackTotalHits(true)
+                    .query(QueryBuilders.boolQuery().filter(filteredQuery).filter(existsClauses))
+            );
         return request;
     }
 
     public static Function<SearchResponse, TransformProgress> searchResponseToTransformProgressFunction() {
-        return searchResponse -> new TransformProgress(searchResponse.getHits().getTotalHits().value, 0L, 0L);
+        return searchResponse -> searchResponse != null
+            ? new TransformProgress(searchResponse.getHits().getTotalHits().value, 0L, 0L)
+            : null;
     }
 }

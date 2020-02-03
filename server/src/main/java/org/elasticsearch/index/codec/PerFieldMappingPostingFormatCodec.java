@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene80.Lucene80Codec;
+import org.apache.lucene.codecs.lucene84.Lucene84Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * per index in real time via the mapping API. If no specific postings format is
  * configured for a specific field the default postings format is used.
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene80Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene84Codec {
     private final Logger logger;
     private final MapperService mapperService;
 

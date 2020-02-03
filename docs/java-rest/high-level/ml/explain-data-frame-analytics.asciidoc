@@ -1,0 +1,48 @@
+--
+:api: explain-data-frame-analytics
+:request: ExplainDataFrameAnalyticsRequest
+:response: ExplainDataFrameAnalyticsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Explain {dfanalytics}} API
+
+Explains the following about a {dataframe-analytics-config}:
+
+* field selection: which fields are included or not in the analysis
+* memory estimation: how much memory is estimated to be required. The estimate can be used when deciding the appropriate value for `model_memory_limit` setting later on.
+
+The API accepts an +{request}+ object and returns an +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Explain {dfanalytics} request
+
+The request can be constructed with the id of an existing {dfanalytics-job}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-id-request]
+--------------------------------------------------
+<1> Constructing a new request with the id of an existing {dfanalytics-job}
+
+It can also be constructed with a {dataframe-analytics-config} to explain it before creating it.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-request]
+--------------------------------------------------
+<1> Constructing a new request containing a {dataframe-analytics-config}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the field selection and the memory usage estimation.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> A list where each item explains whether a field was selected for analysis or not
+<2> The memory estimation for the {dfanalytics-job}

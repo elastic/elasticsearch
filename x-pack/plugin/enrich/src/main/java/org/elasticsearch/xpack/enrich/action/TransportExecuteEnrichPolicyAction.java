@@ -29,24 +29,42 @@ import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
 import java.io.IOException;
 
-public class TransportExecuteEnrichPolicyAction
-    extends TransportMasterNodeAction<ExecuteEnrichPolicyAction.Request, ExecuteEnrichPolicyAction.Response> {
+public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeAction<
+    ExecuteEnrichPolicyAction.Request,
+    ExecuteEnrichPolicyAction.Response> {
 
     private final EnrichPolicyExecutor executor;
 
     @Inject
-    public TransportExecuteEnrichPolicyAction(Settings settings,
-                                              Client client,
-                                              TransportService transportService,
-                                              ClusterService clusterService,
-                                              ThreadPool threadPool,
-                                              ActionFilters actionFilters,
-                                              IndexNameExpressionResolver indexNameExpressionResolver,
-                                              EnrichPolicyLocks enrichPolicyLocks) {
-        super(ExecuteEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ExecuteEnrichPolicyAction.Request::new, indexNameExpressionResolver);
-        this.executor = new EnrichPolicyExecutor(settings, clusterService, client, transportService.getTaskManager(), threadPool,
-            new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);
+    public TransportExecuteEnrichPolicyAction(
+        Settings settings,
+        Client client,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        EnrichPolicyLocks enrichPolicyLocks
+    ) {
+        super(
+            ExecuteEnrichPolicyAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ExecuteEnrichPolicyAction.Request::new,
+            indexNameExpressionResolver
+        );
+        this.executor = new EnrichPolicyExecutor(
+            settings,
+            clusterService,
+            client,
+            transportService.getTaskManager(),
+            threadPool,
+            new IndexNameExpressionResolver(),
+            enrichPolicyLocks,
+            System::currentTimeMillis
+        );
     }
 
     @Override
@@ -60,8 +78,12 @@ public class TransportExecuteEnrichPolicyAction
     }
 
     @Override
-    protected void masterOperation(Task task, ExecuteEnrichPolicyAction.Request request, ClusterState state,
-                                   ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        ExecuteEnrichPolicyAction.Request request,
+        ClusterState state,
+        ActionListener<ExecuteEnrichPolicyAction.Response> listener
+    ) {
         if (state.getNodes().getIngestNodes().isEmpty()) {
             // if we don't fail here then reindex will fail with a more complicated error.
             // (EnrichPolicyRunner uses a pipeline with reindex)

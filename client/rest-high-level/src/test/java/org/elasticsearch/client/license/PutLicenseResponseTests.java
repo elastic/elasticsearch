@@ -18,48 +18,23 @@
  */
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.client.AbstractHlrcWriteableXContentTestCase;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
-public class PutLicenseResponseTests extends AbstractHlrcWriteableXContentTestCase<
+import static org.hamcrest.Matchers.equalTo;
+
+public class PutLicenseResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.protocol.xpack.license.PutLicenseResponse, PutLicenseResponse> {
 
     @Override
-    public org.elasticsearch.client.license.PutLicenseResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.license.PutLicenseResponse.fromXContent(parser);
-    }
-
-    @Override
-    public org.elasticsearch.protocol.xpack.license.PutLicenseResponse convertHlrcToInternal(
-        org.elasticsearch.client.license.PutLicenseResponse instance) {
-        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(instance.isAcknowledged(),
-            org.elasticsearch.protocol.xpack.license.LicensesStatus.valueOf(instance.status().name()),
-            instance.acknowledgeHeader(), instance.acknowledgeMessages());
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // The structure of the response is such that unknown fields inside acknowledge cannot be supported since they
-        // are treated as messages from new services
-        return p -> p.startsWith("acknowledge");
-    }
-
-    @Override
-    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createTestInstance() {
+    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createServerTestInstance(XContentType xContentType) {
         boolean acknowledged = randomBoolean();
         org.elasticsearch.protocol.xpack.license.LicensesStatus status =
             randomFrom(org.elasticsearch.protocol.xpack.license.LicensesStatus.VALID,
@@ -97,45 +72,18 @@ public class PutLicenseResponseTests extends AbstractHlrcWriteableXContentTestCa
     }
 
     @Override
-    protected Writeable.Reader<org.elasticsearch.protocol.xpack.license.PutLicenseResponse> instanceReader() {
-        return org.elasticsearch.protocol.xpack.license.PutLicenseResponse::new;
+    protected PutLicenseResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return PutLicenseResponse.fromXContent(parser);
     }
 
     @Override
-    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse mutateInstance(
-        org.elasticsearch.protocol.xpack.license.PutLicenseResponse response) {
-        @SuppressWarnings("unchecked")
-        Function<org.elasticsearch.protocol.xpack.license.PutLicenseResponse,
-            org.elasticsearch.protocol.xpack.license.PutLicenseResponse> mutator = randomFrom(
-            r -> new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
-                r.isAcknowledged() == false,
-                r.status(),
-                r.acknowledgeHeader(),
-                r.acknowledgeMessages()),
-            r -> new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
-                r.isAcknowledged(),
-                mutateStatus(r.status()),
-                r.acknowledgeHeader(),
-                r.acknowledgeMessages()),
-            r -> {
-                if (r.acknowledgeMessages().isEmpty()) {
-                    return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
-                        r.isAcknowledged(),
-                        r.status(),
-                        randomAlphaOfLength(10),
-                        randomAckMessages()
-                    );
-                } else {
-                    return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(r.isAcknowledged(), r.status());
-                }
-            }
-
-        );
-        return mutator.apply(response);
-    }
-
-    private org.elasticsearch.protocol.xpack.license.LicensesStatus mutateStatus(
-        org.elasticsearch.protocol.xpack.license.LicensesStatus status) {
-        return randomValueOtherThan(status, () -> randomFrom(LicensesStatus.values()));
+    protected void assertInstances(org.elasticsearch.protocol.xpack.license.PutLicenseResponse serverTestInstance,
+                                   PutLicenseResponse clientInstance) {
+        assertThat(serverTestInstance.status().name(), equalTo(clientInstance.status().name()));
+        assertThat(serverTestInstance.acknowledgeHeader(), equalTo(clientInstance.acknowledgeHeader()));
+        assertThat(serverTestInstance.acknowledgeMessages().keySet(), equalTo(clientInstance.acknowledgeMessages().keySet()));
+        for(Map.Entry<String, String[]> entry: serverTestInstance.acknowledgeMessages().entrySet()) {
+            assertTrue(Arrays.equals(entry.getValue(), clientInstance.acknowledgeMessages().get(entry.getKey())));
+        }
     }
 }

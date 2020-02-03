@@ -21,6 +21,7 @@ import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.openssl.PEMDecryptorProvider;
 import org.bouncycastle.openssl.PEMEncryptedKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -349,6 +351,16 @@ public class CertificateToolTests extends ESTestCase {
                         PEMParser pemParser = new PEMParser(reader);
                         Object parsed = pemParser.readObject();
                         assertThat(parsed, instanceOf(PEMEncryptedKeyPair.class));
+                        // Verify we are using AES encryption
+                        final PEMDecryptorProvider pemDecryptorProvider = Mockito.mock(PEMDecryptorProvider.class);
+                        try {
+                            ((PEMEncryptedKeyPair) parsed).decryptKeyPair(pemDecryptorProvider);
+                        } catch (Exception e) {
+                            // Catch error thrown by the empty mock, we are only interested in the argument passed in
+                        }
+                        finally {
+                            Mockito.verify(pemDecryptorProvider).get("AES-128-CBC");
+                        }
                         char[] zeroChars = new char[caInfo.password.length];
                         Arrays.fill(zeroChars, (char) 0);
                         assertArrayEquals(zeroChars, caInfo.password);
@@ -368,7 +380,13 @@ public class CertificateToolTests extends ESTestCase {
             assertTrue(Files.exists(zipRoot.resolve(filename)));
             final Path cert = zipRoot.resolve(filename + "/" + filename + ".crt");
             assertTrue(Files.exists(cert));
-            assertTrue(Files.exists(zipRoot.resolve(filename + "/" + filename + ".key")));
+            Path keyFile = zipRoot.resolve(filename + "/" + filename + ".key");
+            assertTrue(Files.exists(keyFile));
+            if (keyPassword != null) {
+                assertTrue(Files.readString(keyFile).contains("DEK-Info: AES-128-CBC"));
+            } else {
+                assertFalse(Files.readString(keyFile).contains("DEK-Info:"));
+            }
             final Path p12 = zipRoot.resolve(filename + "/" + filename + ".p12");
             try (InputStream input = Files.newInputStream(cert)) {
                 X509Certificate certificate = readX509Certificate(input);

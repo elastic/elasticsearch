@@ -28,10 +28,6 @@ import java.io.IOException;
  */
 public class SnapshotCreationException extends SnapshotException {
 
-    public SnapshotCreationException(final String repositoryName, final SnapshotId snapshotId, final Throwable cause) {
-        super(repositoryName, snapshotId, "failed to create snapshot", cause);
-    }
-
     public SnapshotCreationException(StreamInput in) throws IOException {
         super(in);
     }

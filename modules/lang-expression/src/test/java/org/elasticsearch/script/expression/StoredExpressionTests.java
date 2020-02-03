@@ -54,7 +54,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
                 .setId("script1")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
                 .get();
-        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "1")
                     .setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();

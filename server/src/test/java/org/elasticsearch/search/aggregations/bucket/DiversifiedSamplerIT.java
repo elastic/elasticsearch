@@ -64,14 +64,14 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).put(SETTING_NUMBER_OF_REPLICAS, 0)).addMapping(
-                "book", "author", "type=keyword", "name", "type=keyword", "genre",
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).put(SETTING_NUMBER_OF_REPLICAS, 0)).setMapping(
+                "author", "type=keyword", "name", "type=keyword", "genre",
                 "type=keyword", "price", "type=float"));
         createIndex("idx_unmapped");
         // idx_unmapped_author is same as main index but missing author field
         assertAcked(prepareCreate("idx_unmapped_author").setSettings(
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("book", "name", "type=keyword", "genre", "type=keyword", "price",
+                .setMapping("name", "type=keyword", "genre", "type=keyword", "price",
                         "type=float"));
 
         ensureGreen();
@@ -92,9 +92,9 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test", "book", "" + i)
+            client().prepareIndex("test").setId("" + i)
                     .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3])).get();
-            client().prepareIndex("idx_unmapped_author", "book", "" + i)
+            client().prepareIndex("idx_unmapped_author").setId("" + i)
                     .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3])).get();
         }
         client().admin().indices().refresh(new RefreshRequest("test")).get();

@@ -23,6 +23,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchProgressActionListener;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -42,6 +48,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
+    @SuppressWarnings("rawtypes")
     private Map<ActionType, TransportAction> actions;
 
     private TaskManager taskManager;
@@ -57,6 +64,7 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
+    @SuppressWarnings("rawtypes")
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
                            RemoteClusterService remoteClusterService) {
         this.actions = actions;
@@ -98,6 +106,38 @@ public class NodeClient extends AbstractClient {
             > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
         return taskManager.registerAndExecute("transport", transportAction(action), request,
             listener::onResponse, listener::onFailure);
+    }
+
+    /**
+     * Execute a {@link SearchRequest} locally and track the progress of the request through
+     * a {@link SearchProgressActionListener}.
+     */
+    public SearchTask executeSearchLocally(SearchRequest request, SearchProgressActionListener listener) {
+        // we cannot track the progress if remote cluster requests are splitted.
+        request.setCcsMinimizeRoundtrips(false);
+        TransportSearchAction action = (TransportSearchAction) actions.get(SearchAction.INSTANCE);
+        SearchTask task = (SearchTask) taskManager.register("transport", action.actionName, request);
+        task.setProgressListener(listener);
+        action.execute(task, request, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                try {
+                    taskManager.unregister(task);
+                } finally {
+                    listener.onResponse(response);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    taskManager.unregister(task);
+                } finally {
+                    listener.onFailure(e);
+                }
+            }
+        });
+        return task;
     }
 
     /**

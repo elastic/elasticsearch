@@ -49,7 +49,8 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         assertThat(error.get(), nullValue());
 
         error = saveEnrichPolicy(name, policy, clusterService);
-        assertTrue(error.get().getMessage().contains("policy [my-policy] already exists"));;
+        assertTrue(error.get().getMessage().contains("policy [my-policy] already exists"));
+        ;
 
         deleteEnrichPolicy(name, clusterService);
         EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
@@ -63,36 +64,48 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         {
             String nullOrEmptyName = randomBoolean() ? "" : null;
 
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-                () -> saveEnrichPolicy(nullOrEmptyName, policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy(nullOrEmptyName, policy, clusterService)
+            );
 
             assertThat(error.getMessage(), equalTo("name is missing or empty"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-                () -> saveEnrichPolicy("my-policy", null, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("my-policy", null, clusterService)
+            );
 
             assertThat(error.getMessage(), equalTo("policy is missing"));
         }
         {
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("my#policy", policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("my#policy", policy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("Invalid policy name [my#policy], must not contain '#'"));
         }
         {
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("..", policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("..", policy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("Invalid policy name [..], must not be '.' or '..'"));
         }
         {
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("myPolicy", policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("myPolicy", policy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("Invalid policy name [myPolicy], must be lowercase"));
         }
         {
             EnrichPolicy invalidPolicy = new EnrichPolicy("unsupported_type", null, List.of("index"), "field", List.of("field"));
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("name", invalidPolicy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("name", invalidPolicy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match]"));
         }
     }
@@ -103,14 +116,18 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         {
             String nullOrEmptyName = randomBoolean() ? "" : null;
 
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-                () -> deleteEnrichPolicy(nullOrEmptyName, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> deleteEnrichPolicy(nullOrEmptyName, clusterService)
+            );
 
             assertThat(error.getMessage(), equalTo("name is missing or empty"));
         }
         {
-            ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class,
-                () -> deleteEnrichPolicy("my-policy", clusterService));
+            ResourceNotFoundException error = expectThrows(
+                ResourceNotFoundException.class,
+                () -> deleteEnrichPolicy("my-policy", clusterService)
+            );
 
             assertThat(error.getMessage(), equalTo("policy [my-policy] not found"));
         }
@@ -120,8 +137,10 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String nullOrEmptyName = randomBoolean() ? "" : null;
 
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> EnrichStore.getPolicy(nullOrEmptyName, clusterService.state()));
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> EnrichStore.getPolicy(nullOrEmptyName, clusterService.state())
+        );
 
         assertThat(error.getMessage(), equalTo("name is missing or empty"));
 
@@ -129,7 +148,7 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         assertNull(policy);
     }
 
-    public void testListValidation()  {
+    public void testListValidation() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
         assertTrue(policies.isEmpty());

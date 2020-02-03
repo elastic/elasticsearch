@@ -16,7 +16,7 @@ the <<search-search,search api>> works.
 [[search-count-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_count`
+`GET /<index>/_count`
 
 
 [[search-count-api-desc]]

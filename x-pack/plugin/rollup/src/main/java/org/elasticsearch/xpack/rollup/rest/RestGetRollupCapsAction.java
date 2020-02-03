@@ -6,10 +6,8 @@
 
 package org.elasticsearch.xpack.rollup.rest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,15 +18,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetRollupCapsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetRollupCapsAction.class));
-
     public static final ParseField ID = new ParseField("id");
 
     public RestGetRollupCapsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/_rollup/data/{id}", this,
-                GET, "/_xpack/rollup/data/{id}/", deprecationLogger);
+        controller.registerHandler(GET, "/_rollup/data/{id}", this);
     }
 
     @Override

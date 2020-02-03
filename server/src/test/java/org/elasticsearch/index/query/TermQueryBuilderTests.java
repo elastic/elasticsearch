@@ -172,5 +172,19 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
-    }
+    }   
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }   
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+    }      
 }

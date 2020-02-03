@@ -19,31 +19,24 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a single variable declaration.
  */
 public final class SDeclaration extends AStatement {
 
-    private final String type;
-    private final String name;
+    private DType type;
+    protected final String name;
     private AExpression expression;
 
-    private Variable variable = null;
-
-    public SDeclaration(Location location, String type, String name, AExpression expression) {
+    public SDeclaration(Location location, DType type, String name, AExpression expression) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
@@ -52,62 +45,30 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
+        type = resolvedType;
+
         if (expression != null) {
-            expression.storeSettings(settings);
+            expression.expected = resolvedType.getType();
+            expression.analyze(scriptRoot, scope);
+            expression = expression.cast(scriptRoot, scope);
         }
+
+        scope.defineVariable(location, resolvedType.getType(), name, false);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
+    DeclarationNode write(ClassNode classNode) {
+        DeclarationNode declarationNode = new DeclarationNode();
 
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
-    }
+        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        declarationNode.setLocation(location);
+        declarationNode.setDeclarationType(((DResolvedType)type).getType());
+        declarationNode.setName(name);
 
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
-        }
-
-        if (expression != null) {
-            expression.expected = clazz;
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
-        }
-
-        variable = locals.addVariable(location, clazz, name, false);
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        if (expression == null) {
-            Class<?> sort = variable.clazz;
-
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expression.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        return declarationNode;
     }
 
     @Override

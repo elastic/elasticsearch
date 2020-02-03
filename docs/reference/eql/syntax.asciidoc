@@ -162,13 +162,13 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 ===== Wildcards 
 
 You can use the wildcard operator (`*`) within a string to match specific
-patterns.
-
-The following example string matches any value that ends with `.txt`.
+patterns. Wildcards are interpreted if they are used with `==` (equal) or `!=`
+(not equal):
 
 [source,eql]
 ----
-"*.txt"
+field == "example*wildcard"
+field != "example*wildcard"
 ----
 
 [discrete]

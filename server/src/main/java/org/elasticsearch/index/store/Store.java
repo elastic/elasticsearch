@@ -1449,10 +1449,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
-            final Map<String, String> map = new HashMap<>();
-            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
-            map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            updateCommitData(writer, map);
+            updateCommitData(writer, Map.of(Translog.TRANSLOG_UUID_KEY, translogUUID));
         } finally {
             metadataLock.writeLock().unlock();
         }

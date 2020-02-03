@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryException;
@@ -58,44 +59,57 @@ import java.util.function.Supplier;
 
 public final class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
-
     // the following constants are fixed by definition
     static final int GCM_TAG_LENGTH_IN_BYTES = 16;
     static final int GCM_IV_LENGTH_IN_BYTES = 12;
     static final int AES_BLOCK_SIZE_IN_BYTES = 128;
-    // changing the following constants implies breaking compatibility with previous versions
+    // changing the following constants implies breaking compatibility with previous versions of encrypted snapshots
     // in this case the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER} MUST be incremented
     static final String DATA_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
     static final int DATA_KEY_SIZE_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 8 << 20; // 8MB
-    static final int METADATA_NAME_LENGTH_IN_BYTES = 18;
+    static final int METADATA_NAME_LENGTH_IN_BYTES = 18; // 16 bits is the UUIDS length; 18 is the next multiple for Base64 encoding
     // this can be changed freely (can be made a repository parameter) without adjusting
     // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
     // of {@link #MAX_PACKET_LENGTH_IN_BYTES}
     static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
     // each snapshot metadata contains the salted password hash of the master node that started the snapshot operation
-    // this hash is then verified on each data node before the actual shard snapshot as well as on the
+    // this hash is then verified on each data node before the actual shard files snapshot, as well as on the
     // master node that finalizes the snapshot (could be a different master node, if a master failover
     // has occurred in the mean time)
-    private static final String PASSWORD_HASH_RESERVED_USER_METADATA_KEY = "__passwordHash";
-
+    private static final String PASSWORD_HASH_RESERVED_USER_METADATA_KEY = EncryptedRepository.class.getName() + ".saltedPasswordHash";
     // The encryption scheme version number to which the current implementation conforms to.
     // The version number MUST be incremented whenever the format of the metadata, or
     // the way the metadata is used for the actual decryption are changed.
     // Incrementing the version number signals that previous implementations cannot make sense
-    // of the new scheme.
+    // of the new scheme, so they will fail all operations on the repository.
     private static final int CURRENT_ENCRYPTION_VERSION_NUMBER = 2; // nobody trusts v1 of anything
     // the path of the blob container holding the encryption metadata
     // this is relative to the root path holding the encrypted blobs (i.e. the repository root path)
     private static final String ENCRYPTION_METADATA_ROOT = "encryption-metadata-v" + CURRENT_ENCRYPTION_VERSION_NUMBER;
 
+    // this is the repository instance to which all blob reads and writes are forwarded to
     private final BlobStoreRepository delegatedRepository;
+    // every data blob is encrypted with its randomly generated AES key (this is the "Data Encryption Key")
     private final KeyGenerator dataEncryptionKeyGenerator;
+    // the {@link PasswordBasedEncryption} is used to encrypt (and decrypt) the data encryption key and the other associated metadata
+    // the metadata encryption is based on AES keys which are generated from the repository password
     private final PasswordBasedEncryption metadataEncryption;
+    // Data blob encryption requires a "nonce", only if the SAME data encryption key is used for several data blobs.
+    // Because data encryption keys are generated randomly (see {@link #dataEncryptionKey}) the nonce in this case can be a constant value.
+    // But it is not a constant for reasons of greater robustness (future code changes might assume that the nonce is really a nonce), and
+    // to allow that the encryption IV (which is part of the ciphertext) be checked for ACCIDENTAL tampering without attempting decryption
     private final Supplier<Integer> encryptionNonceGenerator;
-    private final Supplier<byte[]> metadataNameGenerator;
-    private final String passwordPublicHash;
+    // the metadata is stored in a separate blob so that when the metadata is regenerated (for example, rencrypting it after the repository
+    // password is changed) it will not incur updating the encrypted blob, but only recreating a new metadata blob.
+    // However, the encrypted blob is prepended a fixed length identifier which is used to locate the corresponding metadata.
+    // This identifier is fixed, so it will not change when the metadata is recreated.
+    private final Supplier<byte[]> metadataIdentifierGenerator;
+    // the salted hash of this repository's password on the local node. The password is fixed for the lifetime of the repository.
+    private final String repositoryPasswordSaltedHash;
+    // this is used to check that the salted hash of the repository password on the node that started the snapshot matches up with the
+    // repository password on the local node
     private final HashVerifier passwordHashVerifier;
 
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
@@ -108,37 +122,42 @@ public final class EncryptedRepository extends BlobStoreRepository {
         final SecureRandom secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
         this.encryptionNonceGenerator = () -> secureRandom.nextInt();
         final Random random = new Random();
-        this.metadataNameGenerator = () -> {
+        this.metadataIdentifierGenerator = () -> {
             byte[] randomMetadataName = new byte[METADATA_NAME_LENGTH_IN_BYTES];
             random.nextBytes(randomMetadataName);
             return randomMetadataName;
         };
-        this.passwordPublicHash = computeSaltedPBKDF2Hash(password, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
+        this.repositoryPasswordSaltedHash = computeSaltedPBKDF2Hash(SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO), password);
         this.passwordHashVerifier = new HashVerifier(password);
     }
 
+    /**
+     * The repository hook method which populates the snapshot metadata with the salted password hash of the repository on the (master)
+     * node that starts of the snapshot operation. All the other actions associated with the same snapshot operation will first verify
+     * that the local repository password checks with the hash from the snapshot metadata.
+     * <p>
+     * In addition, if the installed license does not comply with encrypted snapshots, this throws an exception, which aborts the snapshot
+     * operation.
+     *
+     * See {@link org.elasticsearch.repositories.Repository#adaptUserMetadata(Map)}.
+     *
+     * @param userMetadata the snapshot metadata as received from the calling user
+     * @return the snapshot metadata containing the salted password hash of the node initializing the snapshot
+     */
     @Override
     public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
+        // because populating the snapshot metadata must be done before the actual snapshot is first initialized,
+        // we take the opportunity to validate the license and abort if non-compliant
+        if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
+            throw LicenseUtils.newComplianceException("encrypted snapshots");
+        }
         Map<String, Object> snapshotUserMetadata = new HashMap<>();
         snapshotUserMetadata.putAll(userMetadata);
-        // pin down the hash of the password that is checked for all the operations of this snapshot
-        snapshotUserMetadata.put(PASSWORD_HASH_RESERVED_USER_METADATA_KEY, this.passwordPublicHash);
+        // pin down the salted hash of the repository password
+        // this is then checked before every snapshot operation (i.e. {@link #snapshotShard} and {@link #finalizeSnapshot})
+        // to assure that all participating nodes in the snapshot have the same repository password set
+        snapshotUserMetadata.put(PASSWORD_HASH_RESERVED_USER_METADATA_KEY, this.repositoryPasswordSaltedHash);
         return snapshotUserMetadata;
-    }
-
-    private void validatePasswordHash(Map<String, Object> snapshotUserMetadata, ActionListener<?> listener) {
-        Object repositoryPasswordHash = snapshotUserMetadata.get(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
-        if (repositoryPasswordHash == null || (false == repositoryPasswordHash instanceof String)) {
-            listener.onFailure(new IllegalStateException("Snapshot metadata does not contain the password hash or is invalid"));
-            return;
-        }
-        if (false == passwordHashVerifier.verify((String) repositoryPasswordHash)) {
-            listener.onFailure(new RepositoryException(metadata.name(),
-                    "Password mismatch for repository. The local node's value of the keystore secure setting [" +
-                            EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name()).getKey() +
-                            "] is different from the master node that started the snapshot"));
-            return;
-        }
     }
 
     @Override
@@ -158,11 +177,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
         validatePasswordHash(userMetadata, listener);
         super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, userMetadata,
                 listener);
-    }
-
-    @Override
-    public boolean isReadOnly() {
-        return false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed();
     }
 
     @Override
@@ -188,7 +202,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
     @Override
     protected BlobStore createBlobStore() {
         return new EncryptedBlobStore(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryption,
-                encryptionNonceGenerator, metadataNameGenerator);
+                encryptionNonceGenerator, metadataIdentifierGenerator);
     }
 
     @Override
@@ -210,7 +224,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
     }
 
     private static class EncryptedBlobStore implements BlobStore {
-
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryption metadataEncryptor;
@@ -240,7 +253,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
     }
 
     private static class EncryptedBlobContainer implements BlobContainer {
-
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryption metadataEncryption;
@@ -411,7 +423,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
-    private static String computeSaltedPBKDF2Hash(char[] password, SecureRandom secureRandom) {
+    private static String computeSaltedPBKDF2Hash(SecureRandom secureRandom, char[] password) {
         byte[] salt = new byte[16];
         secureRandom.nextBytes(salt);
         return computeSaltedPBKDF2Hash(salt, password);
@@ -428,11 +440,27 @@ public final class EncryptedRepository extends BlobStoreRepository {
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new RuntimeException("Unexpected exception when computing PBKDF2 hash for the repository password", e);
         }
-        return new String(Base64.getEncoder().encode(salt), StandardCharsets.UTF_8) + ":" +
-                new String(Base64.getEncoder().encode(hash), StandardCharsets.UTF_8);
+        return new String(Base64.getUrlEncoder().withoutPadding().encode(salt), StandardCharsets.UTF_8) + ":" +
+                new String(Base64.getUrlEncoder().withoutPadding().encode(hash), StandardCharsets.UTF_8);
+    }
+
+    private void validatePasswordHash(Map<String, Object> snapshotUserMetadata, ActionListener<?> listener) {
+        Object repositoryPasswordHash = snapshotUserMetadata.get(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
+        if (repositoryPasswordHash == null || (false == repositoryPasswordHash instanceof String)) {
+            listener.onFailure(new IllegalStateException("Snapshot metadata does not contain the repository password hash as a String"));
+            return;
+        }
+        if (false == passwordHashVerifier.verify((String) repositoryPasswordHash)) {
+            listener.onFailure(new RepositoryException(metadata.name(),
+                    "Repository password mismatch. The local node's value of the keystore secure setting [" +
+                            EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name()).getKey() +
+                            "] is different from the master node, which started the snapshot operation"));
+            return;
+        }
     }
 
     private static class HashVerifier {
+
         private final char[] password;
         private final AtomicReference<String> lastVerifiedHash;
 
@@ -451,13 +479,13 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 return false;
             }
             String salt = parts[0];
-            String computedHash = computeSaltedPBKDF2Hash(Base64.getDecoder().decode(salt.getBytes(StandardCharsets.UTF_8)), password);
+            String computedHash = computeSaltedPBKDF2Hash(Base64.getUrlDecoder().decode(salt.getBytes(StandardCharsets.UTF_8)), password);
             if (false == computedHash.equals(saltedHash)) {
                 return false;
             }
             lastVerifiedHash.set(computedHash);
             return true;
         }
-    }
 
+    }
 }

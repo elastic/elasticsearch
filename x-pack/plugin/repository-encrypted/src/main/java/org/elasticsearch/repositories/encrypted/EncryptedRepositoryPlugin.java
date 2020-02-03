@@ -80,9 +80,10 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
                 if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedSnapshotAllowed()) {
-                    logger.warn("Encrypted snapshot repositories are not allowed for the current license." +
-                                    "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted and will fail.",
-                            LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
+                    logger.warn("Encrypted snapshots are not allowed for the currently installed license." +
+                                    "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted." +
+                                    "All the other operations, including restore, are still permitted.",
+                            LicenseUtils.newComplianceException("encrypted snapshots"));
                 }
                 String delegateType = DELEGATE_TYPE.get(metaData.settings());
                 if (Strings.hasLength(delegateType) == false) {
@@ -92,19 +93,17 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
                     throw new IllegalArgumentException("Cannot encrypt an already encrypted repository. " + DELEGATE_TYPE.getKey() +
                             " must not be equal to " + REPOSITORY_TYPE_NAME);
                 }
-                if (false == cachedRepositoryPasswords.containsKey(metaData.name())) {
-                    throw new IllegalArgumentException(
-                            ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metaData.name()).getKey() + " must be set");
-                }
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 Repository delegatedRepository = factory.create(new RepositoryMetaData(metaData.name(),
                         delegateType, metaData.settings()));
                 if (false == (delegatedRepository instanceof BlobStoreRepository) || delegatedRepository instanceof EncryptedRepository) {
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
-                char[] repositoryPassword = cachedRepositoryPasswords.get(metaData.name());
-                PasswordBasedEncryption metadataEncryption = new PasswordBasedEncryption(repositoryPassword,
-                        SecureRandom.getInstance(RAND_ALGO));
+                final char[] repositoryPassword = cachedRepositoryPasswords.get(metaData.name());
+                if (repositoryPassword == null) {
+                    throw new IllegalArgumentException(
+                            ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metaData.name()).getKey() + " must be set");
+                }
                 return new EncryptedRepository(metaData, registry, clusterService, (BlobStoreRepository) delegatedRepository,
                         repositoryPassword);
             }

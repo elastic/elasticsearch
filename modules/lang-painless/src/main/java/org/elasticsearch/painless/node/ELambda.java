@@ -35,7 +35,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Lambda expression node.
@@ -89,13 +88,6 @@ public final class ELambda extends AExpression implements ILambda {
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
 
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
     }
 
     @Override

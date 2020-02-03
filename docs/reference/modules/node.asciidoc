@@ -1,15 +1,14 @@
 [[modules-node]]
 == Node
 
-Any time that you start an instance of Elasticsearch, you are starting a
-_node_. A collection of connected nodes is called a
-<<modules-cluster,cluster>>. If you are running a single node of Elasticsearch,
-then you have a cluster of one node.
+Any time that you start an instance of Elasticsearch, you are starting a _node_. 
+A collection of connected nodes is called a <<modules-cluster,cluster>>. If you 
+are running a single node of {es}, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
-<<modules-transport,Transport>> traffic by default. The transport layer
-is used exclusively for communication between nodes; the HTTP layer is
-used by REST clients.
+<<modules-transport,Transport>> traffic by default. The transport layer is used
+exclusively for communication between nodes; the HTTP layer is used by REST
+clients.
 
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node. 
@@ -24,8 +23,8 @@ and dedicated {ml} nodes.
 <<master-node,Master-eligible node>>::
 
 A node that has `node.master` set to `true` (default), which makes it eligible
-to be <<modules-discovery,elected as the _master_ node>>, which controls
-the cluster.
+to be <<modules-discovery,elected as the _master_ node>>, which controls the
+cluster.
 
 <<data-node,Data node>>::
 
@@ -46,7 +45,7 @@ A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
 default behavior in the {es} {default-dist}. If you want to use {ml-features},
 there must be at least one {ml} node in your cluster. For more information about
 {ml-features}, see
-{ml-docs}/xpack-ml.html[Machine learning in the {stack}].
+{ml-docs}/index.html[Machine learning in the {stack}].
 +
 IMPORTANT: If you use the {oss-dist}, do not set `node.ml`. Otherwise, the node
 fails to start.
@@ -77,7 +76,7 @@ phase.
 
 [float]
 [[master-node]]
-=== Master Eligible Node
+=== Master-eligible node
 
 The master node is responsible for lightweight cluster-wide actions such as
 creating or deleting an index, tracking which nodes are part of the cluster,
@@ -89,19 +88,25 @@ be elected to become the master node by the <<modules-discovery,master election
 process>>.
 
 IMPORTANT: Master nodes must have access to the `data/` directory (just like
-`data` nodes) as this is where the cluster state is persisted between node restarts.
+`data` nodes) as this is where the cluster state is persisted between node 
+restarts.
 
-Indexing and searching your data is CPU-, memory-, and I/O-intensive work
-which can put pressure on a node's resources. To ensure that your master
-node is stable and not under pressure, it is a good idea in a bigger
-cluster to split the roles between dedicated master-eligible nodes and
-dedicated data nodes.
+[float]
+[[dedicated-master-node]]
+==== Dedicated master-eligible node
 
-While master nodes can also behave as <<coordinating-node,coordinating nodes>>
-and route search and indexing requests from clients to data nodes, it is
-better _not_ to use dedicated master nodes for this purpose. It is important
-for the stability of the cluster that master-eligible nodes do as little work
-as possible.
+It is important for the health of the cluster that the elected master node has 
+the resources it needs to fulfil its responsibilities. If the elected master 
+node is overloaded with other tasks then the cluster may not operate well. In 
+particular, indexing and searching your data can be very resource-intensive, so 
+in large or high-throughput clusters it is a good idea to avoid using the 
+master-eligible nodes for tasks such as indexing and searching. You can do this 
+by configuring three of your nodes to be dedicated master-eligible nodes. 
+Dedicated master-eligible nodes only have the `master` role, allowing them to
+focus on managing the cluster. While master nodes can also behave as 
+<<coordinating-node,coordinating nodes>> and route search and indexing requests
+from clients to data nodes, it is better _not_ to use dedicated master nodes for
+this purpose.
 
 To create a dedicated master-eligible node in the {default-dist}, set:
 
@@ -162,8 +167,8 @@ node.voting_only: true <1>
 -------------------
 <1> The default for `node.voting_only` is `false`.
 
-IMPORTANT: The `voting_only` role requires the {default-dist} of Elasticsearch
-and is not supported in the {oss-dist}. If you use the {oss-dist} and set
+IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not
+supported in the {oss-dist}. If you use the {oss-dist} and set
 `node.voting_only` then the node will fail to start.  Also note that only
 master-eligible nodes can be marked as voting-only.
 
@@ -211,8 +216,8 @@ nodes handle data related operations like CRUD, search, and aggregations.
 These operations are I/O-, memory-, and CPU-intensive. It is important to
 monitor these resources and to add more data nodes if they are overloaded.
 
-The main benefit of having dedicated data nodes is the separation of the
-master and data roles.
+The main benefit of having dedicated data nodes is the separation of the master
+and data roles.
 
 To create a dedicated data node in the {default-dist}, set:
 [source,yaml]
@@ -440,9 +445,9 @@ Like all node settings, it can also be specified on the command line as:
 -----------------------
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
-should be configured to locate the data directory outside the Elasticsearch
-home directory, so that the home directory can be deleted without deleting
-your data! The RPM and Debian distributions do this for you already.
+should be configured to locate the data directory outside the {es} home
+directory, so that the home directory can be deleted without deleting your data!
+The RPM and Debian distributions do this for you already.
 
 
 [float]

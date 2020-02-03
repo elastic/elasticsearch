@@ -30,10 +30,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.Scope.newFunctionScope;
@@ -71,14 +69,6 @@ public final class SFunction extends ANode {
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.block = Objects.requireNonNull(block);
         this.synthetic = synthetic;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        // we reset the list for function scope
-        // note this is not stored for this node
-        // but still required for lambdas
-        block.extractVariables(new HashSet<>());
     }
 
     void generateSignature(PainlessLookup painlessLookup) {

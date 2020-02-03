@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -42,13 +41,6 @@ public final class SDeclBlock extends AStatement {
         super(location);
 
         this.declarations = Collections.unmodifiableList(declarations);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        for (SDeclaration declaration : declarations) {
-            declaration.extractVariables(variables);
-        }
     }
 
     @Override

@@ -156,7 +156,7 @@ public class ExpressionTests extends ESTestCase {
         int randomSecond = randomInt(59);
         int randomMilli = randomInt(999);
 
-        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%03d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
         assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
                 .plusMillis(randomMilli), intervalOf(value));
@@ -169,7 +169,7 @@ public class ExpressionTests extends ESTestCase {
         int randomSecond = randomInt(59);
         int randomMilli = randomInt(999);
 
-        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%03d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
         assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
                 .plusMillis(randomMilli).negated(), intervalOf(value));

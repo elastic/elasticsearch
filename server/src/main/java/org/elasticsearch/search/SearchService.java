@@ -1128,6 +1128,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // now we need to check if there is a pending refresh and register
                 shard.awaitShardSearchActive(b -> {
                     try {
+                        // we can now acquire a searcher and rewrite the request with it
                         SearchRewriteContext rewriteContext = acquireSearcherAndRewrite(request, shard);
                         listener.onResponse(rewriteContext);
                     } catch (Exception e) {

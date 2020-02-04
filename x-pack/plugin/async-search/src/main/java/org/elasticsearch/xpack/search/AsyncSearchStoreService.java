@@ -104,14 +104,17 @@ class AsyncSearchStoreService {
         Map<String, Object> source = new HashMap<>();
         source.put(IS_RUNNING_FIELD, true);
         source.put(RESULT_FIELD, encodeResponse(response));
-        UpdateRequest request = new UpdateRequest().index(ASYNC_SEARCH_ALIAS).id(searchId.getDocId())
+        UpdateRequest request = new UpdateRequest()
+            .index(ASYNC_SEARCH_ALIAS)
+            .id(searchId.getDocId())
             .doc(source, XContentType.JSON);
         client.update(request, listener);
     }
 
     void updateKeepAlive(String docID, long expirationTimeMillis, ActionListener<UpdateResponse> listener) {
         Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
-        UpdateRequest request = new UpdateRequest().index(ASYNC_SEARCH_ALIAS).id(docID)
+        UpdateRequest request = new UpdateRequest().index(ASYNC_SEARCH_ALIAS)
+            .id(docID)
             .doc(source, XContentType.JSON);
         client.update(request, listener);
     }
@@ -126,7 +129,6 @@ class AsyncSearchStoreService {
             return null;
         }
 
-        logger.info("Is threadContext " + threadContext.isSystemContext());
         if (threadContext.isSystemContext() == false) {
             // Check authentication for the user
             final Authentication auth = Authentication.getAuthentication(threadContext);

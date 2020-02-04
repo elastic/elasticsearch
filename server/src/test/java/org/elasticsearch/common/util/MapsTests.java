@@ -190,7 +190,7 @@ public class MapsTests extends ESTestCase {
         assertMapImmutability(map);
     }
 
-    private static <K, V> Map<K, V> randomMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
+    public static <K, V> Map<K, V> randomMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
         final Map<K, V> map = new HashMap<>();
         IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));
         return map;

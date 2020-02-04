@@ -185,4 +185,75 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
+
+    public void testDynamicTemplatesDuplicationThrows() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type")
+                        .startArray("dynamic_templates")
+                            .startObject()
+                                .startObject("my_template")
+                                    .field("match_mapping_type", "string")
+                                    .startObject("mapping")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject()
+                                .startObject("my_template")
+                                .field("match_mapping_type", "string")
+                                .startObject("mapping")
+                                    .field("type", "keyword")
+                                .endObject()
+                            .endObject()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endObject());
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
+        assertEquals(
+                "Failed to parse mapping: A dynamic template was defined twice with the same definition: "
+                + "{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":\"keyword\"}}",
+                ex.getMessage());
+    }
+
+    public void testDynamicTemplatesDuplicateNamesDoesntThrow() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type")
+                        .startArray("dynamic_templates")
+                            .startObject()
+                                .startObject("labels")
+                                    .field("path_match", "labels.*")
+                                    .field("match_mapping_type", "string")
+                                    .startObject("mapping")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject()
+                                .startObject("labels")
+                                    .field("path_match", "labels.*")
+                                    .field("match_mapping_type", "boolean")
+                                    .startObject("mapping")
+                                        .field("type", "boolean")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject()
+                                .startObject("labels")
+                                    .field("path_match", "labels.*")
+                                    .startObject("mapping")
+                                        .field("type", "scaled_float")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endObject());
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+}
 }

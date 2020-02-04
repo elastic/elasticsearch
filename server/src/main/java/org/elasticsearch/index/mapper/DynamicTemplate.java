@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
@@ -233,7 +234,7 @@ public class DynamicTemplate implements ToXContentObject {
 
     private final Map<String, Object> mapping;
 
-    private DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch,
+    DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch,
             XContentFieldType xcontentFieldType, MatchType matchType, Map<String, Object> mapping) {
         this.name = name;
         this.pathMatch = pathMatch;
@@ -245,9 +246,43 @@ public class DynamicTemplate implements ToXContentObject {
         this.mapping = mapping;
     }
 
-    public String name() {
+    DynamicTemplate(DynamicTemplate original) {
+        this(original.name, original.pathMatch, original.pathUnmatch, original.match, original.unmatch, original.xcontentFieldType,
+                original.matchType, new HashMap<>(original.mapping));
+    }
+
+    String name() {
         return this.name;
     }
+
+    String getPathMatch() {
+        return pathMatch;
+    }
+
+    String getPathUnmatch() {
+        return pathUnmatch;
+    }
+
+    String getMatch() {
+        return match;
+    }
+
+    String getUnmatch() {
+        return unmatch;
+    }
+
+    MatchType getMatchType() {
+        return matchType;
+    }
+
+    XContentFieldType getXcontentFieldType() {
+        return xcontentFieldType;
+    }
+
+    Map<String, Object> getMapping() {
+        return mapping;
+    }
+
 
     public boolean match(String path, String name, XContentFieldType xcontentFieldType) {
         if (pathMatch != null && !matchType.matches(pathMatch, path)) {
@@ -361,5 +396,29 @@ public class DynamicTemplate implements ToXContentObject {
         builder.field("mapping", new TreeMap<>(mapping));
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != DynamicTemplate.class) {
+            return false;
+        }
+        DynamicTemplate other = (DynamicTemplate) obj;
+        return Objects.equals(name, other.name) &&
+                Objects.equals(pathMatch, other.pathMatch)
+                && Objects.equals(pathUnmatch, other.pathUnmatch)
+                && Objects.equals(match, other.match)
+                && Objects.equals(unmatch, other.unmatch)
+                && Objects.equals(matchType, other.matchType)
+                && Objects.equals(xcontentFieldType, other.xcontentFieldType)
+                && Objects.equals(mapping, other.mapping);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, pathMatch, pathUnmatch, match, unmatch, matchType, xcontentFieldType, mapping);
     }
 }

@@ -20,15 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.MapsTests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.DynamicTemplate.MatchType;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class DynamicTemplateTests extends ESTestCase {
 
@@ -124,5 +128,63 @@ public class DynamicTemplateTests extends ESTestCase {
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+    }
+
+    /**
+     * Test equality and hashCode properties
+     */
+    public void testEqualsAndHashcode() {
+        checkEqualsAndHashCode(randomTemplate(), original -> new DynamicTemplate(original), original -> {
+            String name = original.name();
+            String pathMatch = original.getPathMatch();
+            String pathUnmatch = original.getPathUnmatch();
+            String match = original.getMatch();
+            String unmatch = original.getUnmatch();
+            XContentFieldType xContentFieldType = original.getXcontentFieldType();
+            MatchType matchType = original.getMatchType();
+            Map<String, Object> mapping = original.getMapping();
+            int switchCase = randomInt(7);
+            switch (switchCase) {
+            case 0:
+                name = name + randomAlphaOfLength(3);
+                break;
+            case 1:
+                pathMatch = pathMatch + randomAlphaOfLength(3);
+                break;
+            case 2:
+                pathUnmatch = pathUnmatch + randomAlphaOfLength(3);
+                break;
+            case 3:
+                match = match + randomAlphaOfLength(3);
+                break;
+            case 4:
+                unmatch = unmatch + randomAlphaOfLength(3);
+                break;
+            case 5:
+                xContentFieldType = randomValueOtherThan(xContentFieldType, () -> randomFrom(XContentFieldType.values()));
+                break;
+            case 6:
+                matchType = randomValueOtherThan(matchType, () -> randomFrom(MatchType.values()));
+                break;
+            case 7:
+                mapping = new HashMap<>(mapping);
+                mapping.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                break;
+            }
+            return new DynamicTemplate(name, pathMatch, pathUnmatch , match, unmatch, xContentFieldType, matchType, mapping);
+        });
+    }
+
+    private DynamicTemplate randomTemplate() {
+        String name = randomAlphaOfLengthBetween(4, 8);
+        String pathMatch = randomAlphaOfLengthBetween(4, 8);
+        String pathUnmatch = randomAlphaOfLengthBetween(4, 8);
+        String match = randomAlphaOfLengthBetween(4, 8);
+        String unmatch = randomAlphaOfLengthBetween(4, 8);
+        XContentFieldType xContentFieldType = randomFrom(XContentFieldType.values());
+        MatchType matchType = randomFrom(MatchType.values());
+        Map<String, Object> mapping = MapsTests.randomMap(randomIntBetween(0, 10), () -> ESTestCase.randomAlphaOfLength(5),
+                () -> ESTestCase.randomAlphaOfLength(5));
+        return new DynamicTemplate(name, pathMatch, pathUnmatch , match, unmatch, xContentFieldType, matchType, mapping);
     }
 }

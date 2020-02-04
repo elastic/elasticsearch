@@ -77,7 +77,13 @@ final class JvmOptionsParser {
         try (jvmOptionsFiles) {
             for (final Path jvmOptionsFile : (Iterable<Path>) jvmOptionsFiles::iterator) {
                 final SortedMap<Integer, String> invalidLines = new TreeMap<>();
-                consumeJvmOptions(jvmOptionsFile, jvmOptions, invalidLines);
+                try (
+                    InputStream is = Files.newInputStream(jvmOptionsFile);
+                    Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
+                    BufferedReader br = new BufferedReader(reader)
+                ) {
+                    parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, jvmOptions::add, invalidLines::put);
+                }
                 if (invalidLines.isEmpty() == false) {
                     final String errorMessage = String.format(
                         Locale.ROOT,
@@ -131,19 +137,6 @@ final class JvmOptionsParser {
         final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
         Launchers.outPrintln(spaceDelimitedJvmOptions);
         Launchers.exit(0);
-    }
-
-    private static void consumeJvmOptions(
-        final Path jvmOptionsFile,
-        final List<String> jvmOptions,
-        final SortedMap<Integer, String> invalidLines) throws IOException {
-        try (
-            InputStream is = Files.newInputStream(jvmOptionsFile);
-            Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
-            BufferedReader br = new BufferedReader(reader)
-        ) {
-            parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, jvmOptions::add, invalidLines::put);
-        }
     }
 
     static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {

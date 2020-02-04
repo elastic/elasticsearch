@@ -8,9 +8,26 @@ of the {version} {es} artifacts. If macOS Catalina displays an unidentified
 developer warning when you first run {es}, you will need to add a security
 override.
 
-To add a security override, follow the instructions in
-https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac[Open
-a Mac app from an unidentified developer].
+To add a security override, run the following command on the downloaded
+`.tar.gz` archive or the directory to which was extracted:
+
+[source,sh]
+----
+xattr -d -r com.apple.quarantine <archive-or-directory>
+----
+
+For example, if the `.tar.gz` file was extracted to the default
+elasticsearch-{version} directory, the command is:
+
+[source,sh,subs="attributes"]
+----
+xattr -d -r com.apple.quarantine elasticsearch-{version}
+----
+
+Alternatively, you can add a security override for both `jdk.app` and
+`controller.app` by following the instructions in the _How to open an app that
+hasn’t been notarized or is from an unidentified developer_ section of
+https://support.apple.com/en-us/HT202491[Safely open apps on your Mac].
 ====
 
 Elasticsearch can be started from the command line as follows:

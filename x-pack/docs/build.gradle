@@ -1,6 +1,7 @@
 import java.nio.charset.StandardCharsets
 
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
 /* List of files that have snippets that probably should be converted to
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
@@ -19,6 +20,14 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+}
+
+processTestResources {
+  from({ new File(xpackProject('plugin').projectDir, 'src/test/resources')}) {
+    include 'rest-api-spec/api/**'
+  }
+  dependsOn configurations.restSpec
+  dependsOn copyCoreRestSpecLocal
 }
 
 testClusters.integTest {

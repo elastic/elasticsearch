@@ -23,7 +23,7 @@ To automate rollover and management of time-series indices with {ilm-init}, you:
 . <<ilm-gs-create-policy, Create a lifecycle policy>> with the {ilm-init} put policy API.  
 . <<ilm-gs-apply-policy, Create an index template>> to apply the policy to each new index.
 . <<ilm-gs-bootstrap, Bootstrap an index>> as the initial write index.
-. <<ilm-gs-check-progress, Verify that indices are moving through the lifecycle phases>> 
+. <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>> 
 as expected with the {ilm-init} explain API. 
 
 [float]

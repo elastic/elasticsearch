@@ -34,10 +34,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.search.aggregations.metrics.TDigestPercentilesAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -45,6 +41,8 @@ import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
@@ -142,6 +140,19 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testTdigestThenHdrSettings() throws Exception {
+        int sigDigits = randomIntBetween(1, 5);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            percentiles("percentiles")
+                .compression(100.0)
+                .method(PercentilesMethod.TDIGEST)
+                .numberOfSignificantValueDigits(sigDigits) // <-- this should trigger an exception
+                .field("value");
+        });
+        assertThat(e.getMessage(), equalTo("Cannot set [numberOfSignificantValueDigits] because the " +
+            "method has already been configured for TDigest"));
+    }
+
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalTDigestPercentiles> verify) throws IOException {
         try (Directory directory = newDirectory()) {
@@ -152,8 +163,14 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                PercentilesAggregationBuilder builder =
-                        new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
+                PercentilesAggregationBuilder builder;
+                // TODO this randomization path should be removed when the old settings are removed
+                if (randomBoolean()) {
+                    builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
+                } else {
+                    PercentilesMethod.Config hdr = new PercentilesMethod.Config.TDigest();
+                    builder = new PercentilesAggregationBuilder("test").field("number").setPercentilesConfig(hdr);
+                }
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setName("number");

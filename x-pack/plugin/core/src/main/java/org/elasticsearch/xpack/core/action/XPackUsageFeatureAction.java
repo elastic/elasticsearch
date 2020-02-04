@@ -41,11 +41,10 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction FROZEN_INDICES = new XPackUsageFeatureAction(XPackField.FROZEN_INDICES);
     public static final XPackUsageFeatureAction SPATIAL = new XPackUsageFeatureAction(XPackField.SPATIAL);
     public static final XPackUsageFeatureAction ANALYTICS = new XPackUsageFeatureAction(XPackField.ANALYTICS);
-    public static final XPackUsageFeatureAction INDEX = new XPackUsageFeatureAction(XPackField.INDEX);
 
     public static final List<XPackUsageFeatureAction> ALL = Arrays.asList(
         SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-        TRANSFORM, FLATTENED, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, INDEX
+        TRANSFORM, FLATTENED, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS
     );
 
     private XPackUsageFeatureAction(String name) {

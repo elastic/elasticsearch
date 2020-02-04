@@ -18,7 +18,7 @@ modify the root `jvm.options` file instead preferring to use custom JVM options
 files. Custom JVM options files are processed in lexicographic order (although
 the ordering is filesystem and platform specific).
 
-JVM options files contains line-delimited list of JVM arguments following a
+JVM options files contain a line-delimited list of JVM arguments following a
 special syntax:
 
 * lines consisting of whitespace only are ignored

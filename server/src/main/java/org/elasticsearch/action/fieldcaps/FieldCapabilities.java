@@ -57,12 +57,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
     private static final ParseField META_FIELD = new ParseField("meta");
 
-    private static Map<String, Set<String>> mapToMapOfSets(Map<String, String> map) {
-        final Function<Map.Entry<String, String>, String> entryValueFunction = Map.Entry::getValue;
-        return map.entrySet().stream().collect(
-                Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(Set::of)));
-    }
-
     private final String name;
     private final String type;
     private final boolean isSearchable;
@@ -73,19 +67,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final String[] nonAggregatableIndices;
 
     private final Map<String, Set<String>> meta;
-
-    /**
-     * Constructor for a single index.
-     * @param name The name of the field.
-     * @param type The type associated with the field.
-     * @param isSearchable Whether this field is indexed for search.
-     * @param isAggregatable Whether this field can be aggregated on.
-     * @param meta Metadata about the field.
-     */
-    public FieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable,
-            Map<String, String> meta) {
-        this(name, type, isSearchable, isAggregatable, null, null, null, mapToMapOfSets(Objects.requireNonNull(meta)));
-    }
 
     /**
      * Constructor for a set of indices.
@@ -102,11 +83,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(String name, String type,
-                      boolean isSearchable, boolean isAggregatable,
-                      String[] indices,
-                      String[] nonSearchableIndices,
-                      String[] nonAggregatableIndices,
-                      Map<String, Set<String>> meta) {
+                             boolean isSearchable, boolean isAggregatable,
+                             String[] indices,
+                             String[] nonSearchableIndices,
+                             String[] nonAggregatableIndices,
+                             Map<String, Set<String>> meta) {
         this.name = name;
         this.type = type;
         this.isSearchable = isSearchable;
@@ -117,7 +98,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.meta = Objects.requireNonNull(meta);
     }
 
-    public FieldCapabilities(StreamInput in) throws IOException {
+    FieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
         this.isSearchable = in.readBoolean();
@@ -309,32 +290,17 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.meta = new HashMap<>();
         }
 
-        private void add(String index, boolean search, boolean agg) {
+        /**
+         * Collect the field capabilities for an index.
+         */
+        void add(String index, boolean search, boolean agg, Map<String, String> meta) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
-        }
-
-        /**
-         * Collect capabilities of an index.
-         */
-        void add(String index, boolean search, boolean agg, Map<String, String> meta) {
-            add(index, search, agg);
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .add(entry.getValue());
-            }
-        }
-
-        /**
-         * Merge another capabilities instance.
-         */
-        void merge(String index, boolean search, boolean agg, Map<String, Set<String>> meta) {
-            add(index, search, agg);
-            for (Map.Entry<String, Set<String>> entry : meta.entrySet()) {
-                this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
-                        .addAll(entry.getValue());
             }
         }
 

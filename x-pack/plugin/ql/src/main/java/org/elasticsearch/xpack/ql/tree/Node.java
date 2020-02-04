@@ -412,7 +412,7 @@ public abstract class Node<T extends Node<T>> {
             for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
                 Object o = it.next();
                 toString(sb, o);
-                if (it.hasNext() == true) {
+                if (it.hasNext()) {
                     sb.append(", ");
                 }
             }

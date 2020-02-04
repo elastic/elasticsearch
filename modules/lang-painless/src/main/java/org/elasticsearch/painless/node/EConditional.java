@@ -20,14 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a conditional expression.
@@ -44,13 +43,6 @@ public final class EConditional extends AExpression {
         this.condition = Objects.requireNonNull(condition);
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        left.extractVariables(variables);
-        right.extractVariables(variables);
     }
 
     @Override

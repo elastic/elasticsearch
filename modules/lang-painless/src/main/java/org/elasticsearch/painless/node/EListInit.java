@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -30,7 +30,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -47,13 +46,6 @@ public final class EListInit extends AExpression {
         super(location);
 
         this.values = values;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression value : values) {
-            value.extractVariables(variables);
-        }
     }
 
     @Override

@@ -330,7 +330,7 @@ public abstract class PackagingTestCase extends Assert {
             assertTrue("log file exists", Files.exists(installation.logs.resolve("elasticsearch.log")));
             String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
 
-            assertThat(logfile, anyOf(Arrays.asList(stringMatchers)));
+            assertThat(logfile, anyOf(stringMatchers));
 
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
 

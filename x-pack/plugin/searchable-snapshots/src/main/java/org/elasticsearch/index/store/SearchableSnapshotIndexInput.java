@@ -156,10 +156,17 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
             // not a sequential read, so stop optimizing for this usage pattern and fall through to the unoptimized behaviour
             assert streamForSequentialReads.isFullyRead() == false;
             sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
-            IOUtils.close(streamForSequentialReads);
-            streamForSequentialReads = null;
+            closeStreamForSequentialReads();
         }
         return read;
+    }
+
+    private void closeStreamForSequentialReads() throws IOException {
+        try {
+            IOUtils.close(streamForSequentialReads);
+        } finally {
+            streamForSequentialReads = null;
+        }
     }
 
     /**
@@ -199,8 +206,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
         }
         if (position != offset + pos) {
             position = offset + pos;
-            IOUtils.close(streamForSequentialReads);
-            streamForSequentialReads = null;
+            closeStreamForSequentialReads();
         }
     }
 
@@ -226,8 +232,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     public void close() throws IOException {
         closed = true;
-        IOUtils.close(streamForSequentialReads);
-        streamForSequentialReads = null;
+        closeStreamForSequentialReads();
     }
 
     @Override

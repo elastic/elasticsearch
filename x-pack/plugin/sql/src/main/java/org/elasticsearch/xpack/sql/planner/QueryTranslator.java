@@ -549,7 +549,7 @@ final class QueryTranslator {
                     name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
                 Query query;
-                if (isDateLiteralComparison == true) {
+                if (isDateLiteralComparison) {
                     // dates equality uses a range query because it's the one that has a "format" parameter
                     query = new RangeQuery(source, name, value, true, value, true, format);
                 } else {

@@ -176,7 +176,7 @@ GET datastream-*/_ilm/explain
 // TEST[continued]
 
 The response below shows that the bootstrap index is waiting in the `hot` phase's `rollover` action.
-It will remain in this state and {ilm-init} will continue to call `attempt-rollover` 
+It remains in this state and {ilm-init} continues to call `attempt-rollover` 
 until the rollover conditions are met. 
 
 [[36818c6d9f434d387819c30bd9addb14]]

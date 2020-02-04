@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
 archivesBaseName = 'x-pack'
 
@@ -55,7 +56,10 @@ task copyKeyCerts(type: Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+processTestResources {
+  dependsOn copyKeyCerts
+  dependsOn copyCoreRestSpecLocal
+}
 
 integTest.runner {
   /*

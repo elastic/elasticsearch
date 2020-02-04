@@ -19,12 +19,15 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -55,6 +58,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestSearchAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     /**
      * Indicates whether hits.total should be rendered as an integer or an object
      * in the rest search response.
@@ -195,9 +201,14 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("seq_no_primary_term")) {
             searchSourceBuilder.seqNoAndPrimaryTerm(request.paramAsBoolean("seq_no_primary_term", null));
         }
-        if (request.hasParam("timeout")) {
-            searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+        if (request.hasParam("shard_timeout")) {
+
+            searchSourceBuilder.shardTimeout(request.paramAsTime("shard_timeout", null));
+        } else if (request.hasParam("timeout")) {
+            deprecationLogger.deprecated("Deprecated field [timeout] used, expected [shard_timeout] instead");
+            searchSourceBuilder.shardTimeout(request.paramAsTime("timeout", null));
         }
+
         if (request.hasParam("terminate_after")) {
             int terminateAfter = request.paramAsInt("terminate_after",
                     SearchContext.DEFAULT_TERMINATE_AFTER);

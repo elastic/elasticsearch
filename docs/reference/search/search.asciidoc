@@ -25,7 +25,7 @@ GET /twitter/_search?q=tag:wow
 [[search-search-api-desc]]
 ==== {api-description-title}
 
-Allows you to execute a search query and get back search hits that match the 
+Allows you to execute a search query and get back search hits that match the
 query. The query can either be provided using a simple
 <<search-uri-request,query string as a parameter>>, or using a
 <<search-request-body,request body>>.
@@ -33,8 +33,8 @@ query. The query can either be provided using a simple
 [[search-partial-responses]]
 ===== Partial responses
 
-To ensure fast responses, the search API will respond with partial results if 
-one or more shards fail. See <<shard-failures, Shard failures>> for more 
+To ensure fast responses, the search API will respond with partial results if
+one or more shards fail. See <<shard-failures, Shard failures>> for more
 information.
 
 [[search-search-api-path-params]]
@@ -47,165 +47,165 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
-  
+
 `allow_partial_search_results`::
-  (Optional, boolean) Indicates if an error should be returned if there is a 
-  partial search failure or timeout. Defaults to `true`.
+  (Optional, boolean) Indicates if an error should be returned if there is a
+  partial search failure or shard timeout(s). Defaults to `true`.
 
 `analyzer`::
   (Optional, string) Defines the analyzer to use for the query string.
-  
+
 `analyze_wildcard`::
-  (Optional, boolean) If `true`, wildcard and prefix queries will also be 
+  (Optional, boolean) If `true`, wildcard and prefix queries will also be
   analyzed. Defaults to `false`.
-  
+
 `batched_reduce_size`::
-  (Optional, integer) The number of shard results that should be reduced at once 
-  on the coordinating node. This value should be used as a protection mechanism 
-  to reduce the memory overhead per search request if the potential number of 
+  (Optional, integer) The number of shard results that should be reduced at once
+  on the coordinating node. This value should be used as a protection mechanism
+  to reduce the memory overhead per search request if the potential number of
   shards in the request can be large. Defaults to `512`.
-  
+
 `ccs_minimize_roundtrips`::
-  (Optional, boolean) Indicates whether network round-trips should be minimized 
+  (Optional, boolean) Indicates whether network round-trips should be minimized
   as part of cross-cluster search requests execution. Defaults to `true`.
-  
+
 `default_operator`::
-  (Optional, string) The default operator for query string query (AND or OR). 
+  (Optional, string) The default operator for query string query (AND or OR).
   Defaults to `OR`.
-  
+
 `df`::
-  (Optional, string) Defines the field to use as default where no field prefix 
+  (Optional, string) Defines the field to use as default where no field prefix
   is given in the query string.
-  
+
 `docvalue_fields`::
-  (Optional, string) A comma-separated list of fields to return as the docvalue 
+  (Optional, string) A comma-separated list of fields to return as the docvalue
   representation of a field for each hit.
-  
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
-  
+
 `explain`::
-  (Optional, boolean) If `true`, returns detailed information about score 
+  (Optional, boolean) If `true`, returns detailed information about score
   computation as part of a hit. Defaults to `false`.
-  
+
 `from`::
   (Optional, integer) Defines the starting offset. Defaults to `0`.
 
 `ignore_throttled`::
-  (Optional, boolean) If `true`, concrete, expanded or aliased indices will be 
+  (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
   ignored when throttled. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
-  
+
 `lenient`::
-  (Optional, boolean) If `true`, format-based query failures (such as 
+  (Optional, boolean) If `true`, format-based query failures (such as
   providing text to a numeric field) will be ignored. Defaults to `false`.
-  
+
 `max_concurrent_shard_requests`::
-  (Optional, integer) Defines the number of concurrent shard requests per node 
-  this search executes concurrently. This value should be used to limit the 
-  impact of the search on the cluster in order to limit the number of concurrent 
+  (Optional, integer) Defines the number of concurrent shard requests per node
+  this search executes concurrently. This value should be used to limit the
+  impact of the search on the cluster in order to limit the number of concurrent
   shard requests. Defaults to `5`.
-  
+
 `pre_filter_shard_size`::
-  (Optional, integer) Defines a threshold that enforces a pre-filter roundtrip 
-  to prefilter search shards based on query rewriting if the number of shards 
-  the search request expands to exceeds the threshold. This filter roundtrip can 
-  limit the number of shards significantly if for instance a shard can not match 
-  any documents based on it's rewrite method ie. if date filters are mandatory 
+  (Optional, integer) Defines a threshold that enforces a pre-filter roundtrip
+  to prefilter search shards based on query rewriting if the number of shards
+  the search request expands to exceeds the threshold. This filter roundtrip can
+  limit the number of shards significantly if for instance a shard can not match
+  any documents based on it's rewrite method ie. if date filters are mandatory
   to match but the shard bounds and the query are disjoint. Defaults to `128`.
 
 `preference`::
-  (Optional, string) Specifies the node or shard the operation should be 
+  (Optional, string) Specifies the node or shard the operation should be
   performed on. Random by default.
-  
+
 `q`::
   (Optional, string) Query in the Lucene query string syntax.
 
 `request_cache`::
-  (Optional, boolean) If `true`, request cache will be used for this request. 
+  (Optional, boolean) If `true`, request cache will be used for this request.
   Defaults to index level settings.
-  
+
 `rest_total_hits_as_int`::
-  (Optional, boolean) Indicates whether hits.total should be rendered as an 
+  (Optional, boolean) Indicates whether hits.total should be rendered as an
   integer or an object in the rest search response. Defaults to `false`.
 
 `routing`::
-  (Optional, <<time-units, time units>>) Specifies how long a consistent view of 
+  (Optional, <<time-units, time units>>) Specifies how long a consistent view of
   the index should be maintained for scrolled search.
-  
+
 `search_type`::
-  (Optional, string) Defines the type of the search operation. Available 
+  (Optional, string) Defines the type of the search operation. Available
   options:
   * `query_then_fetch`
   * `dfs_query_then_fetch`
 
 `seq_no_primary_term`::
-  (Optional, boolean) If `true`, returns sequence number and primary term of the 
+  (Optional, boolean) If `true`, returns sequence number and primary term of the
   last modification of each hit.
 
 `size`::
   (Optional, integer) Defines the number of hits to return. Defaults to `10`.
-  
+
 `sort`::
   (Optional, string) A comma-separated list of <field>:<direction> pairs.
-  
+
 `_source`::
-  (Optional, string) True or false to return the `_source` field or not, or a 
+  (Optional, string) True or false to return the `_source` field or not, or a
   list of fields to return.
-  
+
 `_source_excludes`::
-  (Optional, string) A list of fields to exclude from the returned `_source` 
+  (Optional, string) A list of fields to exclude from the returned `_source`
   field.
-  
+
 `_source_includes`::
-  (Optional, string) A list of fields to extract and return from the `_source` 
+  (Optional, string) A list of fields to extract and return from the `_source`
   field.
-  
+
 `stats`::
-  (Optional, string) Specific `tag` of the request for logging and statistical 
+  (Optional, string) Specific `tag` of the request for logging and statistical
   purposes.
 
 `stored_fields`::
-  (Optional, string) A comma-separated list of stored fields to return as part 
+  (Optional, string) A comma-separated list of stored fields to return as part
   of a hit.
-  
+
 `suggest_field`::
   (Optional, string) Specifies which field to use for suggestions.
-  
+
 `suggest_mode`::
-  (Optional, string) Specifies suggest mode. Defaults to `missing`. Available 
+  (Optional, string) Specifies suggest mode. Defaults to `missing`. Available
   options:
   * `always`
   * `missing`
   * `popular`
-  
+
 `suggest_size`::
   (Optional, integer) Defines how many suggestions to return in response.
-  
+
 `suggest_text`::
-  (Optional, string) The source text for which the suggestions should be 
+  (Optional, string) The source text for which the suggestions should be
   returned.
-  
+
 `terminate_after`::
-  (Optional, integer) The maximum number of documents to collect for each shard, 
+  (Optional, integer) The maximum number of documents to collect for each shard,
   upon reaching which the query execution will terminate early.
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=shard_search_timeout]
 
 `track_scores`::
-  (Optional, boolean) If `true`, then calculates and returns scores even if they 
+  (Optional, boolean) If `true`, then calculates and returns scores even if they
   are not used for sorting.
-  
+
 `track_total_hits`::
-  (Optional, boolean) Indicates if the number of documents that match the query 
+  (Optional, boolean) Indicates if the number of documents that match the query
   should be tracked.
-  
+
 `typed_keys`::
-  (Optional, boolean) Specifies whether aggregation and suggester names should 
+  (Optional, boolean) Specifies whether aggregation and suggester names should
   be prefixed by their respective types in the response.
-  
+
 `version`::
   (Optional, boolean) If `true`, returns document version as part of a hit.
 
@@ -214,7 +214,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 ==== {api-request-body-title}
 
 `query`::
-  (Optional, <<query-dsl,query object>>) Defines the search definition using the 
+  (Optional, <<query-dsl,query object>>) Defines the search definition using the
   <<query-dsl,Query DSL>>.
 
 

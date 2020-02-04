@@ -375,7 +375,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         final long seconds = randomIntBetween(6, 10);
-        searchRequest.source(new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)));
+        searchRequest.source(new SearchSourceBuilder().shardTimeout(TimeValue.timeValueSeconds(seconds)));
         final SearchContext context = service.createContext(
                 new ShardSearchRequest(
                         OriginalIndices.NONE,

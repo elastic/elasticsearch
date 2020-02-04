@@ -59,7 +59,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         }
         refresh("test");
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+        SearchResponse searchResponse = client().prepareSearch("test").setShardTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(
                     new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                 .setAllowPartialSearchResults(true)
@@ -71,7 +71,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () ->
-            client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+            client().prepareSearch("test").setShardTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(
                         new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false) // this line causes timeouts to report failures

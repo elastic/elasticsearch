@@ -306,7 +306,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             // Execute the search
             SearchSourceBuilder source = new SearchSourceBuilder().query(rootBool).aggregation(sampleAgg).size(0);
             if (request.timeout() != null) {
-                source.timeout(TimeValue.timeValueMillis(timeRemainingMillis()));
+                source.shardTimeout(TimeValue.timeValueMillis(timeRemainingMillis()));
             }
             searchRequest.source(source);
 
@@ -654,7 +654,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     .query(rootBool)
                     .aggregation(rootSampleAgg).size(0);
                 if (request.timeout() != null) {
-                    source.timeout(request.timeout());
+                    source.shardTimeout(request.timeout());
                 }
                 searchRequest.source(source);
                 // System.out.println(source);

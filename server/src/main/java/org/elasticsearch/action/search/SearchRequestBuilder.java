@@ -101,10 +101,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * An optional timeout to control how long search is allowed to take.
+     * An optional timeout bounding the search on shards to be executed within the specified time
+     * value and bail with the hits accumulated up to that point when expired.
      */
-    public SearchRequestBuilder setTimeout(TimeValue timeout) {
-        sourceBuilder().timeout(timeout);
+    public SearchRequestBuilder setShardTimeout(TimeValue timeout) {
+        sourceBuilder().shardTimeout(timeout);
         return this;
     }
 
@@ -213,7 +214,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         sourceBuilder().version(version);
         return this;
     }
-    
+
     /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.

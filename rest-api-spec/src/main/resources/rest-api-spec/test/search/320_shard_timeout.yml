@@ -1,0 +1,36 @@
+setup:
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          text: "hello"
+
+  - do:
+      indices.refresh: {}
+
+---
+"timeout deprecation":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Deprecation added in 8.0.0 (change this after backport)"
+      features: ["warnings"]
+
+  - do:
+      warnings:
+        - "Deprecated field [timeout] used, expected [shard_timeout] instead"
+      search:
+        index: test
+        timeout: "10s"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      warnings:
+        - "Deprecated field [timeout] used, expected [shard_timeout] instead"
+      search:
+        index: test
+        body:
+          timeout: "10s"
+
+  - match: { hits.total.value: 1 }

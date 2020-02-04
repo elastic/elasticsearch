@@ -164,7 +164,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
             sourceBuilder.from(0); // <3>
             sourceBuilder.size(5); // <4>
-            sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
+            sourceBuilder.shardTimeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
             // end::search-source-basics
 
             // tag::search-source-sorting

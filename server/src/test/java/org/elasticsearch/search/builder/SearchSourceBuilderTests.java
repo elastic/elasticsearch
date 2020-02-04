@@ -338,7 +338,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(parser);
-            assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
+            assertThat(builder.shardTimeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
         }
     }
 

@@ -83,7 +83,7 @@ public class RandomizingClient extends FilterClient {
             searchRequestBuilder.setPreFilterShardSize(preFilterShardSize);
         }
         if (doTimeout) {
-            searchRequestBuilder.setTimeout(new TimeValue(1, TimeUnit.DAYS));
+            searchRequestBuilder.setShardTimeout(new TimeValue(1, TimeUnit.DAYS));
         }
         return searchRequestBuilder;
     }

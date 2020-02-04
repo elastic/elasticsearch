@@ -54,7 +54,7 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
         DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
-            expiredDbq.getSearchRequest().source().timeout(timeout);
+            expiredDbq.getSearchRequest().source().shardTimeout(timeout);
         }
         final Instant now = Instant.now();
         expiredDbq

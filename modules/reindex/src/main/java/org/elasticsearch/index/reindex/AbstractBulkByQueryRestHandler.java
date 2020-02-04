@@ -60,11 +60,6 @@ public abstract class AbstractBulkByQueryRestHandler<
         if (conflicts != null) {
             internal.setConflicts(conflicts);
         }
-
-        // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
-        if (restRequest.hasParam("search_timeout")) {
-            searchRequest.source().timeout(restRequest.paramAsTime("search_timeout", null));
-        }
     }
 
     /**

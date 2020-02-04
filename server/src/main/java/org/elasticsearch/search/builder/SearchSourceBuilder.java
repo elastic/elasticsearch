@@ -83,7 +83,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
-    public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
+    public static final ParseField SHARD_TIMEOUT_FIELD = new ParseField("shard_timeout", "timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
@@ -163,7 +163,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Float minScore;
 
-    private TimeValue timeout = null;
+    private TimeValue shardTimeout = null;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     private StoredFieldsContext storedFieldsContext;
@@ -234,7 +234,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
-        timeout = in.readOptionalTimeValue();
+        shardTimeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
@@ -288,7 +288,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(suggestBuilder);
         out.writeVInt(terminateAfter);
-        out.writeOptionalTimeValue(timeout);
+        out.writeOptionalTimeValue(shardTimeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
@@ -439,16 +439,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * An optional timeout to control how long search is allowed to take.
      */
-    public SearchSourceBuilder timeout(TimeValue timeout) {
-        this.timeout = timeout;
+    public SearchSourceBuilder shardTimeout(TimeValue timeout) {
+        this.shardTimeout = timeout;
         return this;
     }
 
     /**
      * Gets the timeout to control how long search is allowed to take.
      */
-    public TimeValue timeout() {
-        return timeout;
+    public TimeValue shardTimeout() {
+        return shardTimeout;
     }
 
     /**
@@ -994,7 +994,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.stats = stats;
         rewrittenBuilder.suggestBuilder = suggestBuilder;
         rewrittenBuilder.terminateAfter = terminateAfter;
-        rewrittenBuilder.timeout = timeout;
+        rewrittenBuilder.shardTimeout = shardTimeout;
         rewrittenBuilder.trackScores = trackScores;
         rewrittenBuilder.trackTotalHitsUpTo = trackTotalHitsUpTo;
         rewrittenBuilder.version = version;
@@ -1030,8 +1030,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     from = parser.intValue();
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size = parser.intValue();
-                } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
+                } else if (SHARD_TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    shardTimeout = TimeValue.parseTimeValue(parser.text(), null, SHARD_TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     terminateAfter = parser.intValue();
                 } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1183,8 +1183,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SIZE_FIELD.getPreferredName(), size);
         }
 
-        if (timeout != null && !timeout.equals(TimeValue.MINUS_ONE)) {
-            builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
+        if (shardTimeout != null && !shardTimeout.equals(TimeValue.MINUS_ONE)) {
+            builder.field(SHARD_TIMEOUT_FIELD.getPreferredName(), shardTimeout.getStringRep());
         }
 
         if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
@@ -1528,7 +1528,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
-                sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
+                sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, shardTimeout, trackScores, version,
                 seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
     }
 
@@ -1561,7 +1561,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(stats, other.stats)
                 && Objects.equals(suggestBuilder, other.suggestBuilder)
                 && Objects.equals(terminateAfter, other.terminateAfter)
-                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(shardTimeout, other.shardTimeout)
                 && Objects.equals(trackScores, other.trackScores)
                 && Objects.equals(version, other.version)
                 && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm)

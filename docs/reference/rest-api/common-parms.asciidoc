@@ -706,12 +706,12 @@ tag::scroll_size[]
 Defaults to 100.
 end::scroll_size[]
 
-tag::search_timeout[]
+tag::shard_search_timeout[]
 `shard_timeout`::
 (Optional, <<time-units, time units>>)
 Explicit shard search timeout.
 Defaults to no timeout.
-end::search_timeout[]
+end::shard_search_timeout[]
 
 tag::search_type[]
 `search_type`::

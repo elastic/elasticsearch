@@ -28,7 +28,7 @@ public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
     // version 1: initial
     public static final String INDEX_TEMPLATE_VERSION = "1";
     public static final String ASYNC_SEARCH_TEMPLATE_VERSION_VARIABLE = "xpack.async-search.template.version";
-    public static final String ASYNC_SEARCH_TEMPLATE_NAME = "async-search";
+    public static final String ASYNC_SEARCH_TEMPLATE_NAME = ".async-search";
     public static final String ASYNC_SEARCH_ALIAS =  ASYNC_SEARCH_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION;
 
     public static final IndexTemplateConfig TEMPLATE_ASYNC_SEARCH = new IndexTemplateConfig(

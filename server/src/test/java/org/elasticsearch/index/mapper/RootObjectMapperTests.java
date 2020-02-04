@@ -198,6 +198,6 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertEquals("Dynamic template syntax error, expects an array of named objects", e.getMessage());
+            assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
     }
 }

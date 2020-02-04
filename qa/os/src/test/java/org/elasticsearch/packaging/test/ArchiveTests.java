@@ -251,6 +251,46 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    public void test71CustomJvmOptionsDirectoryFile() throws Exception {
+        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
+        try {
+            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+
+            stopElasticsearch();
+        } finally {
+            rm(heapOptions);
+        }
+    }
+
+    public void test72CustomJvmOptionsDirectoryFilesAreProcessedInSortedOrder() throws Exception {
+        final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
+        final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
+        try {
+            /*
+             * We override the heap in the first file, and disable compressed oops, and override the heap in the second file. By doing this,
+             * we can test that both files are processed by the JVM options parser, and also that they are processed in lexicographic order.
+             */
+            append(firstOptions, "-Xms384m\n-Xmx384m\n-XX:-UseCompressedOops\n");
+            append(secondOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+
+            stopElasticsearch();
+        } finally {
+            rm(firstOptions);
+            rm(secondOptions);
+        }
+    }
+
     public void test80RelativePathConf() throws Exception {
 
         final Path temp = getTempDir().resolve("esconf-alternate");

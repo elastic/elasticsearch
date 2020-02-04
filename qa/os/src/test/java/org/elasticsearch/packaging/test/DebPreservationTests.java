@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
@@ -57,11 +58,14 @@ public class DebPreservationTests extends PackagingTestCase {
 
         // some config files were not removed
 
+        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+
         assertPathsExist(
             installation.config,
             installation.config("elasticsearch.yml"),
             installation.config("jvm.options"),
-            installation.config("log4j2.properties")
+            installation.config("log4j2.properties"),
+            installation.config(Paths.get("jvm.options.d", "heap.options"))
         );
 
         if (distribution().isDefault()) {
@@ -96,6 +100,8 @@ public class DebPreservationTests extends PackagingTestCase {
     }
 
     public void test30Purge() throws Exception {
+        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+
         sh.run("dpkg --purge " + distribution().flavor.name);
 
         assertRemoved(distribution());

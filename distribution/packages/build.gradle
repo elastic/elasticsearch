@@ -80,7 +80,8 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
 
       // bare empty dir for /etc/elasticsearch
-      mkdir "${packagingFiles}/elasticsearch"
+      mkdir "${packagingFiles}/etc/elasticsearch"
+      mkdir "${packagingFiles}/etc/elasticsearch/jvm.options.d"
     }
   }
 }

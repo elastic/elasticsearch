@@ -17,6 +17,7 @@ else
 fi
 
 REMOVE_DIRS=false
+REMOVE_JVM_OPTIONS_DIRECTORY=false
 REMOVE_USER_AND_GROUP=false
 
 case "$1" in
@@ -27,6 +28,7 @@ case "$1" in
     ;;
 
     purge)
+        REMOVE_JVM_OPTIONS_DIRECTORY=true
         REMOVE_USER_AND_GROUP=true
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
@@ -85,6 +87,14 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         rmdir --ignore-fail-on-non-empty "${ES_PATH_CONF}"
     fi
 
+fi
+
+if [ "$REMOVE_JVM_OPTIONS_DIRECTORY" = "true" ]; then
+  if [ -d /etc/elasticsearch/jvm.options.d ]; then
+    echo -n "Deleting jvm.options.d directory..."
+    rm -rf /etc/elasticsearch/jvm.options.d
+    echo " OK"
+  fi
 fi
 
 if [ "$REMOVE_USER_AND_GROUP" = "true" ]; then

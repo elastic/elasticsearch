@@ -24,6 +24,7 @@ import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -298,7 +299,23 @@ public class PackageTests extends PackagingTestCase {
         });
     }
 
-    public void test82SystemdMask() throws Exception {
+    public void test82CustomJvmOptionsDirectoryFile() throws Exception {
+        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
+        try {
+            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, CoreMatchers.containsString("\"heap_init_in_bytes\":536870912"));
+
+            stopElasticsearch();
+        } finally {
+            rm(heapOptions);
+        }
+    }
+
+    public void test83SystemdMask() throws Exception {
         try {
             assumeTrue(isSystemd());
 
@@ -311,7 +328,7 @@ public class PackageTests extends PackagingTestCase {
         }
     }
 
-    public void test83serviceFileSetsLimits() throws Exception {
+    public void test84serviceFileSetsLimits() throws Exception {
         // Limits are changed on systemd platforms only
         assumeTrue(isSystemd());
 

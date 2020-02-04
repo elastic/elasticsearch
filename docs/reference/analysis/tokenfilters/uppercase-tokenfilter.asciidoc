@@ -8,7 +8,7 @@ Changes token text to uppercase. For example, you can use the `uppercase` filter
 to change `the Lazy DoG` to `THE LAZY DOG`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/core/UpperCaseFilter.html[UpperCaseFilter].
+{lucene-analysis-docs}/core/UpperCaseFilter.html[UpperCaseFilter].
 
 [WARNING]
 ====

@@ -658,7 +658,7 @@ public final class InternalTestCluster extends TestCluster {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
             return nodeAndClient;
         }
-        assert reuseExisting == true || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
+        assert reuseExisting || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
 
         SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {

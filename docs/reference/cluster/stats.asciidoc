@@ -12,7 +12,7 @@ Returns cluster statistics.
 
 `GET /_cluster/stats` +
 
-`GET /_cluster/stats/nodes/<node_id>`
+`GET /_cluster/stats/nodes/<node_filter>`
 
 
 [[cluster-stats-api-desc]]
@@ -28,7 +28,7 @@ memory usage) and information about the current nodes that form the cluster
 ==== {api-path-parms-title}
 
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-filter]
 
 
 [[cluster-stats-api-query-params]]
@@ -36,7 +36,308 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+
+[[cluster-stats-api-response-body]]
+==== {api-response-body-title}
+
+`_nodes.total`::
+(integer)
+Total number of nodes selected by the request's <<cluster-nodes,node filters>>.
+
+`_nodes.successful`::
+(integer)
+Number of nodes that responded successfully to the request.
+
+`_nodes.failed`::
+(integer)
+Number of nodes that rejected the request or failed to respond. If this value
+is not `0`, a reason for the rejection or failure is included in the response.
+
+`cluster_name`::
+(string)
+Name of the cluster, based on the <<cluster.name>> setting.
+
+`cluster_uuid`::
+(string)
+Unique identifier for the cluster.
+
+`timestamp`::
+(integer)
+https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+the last time the cluster statistics were refreshed.
+
+`status`::
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
++
+See <<cluster-health>>.
+
+`indices.count`::
+(integer)
+Total number of indices with shards assigned to selected nodes.
+
+`indices.shards.total`::
+(integer)
+Total number of shards assigned to selected nodes.
+
+`indices.shards.primaries`::
+(integer)
+Number of primary shards assigned to selected nodes.
+
+`indices.shards.replication`::
+(integer)
+Ratio of replica shards to primary shards across all selected nodes.
+
+`indices.shards.index.shards.min`::
+(integer)
+Minimum number of shards in an index, counting only shards assigned to
+selected nodes.
+
+`indices.shards.index.shards.max`::
+(integer)
+Maximum number of shards in an index, counting only shards assigned to
+selected nodes.
+
+`indices.shards.index.shards.avg`::
+(integer)
+Mean number of shards in an index, counting only shards assigned to
+selected nodes.
+
+`indices.shards.index.primaries.min`::
+(integer)
+Minimum number of primary shards in an index, counting only shards assigned
+to selected nodes.
+
+`indices.shards.index.primaries.max`::
+(integer)
+Maximum number of primary shards in an index, counting only shards assigned
+to selected nodes.
+
+`indices.shards.index.primaries.avg`::
+(integer)
+Mean number of primary shards in an index, counting only shards assigned to
+selected nodes.
+
+`indices.shards.index.replication.min`::
+(integer)
+Minimum replication factor in an index, counting only shards assigned to
+selected nodes.
+
+`indices.shards.index.replication.max`::
+(integer)
+Maximum replication factor in an index, counting only shards assigned to
+selected nodes.
+
+`indices.shards.index.replication.avg`::
+(integer)
+Mean replication factor in an index, counting only shards assigned to selected
+nodes.
+
+`indices.docs.count`::
+(integer)
+Total number of non-deleted documents across all primary shards assigned to
+selected nodes.
++
+This number is based on documents in Lucene segments and may include documents
+from nested fields.
+
+`indices.docs.deleted`::
+(integer)
+Total number of deleted documents across all primary shards assigned to
+selected nodes.
++
+This number is based on documents in Lucene segments. {es} reclaims the disk
+space of deleted Lucene documents when a segment is merged.
+
+`indices.store.size`::
+(<<byte-units, byte units>>)
+Total size of all shards assigned to selected nodes.
+
+`indices.store.size_in_bytes`::
+(integer)
+Total size, in bytes, of all shards assigned to selected nodes.
+
+`indices.fielddata.memory_size`::
+(<<byte-units, byte units>>)
+Total amount of memory used for the field data cache across all shards
+assigned to selected nodes.
+
+`indices.fielddata.memory_size_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for the field data cache across all
+shards assigned to selected nodes.
+
+`indices.fielddata.evictions`::
+(integer)
+Total number of evictions from the field data cache across all shards assigned
+to selected nodes.
+
+`indices.query_cache.memory_size`::
+(<<byte-units, byte units>>)
+Total amount of memory used for the query cache across all shards assigned to
+selected nodes.
+
+`indices.query_cache.memory_size_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for the query cache across all shards
+assigned to selected nodes.
+
+`indices.query_cache.total_count`::
+(integer)
+Total count of hits and misses in the query cache across all shards assigned to
+selected nodes.
+
+`indices.query_cache.hit_count`::
+(integer)
+Total count of query cache hits across all shards assigned to selected nodes.
+
+`indices.query_cache.miss_count`::
+(integer)
+Total count of query cache misses across all shards assigned to selected nodes.
+
+`indices.query_cache.cache_size`::
+(integer)
+Total number of entries currently in the query cache across all shards assigned
+to selected nodes.
+
+`indices.query_cache.cache_count`::
+(integer)
+Total number of entries added to the query cache across all shards assigned
+to selected nodes. This number includes current and evicted entries.
+
+`indices.query_cache.evictions`::
+(integer)
+Total number of query cache evictions across all shards assigned to selected
+nodes.
+
+`indices.completion.size`::
+(<<byte-units, byte units>>)
+Total amount of memory used for completion across all shards assigned to
+selected nodes.
+
+`indices.completion.size_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for completion across all shards assigned
+to selected nodes.
+
+`indices.segments.count`::
+(integer)
+Total number of segments across all shards assigned to selected nodes.
+
+`indices.segments.memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for segments across all shards assigned to selected
+nodes.
+
+`indices.segments.memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for segments across all shards assigned to
+selected nodes.
+
+`indices.segments.terms_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for terms across all shards assigned to selected
+nodes.
+
+`indices.segments.terms_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for terms across all shards assigned to
+selected nodes.
+
+`indices.segments.stored_fields_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for stored fields across all shards assigned to
+selected nodes.
+
+`indices.segments.stored_fields_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for stored fields across all shards
+assigned to selected nodes.
+
+`indices.segments.term_vectors_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for term vectors across all shards assigned to
+selected nodes.
+
+`indices.segments.term_vectors_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for term vectors across all shards
+assigned to selected nodes.
+
+`indices.segments.norms_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for normalization factors across all shards assigned
+to selected nodes.
+
+`indices.segments.norms_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for normalization factors across all
+shards assigned to selected nodes.
+
+`indices.segments.points_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for points across all shards assigned to selected
+nodes.
+
+`indices.segments.points_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for points across all shards assigned to
+selected nodes.
+
+`indices.segments.doc_values_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for doc values across all shards assigned to
+selected nodes.
+
+`indices.segments.doc_values_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for doc values across all shards assigned
+to selected nodes.
+
+`indices.segments.index_writer_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used by all index writers across all shards assigned to
+selected nodes.
+
+`indices.segments.index_writer_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used by all index writers across all shards
+assigned to selected nodes.
+
+`indices.segments.version_map_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used by all version maps across all shards assigned to
+selected nodes.
+
+`indices.segments.version_map_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used by all version maps across all shards
+assigned to selected nodes.
+
+`indices.segments.fixed_bit_set_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used by fixed bit sets across all shards assigned to
+selected nodes.
++
+Fixed bit sets are used for nested object field types and
+type filters for <<parent-join,join>> fields.
+
+`indices.segments.fixed_bit_set_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used by fixed bit sets across all shards
+assigned to selected nodes.
+
+`indices.segments.max_unsafe_auto_id_timestamp`::
+(integer)
+https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+the most recently retried indexing request.
+
+`indices.segments.file_sizes`::
+(object)
+This object is not populated by the cluster stats API.
++
+To get information on segment files, use the <<cluster-nodes-stats,node stats
+API>>.
 
 
 [[cluster-stats-api-example]]

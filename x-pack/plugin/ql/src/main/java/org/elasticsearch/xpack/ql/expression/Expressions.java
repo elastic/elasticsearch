@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -112,7 +111,7 @@ public final class Expressions {
     }
 
     public static boolean isNull(Expression e) {
-        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
+        return e.dataType() == DataTypes.NULL || (e.foldable() && e.fold() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {
@@ -165,7 +164,7 @@ public final class Expressions {
         Set<Attribute> seenMultiFields = new LinkedHashSet<>();
 
         for (Attribute a : attributes) {
-            if (!DataTypes.isUnsupported(a.dataType()) && a.dataType().isPrimitive()) {
+            if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
                 if (a instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) a;
                     // skip nested fields and seen multi-fields

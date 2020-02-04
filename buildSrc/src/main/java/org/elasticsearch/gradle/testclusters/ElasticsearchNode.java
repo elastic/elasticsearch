@@ -30,6 +30,7 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -145,7 +146,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private List<ElasticsearchDistribution> distributions = new ArrayList<>();
-    private File javaHome;
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
@@ -373,21 +373,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
-    @Override
-    public void setJavaHome(File javaHome) {
-        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
-        checkFrozen();
-        if (javaHome.exists() == false) {
-            throw new TestClustersException("java home for `" + this + "` does not exists: `" + javaHome + "`");
-        }
-        this.javaHome = javaHome;
-    }
-
-    @Internal
-    public File getJavaHome() {
-        return javaHome;
-    }
-
     /**
      * Returns a stream of lines in the generated logs similar to Files.lines
      *
@@ -429,13 +414,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         createConfiguration();
 
         if (plugins.isEmpty() == false) {
-            logToProcessStdout("Installing " + plugins.size() + " plugins");
-            plugins.forEach(plugin -> runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", plugin.toString()));
-        }
-
-        if (getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT) {
-            LOGGER.info("emulating the {} flavor for {} by installing x-pack", testDistribution, getVersion());
-            runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", "x-pack");
+            if (getVersion().onOrAfter("7.6.0")) {
+                logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
+                final String[] arguments = Stream.concat(Stream.of("install", "--batch"), plugins.stream().map(URI::toString))
+                    .toArray(String[]::new);
+                runElasticsearchBinScript("elasticsearch-plugin", arguments);
+            } else {
+                logToProcessStdout("installing " + plugins.size() + " plugins sequentially");
+                plugins.forEach(plugin -> runElasticsearchBinScript("elasticsearch-plugin", "install", "--batch", plugin.toString()));
+            }
+            logToProcessStdout("installed plugins");
         }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
@@ -662,8 +650,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
-        if (getJavaHome() != null) {
-            defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        // If we are testing the current version of Elasticsearch, use the configured runtime Java, otherwise use the bundled JDK
+        if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
+            defaultEnv.put("JAVA_HOME", BuildParams.getRuntimeJavaHome().getAbsolutePath());
         }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
@@ -1220,10 +1209,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ElasticsearchNode that = (ElasticsearchNode) o;
         return Objects.equals(name, that.name) && Objects.equals(path, that.path);
     }

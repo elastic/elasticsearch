@@ -11,14 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -29,13 +25,6 @@ import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAliasStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     public ShrinkSetAliasStep createRandomInstance() {
@@ -99,11 +88,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(aliasMetaData.alias())
                 .searchRouting(aliasMetaData.searchRouting()).indexRouting(aliasMetaData.indexRouting())
                 .filter(aliasMetaDataFilter).writeIndex(null));
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         Mockito.doAnswer( invocation -> {
             IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
             assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
@@ -140,11 +125,6 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         Exception exception = new RuntimeException();
         ShrinkSetAliasStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         Mockito.doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];

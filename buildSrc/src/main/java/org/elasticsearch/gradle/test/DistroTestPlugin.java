@@ -46,6 +46,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskInputs;
 import org.gradle.api.tasks.TaskProvider;
@@ -109,13 +110,12 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
-            if (distribution.getType() != Type.DOCKER || runDockerTests == true) {
+            if (distribution.getType() != Type.DOCKER || runDockerTests) {
                 TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
                 destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             }
         }
         Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
         configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
             t -> t.setPluginsDir(pluginsDir)
         );
@@ -153,7 +153,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
                         boolean shouldExecute = distribution.getType() != Type.DOCKER
-                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker")) == true;
+                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
                             t.dependsOn(vmTask);
@@ -326,6 +326,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static TaskProvider<?> configureDistroTest(Project project, ElasticsearchDistribution distribution) {
         return project.getTasks().register(destructiveDistroTestTaskName(distribution), Test.class, t -> {
+            t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
             t.setMaxParallelForks(1);
             t.setWorkingDir(project.getProjectDir());
             t.systemProperty(DISTRIBUTION_SYSPROP, distribution.toString());

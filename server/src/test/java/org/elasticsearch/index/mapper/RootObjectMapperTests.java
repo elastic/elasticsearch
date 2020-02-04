@@ -185,4 +185,19 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
+
+    public void testIllegalDynamicTemplates() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                    .startObject("dynamic_templates")
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
+    }
 }

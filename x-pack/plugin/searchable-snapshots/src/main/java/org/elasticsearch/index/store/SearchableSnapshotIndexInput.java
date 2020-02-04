@@ -212,14 +212,21 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     public BufferedIndexInput clone() {
         return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length,
-            NO_SEQUENTIAL_READ_OPTIMIZATION, getBufferSize());
+            // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
+            // solution: do not optimize sequential reads on clones.
+            NO_SEQUENTIAL_READ_OPTIMIZATION,
+            getBufferSize());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final SearchableSnapshotIndexInput slice = new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position,
-                this.offset + offset, length, NO_SEQUENTIAL_READ_OPTIMIZATION, getBufferSize());
+                this.offset + offset, length,
+                // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
+                // solution: do not optimize sequential reads on slices.
+                NO_SEQUENTIAL_READ_OPTIMIZATION,
+                getBufferSize());
             slice.seek(0L);
             return slice;
         } else {

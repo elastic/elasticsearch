@@ -570,9 +570,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             final Request deleteReq = new Request("DELETE", "*");
-            deleteReq.addParameter("expand_wildcards", "open,closed,hidden");
+            deleteReq.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             final Response response = adminClient().performRequest(deleteReq);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));

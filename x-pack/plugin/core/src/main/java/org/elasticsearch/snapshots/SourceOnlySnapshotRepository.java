@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -43,6 +44,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -160,22 +162,24 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
             toClose.add(2, reader);
-            IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
                 new IndexCommit() {
                     @Override
                     public String getSegmentsFileName() {
-                        return null;
+                        return "segments_" + getGeneration(); // TODO: gotta implement crafting a segments info into the store
                     }
 
                     @Override
                     public Collection<String> getFileNames() throws IOException {
-                        return null;
+                        final Collection<String> result = new HashSet<>();
+                        result.addAll(newFiles);
+                        result.addAll(List.of(getDirectory().listAll()));
+                        return result;
                     }
 
                     @Override
                     public Directory getDirectory() {
-                        return tempStore.directory();
+                        return reader.directory(); // Maybe not
                     }
 
                     @Override
@@ -195,7 +199,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
                     @Override
                     public long getGeneration() {
-                        return 0;
+                        return snapshotIndexCommit.getGeneration() + 1;
                     }
 
                     @Override

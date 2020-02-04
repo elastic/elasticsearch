@@ -100,8 +100,7 @@ public class SourceOnlySnapshot {
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
-            final long generation = 1;
-            segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
+            segmentInfos.setNextWriteGeneration(segmentInfos.getGeneration());
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());
             try (IndexOutput segnOutput = targetDirectory.createOutput(pendingSegmentFileName, IOContext.DEFAULT)) {

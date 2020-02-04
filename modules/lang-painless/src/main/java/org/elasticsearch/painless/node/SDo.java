@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a do-while loop.
@@ -43,15 +42,6 @@ public final class SDo extends AStatement {
 
         this.condition = Objects.requireNonNull(condition);
         this.block = block;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
     }
 
     @Override

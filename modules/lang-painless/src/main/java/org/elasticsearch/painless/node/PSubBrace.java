@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BraceSubNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store.
@@ -41,11 +40,6 @@ final class PSubBrace extends AStoreable {
 
         this.clazz = Objects.requireNonNull(clazz);
         this.index = Objects.requireNonNull(index);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

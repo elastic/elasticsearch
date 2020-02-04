@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.lang.Math.max;
 import static java.util.Collections.emptyList;
@@ -51,14 +50,6 @@ public abstract class ANode {
     ANode(Location location) {
         this.location = Objects.requireNonNull(location);
     }
-
-    /**
-     * Adds all variable names referenced to the variable set.
-     * <p>
-     * This can be called at any time, e.g. to support lambda capture.
-     * @param variables set of variables referenced (any scope)
-     */
-    abstract void extractVariables(Set<String> variables);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.

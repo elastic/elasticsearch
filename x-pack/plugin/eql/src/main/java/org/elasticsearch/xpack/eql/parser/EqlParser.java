@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
@@ -18,8 +19,8 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.antlr.v4.runtime.ANTLRInputStream;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
 import java.util.BitSet;
@@ -40,11 +41,11 @@ public class EqlParser {
      * Parses an EQL statement into execution plan
      * @param eql - the EQL statement
      */
-    public Expression createStatement(String eql) {
+    public LogicalPlan createStatement(String eql) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
         }
-        return invokeParser(eql, EqlBaseParser::singleStatement, AstBuilder::expression);
+        return invokeParser(eql, EqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     public Expression createExpression(String expression) {

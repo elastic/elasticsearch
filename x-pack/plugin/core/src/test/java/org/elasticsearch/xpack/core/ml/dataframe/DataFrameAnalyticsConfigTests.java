@@ -31,8 +31,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -41,6 +42,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<DataFrameAnalyticsConfig> {
+public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestCase<DataFrameAnalyticsConfig> {
 
     @Override
     protected DataFrameAnalyticsConfig doParseInstance(XContentParser parser) throws IOException {
@@ -86,6 +88,49 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     @Override
     protected DataFrameAnalyticsConfig createTestInstance() {
         return createRandom(randomValidId(), lenient);
+    }
+
+    @Override
+    protected List<Version> bwcVersions() {
+        return Arrays.asList(Version.V_7_0_0,
+            Version.V_7_1_1,
+            Version.V_7_2_1,
+            Version.V_7_3_2,
+            Version.V_7_4_2,
+            Version.V_7_5_3,
+            Version.V_7_6_0,
+            Version.V_7_7_0);
+    }
+
+    @Override
+    protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance);
+        if (version.before(Version.V_7_6_0)) {
+            if (instance.getAnalysis() instanceof Regression) {
+                // TODO regression and classification serialize a randomized value for the random seed
+            }
+            builder.setSource(new DataFrameAnalyticsSource.Builder(instance.getSource())
+                .setSourceFiltering(null)
+                .build());
+        }
+        if (version.before(Version.V_7_5_0)) {
+            builder.setAllowLazyStart(false);
+            if (instance.getAnalysis() instanceof OutlierDetection) {
+                builder.setAnalysis(new OutlierDetection.Builder((OutlierDetection)instance.getAnalysis())
+                    .setComputeFeatureInfluence(true)
+                    .setOutlierFraction(0.05)
+                    .setStandardizationEnabled(true)
+                    .build());
+            }
+        }
+        if (version.before(Version.V_7_4_0)) {
+            builder.setDescription(null);
+        }
+        if (version.before(Version.V_7_3_0)) {
+            builder.setCreateTime(null);
+            builder.setVersion(null);
+        }
+        return builder.build();
     }
 
     @Override

@@ -22,10 +22,14 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -1441,6 +1445,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try (InputStream stream = bytesRef.streamInput()) {
             blobContainer().writeBlobAtomic(blobName, stream, bytesRef.length(), failIfAlreadyExists);
         }
+    }
+
+    @Override
+    public List<SegmentCommitInfo> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+        final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(),
+        shardContainer(indexId, shardId), generation).v1();
+        return blobStoreIndexShardSnapshots.files().stream().filter(fileInfo -> fileInfo.name().endsWith(".si")
+        && fileInfo.metadata().hash().length == fileInfo.length())
+            .map(fileInfo -> )
     }
 
     @Override

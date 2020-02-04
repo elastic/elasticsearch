@@ -28,6 +28,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -92,6 +93,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             mapBuilder.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
         this.physicalFiles = unmodifiableMap(mapBuilder);
+    }
+
+    public Collection<FileInfo> files() {
+        return files.values();
     }
 
     /**

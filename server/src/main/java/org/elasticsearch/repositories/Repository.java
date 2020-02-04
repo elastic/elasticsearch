@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -37,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -237,6 +239,10 @@ public interface Repository extends LifecycleComponent {
      * @param state new cluster state
      */
     void updateState(ClusterState state);
+
+    default List<SegmentCommitInfo> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+        throw new UnsupportedOperationException("segmentsInShard not implemented");
+    }
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

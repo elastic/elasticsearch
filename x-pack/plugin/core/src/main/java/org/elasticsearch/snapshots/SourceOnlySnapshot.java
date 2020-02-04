@@ -37,6 +37,7 @@ import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -56,26 +57,24 @@ import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter
 public class SourceOnlySnapshot {
     private final Directory targetDirectory;
     private final Supplier<Query> deleteByQuerySupplier;
+    private final CheckedSupplier<List<SegmentCommitInfo>, IOException> knownSegmentCommitsProvider;
 
-    public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier) {
+    public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier,
+                              CheckedSupplier<List<SegmentCommitInfo>, IOException> knownSegmentCommitsProvider) {
         this.targetDirectory = targetDirectory;
         this.deleteByQuerySupplier = deleteByQuerySupplier;
+        this.knownSegmentCommitsProvider = knownSegmentCommitsProvider;
     }
 
-    public SourceOnlySnapshot(Directory targetDirectory) {
-        this(targetDirectory, null);
+    public SourceOnlySnapshot(Directory targetDirectory, CheckedSupplier<List<SegmentCommitInfo>, IOException> knownSegmentCommitsProvider) {
+        this(targetDirectory, null, knownSegmentCommitsProvider);
     }
 
     public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
-        Map<BytesRef, SegmentCommitInfo> existingSegments = new HashMap<>();
-        final SegmentInfos existingSegmentInfos;
-        if (Lucene.indexExists(targetDirectory)) {
-            existingSegmentInfos = Lucene.readSegmentInfos(targetDirectory);
-            for (SegmentCommitInfo info : existingSegmentInfos) {
-                existingSegments.put(new BytesRef(info.info.getId()), info);
-            }
-        } else {
-            existingSegmentInfos = null;
+        Map<BytesRef, SegmentCommitInfo> existingSegments;
+        existingSegments = new HashMap<>();
+        for (SegmentCommitInfo info : knownSegmentCommitsProvider.get()) {
+            existingSegments.put(new BytesRef(info.info.getId()), info);
         }
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
@@ -94,17 +93,12 @@ public class SourceOnlySnapshot {
                     newInfos.add(newInfo);
                 }
             }
-            if (existingSegmentInfos != null && newInfos.equals(existingSegmentInfos.asList())) {
+            if (existingSegments.values().containsAll(newInfos)) {
                 return Collections.emptyList();
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
-            final long generation;
-            if (existingSegmentInfos == null) {
-                generation = 1;
-            } else {
-                generation = existingSegmentInfos.getGeneration();
-            }
+            final long generation = 1;
             segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());

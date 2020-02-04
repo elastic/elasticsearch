@@ -31,7 +31,7 @@ as expected with the {ilm-init} explain API.
 === Create a lifecycle policy
 
 A lifecycle policy specifies the phases in the index lifecycle
-and the actions to perform in each phase. A lifecycle can have up to four  phases:
+and the actions to perform in each phase. A lifecycle can have up to four phases:
 `hot`, `warm`, `cold`, and `delete`. Policies are defined in JSON 
 and added through the {ilm-init} put policy API. 
 

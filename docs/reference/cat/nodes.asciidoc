@@ -87,7 +87,7 @@ Used disk space, such as `259.8gb`.
 Available disk space, such as `198.4gb`.
 
 `disk.used_percent`, `dup`, `diskUsedPercent`::
-Used disk space percentage, such as `198.4gb`.
+Used disk space percentage, such as `47`.
 
 `heap.current`, `hc`, `heapCurrent`::
 Used heap, such as `311.2mb`.

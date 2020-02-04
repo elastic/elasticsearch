@@ -167,15 +167,15 @@ for %%a in ("%ES_JAVA_OPTS:;=","%") do (
 @endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS% & set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS%
 
 if "%JVM_MS%" == "" (
-  echo minimum heap size not set; configure using -Xms via "%ES_PATH_CONF%/jvm.options", "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
+  echo minimum heap size not set; configure using -Xms via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
   goto:eof
 )
 if "%JVM_MX%" == "" (
-  echo maximum heap size not set; configure using -Xmx via "%ES_PATH_CONF%/jvm.options", "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
+  echo maximum heap size not set; configure using -Xmx via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
   goto:eof
 )
 if "%JVM_SS%" == "" (
-  echo thread stack size not set; configure using -Xss via "%ES_PATH_CONF%/jvm.options", "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
+  echo thread stack size not set; configure using -Xss via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
   goto:eof
 )
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:"=%

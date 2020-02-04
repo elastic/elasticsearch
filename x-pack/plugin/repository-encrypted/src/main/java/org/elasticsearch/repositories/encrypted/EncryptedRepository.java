@@ -180,10 +180,10 @@ public final class EncryptedRepository extends BlobStoreRepository {
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
                                  boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+        validateRepositoryPasswordHash(userMetadata, listener::onFailure);
         if (userMetadata != null && userMetadata.containsKey(PASSWORD_HASH_RESERVED_USER_METADATA_KEY)) {
             userMetadata.remove(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
         }
-        validateRepositoryPasswordHash(userMetadata, listener::onFailure);
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
                 includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
     }
@@ -453,6 +453,10 @@ public final class EncryptedRepository extends BlobStoreRepository {
             Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
             Map<String, BlobContainer> result = new HashMap<>(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> encryptedBlobContainer : childEncryptedBlobContainers.entrySet()) {
+                if (encryptedBlobContainer.getValue().path().equals(encryptionMetadataBlobContainer.path())) {
+                    // do not descend recursively into the metadata blob container itself
+                    continue;
+                }
                 // get an encrypted blob container for each
                 result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainer(delegatedBlobStore,
                         encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryption,
@@ -557,7 +561,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
     private void validateRepositoryPasswordHash(Map<String, Object> snapshotUserMetadata, Consumer<Exception> exception) {
         Object repositoryPasswordHash = snapshotUserMetadata.get(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
         if (repositoryPasswordHash == null || (false == repositoryPasswordHash instanceof String)) {
-            exception.accept(new IllegalStateException("Snapshot metadata does not contain the repository password hash as a String"));
+            exception.accept(new RepositoryException(metadata.name(), "Unexpected fatal internal error",
+                    new IllegalStateException("Snapshot metadata does not contain the repository password hash as a String")));
             return;
         }
         if (false == passwordHashVerifier.verify((String) repositoryPasswordHash)) {

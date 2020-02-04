@@ -173,8 +173,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
      * If appropriate, open a new stream for sequential reading and satisfy the given read using it.
      * @return the number of bytes read; if a new stream wasn't opened then nothing was read so the caller should perform the read directly.
      */
-    private int readFromNewSequentialStream(int part, long pos, byte[] b, int offset, int length)
-        throws IOException {
+    private int readFromNewSequentialStream(int part, long pos, byte[] b, int offset, int length) throws IOException {
 
         assert streamForSequentialReads == null : "should only be called when a new stream is needed";
         assert sequentialReadSize > 0L : "should only be called if optimizing sequential reads";

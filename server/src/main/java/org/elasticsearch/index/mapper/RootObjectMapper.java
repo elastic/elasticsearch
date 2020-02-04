@@ -169,7 +169,7 @@ public class RootObjectMapper extends ObjectMapper {
                   ]
                 */
                 if ((fieldNode instanceof List) == false) {
-                    throw new MapperParsingException("Dynamic template syntax error, expects an array of named objects");
+                    throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
                 }
                 List<?> tmplNodes = (List<?>) fieldNode;
                 List<DynamicTemplate> templates = new ArrayList<>();

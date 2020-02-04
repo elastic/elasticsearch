@@ -83,7 +83,7 @@ informational; you cannot update their values.
 `checkpointing`.`last`:::
 (object) Contains statistics about the last completed checkpoint. 
 `checkpointing`.`last`.`checkpoint`::::
-(TBD) The sequence number for the checkpoint.
+(integer) The sequence number for the checkpoint.
 `checkpointing`.`last`.`time_upper_bound_millis`::::
 (date) When using time-based synchronization, the timestamp until data has been
 processed.
@@ -95,7 +95,7 @@ created.
 progress. This object appears only if the {transform} is currently processing
 data and only for the first checkpoint.
 `checkpointing`.`next`.`checkpoint`::::
-(TBD) The sequence number for the checkpoint.
+(integer) The sequence number for the checkpoint.
 `checkpointing`.`next`.`checkpoint_progress`::::
 (object) Contains statistics about the progress of the checkpoint. For example,
 it lists the `total_docs`, `docs_remaining`, `percent_complete`,
@@ -143,10 +143,10 @@ documents.
 `stats`::
 (object) An object that provides statistical information about the {transform}.
 `stats`.`documents_indexed`:::
-(TBD) The number of documents that have been indexed into the destination index
+(long) The number of documents that have been indexed into the destination index
 for the {transform}.
 `stats`.`documents_processed`:::
-(TBD) The number of documents that have been processed from the source index of
+(long) The number of documents that have been processed from the source index of
 the {transform}.
 `stats`.`exponential_avg_checkpoint_duration_ms`:::
 (double) Exponential moving average of the duration of the checkpoint, in milliseconds.
@@ -172,7 +172,7 @@ processed in batches instead of individually.
 `stats`.`search_total`:::
 (long) The number of search operations on the source index for the {transform}. 
 `stats`.`trigger_count`:::
-(TBD) The number of times the {transform} has been triggered by the scheduler.
+(long) The number of times the {transform} has been triggered by the scheduler.
 For example, the scheduler triggers the {transform} indexer to check for updates
 or ingest new data at an interval specified in the
 <<put-transform-request-body,`frequency` property>>.

@@ -70,7 +70,7 @@ setup:
           }
 
 ---
-"Test get job stats after uploading data prompting the creation of some stats":
+"Test cat anomaly detector jobs":
 
   - do:
       ml.post_data:

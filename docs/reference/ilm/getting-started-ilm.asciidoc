@@ -86,7 +86,7 @@ The template configures two {ilm-init} settings:
 
 * `index.lifecycle.name` specifies the name of the lifecycle policy to apply to all new indices that match 
 the index pattern.  
-* `index.lifecycle.rollover_alias` specifies the index alias that will be rolled over 
+* `index.lifecycle.rollover_alias` specifies the index alias to be rolled over 
 when the rollover action is triggered for an index.
 
 [source,console]

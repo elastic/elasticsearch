@@ -56,17 +56,19 @@ public class VersionTests extends ESTestCase {
     
     public void testVersionFromJarInJar() throws IOException {
         Path dir = createTempDir();
-        Path jarPath = dir.resolve("foo.jar");
-        Path innerJarPath = dir.resolve("es-sql-jdbc.jar");
-        
+        Path jarPath = dir.resolve("foo.jar");              // simulated uberjar containing the jdbc driver
+        Path innerJarPath = dir.resolve("es-sql-jdbc.jar"); // simulated ES JDBC driver file
+
         Manifest jdbcJarManifest = new Manifest();
         Attributes attributes = jdbcJarManifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("Change"), "abc");
         attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), "1.2.3");
-        
+
+        // create the jdbc driver file
         try (JarOutputStream jdbc = new JarOutputStream(Files.newOutputStream(innerJarPath, StandardOpenOption.CREATE), jdbcJarManifest)) {}
-      
+
+        // create the uberjar and embed the jdbc driver one into it
         try (BufferedInputStream in = new BufferedInputStream(Files.newInputStream(innerJarPath));
                 JarOutputStream out = new JarOutputStream(Files.newOutputStream(jarPath, StandardOpenOption.CREATE), new Manifest())) {
             JarEntry entry = new JarEntry("es-sql-jdbc.jar!/");

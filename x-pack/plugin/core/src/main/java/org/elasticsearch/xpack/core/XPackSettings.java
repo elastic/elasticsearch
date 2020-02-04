@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -124,8 +125,8 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
-    /** Setting for enabling or disabling eql. Defaults to true. */
-    public static final Setting<Boolean> EQL_ENABLED = Setting.boolSetting("xpack.eql.enabled", true, Setting.Property.NodeScope);
+    /** Setting for enabling or disabling eql. Defaults to false. */
+    public static final Setting<Boolean> EQL_ENABLED = Setting.boolSetting("xpack.eql.enabled", false, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
@@ -234,6 +235,9 @@ public class XPackSettings {
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
+        if (Build.CURRENT.isSnapshot()) {
+            settings.add(EQL_ENABLED);
+        }
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);

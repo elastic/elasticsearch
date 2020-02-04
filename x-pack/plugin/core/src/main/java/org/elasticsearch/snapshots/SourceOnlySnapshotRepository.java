@@ -150,15 +150,20 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier,
                 () -> segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation()));
-            final List<String> newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
+            final SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
+            final boolean changed;
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
-            if (newFiles.isEmpty() == false) {
+            if (segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation()).contains(newFiles) == false) {
                 SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
                 final long maxDoc = segmentInfos.totalMaxDoc();
                 tempStore.bootstrapNewHistory(maxDoc, maxDoc);
+                changed = true;
+            } else {
+                changed = false;
             }
             store.incRef();
             toClose.add(1, store::decRef);
+            // TODO: need fake directory that properly answers for segments
             DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
             toClose.add(2, reader);
@@ -171,10 +176,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
                     @Override
                     public Collection<String> getFileNames() throws IOException {
-                        final Collection<String> result = new HashSet<>();
-                        result.addAll(newFiles);
-                        result.addAll(List.of(getDirectory().listAll()));
-                        return result;
+                        return new HashSet<>(newFiles.files(true));
                     }
 
                     @Override
@@ -199,15 +201,14 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
                     @Override
                     public long getGeneration() {
-                        return snapshotIndexCommit.getGeneration() + 1;
+                        return newFiles.getLastGeneration() + (changed ? 1 : 0);
                     }
 
                     @Override
                     public Map<String, String> getUserData() throws IOException {
                         throw new UnsupportedOperationException("not supported");
                     }
-                }, snapshotStatus, writeShardGens,
-                userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+                }, snapshotStatus, writeShardGens, userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);

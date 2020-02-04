@@ -71,7 +71,7 @@ public class SourceOnlySnapshot {
         this(targetDirectory, null, knownSegmentCommitsProvider);
     }
 
-    public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
+    public synchronized SegmentInfos syncSnapshot(IndexCommit commit) throws IOException {
         Map<BytesRef, SegmentCommitInfo> existingSegments;
         existingSegments = new HashMap<>();
         for (SegmentCommitInfo info : knownSegmentCommitsProvider.get().stream()
@@ -80,10 +80,11 @@ public class SourceOnlySnapshot {
         }
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
+        SegmentInfos segmentInfos;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
              StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit,
                  Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()))) {
-            SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
+            segmentInfos = reader.getSegmentInfos().clone();
             DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
             for (LeafReaderContext ctx : wrappedReader.leaves()) {
@@ -96,7 +97,8 @@ public class SourceOnlySnapshot {
                 }
             }
             if (existingSegments.values().containsAll(newInfos)) {
-                return Collections.emptyList();
+                return knownSegmentCommitsProvider.get().stream().filter(segmentCommitInfos ->
+                    segmentCommitInfos.asList().containsAll(newInfos)).findFirst().get();
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
@@ -113,7 +115,7 @@ public class SourceOnlySnapshot {
         }
         Lucene.pruneUnreferencedFiles(segmentFileName, targetDirectory);
         assert assertCheckIndex();
-        return Collections.unmodifiableList(createdFiles);
+        return SegmentInfos.readLatestCommit(targetDirectory);
     }
 
     private LiveDocs getLiveDocs(LeafReader reader) throws IOException {

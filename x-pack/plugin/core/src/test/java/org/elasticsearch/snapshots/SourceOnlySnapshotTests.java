@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class SourceOnlySnapshotTests extends ESTestCase {
@@ -184,7 +185,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             }
 
             snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
-            List<String> createdFiles = snapshoter.syncSnapshot(snapshot);
+            Collection<String> createdFiles = snapshoter.syncSnapshot(snapshot).files(false);
             assertEquals(0, createdFiles.size());
             deletionPolicy.release(snapshot);
             // now add another doc
@@ -204,7 +205,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             {
                 snapshot = deletionPolicy.snapshot();
                 snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
-                createdFiles = snapshoter.syncSnapshot(snapshot);
+                createdFiles = snapshoter.syncSnapshot(snapshot).files(false);
                 assertEquals(4, createdFiles.size());
                 for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);
@@ -229,7 +230,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             {
                 snapshot = deletionPolicy.snapshot();
                 snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
-                createdFiles = snapshoter.syncSnapshot(snapshot);
+                createdFiles = snapshoter.syncSnapshot(snapshot).files(false);
                 assertEquals(1, createdFiles.size());
                 for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);

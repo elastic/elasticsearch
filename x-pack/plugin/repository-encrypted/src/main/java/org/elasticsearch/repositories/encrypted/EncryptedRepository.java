@@ -419,8 +419,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
             Set<String> blobNamesSet = new HashSet<>(blobNames);
             List<String> metadataBlobsToDelete = new ArrayList<>(blobNames.size());
             for (String metadataBlobName : encryptionMetadataBlobContainer.listBlobs().keySet()) {
-                if (blobNamesSet.contains(metadataBlobName.substring(0,
-                        metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS))) {
+                boolean invalidMetadataName = metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS;
+                if (invalidMetadataName) {
+                    continue;
+                }
+                String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
+                if (blobNamesSet.contains(blobName)) {
                     metadataBlobsToDelete.add(metadataBlobName);
                 }
             }
@@ -461,17 +465,6 @@ public final class EncryptedRepository extends BlobStoreRepository {
             return delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
         }
 
-        private String readMetadataUidFromEncryptedBlob(String blobName) throws IOException {
-            try (InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName)) {
-                // read the metadata identifier (fixed length) which is prepended to the encrypted blob
-                final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_UID_LENGTH_IN_BYTES);
-                if (metadataIdentifier.length != METADATA_UID_LENGTH_IN_BYTES) {
-                    throw new IOException("Failure to read encrypted blob metadata identifier");
-                }
-                return new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier), StandardCharsets.UTF_8);
-            }
-        }
-
         public void cleanUpOrphanedMetadata() throws IOException {
             // delete encryption metadata blobs which don't pair with any data blobs
             Set<String> foundEncryptedBlobs = delegatedBlobContainer.listBlobs().keySet();
@@ -479,6 +472,11 @@ public final class EncryptedRepository extends BlobStoreRepository {
             List<String> orphanedMetadataBlobs = new ArrayList<>();
             Map<String, List<String>> blobNameToMetadataNames = new HashMap<>();
             for (String metadataBlobName : foundMetadataBlobs) {
+                boolean invalidMetadataName = metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS;
+                if (invalidMetadataName) {
+                    orphanedMetadataBlobs.add(metadataBlobName);
+                    continue;
+                }
                 String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
                 blobNameToMetadataNames.computeIfAbsent(blobName, k -> new ArrayList<>()).add(metadataBlobName);
             }
@@ -510,6 +508,17 @@ public final class EncryptedRepository extends BlobStoreRepository {
                         logger.warn("Exception while deleting orphaned metadata blob container [" + metadataBlobContainer + "]", e);
                     }
                 }
+            }
+        }
+
+        private String readMetadataUidFromEncryptedBlob(String blobName) throws IOException {
+            try (InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName)) {
+                // read the metadata identifier (fixed length) which is prepended to the encrypted blob
+                final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_UID_LENGTH_IN_BYTES);
+                if (metadataIdentifier.length != METADATA_UID_LENGTH_IN_BYTES) {
+                    throw new IOException("Failure to read encrypted blob metadata identifier");
+                }
+                return new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier), StandardCharsets.UTF_8);
             }
         }
     }

@@ -150,7 +150,7 @@ When the rollover conditions are met, the `rollover` action:
 This matches the `datastream-*` pattern, so the settings from `datastream_template` are applied to the new index.
 * Designates the new index as the write index and makes the bootstrap index read-only.
 
-This process will repeat each time the rollover conditions are met. 
+This process repeats each time rollover conditions are met. 
 You can search across all of the indices managed by the `datastream_policy` with the `datastream` alias. 
 Write operations are routed to the current write index. 
 

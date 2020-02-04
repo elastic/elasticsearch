@@ -27,8 +27,8 @@ public class IndexTemplateConfig {
      * {@code {"myTemplateVersion": "${my.version.property}"}}
      * With {@code version = "42"; versionProperty = "my.version.property"} will result in {@code {"myTemplateVersion": "42"}}.
      *
-     * Note that this code does not automatically insert the {@code version} index template property. That must be added to the
-     * index template JSON file using the version property if it is desired.
+     * Note that this code does not automatically insert the {@code version} index template property - include that in the JSON file
+     * defining the template, preferably using the version variable provided to this constructor.
      *
      *  @param templateName The name that will be used for the index template. Literal, include the version in this string if
      *                     it should be used.

@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.FunctionScope;
 import org.elasticsearch.painless.Scope.BlockScope;
 import org.elasticsearch.painless.ScriptClassInfo;
@@ -35,10 +35,8 @@ import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -57,7 +55,6 @@ public final class SClass extends ANode {
     private CompilerSettings settings;
 
     private ScriptRoot scriptRoot;
-    private final Set<String> extractedVariables;
     private final String sourceText;
 
     private boolean methodEscape;
@@ -72,8 +69,6 @@ public final class SClass extends ANode {
         this.functions.addAll(Objects.requireNonNull(functions));
         this.statements = Collections.unmodifiableList(statements);
         this.sourceText = Objects.requireNonNull(sourceText);
-
-        this.extractedVariables = new HashSet<>();
     }
 
     void addFunction(SFunction function) {
@@ -82,19 +77,6 @@ public final class SClass extends ANode {
 
     void addField(SField field) {
         fields.add(field);
-    }
-
-    @Override
-    public void extractVariables(Set<String> variables) {
-        for (SFunction function : functions) {
-            function.extractVariables(null);
-        }
-
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
-
-        extractedVariables.addAll(variables);
     }
 
     public ScriptRoot analyze(PainlessLookup painlessLookup, CompilerSettings settings) {
@@ -159,6 +141,8 @@ public final class SClass extends ANode {
             allEscape = statement.allEscape;
         }
 
+        scriptRoot.setUsedVariables(functionScope.getUsedVariables());
+
         return scriptRoot;
     }
 
@@ -189,7 +173,6 @@ public final class SClass extends ANode {
         classNode.setName(name);
         classNode.setSourceText(sourceText);
         classNode.setMethodEscape(methodEscape);
-        classNode.getExtractedVariables().addAll(extractedVariables);
 
         return classNode;
     }

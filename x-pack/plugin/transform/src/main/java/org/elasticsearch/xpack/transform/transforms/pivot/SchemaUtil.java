@@ -66,7 +66,7 @@ public final class SchemaUtil {
     ) {
         // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
-        // collects the aggregation types by source name
+        // collects the aggregation types by output field name
         Map<String, String> aggregationTypes = new HashMap<>();
         // collects the fieldnames and target fieldnames used for grouping
         Map<String, String> fieldNamesForGrouping = new HashMap<>();
@@ -79,9 +79,9 @@ public final class SchemaUtil {
             if (agg instanceof ValuesSourceAggregationBuilder) {
                 ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
-                aggregationTypes.put(valueSourceAggregation.getName(), valueSourceAggregation.getType());
+                aggregationTypes.putAll(Aggregations.getAggregationOutputTypes(valueSourceAggregation));
             } else if (agg instanceof ScriptedMetricAggregationBuilder || agg instanceof MultiValuesSourceAggregationBuilder) {
-                aggregationTypes.put(agg.getName(), agg.getType());
+                aggregationTypes.putAll(Aggregations.getAggregationOutputTypes(agg));
             } else {
                 // execution should not reach this point
                 listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));

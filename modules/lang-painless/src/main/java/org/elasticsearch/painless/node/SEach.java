@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionNode;
 import org.elasticsearch.painless.ir.ForEachLoopNode;
@@ -30,7 +30,6 @@ import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a for-each loop and defers to subnodes depending on type.
@@ -51,17 +50,6 @@ public class SEach extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.expression = Objects.requireNonNull(expression);
         this.block = block;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        expression.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
     }
 
     @Override

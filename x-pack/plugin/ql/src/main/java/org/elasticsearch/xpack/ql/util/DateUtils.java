@@ -26,7 +26,7 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 
-//FIXME: Taken from sql-proto. 
+//FIXME: Taken from sql-proto (StringUtils)
 //Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
 // Maybe a gradle task would fix that...
 public class DateUtils {
@@ -136,8 +136,14 @@ public class DateUtils {
             sb.append(":");
             durationInSec = durationInSec % SECONDS_PER_MINUTE;
             sb.append(indent(durationInSec));
-            sb.append(".");
-            sb.append(TimeUnit.NANOSECONDS.toMillis(d.getNano()));
+            long millis = TimeUnit.NANOSECONDS.toMillis(d.getNano());
+            if (millis > 0) {
+                sb.append(".");
+                while (millis % 10 == 0) {
+                    millis /= 10;
+                }
+                sb.append(millis);
+            }
             return sb.toString();
         }
 

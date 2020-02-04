@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.lookup.PainlessField;
@@ -32,7 +32,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -51,11 +50,6 @@ public final class PField extends AStoreable {
 
         this.nullSafe = nullSafe;
         this.value = Objects.requireNonNull(value);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
     }
 
     @Override

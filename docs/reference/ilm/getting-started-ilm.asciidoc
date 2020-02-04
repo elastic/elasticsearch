@@ -78,7 +78,7 @@ See <<_actions>> for the complete list of actions available in each phase.
 === Create an index template to apply the lifecycle policy
 
 To automaticaly apply a lifecycle policy to the new write index on rollover, 
-you specify the policy in the index template used to create new indices.
+specify the policy in the index template used to create new indices.
 
 For example, the following request creates a `datastream_template` that is applied to new indices
 whose names match the `datastream-*` index pattern. 

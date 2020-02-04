@@ -1,15 +1,15 @@
 ==== Running Elasticsearch from the command line
 
 [IMPORTANT]
-.Unidentified developer warnings
+.macOS Gatekeeper warnings
 ====
 Apple's rollout of stricter notarization requirements affected the notarization
-of the {version} {es} artifacts. If macOS Catalina displays an unidentified
-developer warning when you first run {es}, you will need to add a security
-override.
+of the {version} {es} artifacts. If macOS Catalina displays a dialog when you
+first run {es} that interrupts it, you will need to take an action to allow it
+to run.
 
-To add a security override, run the following command on the downloaded
-`.tar.gz` archive or the directory to which was extracted:
+To prevent Gatekeeper checks on the {es} files, run the following command on the
+downloaded `.tar.gz` archive or the directory to which was extracted:
 
 [source,sh]
 ----

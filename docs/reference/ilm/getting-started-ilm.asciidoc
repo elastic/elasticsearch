@@ -2,7 +2,7 @@
 [testenv="basic"]
 
 [[getting-started-index-lifecycle-management]]
-== Get started: Automate roll over with {ilm-init}
+== Get started: Automate rollover with {ilm-init}
 
 ++++
 <titleabbrev>Automate roll over</titleabbrev>

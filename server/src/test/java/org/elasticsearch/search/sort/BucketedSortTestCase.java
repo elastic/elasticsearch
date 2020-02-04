@@ -28,6 +28,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -103,7 +107,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
         }
     }
 
-    public void testManyBuckets() throws IOException {
+    public void testSomeBuckets() throws IOException {
         try (T sort = build(SortOrder.DESC, new double[] {2, 3})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
             assertTrue(leaf.collectIfCompetitive(0, 0));
@@ -140,6 +144,35 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
         }
     }
 
+    public void testManyBuckets() throws IOException {
+        // Set the bucket values in random order
+        int[] buckets = new int[10000];
+        for (int b = 0; b < buckets.length; b++) {
+            buckets[b] = b;
+        }
+        Collections.shuffle(Arrays.asList(buckets));
+
+        double[] maxes = new double[buckets.length];
+
+        try (T sort = build(SortOrder.DESC, new double[] {2, 3, -1})) {
+            BucketedSort.Leaf leaf = sort.forLeaf(null);
+            for (int b : buckets) {
+                maxes[b] = 2;
+                assertTrue(leaf.collectIfCompetitive(0, b));
+                if (randomBoolean()) {
+                    maxes[b] = 3;
+                    assertTrue(leaf.collectIfCompetitive(1, b));
+                }
+                if (randomBoolean()) {
+                    assertFalse(leaf.collectIfCompetitive(2, b));
+                }
+            }
+            for (int b = 0; b < buckets.length; b++) {
+                assertThat(sort.getValue(b), equalTo(expectedSortValue(maxes[b])));
+            }
+            assertThat(sort.getValue(buckets.length), nullValue());
+        }
+    }
 
     protected BigArrays bigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());

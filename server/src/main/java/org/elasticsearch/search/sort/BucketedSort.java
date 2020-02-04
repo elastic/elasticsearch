@@ -284,6 +284,7 @@ public abstract class BucketedSort implements Releasable {
          * The actual values.
          */
         private LongArray buckets = bigArrays.newLongArray(1);
+        private long maxBucket = -1;
 
         public ForLongs(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
             super(bigArrays, sortOrder, format);
@@ -305,6 +306,9 @@ public abstract class BucketedSort implements Releasable {
             if (bucket > Integer.MAX_VALUE) {
                 /* We throw exceptions if we try to collect buckets bigger
                  * than an int so we *can't* have seen any of these. */
+                return null;
+            }
+            if (bucket > maxBucket) {
                 return null;
             }
             if (false == seen.get((int) bucket)) {
@@ -330,12 +334,19 @@ public abstract class BucketedSort implements Releasable {
             protected final void setValue(long bucket) throws IOException {
                 seen.set(bucketIsInt(bucket));
                 buckets.set(bucket, docValue());
+                maxBucket = Math.max(bucket, maxBucket);
             }
 
             @Override
             protected final boolean setIfCompetitive(long bucket) throws IOException {
                 long docSort = docValue();
                 int intBucket = bucketIsInt(bucket);
+                if (bucket > maxBucket) {
+                    seen.set(intBucket);
+                    buckets.set(bucket, docSort);
+                    maxBucket = bucket;
+                    return true;
+                }
                 if (false == seen.get(intBucket)) {
                     seen.set(intBucket);
                     buckets.set(bucket, docSort);

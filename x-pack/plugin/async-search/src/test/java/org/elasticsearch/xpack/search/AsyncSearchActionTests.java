@@ -55,8 +55,8 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         for (int i = 0; i < numKeywords; i++) {
             keywords[i] = randomAlphaOfLengthBetween(10, 20);
         }
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            List<IndexRequestBuilder> reqs = new ArrayList<>();
             float metric = randomFloat();
             maxMetric = Math.max(metric, maxMetric);
             minMetric = Math.min(metric, minMetric);
@@ -70,8 +70,8 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
                     return v;
             });
             reqs.add(client().prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
-            indexRandom(true, true, reqs);
         }
+        indexRandom(true, true, reqs);
         ensureGreen("test-async");
     }
 

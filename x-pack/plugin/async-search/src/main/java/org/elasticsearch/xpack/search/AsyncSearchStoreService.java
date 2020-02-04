@@ -51,7 +51,6 @@ import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_S
 class AsyncSearchStoreService {
     private static final Logger logger = LogManager.getLogger(AsyncSearchStoreService.class);
 
-    static final String ID_FIELD = "id";
     static final String HEADERS_FIELD = "headers";
     static final String IS_RUNNING_FIELD = "is_running";
     static final String EXPIRATION_TIME_FIELD = "expiration_time";
@@ -87,7 +86,6 @@ class AsyncSearchStoreService {
     void storeInitialResponse(Map<String, String> headers, String docID, AsyncSearchResponse response,
                               ActionListener<IndexResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
-        source.put(ID_FIELD, response.getId());
         source.put(HEADERS_FIELD, headers);
         source.put(IS_RUNNING_FIELD, true);
         source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());

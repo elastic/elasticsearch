@@ -322,7 +322,7 @@ public abstract class PackagingTestCase extends Assert {
 
     public void assertElasticsearchFailure(Shell.Result result, List<String> expectedMessages, Packages.JournaldWrapper journaldWrapper) {
         @SuppressWarnings("unchecked")
-        Matcher<String>[] stringMatchers = (Matcher<String>[]) expectedMessages.stream().map(CoreMatchers::containsString).toArray();
+        Matcher<String>[] stringMatchers = expectedMessages.stream().map(CoreMatchers::containsString).toArray(Matcher[]::new);
         if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
 
             // If log file exists, then we have bootstrapped our logging and the

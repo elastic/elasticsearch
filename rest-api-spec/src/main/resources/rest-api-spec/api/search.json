@@ -183,7 +183,7 @@
       },
       "track_total_hits":{
         "type":"boolean|number",
-        "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number"
+        "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
       },
       "allow_partial_search_results":{
         "type":"boolean",

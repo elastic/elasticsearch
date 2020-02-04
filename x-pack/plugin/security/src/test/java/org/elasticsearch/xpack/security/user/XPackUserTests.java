@@ -28,13 +28,15 @@ public class XPackUserTests extends ESTestCase {
         assertThat(predicate.test(index), Matchers.is(true));
     }
 
-    public void testXPackUserCannotAccessRestrictedIndices() {
+    public void testXPackUserAndRestrictedIndices() {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
         for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
-            assertThat(predicate.test(index), Matchers.is(false));
+            // access should be authorized for async-search indices only
+            boolean authorize = index.startsWith(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX);
+            assertThat(predicate.test(index), Matchers.is(authorize));
         }
-        assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), Matchers.is(false));
+        assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), Matchers.is(true));
     }
 
     public void testXPackUserCanReadAuditTrail() {

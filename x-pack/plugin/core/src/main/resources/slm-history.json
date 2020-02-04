@@ -56,5 +56,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.slm.template.version}
 }

@@ -80,5 +80,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.ilm_history.template.version}
 }

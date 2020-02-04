@@ -16,7 +16,7 @@ public class IndexTemplateConfig {
 
     private final String templateName;
     private final String fileName;
-    private final String version;
+    private final int version;
     private final String versionProperty;
 
     /**
@@ -27,14 +27,17 @@ public class IndexTemplateConfig {
      * {@code {"myTemplateVersion": "${my.version.property}"}}
      * With {@code version = "42"; versionProperty = "my.version.property"} will result in {@code {"myTemplateVersion": "42"}}.
      *
-     * @param templateName The name that will be used for the index template. Literal, include the version in this string if
+     * Note that this code does not automatically insert the {@code version} index template property. That must be added to the
+     * index template JSON file using the version property if it is desired.
+     *
+     *  @param templateName The name that will be used for the index template. Literal, include the version in this string if
      *                     it should be used.
      * @param fileName The filename the template should be loaded from. Literal, should include leading {@literal /} and
      *                 extension if necessary.
      * @param version The version of the template. Substituted for {@code versionProperty} as described above.
      * @param versionProperty The property that will be replaced with the {@code version} string as described above.
      */
-    public IndexTemplateConfig(String templateName, String fileName, String version, String versionProperty) {
+    public IndexTemplateConfig(String templateName, String fileName, int version, String versionProperty) {
         this.templateName = templateName;
         this.fileName = fileName;
         this.version = version;
@@ -49,14 +52,20 @@ public class IndexTemplateConfig {
         return templateName;
     }
 
+    public int getVersion() {
+        return version;
+    }
+
     /**
      * Loads the template from disk as a UTF-8 byte array.
      * @return The template as a UTF-8 byte array.
      */
     public byte[] loadBytes() {
-        String template = TemplateUtils.loadTemplate(fileName, version,
-            Pattern.quote("${" + versionProperty + "}"));
+        final String versionPattern = Pattern.quote("${" + versionProperty + "}");
+        String template = TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionPattern);
         assert template != null && template.length() > 0;
+        assert Pattern.compile("\"version\"\\s*:\\s*" + version).matcher(template).find()
+            : "index template must have a version property set to the given version property";
         return template.getBytes(StandardCharsets.UTF_8);
     }
 }

@@ -36,7 +36,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
     // version 2: converted to hidden index
-    public static final String INDEX_TEMPLATE_VERSION = "2";
+    public static final int INDEX_TEMPLATE_VERSION = 2;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history";

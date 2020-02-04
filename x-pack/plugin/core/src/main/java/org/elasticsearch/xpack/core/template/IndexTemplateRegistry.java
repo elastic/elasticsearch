@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -133,8 +135,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = template.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                if (!state.metaData().getTemplates().containsKey(templateName)) {
+                IndexTemplateMetaData currentTemplate = state.metaData().getTemplates().get(templateName);
+                if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
+                    putTemplate(template, creationCheck);
+                } else if (Objects.isNull(currentTemplate.version()) || currentTemplate.version() > template.getVersion()) {
+                    logger.info("upgrading index template [{}] for [{}] from version [{}] to version [{}]",
+                        templateName, getOrigin(), currentTemplate.version(), template.getVersion());
                     putTemplate(template, creationCheck);
                 } else {
                     creationCheck.set(false);

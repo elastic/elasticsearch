@@ -5,7 +5,7 @@
 == Get started: Automate rollover with {ilm-init}
 
 ++++
-<titleabbrev>Automate roll over</titleabbrev>
+<titleabbrev>Automate rollover</titleabbrev>
 ++++
 
 This tutorial demonstrates how to use {ilm} ({ilm-init}) 

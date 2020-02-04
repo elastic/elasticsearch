@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
-import org.elasticsearch.xpack.oss.IndexFeatureSet;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -246,8 +245,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
         if (transportClientMode) {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
-        } else {
-            modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexFeatureSet.class));
         }
         return modules;
     }

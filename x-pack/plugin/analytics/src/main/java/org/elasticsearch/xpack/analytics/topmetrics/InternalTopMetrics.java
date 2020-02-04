@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
@@ -20,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalTopMetrics extends InternalAggregation {
+public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiValue {
     private final DocValueFormat sortFormat;
     private final SortOrder sortOrder;
     private final SortValue sortValue;
@@ -141,6 +144,14 @@ public class InternalTopMetrics extends InternalAggregation {
             Objects.equals(sortValue, other.sortValue) &&
             metricName.equals(other.metricName) &&
             metricValue == other.metricValue;
+    }
+
+    @Override
+    public double value(String name) {
+        if (metricName.equals(name)) {
+            return metricValue;
+        }
+        throw new IllegalArgumentException("known metric [" + name + "]");
     }
 
     DocValueFormat getSortFormat() {

@@ -39,7 +39,7 @@ import java.util.Map;
  * one document worth of metrics. Once that happens we'll need to come up with
  * some way to pick which document's metrics to use for the sort.
  */
-class TopMetricsAggregator extends MetricsAggregator {
+class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     private final BucketedSort sort;
     private final String metricName;
     private final ValuesSource.Numeric metricValueSource;
@@ -56,6 +56,16 @@ class TopMetricsAggregator extends MetricsAggregator {
             values = context.bigArrays().newDoubleArray(2, false);
             values.fill(0, values.size(), Double.NaN);
         }
+    }
+
+    @Override
+    public boolean hasMetric(String name) {
+        return metricName.equals(name);
+    }
+
+    @Override
+    public double metric(String name, long owningBucketOrd) {
+        return values.get(owningBucketOrd);
     }
 
     @Override

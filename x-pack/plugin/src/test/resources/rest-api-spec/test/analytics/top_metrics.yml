@@ -290,3 +290,28 @@
   - match: { aggregations.ip.buckets.1.key: 192.168.0.2 }
   - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 3 }
   - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+                order:
+                  tm.v: desc
+              aggs:
+                tm:
+                  top_metrics:
+                    metric:
+                      field: v
+                    sort:
+                      date: desc
+  - length: { aggregations.ip.buckets: 2 }
+  - match: { aggregations.ip.buckets.0.key: 192.168.0.2 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.metrics.v: 3 }
+  - match: { aggregations.ip.buckets.0.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+  - match: { aggregations.ip.buckets.1.key: 192.168.0.1 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 2 }
+  - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }

@@ -106,8 +106,8 @@ public final class BlobEncryptionMetadata {
             throws IOException {
         byte[] authenticatedData = Arrays.copyOf(metadata, 2 * Integer.BYTES);
         ByteBuffer byteBuffer = ByteBuffer.wrap(authenticatedData).order(ByteOrder.LITTLE_ENDIAN);
-        int nonce = byteBuffer.get(0);
-        int packetLengthInBytes = byteBuffer.get(Integer.BYTES);
+        int nonce = byteBuffer.getInt(0);
+        int packetLengthInBytes = byteBuffer.getInt(Integer.BYTES);
         byte[] encryptedData = Arrays.copyOfRange(metadata, 2 * Integer.BYTES, metadata.length);
         final byte[] decryptedData;
         try {

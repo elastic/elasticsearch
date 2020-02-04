@@ -35,6 +35,12 @@ import java.util.Objects;
  * next read will occur. In the case of a Lucene file snapshotted into multiple parts, this position is used to identify which part must
  * be read at which position (see {@link #readInternal(byte[], int, int)}. This position is also passed over to cloned and sliced input
  * along with the {@link FileInfo} so that they can also track their reading position.
+ *
+ * The {@code sequentialReadSize} constructor parameter configures the {@link SearchableSnapshotIndexInput} to perform a larger read on the
+ * underlying {@link BlobContainer} than it needs in order to fill its internal buffer, on the assumption that the client is reading
+ * sequentially from this file and will consume the rest of this stream in due course. It keeps hold of the partially-consumed
+ * {@link InputStream} in {@code streamForSequentialReads}. Clones and slices, however, do not expect to be read sequentially and so make
+ * a new request to the {@link BlobContainer} each time their internal buffer needs refilling.
  */
 public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
@@ -46,7 +52,6 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     private long position;
     private volatile boolean closed;
 
-    // optimisation for the case where we perform a single seek, then read a large block of data sequentially, then close the input
     @Nullable // if not currently reading sequentially
     private StreamForSequentialReads streamForSequentialReads;
     private long sequentialReadSize;

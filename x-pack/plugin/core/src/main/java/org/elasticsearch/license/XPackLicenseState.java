@@ -754,6 +754,7 @@ public class XPackLicenseState {
             case STANDARD:
             case GOLD:
             case PLATINUM:
+            case ENTERPRISE:
                 return XPackSettings.SECURITY_ENABLED.get(settings);
             case BASIC:
                 return XPackSettings.SECURITY_ENABLED.get(settings) && isSecurityExplicitlyEnabled(settings);

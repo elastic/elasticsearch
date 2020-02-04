@@ -125,7 +125,9 @@ public final class MethodWriter extends GeneratorAdapter {
         int offset = location.getOffset();
         // ensure we don't have duplicate stuff going in here. can catch bugs
         // (e.g. nodes get assigned wrong offsets by antlr walker)
-        assert statements.get(offset) == false;
+        // TODO: introduce a way to ignore internal statements so this assert is not triggered
+        // TODO: https://github.com/elastic/elasticsearch/issues/51836
+        //assert statements.get(offset) == false;
         statements.set(offset);
     }
 

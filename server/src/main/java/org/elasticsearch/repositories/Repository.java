@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -240,7 +241,7 @@ public interface Repository extends LifecycleComponent {
      */
     void updateState(ClusterState state);
 
-    default List<SegmentCommitInfo> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+    default List<SegmentInfos> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
         throw new UnsupportedOperationException("segmentsInShard not implemented");
     }
 

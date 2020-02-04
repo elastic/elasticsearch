@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_INDEX_EXTENSION;
@@ -57,23 +58,24 @@ import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter
 public class SourceOnlySnapshot {
     private final Directory targetDirectory;
     private final Supplier<Query> deleteByQuerySupplier;
-    private final CheckedSupplier<List<SegmentCommitInfo>, IOException> knownSegmentCommitsProvider;
+    private final CheckedSupplier<List<SegmentInfos>, IOException> knownSegmentCommitsProvider;
 
     public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier,
-                              CheckedSupplier<List<SegmentCommitInfo>, IOException> knownSegmentCommitsProvider) {
+                              CheckedSupplier<List<SegmentInfos>, IOException> knownSegmentCommitsProvider) {
         this.targetDirectory = targetDirectory;
         this.deleteByQuerySupplier = deleteByQuerySupplier;
         this.knownSegmentCommitsProvider = knownSegmentCommitsProvider;
     }
 
-    public SourceOnlySnapshot(Directory targetDirectory, CheckedSupplier<List<SegmentCommitInfo>, IOException> knownSegmentCommitsProvider) {
+    public SourceOnlySnapshot(Directory targetDirectory, CheckedSupplier<List<SegmentInfos>, IOException> knownSegmentCommitsProvider) {
         this(targetDirectory, null, knownSegmentCommitsProvider);
     }
 
     public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
         Map<BytesRef, SegmentCommitInfo> existingSegments;
         existingSegments = new HashMap<>();
-        for (SegmentCommitInfo info : knownSegmentCommitsProvider.get()) {
+        for (SegmentCommitInfo info : knownSegmentCommitsProvider.get().stream()
+            .flatMap(infos -> infos.asList().stream()).collect(Collectors.toList())) {
             existingSegments.put(new BytesRef(info.info.getId()), info);
         }
         List<String> createdFiles = new ArrayList<>();

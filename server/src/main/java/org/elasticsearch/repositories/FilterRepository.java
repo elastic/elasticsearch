@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -168,5 +169,10 @@ public class FilterRepository implements Repository {
     @Override
     public void close() {
         in.close();
+    }
+
+    @Override
+    public List<SegmentInfos> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+        return in.segmentsInShard(indexId, shardId, generation);
     }
 }

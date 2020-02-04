@@ -58,7 +58,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
                 SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir,
                     modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null,
-                    () -> SegmentInfos.readLatestCommit(dir).asList()) {
+                    () -> List.of(SegmentInfos.readLatestCommit(dir))) {
                     @Override
                     DirectoryReader wrapReader(DirectoryReader reader) throws IOException {
                         return modifyDeletedDocs ? reader : super.wrapReader(reader);
@@ -168,7 +168,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             Directory targetDir = newDirectory();
             IndexCommit snapshot = deletionPolicy.snapshot();
-            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, () -> SegmentInfos.readLatestCommit(dir).asList());
+            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
             snapshoter.syncSnapshot(snapshot);
 
             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(snapshot);
@@ -183,7 +183,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 assertEquals(0, id.totalHits.value);
             }
 
-            snapshoter = new SourceOnlySnapshot(targetDir, () -> SegmentInfos.readLatestCommit(dir).asList());
+            snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
             List<String> createdFiles = snapshoter.syncSnapshot(snapshot);
             assertEquals(0, createdFiles.size());
             deletionPolicy.release(snapshot);
@@ -203,7 +203,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir, () -> SegmentInfos.readLatestCommit(dir).asList());
+                snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
                 createdFiles = snapshoter.syncSnapshot(snapshot);
                 assertEquals(4, createdFiles.size());
                 for (String file : createdFiles) {
@@ -228,7 +228,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir, () -> SegmentInfos.readLatestCommit(dir).asList());
+                snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
                 createdFiles = snapshoter.syncSnapshot(snapshot);
                 assertEquals(1, createdFiles.size());
                 for (String file : createdFiles) {
@@ -286,7 +286,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             try (Directory targetDir = newDirectory()) {
                 IndexCommit snapshot = deletionPolicy.snapshot();
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, () -> SegmentInfos.readLatestCommit(dir).asList());
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, () -> List.of(SegmentInfos.readLatestCommit(dir)));
                 snapshoter.syncSnapshot(snapshot);
 
                 try (DirectoryReader snapReader = DirectoryReader.open(targetDir)) {

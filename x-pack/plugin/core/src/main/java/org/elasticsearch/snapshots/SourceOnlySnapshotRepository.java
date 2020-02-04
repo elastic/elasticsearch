@@ -150,8 +150,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 () -> segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation()));
             final List<String> newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
-            SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             if (newFiles.isEmpty() == false) {
+                SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
                 final long maxDoc = segmentInfos.totalMaxDoc();
                 tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             }
@@ -161,7 +161,48 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
             toClose.add(2, reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, writeShardGens,
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
+                new IndexCommit() {
+                    @Override
+                    public String getSegmentsFileName() {
+                        return null;
+                    }
+
+                    @Override
+                    public Collection<String> getFileNames() throws IOException {
+                        return null;
+                    }
+
+                    @Override
+                    public Directory getDirectory() {
+                        return tempStore.directory();
+                    }
+
+                    @Override
+                    public void delete() {
+                        throw new UnsupportedOperationException("not supported");
+                    }
+
+                    @Override
+                    public boolean isDeleted() {
+                        return false;
+                    }
+
+                    @Override
+                    public int getSegmentCount() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getGeneration() {
+                        return 0;
+                    }
+
+                    @Override
+                    public Map<String, String> getUserData() throws IOException {
+                        throw new UnsupportedOperationException("not supported");
+                    }
+                }, snapshotStatus, writeShardGens,
                 userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {

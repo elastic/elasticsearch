@@ -30,10 +30,13 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -1448,12 +1451,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public List<SegmentCommitInfo> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
+    public List<SegmentInfos> segmentsInShard(IndexId indexId, int shardId, String generation) throws IOException {
         final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(),
         shardContainer(indexId, shardId), generation).v1();
-        return blobStoreIndexShardSnapshots.files().stream().filter(fileInfo -> fileInfo.name().endsWith(".si")
-        && fileInfo.metadata().hash().length == fileInfo.length())
-            .map(fileInfo -> )
+        return blobStoreIndexShardSnapshots.snapshots().stream().map(
+            snapshotFiles -> {
+                final Directory dir = new ByteBuffersDirectory();
+                snapshotFiles.indexFiles().stream().filter(fileInfo -> fileInfo.metadata().length() == fileInfo.length()).forEach(
+                    fileInfo -> {
+                        try(IndexOutput indexOutput = dir.createOutput(fileInfo.physicalName(), IOContext.DEFAULT)) {
+                            final BytesRef fileContent = fileInfo.metadata().hash();
+                            indexOutput.writeBytes(fileContent.bytes, fileContent.offset, fileContent.length);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                );
+                try {
+                    return SegmentInfos.readLatestCommit(dir);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        ).collect(Collectors.toList());
     }
 
     @Override

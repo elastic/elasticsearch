@@ -7,94 +7,106 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheDirectoryStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.Counter;
 import org.elasticsearch.xpack.searchablesnapshots.InMemoryNoOpCommitDirectory;
-import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest.NodeStatsRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse.NodeStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
-public class TransportSearchableSnapshotsStatsAction extends TransportNodesAction<SearchableSnapshotsStatsRequest,
-    SearchableSnapshotsStatsResponse,
-                                                                                NodeStatsRequest,
-                                                                                NodeStatsResponse> {
-
+public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastByNodeAction<SearchableSnapshotsStatsRequest,
+                                                                                            SearchableSnapshotsStatsResponse,
+                                                                                            SearchableSnapshotStats> {
     private final IndicesService indicesService;
 
     @Inject
-    public TransportSearchableSnapshotsStatsAction(final ThreadPool threadPool,
-                                                   final ClusterService clusterService,
-                                                   final TransportService transportService,
-                                                   final ActionFilters actionFilters,
-                                                   final IndicesService indicesService) {
-        super(SearchableSnapshotsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            SearchableSnapshotsStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.GENERIC, NodeStatsResponse.class);
-        this.indicesService = Objects.requireNonNull(indicesService);
+    public TransportSearchableSnapshotsStatsAction(ClusterService clusterService, TransportService transportService,
+                                                   IndicesService indicesService, ActionFilters actionFilters,
+                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(SearchableSnapshotsStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            SearchableSnapshotsStatsRequest::new, ThreadPool.Names.MANAGEMENT);
+        this.indicesService = indicesService;
     }
 
     @Override
-    protected SearchableSnapshotsStatsResponse newResponse(SearchableSnapshotsStatsRequest request, List<NodeStatsResponse> responses,
-                                                           List<FailedNodeException> failures) {
-        return new SearchableSnapshotsStatsResponse(clusterService.getClusterName(), responses, failures);
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, SearchableSnapshotsStatsRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected NodeStatsRequest newNodeRequest(SearchableSnapshotsStatsRequest request) {
-        return new NodeStatsRequest();
+    protected ClusterBlockException checkRequestBlock(ClusterState state, SearchableSnapshotsStatsRequest request, String[] indices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indices);
     }
 
     @Override
-    protected NodeStatsResponse newNodeResponse(StreamInput in) throws IOException {
-        return new NodeStatsResponse(in);
+    protected SearchableSnapshotStats readShardResult(StreamInput in) throws IOException {
+        return new SearchableSnapshotStats(in);
     }
 
     @Override
-    protected NodeStatsResponse nodeOperation(final NodeStatsRequest request, final Task task) {
-        final List<CacheDirectoryStats> directoryStats = new ArrayList<>();
-        if (clusterService.localNode().isDataNode()) {
-            for (IndexService indexService : indicesService) {
-                Settings indexSettings = indexService.getIndexSettings().getSettings();
+    protected SearchableSnapshotsStatsResponse newResponse(SearchableSnapshotsStatsRequest request,
+                                                           int totalShards, int successfulShards, int failedShards,
+                                                           List<SearchableSnapshotStats> searchableSnapshotStats,
+                                                           List<DefaultShardOperationFailedException> shardFailures,
+                                                           ClusterState clusterState) {
+        return new SearchableSnapshotsStatsResponse(searchableSnapshotStats, totalShards, successfulShards, failedShards, shardFailures);
+    }
+
+    @Override
+    protected SearchableSnapshotsStatsRequest readRequestFrom(StreamInput in) throws IOException {
+        return new SearchableSnapshotsStatsRequest(in);
+    }
+
+    @Override
+    protected ShardsIterator shards(ClusterState state, SearchableSnapshotsStatsRequest request, String[] concreteIndices) {
+        final List<String> searchableSnapshotIndices = new ArrayList<>();
+        for (String concreteIndex : concreteIndices) {
+            IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
+            if (indexMetaData != null) {
+                Settings indexSettings = indexMetaData.getSettings();
                 if (INDEX_STORE_TYPE_SETTING.get(indexSettings).equals(SNAPSHOT_DIRECTORY_FACTORY_KEY)) {
-                    for (IndexShard indexShard : indexService) {
-                        CacheDirectory cacheDirectory = unwrap(indexShard.store().directory());
-                        if (cacheDirectory != null) {
-                            directoryStats.add(toDirectoryStats(cacheDirectory));
-                        }
-                    }
+                    searchableSnapshotIndices.add(concreteIndex);
                 }
             }
         }
-        return new NodeStatsResponse(clusterService.localNode(), new SearchableSnapshotStats(directoryStats));
+        return state.routingTable().allShards(searchableSnapshotIndices.toArray(new String[0]));
     }
 
-    private static CacheDirectoryStats toDirectoryStats(final CacheDirectory cacheDirectory) {
-        return new CacheDirectoryStats(cacheDirectory.getSnapshotId(), cacheDirectory.getIndexId(), cacheDirectory.getShardId(),
+    @Override
+    protected SearchableSnapshotStats shardOperation(SearchableSnapshotsStatsRequest request, ShardRouting shardRouting) {
+        final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
+        final CacheDirectory cacheDirectory = unwrap(indexShard.store().directory());
+        assert cacheDirectory != null;
+        assert cacheDirectory.getShardId().equals(shardRouting.shardId());
+
+        return new SearchableSnapshotStats(shardRouting, cacheDirectory.getSnapshotId(), cacheDirectory.getIndexId(),
             cacheDirectory.getStats().entrySet().stream()
                 .map(entry -> toCacheIndexInputStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList()));

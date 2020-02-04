@@ -5,82 +5,78 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class SearchableSnapshotsStatsResponse
-    extends BaseNodesResponse<SearchableSnapshotsStatsResponse.NodeStatsResponse> implements ToXContentObject {
+import static java.util.stream.Collectors.toList;
+
+public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
+
+    private List<SearchableSnapshotStats> stats;
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
+        this.stats = in.readList(SearchableSnapshotStats::new);
     }
 
-    SearchableSnapshotsStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
-        super(clusterName, nodes, failures);
+    SearchableSnapshotsStatsResponse(List<SearchableSnapshotStats> stats, int totalShards, int successfulShards, int failedShards,
+                                     List<DefaultShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
+        this.stats = Objects.requireNonNull(stats);
     }
 
-    @Override
-    protected List<NodeStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStatsResponse::readNodeResponse);
-    }
-
-    @Override
-    protected void writeNodesTo(StreamOutput out, List<NodeStatsResponse> nodes) throws IOException {
-        out.writeList(nodes);
+    public List<SearchableSnapshotStats> getStats() {
+        return stats;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
-        for (NodeStatsResponse node : getNodes()) {
-            node.toXContent(builder, params);
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+        final List<Index> indices = getStats().stream()
+            .filter(stats -> stats.getStats().isEmpty() == false)
+            .map(SearchableSnapshotStats::getShardRouting)
+            .map(ShardRouting::index)
+            .sorted(Comparator.comparing(Index::getName))
+            .collect(toList());
+
+        builder.startObject("indices");
+        for (Index index : indices) {
+            builder.startObject(index.getName());
+            {
+                builder.startObject("shards");
+                {
+                    List<SearchableSnapshotStats> listOfStats = getStats().stream()
+                        .filter(dirStats -> dirStats.getShardRouting().index().equals(index))
+                        .sorted(Comparator.comparingInt(dir -> dir.getShardRouting().getId()))
+                        .collect(Collectors.toList());
+
+                    int minShard = listOfStats.stream().map(stat -> stat.getShardRouting().getId()).min(Integer::compareTo).orElse(0);
+                    int maxShard = listOfStats.stream().map(stat -> stat.getShardRouting().getId()).max(Integer::compareTo).orElse(0);
+
+                    for (int i = minShard; i <= maxShard; i++) {
+                        builder.startArray(Integer.toString(i));
+                        for (SearchableSnapshotStats stat : listOfStats) {
+                            if (stat.getShardRouting().getId() == i) {
+                                stat.toXContent(builder, params);
+                            }
+                        }
+                        builder.endArray();
+                    }
+                }
+                builder.endObject();
+            }
+            builder.endObject();
         }
         builder.endObject();
-        return builder;
-    }
-
-    static class NodeStatsResponse extends BaseNodeResponse implements ToXContentFragment {
-
-        private final SearchableSnapshotStats stats;
-
-        NodeStatsResponse(StreamInput in) throws IOException {
-            super(in);
-            this.stats = in.readOptionalWriteable(SearchableSnapshotStats::new);
-        }
-
-        NodeStatsResponse(DiscoveryNode node, SearchableSnapshotStats stats) {
-            super(node);
-            this.stats = stats;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalWriteable(stats);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (stats != null && stats.isEmpty() == false) {
-                builder.field(getNode().getId(), stats);
-            }
-            return builder;
-        }
-
-        static NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
-            return new NodeStatsResponse(in);
-        }
     }
 }

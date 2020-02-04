@@ -52,7 +52,12 @@ setup:
   - do:
       searchable_snapshots.stats: {}
 
-  - length: { nodes: 0 }
+  - length: { indices: 0 }
+
+  - do:
+      catch:   missing
+      searchable_snapshots.stats:
+        index: "unkown"
 
   - do:
       snapshot.create_repository:
@@ -91,59 +96,63 @@ setup:
       nodes._arbitrary_key_: node_id
 
   - do:
-      searchable_snapshots.stats: {}
+      searchable_snapshots.stats:
+        index: "ind*"
 
-  - length:  { nodes: 1 }
-  - length:  { nodes.$node_id.indices.index.shards: 1 }
-  - is_true: nodes.$node_id.indices.index.shards.0.snapshot_uuid
-  - is_true: nodes.$node_id.indices.index.shards.0.index_uuid
-  - match:   { nodes.$node_id.indices.index.shards.0.shard: 0 }
+  - length:  { indices: 1 }
+  - length:  { indices.index.shards: 1 }
+  - length:  { indices.index.shards.0: 1 }
+  - is_true: indices.index.shards.0.0.snapshot_uuid
+  - is_true: indices.index.shards.0.0.index_uuid
+  - match:   { indices.index.shards.0.0.shard.state: STARTED }
+  - match:   { indices.index.shards.0.0.shard.primary: true }
+  - match:   { indices.index.shards.0.0.shard.node: $node_id }
 
-  - is_true: nodes.$node_id.indices.index.shards.0.files.0.name
-  - gt:      { nodes.$node_id.indices.index.shards.0.files.0.length: 0 }
-  - gt:      { nodes.$node_id.indices.index.shards.0.files.0.open_count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.inner_count: 0 }
-  - gt:      { nodes.$node_id.indices.index.shards.0.files.0.close_count: 0 }
+  - is_true: indices.index.shards.0.0.files.0.name
+  - gt:      { indices.index.shards.0.0.files.0.length: 0 }
+  - gt:      { indices.index.shards.0.0.files.0.open_count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.inner_count: 0 }
+  - gt:      { indices.index.shards.0.0.files.0.close_count: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.contiguous_bytes_read.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.contiguous_bytes_read.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.contiguous_bytes_read.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.contiguous_bytes_read.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.max: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.non_contiguous_bytes_read.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.non_contiguous_bytes_read.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.non_contiguous_bytes_read.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.non_contiguous_bytes_read.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.max: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_read.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_read.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_read.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_read.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.max: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_written.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_written.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_written.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.cached_bytes_written.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.max: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.direct_bytes_read.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.direct_bytes_read.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.direct_bytes_read.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.direct_bytes_read.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.max: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.small.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.small.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.small.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.small.max: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.large.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.large.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.large.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.forward_seeks.large.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.max: 0 }
 
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.small.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.small.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.small.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.small.max: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.large.count: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.large.sum: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.large.min: 0 }
-  - gte:     { nodes.$node_id.indices.index.shards.0.files.0.backward_seeks.large.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.max: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.count: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.sum: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.min: 0 }
+  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.max: 0 }

@@ -5,17 +5,20 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheDirectoryStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.Counter;
 
 import java.util.ArrayList;
 import java.util.List;
+
+;
 
 public class SearchableSnapshotStatsTests extends AbstractWireSerializingTestCase<SearchableSnapshotStats> {
 
@@ -26,23 +29,16 @@ public class SearchableSnapshotStatsTests extends AbstractWireSerializingTestCas
 
     @Override
     protected SearchableSnapshotStats createTestInstance() {
-        final List<CacheDirectoryStats> directoryStats = new ArrayList<>();
-        for (int i = 0; i < randomInt(20); i++) {
-            directoryStats.add(randomCacheDirectoryStats());
-        }
-        return new SearchableSnapshotStats(directoryStats);
-    }
-
-    private CacheDirectoryStats randomCacheDirectoryStats() {
         SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5));
         IndexId indexId = new IndexId(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        ShardId shardId = new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(10));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(randomAlphaOfLength(5), randomInt(10), randomAlphaOfLength(5),
+            randomBoolean(), ShardRoutingState.STARTED);
 
         final List<CacheIndexInputStats> inputStats = new ArrayList<>();
         for (int j = 0; j < randomInt(20); j++) {
             inputStats.add(randomCacheIndexInputStats());
         }
-        return new CacheDirectoryStats(snapshotId, indexId, shardId, inputStats);
+        return new SearchableSnapshotStats(shardRouting, snapshotId, indexId, inputStats);
     }
 
     private CacheIndexInputStats randomCacheIndexInputStats() {

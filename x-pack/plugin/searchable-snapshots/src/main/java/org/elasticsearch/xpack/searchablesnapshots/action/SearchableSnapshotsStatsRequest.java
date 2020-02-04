@@ -5,29 +5,23 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class SearchableSnapshotsStatsRequest extends BaseNodesRequest<SearchableSnapshotsStatsRequest> {
+public class SearchableSnapshotsStatsRequest extends BroadcastRequest<SearchableSnapshotsStatsRequest> {
 
     SearchableSnapshotsStatsRequest(StreamInput in) throws IOException {
         super(in);
     }
 
-    public SearchableSnapshotsStatsRequest(String... nodesIds) {
-        super(nodesIds);
+    public SearchableSnapshotsStatsRequest(String... indices) {
+        super(indices);
     }
 
-    static class NodeStatsRequest extends BaseNodeRequest {
-
-        NodeStatsRequest() {
-        }
-
-        NodeStatsRequest(StreamInput in) throws IOException {
-            super(in);
-        }
+    public SearchableSnapshotsStatsRequest(String[] indices, IndicesOptions indicesOptions) {
+        super(indices, indicesOptions);
     }
 }

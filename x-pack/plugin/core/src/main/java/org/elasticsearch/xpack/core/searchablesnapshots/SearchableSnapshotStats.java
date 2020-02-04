@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -20,71 +18,82 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotStats implements Writeable, ToXContentObject {
 
-    private final List<CacheDirectoryStats> directoryStats;
+    private final List<CacheIndexInputStats> inputStats;
+    private final ShardRouting shardRouting;
+    private final SnapshotId snapshotId;
+    private final IndexId indexId;
 
-    public SearchableSnapshotStats(final List<CacheDirectoryStats> directoryStats) {
-        this.directoryStats = unmodifiableList(Objects.requireNonNull(directoryStats));
+    public SearchableSnapshotStats(ShardRouting shardRouting, SnapshotId snapshotId, IndexId indexId, List<CacheIndexInputStats> stats) {
+        this.shardRouting = Objects.requireNonNull(shardRouting);
+        this.snapshotId = Objects.requireNonNull(snapshotId);
+        this.indexId = Objects.requireNonNull(indexId);
+        this.inputStats = unmodifiableList(Objects.requireNonNull(stats));
     }
 
-    public SearchableSnapshotStats(final StreamInput in) throws IOException {
-        this.directoryStats = unmodifiableList(in.readList(CacheDirectoryStats::new));
-    }
-
-    public List<CacheDirectoryStats> getStats() {
-        return directoryStats;
-    }
-
-    public boolean isEmpty() {
-        if (directoryStats.isEmpty()) {
-            return true;
-        }
-        return directoryStats.stream().map(CacheDirectoryStats::getStats).allMatch(List::isEmpty);
-    }
-
-    @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        out.writeList(directoryStats);
+    public SearchableSnapshotStats(StreamInput in) throws IOException {
+        this.shardRouting = new ShardRouting(in);
+        this.snapshotId = new SnapshotId(in);
+        this.indexId = new IndexId(in);
+        this.inputStats = in.readList(CacheIndexInputStats::new);
     }
 
     @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        final List<Index> indices = getStats().stream()
-            .filter(stats -> stats.getStats().isEmpty() == false)
-            .map(CacheDirectoryStats::getShardId)
-            .map(ShardId::getIndex)
-            .sorted(Comparator.comparing(Index::getName))
-            .collect(toList());
+    public void writeTo(StreamOutput out) throws IOException {
+        shardRouting.writeTo(out);
+        snapshotId.writeTo(out);
+        indexId.writeTo(out);
+        out.writeList(inputStats);
+    }
+
+    public ShardRouting getShardRouting() {
+        return shardRouting;
+    }
+
+    public SnapshotId getSnapshotId() {
+        return snapshotId;
+    }
+
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public List<CacheIndexInputStats> getStats() {
+        return inputStats;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.startObject("indices");
-            for (Index index : indices) {
-                builder.startObject(index.getName());
-                {
-                    builder.startArray("shards");
-                    {
-                        List<CacheDirectoryStats> listOfDirectoryStats = getStats().stream()
-                            .filter(dirStats -> dirStats.getShardId().getIndex().equals(index))
-                            .sorted(Comparator.comparingInt(dir -> dir.getShardId().id()))
-                            .collect(Collectors.toList());
-                        for (CacheDirectoryStats stats : listOfDirectoryStats) {
-                            builder.value(stats);
-                        }
-                    }
-                    builder.endArray();
+            builder.field("snapshot_uuid", getSnapshotId().getUUID());
+            builder.field("index_uuid", getIndexId().getId());
+            builder.startObject("shard");
+            {
+                builder.field("state", shardRouting.state());
+                builder.field("primary", shardRouting.primary());
+                builder.field("node", shardRouting.currentNodeId());
+                if (shardRouting.relocatingNodeId() != null) {
+                    builder.field("relocating_node", shardRouting.relocatingNodeId());
                 }
-                builder.endObject();
             }
             builder.endObject();
+            builder.startArray("files");
+            {
+                List<CacheIndexInputStats> stats = inputStats.stream()
+                    .sorted(Comparator.comparing(CacheIndexInputStats::getFileName)).collect(toList());
+                for (CacheIndexInputStats stat : stats) {
+                    stat.toXContent(builder, params);
+                }
+            }
+            builder.endArray();
         }
-        builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 
     @Override
@@ -96,104 +105,17 @@ public class SearchableSnapshotStats implements Writeable, ToXContentObject {
             return false;
         }
         SearchableSnapshotStats that = (SearchableSnapshotStats) other;
-        return Objects.equals(directoryStats, that.directoryStats);
+        return Objects.equals(shardRouting, that.shardRouting)
+            && Objects.equals(snapshotId, that.snapshotId)
+            && Objects.equals(indexId, that.indexId)
+            && Objects.equals(inputStats, that.inputStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(directoryStats);
+        return Objects.hash(shardRouting, snapshotId, indexId, inputStats);
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
-
-    public static class CacheDirectoryStats implements Writeable, ToXContentObject {
-
-        private final List<CacheIndexInputStats> inputStats;
-        private final SnapshotId snapshotId;
-        private final IndexId indexId;
-        private final ShardId shardId;
-
-        public CacheDirectoryStats(SnapshotId snapshotId, IndexId indexId, ShardId shardId, List<CacheIndexInputStats> inputStats) {
-            this.snapshotId = Objects.requireNonNull(snapshotId);
-            this.indexId = Objects.requireNonNull(indexId);
-            this.shardId = Objects.requireNonNull(shardId);
-            this.inputStats = unmodifiableList(Objects.requireNonNull(inputStats));
-        }
-
-        CacheDirectoryStats(final StreamInput in) throws IOException {
-            this.snapshotId = new SnapshotId(in);
-            this.indexId = new IndexId(in);
-            this.shardId = new ShardId(in);
-            this.inputStats = in.readList(CacheIndexInputStats::new);
-        }
-
-        @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            snapshotId.writeTo(out);
-            indexId.writeTo(out);
-            shardId.writeTo(out);
-            out.writeList(inputStats);
-        }
-
-        public SnapshotId getSnapshotId() {
-            return snapshotId;
-        }
-
-        public IndexId getIndexId() {
-            return indexId;
-        }
-
-        public ShardId getShardId() {
-            return shardId;
-        }
-
-        public List<CacheIndexInputStats> getStats() {
-            return inputStats;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("snapshot_uuid", getSnapshotId().getUUID());
-                builder.field("index_uuid", getIndexId().getId());
-                builder.field("shard", getShardId().getId());
-                builder.startArray("files");
-                {
-                    List<CacheIndexInputStats> stats = inputStats.stream()
-                        .sorted(Comparator.comparing(CacheIndexInputStats::getFileName)).collect(toList());
-                    for (CacheIndexInputStats stat : stats) {
-                        stat.toXContent(builder, params);
-                    }
-                }
-                builder.endArray();
-            }
-            return builder.endObject();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (other == null || getClass() != other.getClass()) {
-                return false;
-            }
-            CacheDirectoryStats that = (CacheDirectoryStats) other;
-            return Objects.equals(inputStats, that.inputStats)
-                && Objects.equals(snapshotId, that.snapshotId)
-                && Objects.equals(indexId, that.indexId)
-                && Objects.equals(shardId, that.shardId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(inputStats, snapshotId, indexId, shardId);
-        }
-    }
 
     public static class CacheIndexInputStats implements Writeable, ToXContentObject {
 

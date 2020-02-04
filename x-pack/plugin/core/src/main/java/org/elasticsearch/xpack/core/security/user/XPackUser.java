@@ -19,10 +19,7 @@ public class XPackUser extends User {
     public static final String ROLE_NAME = UsernamesField.XPACK_ROLE;
     public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME, new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security.*)/")
-                        .allowRestrictedIndices(true)
-                        .privileges("all")
-                        .build(),
+                    RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security.*)/").privileges("all").build(),
                     RoleDescriptor.IndicesPrivileges.builder().indices(IndexAuditTrailField.INDEX_NAME_PREFIX + "-*")
                             .privileges("read").build()
             },

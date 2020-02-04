@@ -26,6 +26,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.tasks.CancellableTask;
@@ -151,8 +152,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                 @Override
                 public void onFailure(Exception exc) {
-                    logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                        searchTask.getSearchId().getEncoded()), exc);
+                    if (exc.getCause() instanceof DocumentMissingException == false) {
+                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
+                            searchTask.getSearchId().getEncoded()), exc);
+                    }
                     onTaskCompletion(submitTask, searchTask, () -> {});
                 }
             });

@@ -76,8 +76,8 @@ setup:
         model_id: a-regression-model-0
   - match:
       $body: |
-        / #id                           heap_size    operations     ingest.pipelines
-        ^ (a\-regression\-model\-0 \s+  \w+      \s+ \d+       \s+  \d+             \n)+  $/
+        / #id                           heap_size    operations    create_time    ingest.pipelines  data_frame.id
+        ^ (a\-regression\-model\-0 \s+  \w+      \s+ \d+       \s+ .*?        \s+ \d+               .*?          \n)+  $/
 
   - do:
       cat.ml.trained_models:
@@ -85,8 +85,8 @@ setup:
         model_id: a-regression-model-0
   - match:
       $body: |
-        /^  id                       \s+  heap_size \s+ operations \s+ ingest\.pipelines \n
-           (a\-regression\-model\-0  \s+  \w+       \s+ \d+        \s+ \d+               \n)+  $/
+        /^  id                       \s+  heap_size \s+ operations \s+ create_time \s+ ingest\.pipelines \s+ data_frame\.id \n
+           (a\-regression\-model\-0  \s+  \w+       \s+ \d+        \s+ .*?         \s+ \d+               \s+ .*?            \n)+        $/
 
   - do:
       cat.ml.trained_models:

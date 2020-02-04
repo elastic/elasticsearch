@@ -143,7 +143,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         table.addCell("license", TableColumnAttributeBuilder.builder("The license level of the model", false)
             .setAliases("l")
             .build());
-        table.addCell("create_time", TableColumnAttributeBuilder.builder("The time the model was created", false)
+        table.addCell("create_time", TableColumnAttributeBuilder.builder("The time the model was created")
             .setAliases("ct")
             .build());
         table.addCell("version", TableColumnAttributeBuilder.builder("The version of Elasticsearch when the model was created", false)
@@ -177,8 +177,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             .build());
 
         table.addCell("data_frame.id", TableColumnAttributeBuilder.builder(
-            "The data frame analytics config id that created the model (if still available)",
-            false)
+            "The data frame analytics config id that created the model (if still available)")
             .setAliases("dfid", "dataFrameAnalytics")
             .build());
         table.addCell("data_frame.create_time", TableColumnAttributeBuilder.builder(

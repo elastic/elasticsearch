@@ -49,7 +49,12 @@ public final class SFunction extends ANode {
     public final boolean isInternal;
     public final boolean isStatic;
     public final boolean synthetic;
-    public final boolean doAutoReturn;
+
+    /**
+     * If set to {@code true} default return values are inserted if
+     * not all paths return a value.
+     */
+    public final boolean isAutoReturnEnabled;
 
     private int maxLoopCounter;
 
@@ -64,7 +69,7 @@ public final class SFunction extends ANode {
 
     public SFunction(Location location, String rtnType, String name,
             List<String> paramTypes, List<String> paramNames,
-            SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean doAutoReturn) {
+            SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean isAutoReturnEnabled) {
         super(location);
 
         this.rtnTypeStr = Objects.requireNonNull(rtnType);
@@ -75,7 +80,7 @@ public final class SFunction extends ANode {
         this.isInternal = isInternal;
         this.synthetic = synthetic;
         this.isStatic = isStatic;
-        this.doAutoReturn = doAutoReturn;
+        this.isAutoReturnEnabled = isAutoReturnEnabled;
     }
 
     void generateSignature(PainlessLookup painlessLookup) {
@@ -121,6 +126,7 @@ public final class SFunction extends ANode {
         }
 
         // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
         if ("execute".equals(name)) {
             for (int get = 0; get < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++get) {
                 org.objectweb.asm.commons.Method method = scriptRoot.getScriptClassInfo().getGetMethods().get(get);
@@ -143,12 +149,13 @@ public final class SFunction extends ANode {
         block.analyze(scriptRoot, functionScope.newLocalScope());
         methodEscape = block.methodEscape;
 
-        if (methodEscape == false && doAutoReturn == false && returnType != void.class) {
+        if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
             throw createError(new IllegalArgumentException("not all paths provide a return value " +
                     "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
         }
 
         // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
         if ("execute".equals(name)) {
             scriptRoot.setUsedVariables(functionScope.getUsedVariables());
         }
@@ -169,7 +176,7 @@ public final class SFunction extends ANode {
         functionNode.getParameterNames().addAll(paramNameStrs);
         functionNode.setStatic(isStatic);
         functionNode.setSynthetic(synthetic);
-        functionNode.setAutoReturn(doAutoReturn);
+        functionNode.setAutoReturnEnabled(isAutoReturnEnabled);
         functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 

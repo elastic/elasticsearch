@@ -19,16 +19,43 @@
 
 package org.elasticsearch.painless.node;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.FeatureTestObject;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.action.PainlessExecuteAction;
+import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 // TODO: fix these tests to match new node structure
 
 /**
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51842")
 public class NodeToStringTests extends ESTestCase {
 
-    /*public void testEAssignment() {
+    public void testEAssignment() {
         assertToString(
                 "(SClass\n"
               + "  (SDeclBlock (SDeclaration (DUnresolvedType [def]) i))\n"
@@ -888,7 +915,7 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SClass walk(String code) {
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, PainlessTestScript.class);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, PainlessExecuteAction.PainlessTestScript.class);
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {
@@ -897,5 +924,5 @@ public class NodeToStringTests extends ESTestCase {
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);
         }
-    }*/
+    }
 }

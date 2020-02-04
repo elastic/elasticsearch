@@ -246,6 +246,9 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             functions.add((SFunction)visit(function));
         }
 
+        // handle the code to generate the execute method here
+        // because the statements come loose from the grammar as
+        // part of the overall class
         List<AStatement> statements = new ArrayList<>();
 
         for (StatementContext statement : ctx.statement()) {
@@ -261,6 +264,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             paramNames.add(argument.getName());
         }
 
+        // generate the execute method from the collected statements and parameters
         SFunction execute = new SFunction(location(ctx), returnCanonicalTypeName, "execute", paramTypes, paramNames, new SBlock(
                 location(ctx), statements), true, false, false, true);
         functions.add(execute);

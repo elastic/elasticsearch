@@ -70,7 +70,7 @@ public class FunctionNode extends IRNode {
     private List<String> parameterNames = new ArrayList<>();
     private boolean isStatic;
     private boolean isSynthetic;
-    private boolean doAutoReturn;
+    private boolean isAutoReturnEnabled;
     private boolean doesMethodEscape;
     private int maxLoopCounter;
 
@@ -130,12 +130,12 @@ public class FunctionNode extends IRNode {
         return isSynthetic;
     }
 
-    public void setAutoReturn(boolean doAutoReturn) {
-        this.doAutoReturn = doAutoReturn;
+    public void setAutoReturnEnabled(boolean isAutoReturnEnabled) {
+        this.isAutoReturnEnabled = isAutoReturnEnabled;
     }
 
-    public boolean doAutoReturn() {
-        return doAutoReturn;
+    public boolean isAutoReturnEnabled() {
+        return isAutoReturnEnabled;
     }
 
     public void setMethodEscape(boolean doesMethodEscape) {
@@ -163,7 +163,7 @@ public class FunctionNode extends IRNode {
         if (isStatic) {
             access |= Opcodes.ACC_STATIC;
         } else {
-            scopeTable.defineVariable(Object.class, "#this");
+            scopeTable.defineInternalVariable(Object.class, "this");
         }
 
         if (isSynthetic) {
@@ -186,6 +186,8 @@ public class FunctionNode extends IRNode {
         methodWriter.visitCode();
 
         // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
+        // create labels for the potential try/catch blocks in "execute"
         Label startTry = new Label();
         Label endTry = new Label();
         Label startExplainCatch = new Label();
@@ -195,6 +197,9 @@ public class FunctionNode extends IRNode {
         if ("execute".equals(name)) {
             methodWriter.mark(startTry);
 
+            // convert gets methods to local variables from appropriate context - requires
+            // the gets method name be modified from "getExample" to "example"
+            // each gets method is then called and stored in the generated local variable
             for (int getMethodIndex = 0; getMethodIndex < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++getMethodIndex) {
                 Method getMethod = scriptRoot.getScriptClassInfo().getGetMethods().get(getMethodIndex);
                 Class<?> returnType = scriptRoot.getScriptClassInfo().getGetReturns().get(getMethodIndex);
@@ -228,7 +233,7 @@ public class FunctionNode extends IRNode {
         if (doesMethodEscape == false) {
             if (returnType == void.class) {
                 methodWriter.returnValue();
-            } else if (doAutoReturn) {
+            } else if (isAutoReturnEnabled) {
                 if (returnType == boolean.class) {
                     methodWriter.push(false);
                 } else if (returnType == byte.class || returnType == char.class || returnType == short.class || returnType == int.class) {
@@ -251,6 +256,7 @@ public class FunctionNode extends IRNode {
         }
 
         // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
         if ("execute".equals(name)) {
             methodWriter.mark(endTry);
             methodWriter.goTo(endCatch);

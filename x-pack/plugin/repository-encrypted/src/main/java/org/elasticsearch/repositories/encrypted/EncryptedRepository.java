@@ -49,6 +49,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,7 +71,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
     static final int DATA_KEY_LENGTH_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 8 << 20; // 8MB
-    static final int METADATA_NAME_LENGTH_IN_BYTES = 18; // 16 bits is the UUIDS length; 18 is the next multiple for Base64 encoding
+    static final int METADATA_UID_LENGTH_IN_BYTES = 18; // 16 bits is the UUIDS length; 18 is the next multiple for Base64 encoding
+    static final int METADATA_UID_LENGTH_IN_CHARS = 24; // base64 encoding with no padding
     // this can be changed freely (can be made a repository parameter) without adjusting
     // the {@link #CURRENT_ENCRYPTION_VERSION_NUMBER}, as long as it stays under the value
     // of {@link #MAX_PACKET_LENGTH_IN_BYTES}
@@ -132,7 +134,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
         // which has a sufficiently long random name, enough to make it effectively unique in any given practical blob container
         final Random random = new Random();
         this.metadataIdentifierGenerator = () -> {
-            byte[] randomMetadataName = new byte[METADATA_NAME_LENGTH_IN_BYTES];
+            byte[] randomMetadataName = new byte[METADATA_UID_LENGTH_IN_BYTES];
             random.nextBytes(randomMetadataName);
             return randomMetadataName;
         };
@@ -312,13 +314,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
         public InputStream readBlob(String blobName) throws IOException {
             final InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName);
             // read the metadata identifier (fixed length) which is prepended to the encrypted blob
-            final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_NAME_LENGTH_IN_BYTES);
-            if (metadataIdentifier.length != METADATA_NAME_LENGTH_IN_BYTES) {
+            final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_UID_LENGTH_IN_BYTES);
+            if (metadataIdentifier.length != METADATA_UID_LENGTH_IN_BYTES) {
                 throw new IOException("Failure to read encrypted blob metadata identifier");
             }
-            // the metadata blob name is simply the base64 encoding (URL safe) of the metadata identifier,
-            // inside a fixed root blob container
-            final String metadataBlobName = new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
+            // the metadata blob name is the name of the data blob followed by the base64 encoding (URL safe) of the metadata identifier
+            final String metadataBlobName = blobName + new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
                     StandardCharsets.UTF_8);
             // read the encrypted metadata contents
             BytesReference encryptedMetadataBytes = Streams.readFully(encryptionMetadataBlobContainer.readBlob(metadataBlobName));
@@ -375,7 +376,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
             // the metadata identifier is a sufficiently long random byte array so as to make it practically unique
             // the goal is to avoid overwriting metadata blobs even if the encrypted data blobs are overwritten
             final byte[] metadataIdentifier = metadataIdentifierGenerator.get();
-            final String metadataBlobName = new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
+            final String metadataBlobName = blobName + new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier),
                     StandardCharsets.UTF_8);
             // first write the encrypted metadata to a UNIQUE blob name
             try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
@@ -411,10 +412,19 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+            Objects.requireNonNull(blobNames);
             // first delete the encrypted data blob
             delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
             // then delete metadata
-            encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+            Set<String> blobNamesSet = new HashSet<>(blobNames);
+            List<String> metadataBlobsToDelete = new ArrayList<>(blobNames.size());
+            for (String metadataBlobName : encryptionMetadataBlobContainer.listBlobs().keySet()) {
+                if (blobNamesSet.contains(metadataBlobName.substring(0,
+                        metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS))) {
+                    metadataBlobsToDelete.add(metadataBlobName);
+                }
+            }
+            encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(metadataBlobsToDelete);
         }
 
         @Override
@@ -451,12 +461,39 @@ public final class EncryptedRepository extends BlobStoreRepository {
             return delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
         }
 
-        public void cleanUpOrphanedMetadata() throws IOException{
+        private String readMetadataUidFromEncryptedBlob(String blobName) throws IOException {
+            try (InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName)) {
+                // read the metadata identifier (fixed length) which is prepended to the encrypted blob
+                final byte[] metadataIdentifier = encryptedDataInputStream.readNBytes(METADATA_UID_LENGTH_IN_BYTES);
+                if (metadataIdentifier.length != METADATA_UID_LENGTH_IN_BYTES) {
+                    throw new IOException("Failure to read encrypted blob metadata identifier");
+                }
+                return new String(Base64.getUrlEncoder().withoutPadding().encode(metadataIdentifier), StandardCharsets.UTF_8);
+            }
+        }
+
+        public void cleanUpOrphanedMetadata() throws IOException {
             // delete encryption metadata blobs which don't pair with any data blobs
             Set<String> foundEncryptedBlobs = delegatedBlobContainer.listBlobs().keySet();
             Set<String> foundMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
-            List<String> orphanedMetadataBlobs = new ArrayList<>(foundMetadataBlobs);
-            orphanedMetadataBlobs.removeAll(foundEncryptedBlobs);
+            List<String> orphanedMetadataBlobs = new ArrayList<>();
+            Map<String, List<String>> blobNameToMetadataNames = new HashMap<>();
+            for (String metadataBlobName : foundMetadataBlobs) {
+                String blobName = metadataBlobName.substring(0, metadataBlobName.length() - METADATA_UID_LENGTH_IN_CHARS);
+                blobNameToMetadataNames.computeIfAbsent(blobName, k -> new ArrayList<>()).add(metadataBlobName);
+            }
+            for (Map.Entry<String, List<String>> blobAndMetadataName : blobNameToMetadataNames.entrySet()) {
+                if (false == foundEncryptedBlobs.contains(blobAndMetadataName.getKey())) {
+                    orphanedMetadataBlobs.addAll(blobAndMetadataName.getValue());
+                } else if (blobAndMetadataName.getValue().size() > 1) {
+                    String metadataIdentifier = readMetadataUidFromEncryptedBlob(blobAndMetadataName.getKey());
+                    for (String metadataBlobName : blobAndMetadataName.getValue()) {
+                        if (false == metadataBlobName.endsWith(metadataIdentifier)) {
+                            orphanedMetadataBlobs.add(metadataBlobName);
+                        }
+                    }
+                }
+            }
             try {
                 encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(orphanedMetadataBlobs);
             } catch (IOException e) {

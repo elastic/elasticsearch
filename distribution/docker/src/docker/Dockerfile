@@ -67,6 +67,9 @@ ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
+# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+RUN find / -xdev -perm -4000 -exec chmod ug-s {} +
+
 # Openshift overrides USER and uses ones with randomly uid>1024 and gid=0
 # Allow ENTRYPOINT (and ES) to run even with a different user
 RUN chgrp 0 /usr/local/bin/docker-entrypoint.sh && \

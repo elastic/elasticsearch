@@ -12,11 +12,18 @@ import java.util.Objects;
 
 public class ScriptSort extends Sort {
 
+    private final String id;
     private final ScriptTemplate script;
 
-    public ScriptSort(ScriptTemplate script, Direction direction, Missing missing) {
+    public ScriptSort(String id, ScriptTemplate script, Direction direction, Missing missing) {
         super(direction, missing);
+        this.id = id;
         this.script = Scripts.nullSafeSort(script);
+    }
+
+    @Override
+    public String id() {
+        return id;
     }
 
     public ScriptTemplate script() {
@@ -25,7 +32,7 @@ public class ScriptSort extends Sort {
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), missing(), script);
+        return Objects.hash(direction(), missing(), id(), script());
     }
     
     @Override
@@ -37,10 +44,11 @@ public class ScriptSort extends Sort {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing())
-                && Objects.equals(script, other.script);
+                && Objects.equals(id(), other.id())
+                && Objects.equals(script(), other.script());
     }
 }

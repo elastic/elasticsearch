@@ -8,13 +8,22 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 import java.util.Objects;
 
 public class ScoreSort extends Sort {
-    public ScoreSort(Direction direction, Missing missing) {
+
+    final String id;
+
+    public ScoreSort(String id, Direction direction, Missing missing) {
         super(direction, missing);
+        this.id = id;
+    }
+
+    @Override
+    public String id() {
+        return id;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), missing());
+        return Objects.hash(direction(), missing(), id());
     }
 
     @Override
@@ -29,6 +38,7 @@ public class ScoreSort extends Sort {
 
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
-                && Objects.equals(missing(), other.missing());
+                && Objects.equals(missing(), other.missing())
+                && Objects.equals(id(), other.id());
     }
 }

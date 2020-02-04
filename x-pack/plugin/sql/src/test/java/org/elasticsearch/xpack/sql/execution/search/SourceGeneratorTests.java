@@ -97,7 +97,7 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testSortScoreSpecified() {
         QueryContainer container = new QueryContainer()
-                .addSort(new ScoreSort(Direction.DESC, null));
+                .addSort(new ScoreSort("id", Direction.DESC, null));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(scoreSort()), sourceBuilder.sorts());
     }

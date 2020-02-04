@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -134,45 +133,39 @@ public class QueryContainer {
             return emptyList();
         }
 
-        List<Tuple<Integer, Comparator>> sortingColumns = new ArrayList<>(sort.size());
-
-        boolean aggSort = false;
         for (Sort s : sort) {
-            Tuple<Integer, Comparator> tuple = new Tuple<>(Integer.valueOf(-1), null);
-            
             if (s instanceof AggregateSort) {
-                AggregateSort as = (AggregateSort) s;
-                // find the relevant column of each aggregate function
-                AggregateFunction af = as.agg();
-
-                aggSort = true;
-                int atIndex = -1;
-                String id = Expressions.id(af);
-
-                for (int i = 0; i < fields.size(); i++) {
-                    Tuple<FieldExtraction, String> field = fields.get(i);
-                    if (field.v2().equals(id)) {
-                        atIndex = i;
-                        break;
-                    }
-                }
-                if (atIndex == -1) {
-                    throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", s);
-                }
-                // assemble a comparator for it
-                Comparator comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
-                comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
-
-                tuple = new Tuple<>(Integer.valueOf(atIndex), comp);
+                customSort = Boolean.TRUE;
             }
-            sortingColumns.add(tuple);
+        }
+
+        // If no custom sort is used break early
+        if (customSort == null) {
+            customSort = Boolean.FALSE;
+            return emptyList();
+        }
+
+        List<Tuple<Integer, Comparator>> sortingColumns = new ArrayList<>(sort.size());
+        for (Sort s: sort) {
+            int atIndex = -1;
+            for (int i = 0; i < fields.size(); i++) {
+                Tuple<FieldExtraction, String> field = fields.get(i);
+                if (field.v2().equals(s.id())) {
+                    atIndex = i;
+                    break;
+                }
+            }
+            if (atIndex==-1) {
+                throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", s);
+            }
+            // assemble a comparator for it
+            Comparator comp = s.direction()==Sort.Direction.ASC ? Comparator.naturalOrder():Comparator.reverseOrder();
+            comp = s.missing()==Sort.Missing.FIRST ? Comparator.nullsFirst(comp):Comparator.nullsLast(comp);
+
+            sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
         
-        if (customSort == null) {
-            customSort = Boolean.valueOf(aggSort);
-        }
-
-        return aggSort ? sortingColumns : emptyList();
+        return sortingColumns;
     }
 
     /**

@@ -5,34 +5,27 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-
 import java.util.Objects;
 
-public class AttributeSort extends Sort {
+public class GroupingFunctionSort extends Sort {
 
-    private final Attribute attribute;
+    private final String id;
 
-    public AttributeSort(Attribute attribute, Direction direction, Missing missing) {
+    public GroupingFunctionSort(String id, Direction direction, Missing missing) {
         super(direction, missing);
-        this.attribute = attribute;
-    }
-
-    public Attribute attribute() {
-        return attribute;
+        this.id = id;
     }
 
     @Override
     public String id() {
-        return Expressions.id(attribute);
+        return id;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(attribute, direction(), missing());
+        return Objects.hash(direction(), missing(), id);
     }
-
+    
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -43,9 +36,9 @@ public class AttributeSort extends Sort {
             return false;
         }
         
-        AttributeSort other = (AttributeSort) obj;
+        GroupingFunctionSort other = (GroupingFunctionSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing())
-                && Objects.equals(attribute, other.attribute);
+                && Objects.equals(id(), other.id());
     }
 }

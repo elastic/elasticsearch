@@ -23,12 +23,17 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
 // This is a top level task which we will add dependencies to below.
 // It is a single task that can be used to backcompat tests against all versions.
 task bwcTest {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
+}
+
+processTestResources {
+  dependsOn copyCoreRestSpecLocal
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {

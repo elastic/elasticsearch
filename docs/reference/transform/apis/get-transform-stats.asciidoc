@@ -85,11 +85,11 @@ informational; you cannot update their values.
 `checkpointing`.`last`.`checkpoint`::::
 (integer) The sequence number for the checkpoint.
 `checkpointing`.`last`.`time_upper_bound_millis`::::
-(date) When using time-based synchronization, the timestamp until data has been
-processed.
+(date) When using time-based synchronization, this timestamp indicates when the 
+data has been processed into the destination index.
 `checkpointing`.`last`.`timestamp_millis`::::
 (date) The timestamp of the checkpoint, which indicates when the checkpoint was
-created.
+created. This typically occurs after the data is added to the destination index.
 `checkpointing`.`next`:::
 (object) Contains statistics about the next checkpoint that is currently in
 progress. This object appears only if the {transform} is currently processing

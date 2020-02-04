@@ -118,31 +118,35 @@ public class ForceMergeAction implements LifecycleAction {
         Settings bestCompressionSettings = Settings.builder()
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
 
+        final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
+
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
+
+        StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
+        StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
+        StepKey openKey = new StepKey(phase, NAME, OpenIndexStep.NAME);
+        StepKey waitForGreenIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
-        StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
-        StepKey openKey = new StepKey(phase, NAME, OpenIndexStep.NAME);
-        StepKey waitForGreenIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
-        StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
+        UpdateSettingsStep readOnlyStep =
+            new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, readOnlySettings);
 
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, forceMergeKey, client, readOnlySettings);
-        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
-        ForceMergeStep forceMergeStepForBestCompression = new ForceMergeStep(forceMergeKey, closeKey, client, maxNumSegments);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
             openKey, client, bestCompressionSettings);
         OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
         WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
             forceMergeKey, ClusterHealthStatus.GREEN);
+
+        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
 
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(readOnlyStep);
 
-        if (codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC)) {
-            mergeSteps.add(forceMergeStepForBestCompression);
+        if (codecChange) {
             mergeSteps.add(closeIndexStep);
             mergeSteps.add(updateBestCompressionSettings);
             mergeSteps.add(openIndexStep);

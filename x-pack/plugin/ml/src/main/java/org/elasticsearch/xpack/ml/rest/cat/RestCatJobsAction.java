@@ -183,6 +183,31 @@ public class RestCatJobsAction extends AbstractCatAction {
             TableColumnAttributeBuilder.builder("number of bucket allocation failures", false)
                 .setAliases("mbaf", "modelBucketAllocationFailures")
                 .build());
+        table.addCell("model.categorization_status",
+            TableColumnAttributeBuilder.builder("current categorization status")
+                .setAliases("mcs", "modelCategorizationStatus")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
+        table.addCell("model.categorized_doc_count",
+            TableColumnAttributeBuilder.builder("count of categorized documents", false)
+                .setAliases("mcdc", "modelCategorizedDocCount")
+                .build());
+        table.addCell("model.total_category_count",
+            TableColumnAttributeBuilder.builder("count of categories", false)
+                .setAliases("mtcc", "modelTotalCategoryCount")
+                .build());
+        table.addCell("model.frequent_category_count",
+            TableColumnAttributeBuilder.builder("count of frequent categories", false)
+                .setAliases("mfcc", "modelFrequentCategoryCount")
+                .build());
+        table.addCell("model.rare_category_count",
+            TableColumnAttributeBuilder.builder("count of rare categories", false)
+                .setAliases("mrcc", "modelRareCategoryCount")
+                .build());
+        table.addCell("model.dead_category_count",
+            TableColumnAttributeBuilder.builder("count of dead categories", false)
+                .setAliases("mdcc", "modelDeadCategoryCount")
+                .build());
         table.addCell("model.log_time",
             TableColumnAttributeBuilder.builder("when the model stats were gathered", false)
                 .setAliases("mlt", "modelLogTime")

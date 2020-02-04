@@ -612,7 +612,7 @@ final class RequestConverters {
             .withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
             .withRefresh(updateByQueryRequest.isRefresh())
-            .withTimeout(updateByQueryRequest.getTimeout())
+            .withShardTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(updateByQueryRequest.indicesOptions())
@@ -937,6 +937,10 @@ final class RequestConverters {
 
         Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
+        }
+
+        Params withShardTimeout(TimeValue timeout) {
+            return putParam("shard_timeout", timeout);
         }
 
         Params withVersion(long version) {

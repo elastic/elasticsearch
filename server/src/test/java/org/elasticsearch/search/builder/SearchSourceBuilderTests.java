@@ -335,7 +335,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithUnits() throws IOException {
         final String timeout = randomTimeValue();
-        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        final String query = "{ \"query\": { \"match_all\": {}}, \"shard_timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(parser);
             assertThat(builder.shardTimeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
@@ -344,7 +344,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithoutUnits() throws IOException {
         final int timeout = randomIntBetween(1, 1024);
-        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        final String query = "{ \"query\": { \"match_all\": {}}, \"shard_timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(
                     parser));

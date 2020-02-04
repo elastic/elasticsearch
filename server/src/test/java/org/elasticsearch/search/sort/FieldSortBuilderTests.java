@@ -71,7 +71,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
 import static org.elasticsearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
-import static org.elasticsearch.search.sort.FieldSortBuilder.isBottomSortDisjoint;
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -570,15 +569,20 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
     }
 
-    public void testIsBottomSortDisjoint() throws Exception {
+    public void testIsBottomSortWithinShard() throws Exception {
         try (Directory dir = newDirectory()) {
-            int numDocs = randomIntBetween(10, 30);
-            long maxValue = Long.MIN_VALUE;
-            long minValue = Long.MAX_VALUE;
+            int numDocs = randomIntBetween(5, 10);
+            long maxValue = -1;
+            long minValue = Integer.MAX_VALUE;
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, new KeywordAnalyzer())) {
+                FieldSortBuilder fieldSort = SortBuilders.fieldSort("custom-date");
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
+                    assertFalse(fieldSort.isBottomSortWithinShard(context, new Object[] { 0L }));
+                }
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
-                    long value = randomLongBetween(1, Long.MAX_VALUE-1);
+                    long value = randomLongBetween(1, Integer.MAX_VALUE);
                     doc.add(new LongPoint("custom-date", value));
                     doc.add(new SortedNumericDocValuesField("custom-date", value));
                     writer.addDocument(doc);
@@ -587,26 +591,19 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 }
                 try (DirectoryReader reader = writer.getReader()) {
                     QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
-                    assertFalse(isBottomSortDisjoint(context, null, null));
-                    assertFalse(isBottomSortDisjoint(context, new SearchSourceBuilder(), null));
-                    assertFalse(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder().sort(SortBuilders.fieldSort("custom-date")), null));
-                    assertFalse(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder().sort(SortBuilders.fieldSort("custom-date")), new Object[]{minValue}));
-                    assertTrue(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder().sort(SortBuilders.fieldSort("custom-date")), new Object[]{minValue-1}));
-                    assertTrue(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder()
-                            .sort(SortBuilders.fieldSort("custom-date").order(SortOrder.DESC)), new Object[]{maxValue+1}));
-                    assertFalse(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder()
-                            .sort(SortBuilders.fieldSort("custom-date").order(SortOrder.DESC)), new Object[]{maxValue}));
-                    assertFalse(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder()
-                            .sort(SortBuilders.fieldSort("custom-date").order(SortOrder.DESC)), new Object[]{minValue}));
-                    assertFalse(isBottomSortDisjoint(context,
-                        new SearchSourceBuilder()
-                            .sort(SortBuilders.fieldSort("custom-date")), new Object[]{maxValue+1}));
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, null));
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue }));
+                    assertFalse(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue-1 }));
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue+1 }));
+                    fieldSort.order(SortOrder.DESC);
+                    assertFalse(fieldSort.isBottomSortWithinShard(context, new Object[] { maxValue+1 }));
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { maxValue }));
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue }));
+                    fieldSort.setNestedSort(new NestedSortBuilder("empty"));
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue-1 }));
+                    fieldSort.setNestedSort(null);
+                    fieldSort.missing("100");
+                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { maxValue+1 }));
                 }
             }
         }

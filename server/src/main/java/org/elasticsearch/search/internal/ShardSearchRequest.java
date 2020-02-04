@@ -51,7 +51,6 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -61,7 +60,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
@@ -359,8 +357,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
 
             QueryShardContext shardContext = ctx.convertToShardContext();
+            FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
             if (shardContext != null
-                    && FieldSortBuilder.isBottomSortDisjoint(shardContext, newSource, request.getRawBottomSortValues())) {
+                    && primarySort != null
+                    && primarySort.isBottomSortWithinShard(shardContext, request.getRawBottomSortValues()) == false) {
                 newSource = newSource.shallowCopy();
                 if (newSource.trackTotalHitsUpTo() == TRACK_TOTAL_HITS_DISABLED
                         && newSource.aggregations() == null) {

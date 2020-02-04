@@ -376,6 +376,41 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
     }
 
+    public boolean canRewriteToMatchNone() {
+        return nestedSort == null && (missing == null || "_last".equals(missing));
+    }
+
+    /**
+     * Return <code>true</code> if the
+     */
+    public boolean isBottomSortWithinShard(QueryShardContext context,
+                                           Object[] rawBottomSortValues) {
+        if (rawBottomSortValues == null || rawBottomSortValues.length == 0) {
+            return true;
+        }
+
+        if (canRewriteToMatchNone() == false) {
+            return true;
+        }
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            // unmapped
+            return false;
+        }
+        if (fieldType.indexOptions() == IndexOptions.NONE) {
+            return true;
+        }
+        Object minValue = order() == SortOrder.DESC ? rawBottomSortValues[0] : null;
+        Object maxValue = order() == SortOrder.DESC ? null : rawBottomSortValues[0];
+        try {
+            MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.searcher().getIndexReader(), minValue, maxValue,
+                true, true, null, DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(), context);
+            return relation != MappedFieldType.Relation.DISJOINT;
+        } catch (Exception exc) {
+            return true;
+        }
+    }
+
     /**
      * Return true if the primary sort in the provided <code>source</code>
      * is an instance of {@link FieldSortBuilder}.
@@ -393,28 +428,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return null;
         }
         return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
-    }
-
-    public static boolean isBottomSortDisjoint(QueryShardContext context,
-                                               SearchSourceBuilder source,
-                                               Object[] rawBottomSortValues) throws IOException {
-        if (rawBottomSortValues == null || rawBottomSortValues.length == 0) {
-            return false;
-        }
-        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
-        if (fieldSort == null) {
-            return false;
-        }
-        MappedFieldType fieldType = context.fieldMapper(fieldSort.getFieldName());
-        if (fieldType == null) {
-            // unmapped
-            return true;
-        }
-        Object minValue = fieldSort.order() == SortOrder.DESC ? rawBottomSortValues[0] : null;
-        Object maxValue = fieldSort.order() == SortOrder.DESC ? null : rawBottomSortValues[0];
-        MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.searcher().getIndexReader(), minValue, maxValue,
-            true, true, null, DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(), context);
-        return relation == MappedFieldType.Relation.DISJOINT;
     }
 
     /**

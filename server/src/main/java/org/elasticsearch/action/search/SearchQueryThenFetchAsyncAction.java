@@ -105,7 +105,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
         return request;
     }
 
-    static Supplier<TopDocs> getTopDocsSupplier(SearchRequest request, SearchPhaseResults<SearchPhaseResult> searchPhaseResults) {
+    private Supplier<TopDocs> getTopDocsSupplier(SearchRequest request, SearchPhaseResults<SearchPhaseResult> searchPhaseResults) {
         if (searchPhaseResults instanceof SearchPhaseController.QueryPhaseResultConsumer == false) {
             return () -> null;
         }
@@ -113,8 +113,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
         if (size == 0
                 || fieldSort == null
-                || fieldSort.getNestedSort() != null
-                || (fieldSort.missing() != null && "_last".equals(fieldSort.missing()) == false)) {
+                || fieldSort.canRewriteToMatchNone() == false) {
             return () -> null;
         }
         return ((SearchPhaseController.QueryPhaseResultConsumer) searchPhaseResults)::getBufferTopDocs;

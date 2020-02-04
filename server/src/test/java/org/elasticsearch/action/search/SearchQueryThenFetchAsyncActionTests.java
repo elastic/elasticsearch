@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
-    public void testSearchBefore() throws InterruptedException {
+    public void testBottomFieldSort() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 
@@ -53,7 +53,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request, SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+            public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
+                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 if (request.getRawBottomSortValues() != null) {
                     assertNotEquals(shardId, (int) request.getRawBottomSortValues()[0]);
@@ -86,10 +87,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             .trackTotalHitsUpTo(1)
             .sort(SortBuilders.fieldSort("timestamp")));
         searchRequest.allowPartialSearchResults(false);
-        SearchPhaseController controller = new SearchPhaseController((b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
+        SearchPhaseController controller = new SearchPhaseController((b) ->
+            new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
-            searchTransportService, (clusterAlias, node) -> lookup.get(node), Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            searchTransportService, (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
             new ActionListener<>() {
                 @Override

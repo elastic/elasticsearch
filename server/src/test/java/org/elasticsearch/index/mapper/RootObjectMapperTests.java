@@ -201,5 +201,3 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             assertEquals("Dynamic template syntax error, expects an array of named objects", e.getMessage());
     }
 }
-
-}

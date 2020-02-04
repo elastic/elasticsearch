@@ -591,6 +591,18 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         return Collections.unmodifiableMap(csvProcessorSettings);
     }
 
+    /**
+     * The multi-line start pattern is based on the first field in the line that is boolean, numeric
+     * or the detected timestamp, and consists of a pattern matching that field, preceded by wildcards
+     * to match any prior fields and to match the delimiters in between them.
+     *
+     * This is based on the observation that a boolean, numeric or timestamp field will not contain a
+     * newline.
+     *
+     * The approach works best when the chosen field is early in each record, ideally the very first
+     * field.  It doesn't work when fields prior to the chosen field contain newlines in some of the
+     * records.
+     */
     static String makeMultilineStartPattern(List<String> explanation, List<String> columnNames, int maxLinesPerMessage,
                                             String delimiterPattern, String quotePattern, Map<String, Object> mappings,
                                             String timeFieldName, TimestampFormatFinder timeFieldFormat) {
@@ -606,8 +618,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         }
 
         StringBuilder builder = new StringBuilder("^");
-        // Look for a field early in the line that cannot be a multi-line field based on the type we've determined for it,
-        // and create a pattern .
+        // Look for a field early in the line that cannot be a multi-line field based on the type we've determined for
+        // it, and create a pattern that matches this field with the appropriate number of delimiters before it.
         // There is no point doing this for the last field on the line, so this is why the loop excludes the last column.
         for (String columnName : columnNames.subList(0, columnNames.size() - 1)) {
             if (columnName.equals(timeFieldName)) {

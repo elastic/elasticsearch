@@ -24,6 +24,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
@@ -62,6 +63,7 @@ dependencies {
 
 processTestResources {
   from(project(':client:rest-high-level').file('src/test/resources'))
+  dependsOn copyCoreRestSpecLocal
 }
 
 dependencyLicenses {

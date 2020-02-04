@@ -85,14 +85,16 @@ public class Version {
 
         // This is similar to how Elasticsearch's Build class digs up its build information.
         // Since version info is not critical, the parsing is lenient
-        URL url = Version.class.getProtectionDomain().getCodeSource().getLocation();
-        String urlStr = url.toString();
+        CURRENT = extractVersion(Version.class.getProtectionDomain().getCodeSource().getLocation());
+    }
 
+    static Version extractVersion(URL url) {
+        String urlStr = url.toString();
         byte maj = 0, min = 0, rev = 0;
         String ver = "Unknown";
         String hash = ver;
 
-        if (urlStr.endsWith(".jar")) {
+        if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
@@ -105,7 +107,7 @@ public class Version {
                 throw new IllegalArgumentException("Detected Elasticsearch JDBC jar but cannot retrieve its version", ex);
             }
         }
-        CURRENT = new Version(ver, hash, maj, min, rev);
+        return new Version(ver, hash, maj, min, rev);
     }
 
     @Override

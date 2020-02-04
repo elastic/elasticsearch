@@ -1,7 +1,7 @@
 {
   "ml.get_overall_buckets":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html"
     },
     "stability":"stable",
     "url":{

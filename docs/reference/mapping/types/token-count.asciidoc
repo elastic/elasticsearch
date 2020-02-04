@@ -69,11 +69,6 @@ Indicates if position increments should be counted.
 Set to `false` if you don't want to count tokens removed by analyzer filters (like <<analysis-stop-tokenfilter,`stop`>>). 
 Defaults to `true`.
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

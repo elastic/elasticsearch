@@ -54,11 +54,6 @@ The following parameters are accepted by `text` fields:
     Defaults to the default index analyzer, or the
     <<analysis-standard-analyzer,`standard` analyzer>>.
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
-
 <<eager-global-ordinals,`eager_global_ordinals`>>::
 
     Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`

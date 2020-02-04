@@ -55,7 +55,6 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopEngine() throws IOException {
         engine.close();
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
         engine.close();

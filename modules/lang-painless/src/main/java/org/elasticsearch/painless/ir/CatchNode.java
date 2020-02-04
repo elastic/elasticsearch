@@ -22,6 +22,8 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -55,23 +57,24 @@ public class CatchNode extends StatementNode {
     Label exception = null;
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
+
+        declarationNode.write(classWriter, methodWriter, globals, scopeTable);
+        Variable variable = scopeTable.getVariable(declarationNode.getName());
 
         Label jump = new Label();
 
         methodWriter.mark(jump);
-        methodWriter.visitVarInsn(MethodWriter.getType(
-                declarationNode.getVariable().clazz).getOpcode(Opcodes.ISTORE),
-                declarationNode.getVariable().getSlot());
+        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (blockNode != null) {
             blockNode.continueLabel = continueLabel;
             blockNode.breakLabel = breakLabel;
-            blockNode.write(classWriter, methodWriter, globals);
+            blockNode.write(classWriter, methodWriter, globals, scopeTable);
         }
 
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declarationNode.getVariable().clazz).getInternalName());
+        methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());
 
         if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
             methodWriter.goTo(exception);

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -31,7 +32,6 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -53,15 +53,10 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        prefix.analyze(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        prefix.analyze(scriptRoot, scope);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, locals);
+        prefix = prefix.cast(scriptRoot, scope);
 
         if (prefix.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
@@ -89,7 +84,7 @@ public final class PField extends AStoreable {
                     sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(scriptRoot, locals);
+                    index.analyze(scriptRoot, scope);
 
                     if (Map.class.isAssignableFrom(prefix.actual)) {
                         sub = new PSubMapShortcut(location, prefix.actual, index);
@@ -117,16 +112,16 @@ public final class PField extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(scriptRoot, locals);
+        sub.analyze(scriptRoot, scope);
         actual = sub.actual;
     }
 
     @Override
-    DotNode write() {
+    DotNode write(ClassNode classNode) {
         DotNode dotNode = new DotNode();
 
-        dotNode.setLeftNode(prefix.write());
-        dotNode.setRightNode(sub.write());
+        dotNode.setLeftNode(prefix.write(classNode));
+        dotNode.setRightNode(sub.write(classNode));
 
         dotNode.setLocation(location);
         dotNode.setExpressionType(actual);

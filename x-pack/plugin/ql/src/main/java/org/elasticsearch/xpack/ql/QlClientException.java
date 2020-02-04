@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ql;
 
+/**
+ * Exception thrown by performing client (or user) code.
+ * Typically it means the given action or query is incorrect and needs fixing.
+ */
 public abstract class QlClientException extends QlException {
 
     protected QlClientException(String message, Object... args) {

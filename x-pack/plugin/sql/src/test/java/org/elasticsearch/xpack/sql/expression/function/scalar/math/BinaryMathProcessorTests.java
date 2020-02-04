@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -118,6 +119,6 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     }
     
     private static Literal l(Object value) {
-        return Literal.of(EMPTY, value);
+        return SqlTestUtils.literal(value);
     }
 }

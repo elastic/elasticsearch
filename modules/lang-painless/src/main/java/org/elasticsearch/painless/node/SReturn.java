@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Set;
 
 /**
  * Represents a return statement.
@@ -41,25 +40,18 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (expression == null) {
-            if (locals.getReturnType() != void.class) {
+            if (scope.getReturnType() != void.class) {
                 throw location.createError(new ClassCastException("Cannot cast from " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(locals.getReturnType()) + "] to " +
+                        "[" + scope.getReturnCanonicalTypeName() + "] to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
-            expression.expected = locals.getReturnType();
+            expression.expected = scope.getReturnType();
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
+            expression.analyze(scriptRoot, scope);
+            expression = expression.cast(scriptRoot, scope);
         }
 
         methodEscape = true;
@@ -70,10 +62,10 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    ReturnNode write() {
+    ReturnNode write(ClassNode classNode) {
         ReturnNode returnNode = new ReturnNode();
 
-        returnNode.setExpressionNode(expression == null ? null : expression.write());
+        returnNode.setExpressionNode(expression == null ? null : expression.write(classNode));
 
         returnNode.setLocation(location);
 

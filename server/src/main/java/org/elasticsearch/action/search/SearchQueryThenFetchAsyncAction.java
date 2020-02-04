@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -40,9 +39,10 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
-final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
+class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
     private final Supplier<TopDocs> topDocsSupplier;
@@ -61,7 +61,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
                 searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
         this.topDocsSize = getTopDocsSize(request);
-        this.topDocsSupplier = getTopDocsSupplier(request, results);
+        this.topDocsSupplier = getBufferTopDocsSupplier(request, results);
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
         final SearchSourceBuilder sourceBuilder = request.source();
@@ -105,7 +105,8 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
         return request;
     }
 
-    private Supplier<TopDocs> getTopDocsSupplier(SearchRequest request, SearchPhaseResults<SearchPhaseResult> searchPhaseResults) {
+    private Supplier<TopDocs> getBufferTopDocsSupplier(SearchRequest request,
+                                                       SearchPhaseResults<SearchPhaseResult> searchPhaseResults) {
         if (searchPhaseResults instanceof SearchPhaseController.QueryPhaseResultConsumer == false) {
             return () -> null;
         }
@@ -117,14 +118,5 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
             return () -> null;
         }
         return ((SearchPhaseController.QueryPhaseResultConsumer) searchPhaseResults)::getBufferTopDocs;
-    }
-
-    static int getTopDocsSize(SearchRequest request) {
-        if (request.source() == null) {
-            return SearchService.DEFAULT_SIZE;
-        }
-        SearchSourceBuilder source = request.source();
-        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) +
-            (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 }

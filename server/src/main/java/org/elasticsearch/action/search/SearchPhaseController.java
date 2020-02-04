@@ -68,8 +68,6 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction.getTopDocsSize;
-
 public final class SearchPhaseController {
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];

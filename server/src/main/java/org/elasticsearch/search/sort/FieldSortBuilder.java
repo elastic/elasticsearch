@@ -381,7 +381,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Return <code>true</code> if the
+     * Returns whether all values of the given {@link QueryShardContext#getIndexReader()} are within the
+     * primary sort value provided in the <code>rawBottomSortValues</code>.
      */
     public boolean isBottomSortWithinShard(QueryShardContext context,
                                            Object[] rawBottomSortValues) {
@@ -403,7 +404,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         Object minValue = order() == SortOrder.DESC ? rawBottomSortValues[0] : null;
         Object maxValue = order() == SortOrder.DESC ? null : rawBottomSortValues[0];
         try {
-            MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.searcher().getIndexReader(), minValue, maxValue,
+            MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.getIndexReader(), minValue, maxValue,
                 true, true, null, DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(), context);
             return relation != MappedFieldType.Relation.DISJOINT;
         } catch (Exception exc) {

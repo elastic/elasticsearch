@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.FieldDoc;
@@ -5,7 +24,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -57,11 +75,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                                          SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 if (request.getRawBottomSortValues() != null) {
+                    assertTrue(request.canReturnNullResponseIfMatchNoDocs());
                     assertNotEquals(shardId, (int) request.getRawBottomSortValues()[0]);
                     numWithTopDocs.incrementAndGet();
                 }
                 QuerySearchResult queryResult = new QuerySearchResult(123,
-                    new SearchShardTarget("node1", new ShardId("test", "na", shardId), null, OriginalIndices.NONE));
+                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE));
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
                     new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
@@ -84,7 +103,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.setBatchedReduceSize(2);
         searchRequest.source(new SearchSourceBuilder()
             .size(1)
-            .trackTotalHitsUpTo(1)
+            .trackTotalHitsUpTo(2)
             .sort(SortBuilders.fieldSort("timestamp")));
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController((b) ->
@@ -94,29 +113,25 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        throw new AssertionError(e);
-                    } finally {
+            null, shardsIter, timeProvider, 0, task,
+            SearchResponse.Clusters.EMPTY) {
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
                         latch.countDown();
                     }
-                }
-            }, shardsIter, timeProvider, 0, task,
-            SearchResponse.Clusters.EMPTY);
+                };
+            }
+        };
         action.start();
         latch.await();
         assertThat(successfulOps.get(), equalTo(numShards));
         assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits.value, equalTo(1L));
+        assertThat(phase.totalHits.value, equalTo(2L));
         assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
         assertThat(phase.sortedTopDocs.scoreDocs.length, equalTo(1));
         assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));

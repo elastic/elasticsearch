@@ -295,6 +295,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return preference;
     }
 
+    /**
+     * Sets the bottom sort values that can be used by the searcher to filter documents
+     * that are after it. This value is computed by coordinating nodes that throttles the
+     * query phase. After a partial merge of successful shards the sort values of the
+     * bottom top document are passed as an hint on subsequent shard requests.
+     */
     public void setRawBottomSortValues(Object[] values) {
         this.rawBottomSortValues = values;
     }
@@ -358,6 +364,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
             QueryShardContext shardContext = ctx.convertToShardContext();
             FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
+            // checks if the bottom sort values are guaranteed to be more competitive than all the documents
+            // contained in the shard
             if (shardContext != null
                     && primarySort != null
                     && primarySort.isBottomSortWithinShard(shardContext, request.getRawBottomSortValues()) == false) {

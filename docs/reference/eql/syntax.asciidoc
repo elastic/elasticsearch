@@ -162,8 +162,8 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 ===== Wildcards 
 
 You can use the wildcard operator (`*`) within a string to match specific
-patterns. Wildcards are interpreted if they are used with `==` (equal) or `!=`
-(not equal):
+patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
+operators:
 
 [source,eql]
 ----

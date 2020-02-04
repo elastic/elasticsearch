@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory.CacheBufferedIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.DoubleAdder;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongConsumer;
 
@@ -38,9 +39,16 @@ public class IndexInputStats {
     private final Counter nonContiguousReads = new Counter();
 
     private final Counter directBytesRead = new Counter();
+    private final LongAdder directReadNanoseconds = new LongAdder();
 
     private final Counter cachedBytesRead = new Counter();
     private final Counter cachedBytesWritten = new Counter();
+    private final LongAdder cachedBytesWrittenNanoseconds = new LongAdder();
+
+    /**
+     * Linear regression model for the time taken to fetch data from the blob store: time (ns) == bytes * slope + intercept
+     */
+    private final LinearModelAccumulator fetchedBytesLinearModel = new LinearModelAccumulator();
 
     public IndexInputStats(long fileLength) {
         this.fileLength = fileLength;
@@ -62,12 +70,16 @@ public class IndexInputStats {
         cachedBytesRead.add(bytesRead);
     }
 
-    public void addCachedBytesWritten(int bytesWritten) {
+    public void addCachedBytesWritten(int bytesWritten, long nanoseconds) {
         cachedBytesWritten.add(bytesWritten);
+        cachedBytesWrittenNanoseconds.add(nanoseconds);
+        fetchedBytesLinearModel.addPoint(bytesWritten, nanoseconds);
     }
 
-    public void addDirectBytesRead(int bytesRead) {
+    public void addDirectBytesRead(int bytesRead, long nanoseconds) {
         directBytesRead.add(bytesRead);
+        directReadNanoseconds.add(nanoseconds);
+        fetchedBytesLinearModel.addPoint(bytesRead, nanoseconds);
     }
 
     public void incrementBytesRead(long previousPosition, long currentPosition, int bytesRead) {
@@ -140,12 +152,27 @@ public class IndexInputStats {
         return directBytesRead;
     }
 
+    LongAdder getDirectReadNanoseconds() {
+        return directReadNanoseconds;
+    }
+
     Counter getCachedBytesRead() {
         return cachedBytesRead;
     }
 
     Counter getCachedBytesWritten() {
         return cachedBytesWritten;
+    }
+
+    LongAdder getCachedBytesWrittenNanoseconds() {
+        return cachedBytesWrittenNanoseconds;
+    }
+
+    /**
+     * Returns a linear regression model for predicting the speed of fetching bytes of the form time (ns) == bytes * slope + intercept
+     */
+    LinearModel getFetchedBytesLinearModel() {
+        return fetchedBytesLinearModel.getModel();
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
@@ -189,6 +216,45 @@ public class IndexInputStats {
                 return 0L;
             }
             return value;
+        }
+    }
+
+    static class LinearModelAccumulator {
+        private final LongAdder s1 = new LongAdder();
+        private final DoubleAdder sx = new DoubleAdder();
+        private final DoubleAdder sy = new DoubleAdder();
+        private final DoubleAdder sxx = new DoubleAdder();
+        private final DoubleAdder sxy = new DoubleAdder();
+
+        /**
+         * @noinspection SuspiciousNameCombination since the parameter to {@link DoubleAdder#add} is called {@code x}
+         */
+        void addPoint(final double x, final double y) {
+            s1.increment();
+            sx.add(x);
+            sy.add(y);
+            sxx.add(x * x);
+            sxy.add(x * y);
+        }
+
+        LinearModel getModel() {
+            final double n = s1.sum();
+            final double x = sx.sum();
+            final double y = sy.sum();
+            final double xx = sxx.sum();
+            final double xy = sxy.sum();
+            final double slope = (n * xy - x * y) / (n * xx - x * x); // divide by zero results in Infinity or NaN, no exception thrown
+            return new LinearModel(slope, (y - slope * x) / n);
+        }
+    }
+
+    public static class LinearModel {
+        final double slope;
+        final double intercept;
+
+        LinearModel(double slope, double intercept) {
+            this.slope = slope;
+            this.intercept = intercept;
         }
     }
 }

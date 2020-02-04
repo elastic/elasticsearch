@@ -46,11 +46,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     private final SetOnce<RepositoriesService> repositoriesService;
     private final SetOnce<CacheService> cacheService;
+    private final SetOnce<ThreadPool> threadPool;
     private final Settings settings;
 
     public SearchableSnapshots(final Settings settings) {
         this.repositoriesService = new SetOnce<>();
         this.cacheService = new SetOnce<>();
+        this.threadPool = new SetOnce<>();
         this.settings = settings;
     }
 
@@ -80,6 +82,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
         final CacheService cacheService = new CacheService(settings);
         this.cacheService.set(cacheService);
+        this.threadPool.set(threadPool);
         return List.of(cacheService);
     }
 
@@ -88,10 +91,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         repositoriesService.set(repositoriesModule.getRepositoryService()); // should we use some SPI mechanism?
     }
 
+    private long getCurrentTimeNanos() {
+        return this.threadPool.get().relativeTimeInNanos();
+    }
+
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY,
-            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get));
+            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get, this::getCurrentTimeNanos));
     }
 
     @Override

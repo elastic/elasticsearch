@@ -1,5 +1,18 @@
 ==== Running Elasticsearch from the command line
 
+[IMPORTANT]
+.Unidentified developer warnings
+====
+Apple's rollout of stricter notarization requirements affected the notarization
+of the {version} {es} artifacts. If macOS Catalina displays an unidentified
+developer warning when you first run {es}, you will need to add a security
+override.
+
+To add a security override, follow the instructions in
+https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac[Open
+a Mac app from an unidentified developer].
+====
+
 Elasticsearch can be started from the command line as follows:
 
 [source,sh]

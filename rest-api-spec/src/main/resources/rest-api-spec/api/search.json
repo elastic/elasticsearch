@@ -182,8 +182,8 @@
         "description":"Whether to calculate and return scores even if they are not used for sorting"
       },
       "track_total_hits":{
-        "type":"boolean",
-        "description":"Indicate if the number of documents that match the query should be tracked"
+        "type":"boolean|number",
+        "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number"
       },
       "allow_partial_search_results":{
         "type":"boolean",

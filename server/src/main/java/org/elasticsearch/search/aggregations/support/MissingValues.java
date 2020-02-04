@@ -43,7 +43,7 @@ public enum MissingValues {
     // TODO: we could specialize the single value case
 
     public static ValuesSource.Bytes replaceMissing(final ValuesSource.Bytes valuesSource, final BytesRef missing) {
-        return new ValuesSource.Bytes() {
+        return new ValuesSource.Bytes(valuesSource.getValuesSourceType()) {
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 SortedBinaryDocValues values = valuesSource.bytesValues(context);
@@ -97,7 +97,7 @@ public enum MissingValues {
     public static ValuesSource.Numeric replaceMissing(final ValuesSource.Numeric valuesSource, final Number missing) {
         final boolean missingIsFloat = missing.doubleValue() % 1 != 0;
         final boolean isFloatingPoint = valuesSource.isFloatingPoint() || missingIsFloat;
-        return new ValuesSource.Numeric() {
+        return new ValuesSource.Numeric(valuesSource.getValuesSourceType()) {
 
             @Override
             public boolean isFloatingPoint() {
@@ -206,7 +206,7 @@ public enum MissingValues {
     }
 
     public static ValuesSource.Bytes replaceMissing(final ValuesSource.Bytes.WithOrdinals valuesSource, final BytesRef missing) {
-        return new ValuesSource.Bytes.WithOrdinals() {
+        return new ValuesSource.Bytes.WithOrdinals(valuesSource.getValuesSourceType()) {
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 SortedBinaryDocValues values = valuesSource.bytesValues(context);
@@ -397,7 +397,7 @@ public enum MissingValues {
     }
 
     public static ValuesSource.GeoPoint replaceMissing(final ValuesSource.GeoPoint valuesSource, final GeoPoint missing) {
-        return new ValuesSource.GeoPoint() {
+        return new ValuesSource.GeoPoint(valuesSource.getValuesSourceType()) {
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {

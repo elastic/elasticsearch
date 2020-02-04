@@ -51,7 +51,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return new ValuesSource.Numeric.Script(script, scriptValueType);
+            return new ValuesSource.Numeric.Script(NUMERIC, script, scriptValueType);
         }
 
         @Override
@@ -63,7 +63,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
 
-            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
+            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData(NUMERIC,
+                (IndexNumericFieldData) fieldContext.indexFieldData());
             if (script != null) {
                 // Value script case
                 dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
@@ -85,7 +86,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return new ValuesSource.Bytes.Script(script);
+            return new ValuesSource.Bytes.Script(BYTES, script);
         }
 
         @Override
@@ -93,12 +94,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
             ValuesSource dataSource;
             if (indexFieldData instanceof IndexOrdinalsFieldData) {
-                dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData);
+                dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData(BYTES, (IndexOrdinalsFieldData) indexFieldData);
             } else {
-                dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);
+                dataSource = new ValuesSource.Bytes.FieldData(BYTES, indexFieldData);
             }
             if (script != null) {
-                // Again, what's the difference between WithScript and Script?
                 dataSource = new ValuesSource.Bytes.WithScript(dataSource, script);
             }
             return dataSource;
@@ -133,7 +133,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
 
-            return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
+            return new ValuesSource.GeoPoint.Fielddata(GEOPOINT, (IndexGeoPointFieldData) fieldContext.indexFieldData());
         }
 
         @Override
@@ -169,7 +169,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                 throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
             }
             RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType) fieldType;
-            return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());
+            return new ValuesSource.Range(RANGE, fieldContext.indexFieldData(), rangeFieldType.rangeType());
         }
 
         @Override
@@ -197,7 +197,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                 throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
-            return new ValuesSource.Histogram.Fielddata((IndexHistogramFieldData) indexFieldData);
+            return new ValuesSource.Histogram.Fielddata(HISTOGRAM, (IndexHistogramFieldData) indexFieldData);
         }
 
         @Override

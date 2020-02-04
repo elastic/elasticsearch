@@ -68,11 +68,23 @@ public abstract class ValuesSource {
         return false;
     }
 
+    private final ValuesSourceType valuesSourceType;
+
+    public ValuesSource(ValuesSourceType valuesSourceType) {
+        this.valuesSourceType = valuesSourceType;
+    }
+
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
+    }
+
+
     public static class Range extends ValuesSource {
         private final RangeType rangeType;
         protected final IndexFieldData<?> indexFieldData;
 
-        public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
+        public Range(ValuesSourceType valuesSourceType, IndexFieldData<?> indexFieldData, RangeType rangeType) {
+            super(valuesSourceType);
             this.indexFieldData = indexFieldData;
             this.rangeType = rangeType;
         }
@@ -92,6 +104,10 @@ public abstract class ValuesSource {
     }
     public abstract static class Bytes extends ValuesSource {
 
+        public Bytes(ValuesSourceType valuesSourceType) {
+            super(valuesSourceType);
+        }
+
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
@@ -100,7 +116,12 @@ public abstract class ValuesSource {
 
         public abstract static class WithOrdinals extends Bytes {
 
-            public static final WithOrdinals EMPTY = new WithOrdinals() {
+            public WithOrdinals(ValuesSourceType valuesSourceType) {
+                super(valuesSourceType);
+            }
+
+            // TODO: Don't hard-code the VST here?  Not sure the right way to handle empty.
+            public static final WithOrdinals EMPTY = new WithOrdinals(CoreValuesSourceType.BYTES) {
 
                 @Override
                 public SortedSetDocValues ordinalsValues(LeafReaderContext context) {
@@ -164,7 +185,8 @@ public abstract class ValuesSource {
 
                 protected final IndexOrdinalsFieldData indexFieldData;
 
-                public FieldData(IndexOrdinalsFieldData indexFieldData) {
+                public FieldData(ValuesSourceType valuesSourceType,IndexOrdinalsFieldData indexFieldData) {
+                    super(valuesSourceType);
                     this.indexFieldData = indexFieldData;
                 }
 
@@ -210,7 +232,8 @@ public abstract class ValuesSource {
 
             protected final IndexFieldData<?> indexFieldData;
 
-            public FieldData(IndexFieldData<?> indexFieldData) {
+            public FieldData(ValuesSourceType valuesSourceType, IndexFieldData<?> indexFieldData) {
+                super(valuesSourceType);
                 this.indexFieldData = indexFieldData;
             }
 
@@ -228,7 +251,8 @@ public abstract class ValuesSource {
 
             private final AggregationScript.LeafFactory script;
 
-            public Script(AggregationScript.LeafFactory script) {
+            public Script(ValuesSourceType valuesSourceType, AggregationScript.LeafFactory script) {
+                super(valuesSourceType);
                 this.script = script;
             }
 
@@ -253,6 +277,7 @@ public abstract class ValuesSource {
             private final AggregationScript.LeafFactory script;
 
             public WithScript(ValuesSource delegate, AggregationScript.LeafFactory script) {
+                super(delegate.getValuesSourceType());
                 this.delegate = delegate;
                 this.script = script;
             }
@@ -309,7 +334,12 @@ public abstract class ValuesSource {
 
     public abstract static class Numeric extends ValuesSource {
 
-        public static final Numeric EMPTY = new Numeric() {
+        public Numeric(ValuesSourceType valuesSourceType) {
+            super(valuesSourceType);
+        }
+
+        // TODO: hard coded VST is wrong here - Could be Numeric or Date
+        public static final Numeric EMPTY = new Numeric(CoreValuesSourceType.NUMERIC) {
 
             @Override
             public boolean isFloatingPoint() {
@@ -362,6 +392,7 @@ public abstract class ValuesSource {
             private final AggregationScript.LeafFactory script;
 
             public WithScript(Numeric delegate, AggregationScript.LeafFactory script) {
+                super(delegate.getValuesSourceType());
                 this.delegate = delegate;
                 this.script = script;
             }
@@ -458,7 +489,8 @@ public abstract class ValuesSource {
 
             protected final IndexNumericFieldData indexFieldData;
 
-            public FieldData(IndexNumericFieldData indexFieldData) {
+            public FieldData(ValuesSourceType valuesSourceType, IndexNumericFieldData indexFieldData) {
+                super(valuesSourceType);
                 this.indexFieldData = indexFieldData;
             }
 
@@ -490,7 +522,8 @@ public abstract class ValuesSource {
             private final AggregationScript.LeafFactory script;
             private final ValueType scriptValueType;
 
-            public Script(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            public Script(ValuesSourceType valuesSourceType, AggregationScript.LeafFactory script, ValueType scriptValueType) {
+                super(valuesSourceType);
                 this.script = script;
                 this.scriptValueType = scriptValueType;
             }
@@ -525,7 +558,12 @@ public abstract class ValuesSource {
 
     public abstract static class GeoPoint extends ValuesSource {
 
-        public static final GeoPoint EMPTY = new GeoPoint() {
+        public GeoPoint(ValuesSourceType valuesSourceType) {
+            super(valuesSourceType);
+        }
+
+        // TODO: don't hard code this here
+        public static final GeoPoint EMPTY = new GeoPoint(CoreValuesSourceType.GEOPOINT) {
 
             @Override
             public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
@@ -551,7 +589,8 @@ public abstract class ValuesSource {
 
             protected final IndexGeoPointFieldData indexFieldData;
 
-            public Fielddata(IndexGeoPointFieldData indexFieldData) {
+            public Fielddata(ValuesSourceType valuesSourceType, IndexGeoPointFieldData indexFieldData) {
+                super(valuesSourceType);
                 this.indexFieldData = indexFieldData;
             }
 
@@ -565,8 +604,12 @@ public abstract class ValuesSource {
             }
         }
     }
-    
+
     public abstract static class Histogram extends ValuesSource {
+
+        public Histogram(ValuesSourceType valuesSourceType) {
+            super(valuesSourceType);
+        }
 
         public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
 
@@ -574,7 +617,8 @@ public abstract class ValuesSource {
 
             protected final IndexHistogramFieldData indexFieldData;
 
-            public Fielddata(IndexHistogramFieldData indexFieldData) {
+            public Fielddata(ValuesSourceType valuesSourceType, IndexHistogramFieldData indexFieldData) {
+                super(valuesSourceType);
                 this.indexFieldData = indexFieldData;
             }
 

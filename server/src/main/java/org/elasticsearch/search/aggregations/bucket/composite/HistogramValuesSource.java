@@ -36,6 +36,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
      * @param vs The original values source
      */
     HistogramValuesSource(Numeric vs, double interval) {
+        super(vs.getValuesSourceType());
         this.vs = vs;
         this.interval = interval;
     }

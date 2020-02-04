@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -102,6 +103,7 @@ public class GeoDistanceRangeAggregatorFactory
 
         DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
                 org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit units) {
+            super(CoreValuesSourceType.NUMERIC);
             this.source = source;
             // even if the geo points are unique, there's no guarantee the
             // distances are

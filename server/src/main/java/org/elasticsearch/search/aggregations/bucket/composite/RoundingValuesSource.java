@@ -42,6 +42,7 @@ class RoundingValuesSource extends ValuesSource.Numeric {
      * @param rounding How to round the values
      */
     RoundingValuesSource(Numeric vs, Rounding rounding) {
+        super(vs.getValuesSourceType());
         this.vs = vs;
         this.rounding = rounding;
     }

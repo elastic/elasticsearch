@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 /**
@@ -37,6 +38,7 @@ public class CellIdSource extends ValuesSource.Numeric {
     private final GeoBoundingBox geoBoundingBox;
 
     public CellIdSource(GeoPoint valuesSource,int precision, GeoBoundingBox geoBoundingBox, GeoPointLongEncoder encoder) {
+        super(CoreValuesSourceType.NUMERIC);
         this.valuesSource = valuesSource;
         //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;

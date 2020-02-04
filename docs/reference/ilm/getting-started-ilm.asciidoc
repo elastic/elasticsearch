@@ -18,13 +18,13 @@ This enables you to implement a hot-warm-cold architecture to meet your performa
 requirements for your newest data, control costs over time, enforce retention policies,
 and still get the most out of your data.
 
-To automate roll over and management of time-series indices with {ilm-init}, you:
+To automate rollover and management of time-series indices with {ilm-init}, you:
 
-. <<ilm-gs-create-policy, Create a lifecycle policy>> with the {ilm-init} Put policy API.  
+. <<ilm-gs-create-policy, Create a lifecycle policy>> with the {ilm-init} put policy API.  
 . <<ilm-gs-apply-policy, Create an index template>> to apply the policy to each new index.
 . <<ilm-gs-bootstrap, Bootstrap an index>> as the initial write index.
 . <<ilm-gs-check-progress, Verify that indices are moving through the lifecycle phases>> 
-as expected with the {ilm-init} Explain API. 
+as expected with the {ilm-init} explain API. 
 
 [float]
 [[ilm-gs-create-policy]]
@@ -33,9 +33,9 @@ as expected with the {ilm-init} Explain API.
 A lifecycle policy specifies the phases in the index lifecycle
 and the actions to perform in each phase. A lifecycle can have up to four  phases:
 `hot`, `warm`, `cold`, and `delete`. Policies are defined in JSON 
-and added through the {ilm-init} Put policy API. 
+and added through the {ilm-init} put policy API. 
 
-For example, the following request creates a `data_stream` policy with two phases:
+For example, the following request creates a `datastream_policy` with two phases:
  
 * The `hot` phase defines a `rollover` action to specify that an index rolls over when it 
 reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
@@ -66,9 +66,9 @@ PUT _ilm/policy/datastream_policy
   }
 }
 ------------------------
-<1> The `min_age` defaults to `0ms`, so new indices enter the hot phase immediately. 
+<1> The `min_age` defaults to `0ms`, so new indices enter the `hot` phase immediately. 
 <2> Trigger the `rollover` action when either of the conditions are met.
-<3> Move the index into the delete phase 90 days after rollover.
+<3> Move the index into the `delete` phase 90 days after rollover.
 <4> Trigger the `delete` action when the index enters the delete phase.
 
 See <<_actions>> for the complete list of actions available in each phase.
@@ -104,7 +104,7 @@ PUT _template/datastream_template
 -----------------------
 // TEST[continued]
 
-<1> Apply the template to a new index if its name starts with "datastream-". 
+<1> Apply the template to a new index if its name starts with `datastream-`. 
 <2> The name of the lifecycle policy to apply to each new index.
 <3> The name of the alias used to reference these indices. 
 Required for policies that use the rollover action.
@@ -128,7 +128,7 @@ designate it as the write index for the rollover alias specified in your index t
 The name of this index must match the template's index pattern and end with a number. 
 On rollover, this value is incremented to generate a name for the new index. 
 
-For example, the following request creates an index called `datastream_000001` 
+For example, the following request creates an index called `datastream-000001` 
 and makes it the write index for the `datastream` alias.
 
 [source,console]
@@ -144,7 +144,7 @@ PUT datastream-000001
 -----------------------
 // TEST[continued]
 
-When the rollover conditions are met, the rollover action:
+When the rollover conditions are met, the `rollover` action:
 
 * Creates a new index called `datastream-000002`. 
 This matches the `datastream-*` pattern, so the settings from `datastream_template` are applied to the new index.
@@ -154,13 +154,13 @@ This process will repeat each time the rollover conditions are met.
 You can search across all of the indices managed by the `datastream_policy` with the `datastream` alias. 
 Write operations are routed to the current write index. 
 
-For more information about write indices and rollover, see the <<rollover-index-api-desc, Rollover API>>.
+For more information about write indices and rollover, see the <<rollover-index-api-desc, rollover API>>.
 
 [float]
 [[ilm-gs-check-progress]]
 === Checking progress
 
-To get status information for {ilm-init}-managed indices, you use the Explain API. 
+To get status information for managed indices, you use the {ilm-init} explain API. 
 This lets you find out things like:
 
 * What phase an index is in and when it entered that phase.
@@ -221,5 +221,4 @@ until the rollover conditions are met.
 <3> The step {ilm-init} is performing on the index
 <4> The definition of the current phase (the `hot` phase)
 
-To learn more about all our APIs,
-check out <<index-lifecycle-management-api,ILM APIs>>.
+See the <<index-lifecycle-management-api,ILM APIs>> for more information.

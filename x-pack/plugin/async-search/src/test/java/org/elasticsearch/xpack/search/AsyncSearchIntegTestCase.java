@@ -89,7 +89,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-        ensureGreen(ASYNC_SEARCH_ALIAS);
+        ensureYellow(ASYNC_SEARCH_ALIAS);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {

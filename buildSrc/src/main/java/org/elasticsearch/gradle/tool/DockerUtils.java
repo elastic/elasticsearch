@@ -146,17 +146,7 @@ public class DockerUtils {
             throwDockerRequiredException(message);
         }
 
-        if (availability.version == null) {
-            final String message = String.format(
-                Locale.ROOT,
-                "Docker is required to run the following task%s, but it doesn't appear to be running: \n%s",
-                tasks.size() > 1 ? "s" : "",
-                String.join("\n", tasks)
-            );
-            throwDockerRequiredException(message);
-        }
-
-        if (availability.isVersionHighEnough == false) {
+        if (availability.lastCommand.isSuccess() && availability.isVersionHighEnough == false) {
             final String message = String.format(
                 Locale.ROOT,
                 "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
@@ -168,9 +158,10 @@ public class DockerUtils {
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
+                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
             availability.path,
+            availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",
             String.join("\n", tasks),
             availability.lastCommand.exitCode,
@@ -213,8 +204,8 @@ public class DockerUtils {
             spec.setCommandLine((Object[]) args);
             spec.setStandardOutput(stdout);
             spec.setErrorOutput(stderr);
+            spec.setIgnoreExitValue(true);
         });
-
         return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
     }
 

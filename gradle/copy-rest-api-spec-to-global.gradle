@@ -1,0 +1,61 @@
+
+/**
+ * Copies all of the REST api specs (including core, modules, plugins, and x-pack) to common location for the REST YAML test.
+ * This plugin is expected to only be applied to applied to the root project.
+ */
+File rootBuildDir = rootProject.buildDir
+
+tasks.create("copyCoreRestSpecGlobal", Copy) {
+  from project.findProject(':rest-api-spec').projectDir
+  into rootBuildDir
+  includeEmptyDirs = false
+  include '**/src/**/rest-api-spec/api/**'
+  eachFile {
+    path = new File("rest-api-spec/api", name)
+  }
+}
+
+tasks.create("copyModulesRestSpecGlobal", Copy) {
+  from project.findProject(':modules').projectDir
+  into rootBuildDir
+  includeEmptyDirs = false
+  include '**/src/**/rest-api-spec/api/**'
+  eachFile {
+    path = new File("rest-api-spec/api", name)
+  }
+}
+
+tasks.create("copyPluginsRestSpecGlobal", Copy) {
+  from project.findProject(':plugins').projectDir
+  into rootBuildDir
+  includeEmptyDirs = false
+  include '**/src/**/rest-api-spec/api/**'
+  exclude '**/examples/**'
+  eachFile {
+    path = new File("rest-api-spec/api", name)
+  }
+}
+
+tasks.create("copyXpackPluginsRestSpecGlobal", Copy) {
+  from project.findProject(':x-pack:plugin').projectDir
+  into rootBuildDir
+  includeEmptyDirs = false
+  include '**/src/**/rest-api-spec/api/**'
+  eachFile {
+    path = new File("rest-api-spec/api", name)
+  }
+}
+
+tasks.create("copyAllRestSpecsGlobal") {
+  dependsOn copyCoreRestSpecGlobal
+  dependsOn copyModulesRestSpecGlobal
+  dependsOn copyPluginsRestSpecGlobal
+  dependsOn copyXpackPluginsRestSpecGlobal
+}
+
+configurations {
+  copyRestApiSpecGlobal
+}
+artifacts {
+  copyRestApiSpecGlobal(file(rootBuildDir)) { builtBy copyAllRestSpecsGlobal }
+}

@@ -23,24 +23,6 @@ tasks.register("bwcTest") {
   group = 'verification'
 }
 
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  dependsOn configurations.restSpec
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
-    include 'rest-api-spec/api/**'
-  }
-}
-
 task copyTestNodeKeyMaterial(type: Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
     'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')

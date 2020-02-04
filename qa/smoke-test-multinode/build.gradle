@@ -20,10 +20,15 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
-integTest {
-  includePackaged = true
+processTestResources {
+  from({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/test/**'
+  }
+  dependsOn configurations.restSpec
 }
+
 
 File repo = file("$buildDir/testclusters/repo")
 testClusters.integTest {

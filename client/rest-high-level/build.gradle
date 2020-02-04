@@ -36,18 +36,6 @@ publishing {
   }
 }
 
-configurations {
-  restSpec
-}
-
-idea {
-  module {
-    if (scopes.TEST != null) {
-      scopes.TEST.plus.add(project.configurations.restSpec)
-    }
-  }
-}
-
 dependencies {
   compile project(':modules:mapper-extras')
   compile project(':modules:parent-join')
@@ -70,16 +58,9 @@ dependencies {
   testCompile(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
-
-  restSpec project(':rest-api-spec')
 }
 
-//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  dependsOn configurations.restSpec // so that configurations resolve
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
   from(project(':client:rest-high-level').file('src/test/resources'))
 }
 

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,8 +16,11 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
 esplugin {
   name 'rest-handler'
@@ -51,3 +52,5 @@ testingConventions.naming {
     baseClass 'org.elasticsearch.test.ESTestCase'
   }
 }
+
+

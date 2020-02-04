@@ -21,12 +21,6 @@ dependencies {
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
-// copy xpack rest api
-File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
-project.copyRestSpec.from(xpackResources) {
-  include 'rest-api-spec/api/**'
-}
-
 testClusters.integTest {
   extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
   extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")

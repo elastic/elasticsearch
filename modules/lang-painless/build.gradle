@@ -22,6 +22,8 @@ esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
+//since there are local api specs, we need to copy the core spec locally too
+apply plugin: 'elasticsearch.copy-rest-api-spec'
 
 testClusters.integTest {
   module file(project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile)

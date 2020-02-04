@@ -48,7 +48,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * This class tests the dangling indices REST API.
+ * This class tests the dangling indices REST API.  These tests are here
+ * today so they have access to a proper REST client. They cannot be in
+ * :server:integTest since the REST client needs a proper transport
+ * implementation, and they cannot be REST tests today since they need to
+ * restart nodes. Really, though, this test should live elsewhere.
  *
  * @see org.elasticsearch.action.admin.indices.dangling
  */

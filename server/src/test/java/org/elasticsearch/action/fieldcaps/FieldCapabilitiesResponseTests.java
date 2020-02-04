@@ -67,10 +67,12 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 meta = Collections.emptyMap();
                 break;
             case 1:
-                meta = Map.of("key", "value");
+                meta = Collections.singletonMap("key", "value");
                 break;
             default:
-                meta = Map.of("key1", "value1", "key2", "value2");
+                meta = new HashMap<>();
+                meta.put("key1", "value1");
+                meta.put("key2", "value2");
                 break;
         }
 

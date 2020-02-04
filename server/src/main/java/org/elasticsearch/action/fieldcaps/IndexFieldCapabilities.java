@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -91,7 +92,7 @@ public class IndexFieldCapabilities implements Writeable {
             // Previously we reused the FieldCapabilities class to represent index field capabilities.
             Map<String, Set<String>> wrappedMeta = meta.entrySet().stream().collect(Collectors.toMap(
                 Map.Entry::getKey,
-                entry -> Set.of(entry.getValue())));
+                entry -> Collections.singleton(entry.getValue())));
             FieldCapabilities fieldCaps = new FieldCapabilities(name, type, isSearchable, isAggregatable, null, null, null, wrappedMeta);
             fieldCaps.writeTo(out);
         }

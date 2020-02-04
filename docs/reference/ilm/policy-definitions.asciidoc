@@ -300,11 +300,16 @@ most a specific number of <<indices-segments,segments>>.
 [options="header"]
 |======
 | Name                 | Required  | Default             | Description
-| `max_num_segments`   | yes       | -                   | The number of
-                                                           segments to merge to.
-                                                           To fully merge the
-                                                           index, set it to `1`
+| `max_num_segments`   | yes       | -                   | The number of segments to merge to. To fully merge the index, set it to `1`
+| `codec`              | no        | -                   | Optional specification of the `best_compression` codec
 |======
+
+[WARNING]
+======
+When using the `"codec": "best_compression"` configuration in the ILM forcemerge action, ILM will
+<<indices-close,close>> and then <<indices-open-close,re-open>> the index prior to a forcemerge.
+During this time the index will be unavailable for either read or write operations.
+======
 
 [source,console]
 --------------------------------------------------

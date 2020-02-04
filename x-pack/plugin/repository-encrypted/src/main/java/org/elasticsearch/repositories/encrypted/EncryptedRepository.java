@@ -165,7 +165,9 @@ public final class EncryptedRepository extends BlobStoreRepository {
             throw LicenseUtils.newComplianceException("encrypted snapshots");
         }
         Map<String, Object> snapshotUserMetadata = new HashMap<>();
-        snapshotUserMetadata.putAll(userMetadata);
+        if (userMetadata != null) {
+            snapshotUserMetadata.putAll(userMetadata);
+        }
         // pin down the salted hash of the repository password
         // this is then checked before every snapshot operation (i.e. {@link #snapshotShard} and {@link #finalizeSnapshot})
         // to assure that all participating nodes in the snapshot have the same repository password set
@@ -178,6 +180,9 @@ public final class EncryptedRepository extends BlobStoreRepository {
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
                                  boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+        if (userMetadata != null && userMetadata.containsKey(PASSWORD_HASH_RESERVED_USER_METADATA_KEY)) {
+            userMetadata.remove(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
+        }
         validateRepositoryPasswordHash(userMetadata, listener::onFailure);
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
                 includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);

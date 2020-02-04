@@ -19,9 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CallSubDefNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -29,7 +30,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a method call made on a def type. (Internal only.)
@@ -51,12 +51,7 @@ final class PSubDefCall extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         parameterTypes.add(Object.class);
         int totalCaptures = 0;
 
@@ -64,14 +59,14 @@ final class PSubDefCall extends AExpression {
             AExpression expression = arguments.get(argument);
 
             expression.internal = true;
-            expression.analyze(scriptRoot, locals);
+            expression.analyze(scriptRoot, scope);
 
             if (expression.actual == void.class) {
                 throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
             }
 
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            arguments.set(argument, expression.cast(scriptRoot, scope));
             parameterTypes.add(expression.actual);
 
             if (expression instanceof ILambda) {
@@ -90,11 +85,11 @@ final class PSubDefCall extends AExpression {
     }
 
     @Override
-    CallSubDefNode write() {
+    CallSubDefNode write(ClassNode classNode) {
         CallSubDefNode callSubDefNode = new CallSubDefNode();
 
         for (AExpression argument : arguments) {
-            callSubDefNode.addArgumentNode(argument.write());
+            callSubDefNode.addArgumentNode(argument.write(classNode));
         }
 
         callSubDefNode.setLocation(location);

@@ -41,8 +41,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -104,6 +106,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
+        // A test for whether the repository's snapshots have any snapshots starting with "snap-"
+        Predicate<Map<String, Object>> repoHasSnapshot = snapMap -> Optional.ofNullable((String) snapMap.get("snapshot"))
+            .map(snapName -> snapName.startsWith("snap-"))
+            .orElse(false);
+
         // Check that the snapshot was actually taken
         assertBusy(() -> {
             Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/_all"));
@@ -112,17 +119,16 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
-            final Map<String, Object> snapResponse;
-            try {
-                Map<String, Object> responseMap = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).get(0);
-                List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
-                assertTrue(snapshots.stream().anyMatch(s -> s.containsKey("snapshot") && s.get("snapshot").toString().startsWith("snap-")));
-                snapResponse = snapshots.get(0);
-            } catch (Exception e) {
-                throw new AssertionError("failed to find snapshot response in " + snapshotResponseMap, e);
-            }
-            assertThat(snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
-            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get("metadata");
+            List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
+                .peek(m -> logger.info("--> responses: {}", m))
+                .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
+                .peek(allReposSnapshots -> logger.info("--> all repository's snapshots: {}", allReposSnapshots))
+                .filter(allReposSnapshots -> allReposSnapshots.stream().anyMatch(repoHasSnapshot))
+                .peek(allRepos -> logger.info("--> snapshots with 'snap-' snapshot: {}", allRepos))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
+            assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
+            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
         });

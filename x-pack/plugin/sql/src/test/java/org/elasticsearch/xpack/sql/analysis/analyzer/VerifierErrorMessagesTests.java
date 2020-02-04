@@ -470,11 +470,46 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOnNested() {
         assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
                 error("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                error("SELECT dep.dep_id AS a FROM test GROUP BY a"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                error("SELECT dep.dep_id AS a FROM test GROUP BY 1"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id, dep.start_date]",
+                error("SELECT dep.dep_id AS a, dep.start_date AS b FROM test GROUP BY 1, 2"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id, dep.start_date]",
+                error("SELECT dep.dep_id AS a, dep.start_date AS b FROM test GROUP BY a, b"));
     }
 
     public void testHavingOnNested() {
         assertEquals("1:51: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
                 error("SELECT int FROM test GROUP BY int HAVING AVG(YEAR(dep.start_date)) > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS average FROM test GROUP BY int HAVING average > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date, dep.end_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS a, MAX(MONTH(dep.end_date)) AS b " +
+                      "FROM test GROUP BY int " +
+                      "HAVING a > 1980 AND b < 10"));
+    }
+
+    public void testWhereOnNested() {
+        assertEquals("1:33: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT int FROM test WHERE YEAR(dep.start_date) + 10 > 0"));
+        assertEquals("1:13: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a FROM test WHERE int > 10 AND (int < 3 OR NOT (a > 5))"));
+        accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
+        accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
+               "OR NOT(dep.start_date >= '2020-01-01')");
+    }
+
+    public void testOrderByOnNested() {
+        assertEquals("1:36: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT int FROM test ORDER BY YEAR(dep.start_date) + 10"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10  FROM test ORDER BY 1"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                        "[dep.start_date, dep.end_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a, MONTH(dep.end_date) - 10 as b FROM test ORDER BY 1, 2"));
+        accept("SELECT int FROM test ORDER BY dep.start_date, dep.end_date");
     }
 
     public void testGroupByScalarFunctionWithAggOnTarget() {
@@ -511,7 +546,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Cannot use field [x.y] with unsupported type [foobar]", error("SELECT x.y FROM test"));
     }
 
-    public void testTermEqualitOnInexact() {
+    public void testTermEqualityOnInexact() {
         assertEquals("1:26: [text = 'value'] cannot operate on first argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text = 'value'"));
@@ -710,6 +745,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
+    }
+
+    public void testMatchAndQueryFunctionsNotAllowedInSelect() {
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') AS fullTextSearch FROM test"));
+        assertEquals("1:38: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT int > 10 AND (bool = false OR QUERY('foo*')) AS fullTextSearch FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause\n" +
+                "line 1:28: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo'), MATCH(text, 'bar') FROM test"));
+        accept("SELECT * FROM test WHERE MATCH(text, 'foo')");
     }
 
     public void testAllowCorrectFieldsInIncompatibleMappings() {

@@ -36,9 +36,7 @@ import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -208,11 +206,9 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The ScriptRoot used to compile
      */
-    ScriptRoot compile(Loader loader, Set<String> extractedVariables, String name, String source,
-            CompilerSettings settings) {
+    ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        root.extractVariables(extractedVariables);
         ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
         Map<String, Object> statics = classNode.write();
@@ -243,9 +239,7 @@ final class Compiler {
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
-                debugStream);
-        root.extractVariables(new HashSet<>());
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
         root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
         classNode.write();

@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 public class RemoteConnectionStrategyTests extends ESTestCase {
 
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
-        ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
+        ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
@@ -41,7 +41,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testSameStrategyChangeMeansThatStrategyDoesNotNeedToBeRebuilt() {
-        ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
+        ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
@@ -52,7 +52,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
-        ConnectionManager connectionManager = new ConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
+        ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);

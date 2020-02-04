@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
@@ -42,25 +42,20 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        index.analyze(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        index.analyze(scriptRoot, scope);
         index.expected = index.actual;
-        index = index.cast(scriptRoot, locals);
+        index = index.cast(scriptRoot, scope);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
-    BraceSubDefNode write() {
+    BraceSubDefNode write(ClassNode classNode) {
         BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
-        braceSubDefNode.setChildNode(index.write());
+        braceSubDefNode.setChildNode(index.write(classNode));
 
         braceSubDefNode.setLocation(location);
         braceSubDefNode.setExpressionType(actual);

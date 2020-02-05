@@ -81,24 +81,28 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                             .collect(Collectors.toList());
                     jobResultsProvider.datafeedTimingStats(
                         jobIds,
-                        timingStatsByJobId -> {
-                            PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                            List<GetDatafeedsStatsAction.Response.DatafeedStats> results =
-                                datafeedBuilders.stream()
-                                    .map(DatafeedConfig.Builder::build)
-                                    .map(
-                                        datafeed -> getDatafeedStats(
-                                            datafeed.getId(),
-                                            state,
-                                            tasksInProgress,
-                                            datafeed.getJobId(),
-                                            timingStatsByJobId.get(datafeed.getJobId())))
-                                    .collect(Collectors.toList());
-                            QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
-                                new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
-                            listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
-                        },
-                        listener::onFailure);
+                        ActionListener.wrap(
+                            timingStatsByJobId -> {
+                                PersistentTasksCustomMetaData tasksInProgress = state.getMetaData()
+                                    .custom(PersistentTasksCustomMetaData.TYPE);
+                                List<GetDatafeedsStatsAction.Response.DatafeedStats> results =
+                                    datafeedBuilders.stream()
+                                        .map(DatafeedConfig.Builder::build)
+                                        .map(
+                                            datafeed -> getDatafeedStats(
+                                                datafeed.getId(),
+                                                state,
+                                                tasksInProgress,
+                                                datafeed.getJobId(),
+                                                timingStatsByJobId.get(datafeed.getJobId())))
+                                        .collect(Collectors.toList());
+                                QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
+                                    new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
+                                listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+                            },
+                            listener::onFailure
+                        ));
+
                 },
                 listener::onFailure)
         );

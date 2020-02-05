@@ -204,7 +204,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
                 markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
             },
-            e -> finalListener.onFailure(e));
+            finalListener::onFailure);
 
         // First check that the job exists, because we don't want to audit
         // the beginning of its deletion if it didn't exist in the first place
@@ -259,7 +259,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // Step 2. Remove the job from any calendars
         CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(jobId,
-                ActionListener.wrap(deleteJobStateHandler::accept, listener::onFailure ));
+                ActionListener.wrap(deleteJobStateHandler::accept, listener::onFailure));
 
 
         // Step 1. Delete the physical storage
@@ -340,7 +340,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                     }
                 },
                 failure -> {
-                    if (failure.getClass() == IndexNotFoundException.class) { // assume the index is already deleted
+                    if (ExceptionsHelper.unwrapCause(failure) instanceof IndexNotFoundException) { // assume the index is already deleted
                         deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
                     } else {
                         failureHandler.accept(failure);
@@ -388,9 +388,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // Step 4. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
-                response -> {
-                    jobConfigProvider.getJob(jobId, getJobHandler);
-                },
+                response -> jobConfigProvider.getJob(jobId, getJobHandler),
                 failureHandler
         );
 
@@ -494,9 +492,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                 return;
                             }
                             executeAsyncWithOrigin(parentTaskClient.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
-                                    ActionListener.<AcknowledgedResponse>wrap(
-                                            finishedHandler::onResponse,
-                                            finishedHandler::onFailure),
+                                    finishedHandler,
                                     parentTaskClient.admin().indices()::aliases);
                         },
                         finishedHandler::onFailure), parentTaskClient.admin().indices()::getAliases);

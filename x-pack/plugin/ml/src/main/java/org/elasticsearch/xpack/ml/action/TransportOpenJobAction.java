@@ -449,7 +449,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(
                                 response -> task.markAsCompleted(),
-                                e -> logger.error("error finalizing job [" + jobId + "]", e)
+                                e -> {
+                                    task.markAsCompleted();
+                                    logger.error("error finalizing job [" + jobId + "]", e);
+                                }
                             ));
                     } else {
                         task.markAsCompleted();

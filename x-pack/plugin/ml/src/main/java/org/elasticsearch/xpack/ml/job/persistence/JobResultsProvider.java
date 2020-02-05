@@ -441,10 +441,9 @@ public class JobResultsProvider {
             .addSort(SortBuilders.fieldSort(TimingStats.BUCKET_COUNT.getPreferredName()).order(SortOrder.DESC));
     }
 
-    public void datafeedTimingStats(List<String> jobIds, Consumer<Map<String, DatafeedTimingStats>> handler,
-                                    Consumer<Exception> errorHandler) {
+    public void datafeedTimingStats(List<String> jobIds, ActionListener<Map<String, DatafeedTimingStats>> listener) {
         if (jobIds.isEmpty()) {
-            handler.accept(Map.of());
+            listener.onResponse(Map.of());
             return;
         }
         MultiSearchRequestBuilder msearchRequestBuilder = client.prepareMultiSearch();
@@ -465,19 +464,22 @@ public class JobResultsProvider {
                         String jobId = jobIds.get(i);
                         MultiSearchResponse.Item itemResponse = msearchResponse.getResponses()[i];
                         if (itemResponse.isFailure()) {
-                            errorHandler.accept(itemResponse.getFailure());
+                            listener.onFailure(itemResponse.getFailure());
+                            return;
                         } else {
                             SearchResponse searchResponse = itemResponse.getResponse();
                             ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                             int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                             if (shardFailures != null && shardFailures.length > 0) {
                                 LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-                                errorHandler.accept(
+                                listener.onFailure(
                                     new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                                return;
                             } else if (unavailableShards > 0) {
-                                errorHandler.accept(
+                                listener.onFailure(
                                     new ElasticsearchException(
                                         "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                                return;
                             } else {
                                 SearchHits hits = searchResponse.getHits();
                                 long hitsCount = hits.getHits().length;
@@ -490,15 +492,20 @@ public class JobResultsProvider {
                                 } else {
                                     assert hitsCount == 1;
                                     SearchHit hit = hits.getHits()[0];
-                                    DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER, errorHandler);
-                                    timingStatsByJobId.put(jobId, timingStats);
+                                    try {
+                                        DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER);
+                                        timingStatsByJobId.put(jobId, timingStats);
+                                    } catch (Exception e) {
+                                        listener.onFailure(e);
+                                        return;
+                                    }
                                 }
                             }
                         }
                     }
-                    handler.accept(timingStatsByJobId);
+                    listener.onResponse(timingStatsByJobId);
                 },
-                errorHandler
+                listener::onFailure
             ),
             client::multiSearch);
     }
@@ -567,6 +574,7 @@ public class JobResultsProvider {
                                 MultiSearchResponse.Item itemResponse = response.getResponses()[i];
                                 if (itemResponse.isFailure()) {
                                     errorHandler.accept(itemResponse.getFailure());
+                                    return;
                                 } else {
                                     SearchResponse searchResponse = itemResponse.getResponse();
                                     ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
@@ -576,9 +584,11 @@ public class JobResultsProvider {
                                                 Arrays.toString(shardFailures));
                                         errorHandler.accept(new ElasticsearchException(
                                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                                        return;
                                     } else if (unavailableShards > 0) {
                                         errorHandler.accept(new ElasticsearchException("[" + jobId
                                                 + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                                        return;
                                     } else {
                                         SearchHits hits = searchResponse.getHits();
                                         long hitsCount = hits.getHits().length;
@@ -587,7 +597,12 @@ public class JobResultsProvider {
                                             LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
                                         } else {
                                             for (SearchHit hit : hits) {
-                                                parseAutodetectParamSearchHit(jobId, paramsBuilder, hit, errorHandler);
+                                                try {
+                                                    parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
+                                                } catch (Exception e) {
+                                                    errorHandler.accept(e);
+                                                    return;
+                                                }
                                             }
                                         }
                                     }
@@ -607,38 +622,47 @@ public class JobResultsProvider {
                 .setRouting(id);
     }
 
-    private static void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
-                                               Consumer<Exception> errorHandler) {
+    /**
+     * @throws ElasticsearchException when search hit cannot be parsed
+     * @throws IllegalStateException when search hit has an unexpected ID
+     */
+    private static void parseAutodetectParamSearchHit(String jobId,
+                                                      AutodetectParams.Builder paramsBuilder,
+                                                      SearchHit hit) {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
-            paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
+            paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER));
         } else if (TimingStats.documentId(jobId).equals(hitId)) {
-            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER, errorHandler));
+            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
-            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER, errorHandler);
+            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
         } else if (hitId.startsWith(ModelSnapshot.documentIdPrefix(jobId))) {
-            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.LENIENT_PARSER, errorHandler);
+            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.LENIENT_PARSER);
             paramsBuilder.setModelSnapshot(modelSnapshot == null ? null : modelSnapshot.build());
         } else if (Quantiles.documentId(jobId).equals(hit.getId())) {
-            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.LENIENT_PARSER, errorHandler));
+            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.LENIENT_PARSER));
         } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
-            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.LENIENT_PARSER, errorHandler).build());
+            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.LENIENT_PARSER).build());
         } else {
-            errorHandler.accept(new IllegalStateException("Unexpected Id [" + hitId + "]"));
+            throw new IllegalStateException("Unexpected Id [" + hitId + "]");
         }
     }
 
-    private static <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
-                                    Consumer<Exception> errorHandler) {
+    /**
+     * @param hit The search hit to parse
+     * @param objectParser Parser for the object of type T
+     * @return The parsed value of T from the search hit
+     * @throws ElasticsearchException on failure
+     */
+    private static <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser) {
         BytesReference source = hit.getSourceRef();
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
-            errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getId(), e));
-            return null;
+            throw new ElasticsearchParseException("failed to parse " + hit.getId(), e);
         }
     }
 
@@ -1086,7 +1110,12 @@ public class JobResultsProvider {
                                 LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
                                 handler.accept(new Result<>(null, notFoundSupplier.get()));
                             } else if (hits.length == 1) {
-                                handler.accept(new Result<>(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
+                                try {
+                                    T result = parseSearchHit(hits[0], objectParser);
+                                    handler.accept(new Result<>(hits[0].getIndex(), result));
+                                } catch (Exception e) {
+                                    errorHandler.accept(e);
+                                }
                             } else {
                                 errorHandler.accept(new IllegalStateException("Search for unique [" + resultDescription + "] returned ["
                                         + hits.length + "] hits even though size was 1"));
@@ -1224,14 +1253,18 @@ public class JobResultsProvider {
                         response -> {
                             List<ScheduledEvent> events = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
-                            for (SearchHit hit : hits) {
-                                ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.LENIENT_PARSER, handler::onFailure);
-                                event.eventId(hit.getId());
-                                events.add(event.build());
-                            }
+                            try {
+                                for (SearchHit hit : hits) {
+                                    ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.LENIENT_PARSER);
 
-                            handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits().value,
+                                    event.eventId(hit.getId());
+                                    events.add(event.build());
+                                }
+                                handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits().value,
                                     ScheduledEvent.RESULTS_FIELD));
+                            } catch (Exception e) {
+                                handler.onFailure(e);
+                            }
                         },
                         handler::onFailure),
                 client::search);
@@ -1352,12 +1385,15 @@ public class JobResultsProvider {
                         response -> {
                             List<Calendar> calendars = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
-                            for (SearchHit hit : hits) {
-                                calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER, listener::onFailure).build());
-                            }
-
-                            listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value,
+                            try {
+                                for (SearchHit hit : hits) {
+                                    calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER).build());
+                                }
+                                listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));
+                            } catch (Exception e) {
+                                listener.onFailure(e);
+                            }
                         },
                         listener::onFailure)
                 , client::search);
@@ -1365,13 +1401,8 @@ public class JobResultsProvider {
 
     public void removeJobFromCalendars(String jobId, ActionListener<Boolean> listener) {
 
-        ActionListener<BulkResponse> updateCalandarsListener = ActionListener.wrap(
-                r -> {
-                    if (r.hasFailures()) {
-                        listener.onResponse(false);
-                    }
-                    listener.onResponse(true);
-                },
+        ActionListener<BulkResponse> updateCalendarsListener = ActionListener.wrap(
+                r -> listener.onResponse(r.hasFailures() == false),
                 listener::onFailure
         );
 
@@ -1379,23 +1410,24 @@ public class JobResultsProvider {
                 r -> {
                     BulkRequestBuilder bulkUpdate = client.prepareBulk();
                     bulkUpdate.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                    r.results().stream()
-                            .map(c -> {
-                                Set<String> ids = new HashSet<>(c.getJobIds());
-                                ids.remove(jobId);
-                                return new Calendar(c.getId(), new ArrayList<>(ids), c.getDescription());
-                            }).forEach(c -> {
-                                UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, c.documentId());
-                                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                                    updateRequest.doc(c.toXContent(builder, ToXContent.EMPTY_PARAMS));
-                                } catch (IOException e) {
-                                    throw new IllegalStateException("Failed to serialise calendar with id [" + c.getId() + "]", e);
-                                }
-                                bulkUpdate.add(updateRequest);
-                            });
-
+                    for (Calendar calendar : r.results()) {
+                        List<String> ids = calendar.getJobIds()
+                            .stream()
+                            .filter(jId -> jobId.equals(jId) == false)
+                            .collect(Collectors.toList());
+                        Calendar newCalendar = new Calendar(calendar.getId(), ids, calendar.getDescription());
+                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, newCalendar.documentId());
+                        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                            updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                        } catch (IOException e) {
+                            listener.onFailure(
+                                new IllegalStateException("Failed to serialise calendar with id [" + newCalendar.getId() + "]", e));
+                            return;
+                        }
+                        bulkUpdate.add(updateRequest);
+                    }
                     if (bulkUpdate.numberOfActions() > 0) {
-                        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalandarsListener);
+                        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalendarsListener);
                     } else {
                         listener.onResponse(true);
                     }

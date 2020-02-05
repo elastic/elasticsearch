@@ -897,8 +897,9 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             List.of(),
-            statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
-            e -> { throw new AssertionError(); });
+            ActionListener.wrap(
+                statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
+                e -> { throw new AssertionError(); }));
 
         verifyZeroInteractions(client);
     }
@@ -960,14 +961,16 @@ public class JobResultsProviderTests extends ESTestCase {
             new ExponentialAverageCalculationContext(700.0, Instant.ofEpochMilli(100000700), 70.0);
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
-            statsByJobId ->
-                assertThat(
-                    statsByJobId,
-                    equalTo(
-                        Map.of(
-                            "foo", new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
-                            "bar", new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)))),
-            e -> { throw new AssertionError(); });
+            ActionListener.wrap(
+                statsByJobId ->
+                    assertThat(
+                        statsByJobId,
+                        equalTo(
+                            Map.of(
+                                "foo", new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
+                                "bar", new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)))),
+                e -> fail(e.getMessage())
+            ));
 
         verify(client).threadPool();
         verify(client).prepareMultiSearch();

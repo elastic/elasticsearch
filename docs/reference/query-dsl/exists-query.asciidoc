@@ -36,8 +36,8 @@ GET /_search
 While a field is deemed non-existent if the JSON value is `null` or `[]`, these
 values will indicate the field does exist:
 +
-* Empty strings, such as `""` or `"-"`
-* Arrays containing `null` and another value, such as `[null, "foo"]`
+* Empty strings, such as `""`
+* Arrays is `null` or `[]`
 * A custom <<null-value, `null-value`>>, defined in field mapping
 
 [[exists-query-notes]]

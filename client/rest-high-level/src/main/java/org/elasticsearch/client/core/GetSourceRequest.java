@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.core;
 
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +42,15 @@ public final class GetSourceRequest implements Validatable, ToXContentObject {
     public GetSourceRequest(String index, String id) {
         this.index = index;
         this.id = id;
+    }
+
+    public static GetSourceRequest from(GetRequest getRequest) {
+        return new GetSourceRequest(getRequest.index(), getRequest.id())
+            .routing(getRequest.routing())
+            .preference(getRequest.preference())
+            .refresh(getRequest.refresh())
+            .realtime(getRequest.realtime())
+            .fetchSourceContext(getRequest.fetchSourceContext());
     }
 
     /**

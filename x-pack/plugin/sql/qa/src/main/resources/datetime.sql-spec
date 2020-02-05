@@ -124,6 +124,12 @@ SELECT first_name FROM test_emp ORDER BY NOW(), first_name NULLS LAST LIMIT 5;
 groupByCurrentTimestamp
 SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
 
+//
+// ORDER BY
+//
+orderByYear
+SELECT YEAR(birth_date) as year, emp_no FROM test_emp ORDER BY year NULLS FIRST, emp_no ASC;
+
 // ES will consider a TIME in UTC, if no other indication is given and H2 doesn't consider the timezone for times, so no TZSync'ing needed.
 hourFromStringTime
 SELECT HOUR(CAST('18:09:03' AS TIME)) AS result;

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -25,6 +27,7 @@ dependencies {
   testCompile project(':test:framework')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
@@ -44,13 +47,19 @@ task internalClusterTest(type: Test) {
 
 check.dependsOn internalClusterTest
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
+/****************************************************************
+ *  Enable QA/rest integration tests for snapshot builds only   *
+ *  TODO: Enable for all builds upon this feature release       *
+ ****************************************************************/
+if (BuildParams.isSnapshotBuild()) {
+  // add all sub-projects of the qa sub-project
+  gradle.projectsEvaluated {
+    project.subprojects
+      .find { it.path == project.path + ":qa" }
+      .subprojects
+      .findAll { it.path.startsWith(project.path + ":qa") }
+      .each { check.dependsOn it.check }
+  }
 }
 
 /**********************************************

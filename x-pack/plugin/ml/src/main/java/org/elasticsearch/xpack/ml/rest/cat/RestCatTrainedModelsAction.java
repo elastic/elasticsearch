@@ -72,7 +72,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             statsRequest.isAllowNoResources()));
 
         return channel -> {
-            final ActionListener<Table> listener = ActionListener.notifyOnce(new RestResponseListener<>(channel) {
+            final ActionListener<Table> listener = ActionListener.notifyOnce(new RestResponseListener<Table>(channel) {
                 @Override
                 public RestResponse buildResponse(final Table table) throws Exception {
                     return RestTable.buildResponse(table, channel);
@@ -204,7 +204,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                                                                         final int size,
                                                                         final List<TrainedModelConfig> configs,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<>() {
+        return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);

@@ -1,11 +1,8 @@
 ---
 "Merge metadata across multiple indices":
   - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
-#  - skip:
-#      version: " - 7.5.99"
-#      reason: Metadata support was added in 7.6
+      version: " - 7.5.99"
+      reason: Metadata support was added in 7.6
 
   - do:
         indices.create:

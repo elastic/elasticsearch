@@ -122,7 +122,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
                                   BlobStoreRepository delegatedRepository, char[] password) throws NoSuchAlgorithmException {
-        super(metadata, namedXContentRegistry, clusterService, delegatedRepository.basePath());
+        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
         this.delegatedRepository = delegatedRepository;
         this.dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
         this.dataEncryptionKeyGenerator.init(DATA_KEY_LENGTH_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
@@ -219,7 +219,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() {
-        return new EncryptedBlobStore(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryption,
+        return new EncryptedBlobStore(delegatedRepository, dataEncryptionKeyGenerator, metadataEncryption,
                 encryptionNonceGenerator, metadataIdentifierGenerator);
     }
 
@@ -243,15 +243,17 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
     private static class EncryptedBlobStore implements BlobStore {
         private final BlobStore delegatedBlobStore;
+        private final BlobPath delegatedBasePath;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryption metadataEncryption;
         private final Supplier<Integer> encryptionNonceGenerator;
         private final Supplier<byte[]> metadataIdentifierGenerator;
 
-        EncryptedBlobStore(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
+        EncryptedBlobStore(BlobStoreRepository delegatedBlobStoreRepository, KeyGenerator dataEncryptionKeyGenerator,
                            PasswordBasedEncryption metadataEncryption, Supplier<Integer> encryptionNonceGenerator,
                            Supplier<byte[]> metadataIdentifierGenerator) {
-            this.delegatedBlobStore = delegatedBlobStore;
+            this.delegatedBlobStore = delegatedBlobStoreRepository.blobStore();
+            this.delegatedBasePath = delegatedBlobStoreRepository.basePath();
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryption = metadataEncryption;
             this.encryptionNonceGenerator = encryptionNonceGenerator;
@@ -265,13 +267,15 @@ public final class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            return new EncryptedBlobContainer(delegatedBlobStore, path, dataEncryptionKeyGenerator, metadataEncryption,
+            return new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath, path, dataEncryptionKeyGenerator, metadataEncryption,
                     encryptionNonceGenerator, metadataIdentifierGenerator);
         }
     }
 
     private static class EncryptedBlobContainer implements BlobContainer {
         private final BlobStore delegatedBlobStore;
+        private final BlobPath delegatedBasePath;
+        private final BlobPath path;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryption metadataEncryption;
         private final Supplier<Integer> encryptionNonceGenerator;
@@ -279,16 +283,19 @@ public final class EncryptedRepository extends BlobStoreRepository {
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
 
-        EncryptedBlobContainer(BlobStore delegatedBlobStore, BlobPath path, KeyGenerator dataEncryptionKeyGenerator,
-                               PasswordBasedEncryption metadataEncryption, Supplier<Integer> encryptionNonceGenerator,
-                               Supplier<byte[]> metadataIdentifierGenerator) {
+        EncryptedBlobContainer(BlobStore delegatedBlobStore, BlobPath delegatedBasePath, BlobPath path,
+                               KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryption metadataEncryption,
+                               Supplier<Integer> encryptionNonceGenerator, Supplier<byte[]> metadataIdentifierGenerator) {
             this.delegatedBlobStore = delegatedBlobStore;
+            this.delegatedBasePath = delegatedBasePath;
+            this.path = path;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryption = metadataEncryption;
             this.encryptionNonceGenerator = encryptionNonceGenerator;
             this.metadataIdentifierGenerator = metadataIdentifierGenerator;
-            this.delegatedBlobContainer = delegatedBlobStore.blobContainer(path);
-            this.encryptionMetadataBlobContainer = delegatedBlobStore.blobContainer(path.prepend(ENCRYPTION_METADATA_ROOT));
+            this.delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBasePath.append(path));
+            this.encryptionMetadataBlobContainer =
+                    delegatedBlobStore.blobContainer(delegatedBasePath.add(ENCRYPTION_METADATA_ROOT).append(path));
         }
 
         /**
@@ -302,7 +309,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
          */
         @Override
         public BlobPath path() {
-            return delegatedBlobContainer.path();
+            return path;
         }
 
         /**
@@ -411,7 +418,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
             // first delete the encrypted data blob
             DeleteResult deleteResult = delegatedBlobContainer.delete();
             // then delete metadata
-            encryptionMetadataBlobContainer.delete();
+            try {
+                encryptionMetadataBlobContainer.delete();
+            } catch (IOException e) {
+                // the encryption metadata blob container might not exist at all
+                logger.warn("Failure to delete metadata blob container " + encryptionMetadataBlobContainer.path(), e);
+            }
             return deleteResult;
         }
 
@@ -423,7 +435,15 @@ public final class EncryptedRepository extends BlobStoreRepository {
             // then delete metadata
             Set<String> blobNamesSet = new HashSet<>(blobNames);
             List<String> metadataBlobsToDelete = new ArrayList<>(blobNames.size());
-            for (String metadataBlobName : encryptionMetadataBlobContainer.listBlobs().keySet()) {
+            final Set<String> allMetadataBlobs;
+            try {
+                allMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
+            } catch (IOException e) {
+                // the encryption metadata blob container might not exist at all
+                logger.warn("Failure to list blobs of metadata blob container " + encryptionMetadataBlobContainer.path(), e);
+                return;
+            }
+            for (String metadataBlobName : allMetadataBlobs) {
                 boolean invalidMetadataName = metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS;
                 if (invalidMetadataName) {
                     continue;
@@ -433,7 +453,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
                     metadataBlobsToDelete.add(metadataBlobName);
                 }
             }
-            encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(metadataBlobsToDelete);
+            try {
+                encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(metadataBlobsToDelete);
+            } catch (IOException e) {
+                logger.warn("Failure to delete metadata blobs " + metadataBlobsToDelete + " from blob container "
+                        + encryptionMetadataBlobContainer.path(), e);
+            }
         }
 
         @Override
@@ -457,9 +482,10 @@ public final class EncryptedRepository extends BlobStoreRepository {
                     // do not descend recursively into the metadata blob container itself
                     continue;
                 }
-                // get an encrypted blob container for each
-                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainer(delegatedBlobStore,
-                        encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryption,
+                // get an encrypted blob container for each child
+                // Note that the encryption metadata blob container might be missing
+                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainer(delegatedBlobStore, delegatedBasePath,
+                        path.add(encryptedBlobContainer.getKey()), dataEncryptionKeyGenerator, metadataEncryption,
                         encryptionNonceGenerator, metadataIdentifierGenerator));
             }
             return result;
@@ -477,10 +503,18 @@ public final class EncryptedRepository extends BlobStoreRepository {
         public void cleanUpOrphanedMetadata() throws IOException {
             // delete encryption metadata blobs which don't pair with any data blobs
             Set<String> foundEncryptedBlobs = delegatedBlobContainer.listBlobs().keySet();
-            Set<String> foundMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
+            final Set<String> foundMetadataBlobs;
+            try {
+                foundMetadataBlobs = encryptionMetadataBlobContainer.listBlobs().keySet();
+            } catch (IOException e) {
+                logger.warn("Failure to list blobs of metadata blob container " + encryptionMetadataBlobContainer.path(), e);
+                return;
+            }
             List<String> orphanedMetadataBlobs = new ArrayList<>();
             Map<String, List<String>> blobNameToMetadataNames = new HashMap<>();
             for (String metadataBlobName : foundMetadataBlobs) {
+                // also remove unrecognized blobs in the metadata blob container (mainly because it's tedious in the general
+                // case to tell between bogus and legit stale metadata, and it would require reading the blobs, which is not worth it)
                 boolean invalidMetadataName = metadataBlobName.length() <= METADATA_UID_LENGTH_IN_CHARS;
                 if (invalidMetadataName) {
                     orphanedMetadataBlobs.add(metadataBlobName);
@@ -504,17 +538,25 @@ public final class EncryptedRepository extends BlobStoreRepository {
             try {
                 encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(orphanedMetadataBlobs);
             } catch (IOException e) {
-                logger.warn("Failure to delete orphaned metadata blobs " + orphanedMetadataBlobs, e);
+                logger.warn("Failure to delete orphaned metadata blobs " + orphanedMetadataBlobs + " from blob container "
+                        + encryptionMetadataBlobContainer.path(), e);
             }
             // delete encryption metadata blob containers which don't pair with any data blob containers
             Set<String> foundEncryptedBlobContainers = delegatedBlobContainer.children().keySet();
-            Map<String, BlobContainer> foundMetadataBlobContainers = encryptionMetadataBlobContainer.children();
+            final Map<String, BlobContainer> foundMetadataBlobContainers;
+            try {
+                foundMetadataBlobContainers = encryptionMetadataBlobContainer.children();
+            } catch (IOException e) {
+                logger.warn("Failure to list child blob containers for metadata blob container " + encryptionMetadataBlobContainer.path(),
+                        e);
+                return;
+            }
             for (Map.Entry<String, BlobContainer> metadataBlobContainer : foundMetadataBlobContainers.entrySet()) {
                 if (false == foundEncryptedBlobContainers.contains(metadataBlobContainer.getKey())) {
                     try {
                         metadataBlobContainer.getValue().delete();
                     } catch (IOException e) {
-                        logger.warn("Exception while deleting orphaned metadata blob container [" + metadataBlobContainer + "]", e);
+                        logger.warn("Failure to delete orphaned metadata blob container " + metadataBlobContainer.getValue().path(), e);
                     }
                 }
             }

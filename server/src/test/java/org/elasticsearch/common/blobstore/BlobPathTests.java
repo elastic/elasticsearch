@@ -39,15 +39,4 @@ public class BlobPathTests extends ESTestCase {
         assertThat(path.buildAsString(), is("a/b/c/d/"));
     }
 
-    public void testPrepend() {
-        String pathComponent = randomAlphaOfLengthBetween(1, 3);
-        assertThat(new BlobPath().prepend(pathComponent).buildAsString(), is(new BlobPath().add(pathComponent).buildAsString()));
-
-        BlobPath path = new BlobPath();
-        path = path.add(pathComponent);
-
-        String prependComponent = randomAlphaOfLengthBetween(1, 3);
-        assertThat(path.prepend(prependComponent).buildAsString(),
-                is(new BlobPath().add(prependComponent).add(pathComponent).buildAsString()));
-    }
 }

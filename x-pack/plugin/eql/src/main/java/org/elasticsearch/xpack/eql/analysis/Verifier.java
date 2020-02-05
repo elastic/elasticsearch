@@ -99,6 +99,8 @@ public class Verifier {
                     });
                 });
             }
+
+            failures.addAll(localFailures);
         });
 
         return failures;

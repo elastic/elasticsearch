@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -95,6 +96,9 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
                     searchableSnapshotIndices.add(concreteIndex);
                 }
             }
+        }
+        if (concreteIndices.length > 0 && searchableSnapshotIndices.isEmpty()) {
+            throw new ResourceNotFoundException("No searchable snapshots indices found");
         }
         return state.routingTable().allShards(searchableSnapshotIndices.toArray(new String[0]));
     }

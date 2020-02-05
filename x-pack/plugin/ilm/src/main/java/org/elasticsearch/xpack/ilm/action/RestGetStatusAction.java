@@ -18,13 +18,13 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetStatusAction extends BaseRestHandler {
 
     @Override
     public Map<String, List<Method>> handledMethodsAndPaths() {
-        return singletonMap("/_ilm/status", singletonList(POST));
+        return singletonMap("/_ilm/status", singletonList(GET));
     }
 
     @Override

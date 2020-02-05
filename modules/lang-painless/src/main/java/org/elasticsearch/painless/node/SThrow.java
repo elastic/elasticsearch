@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a throw statement.
@@ -39,11 +38,6 @@ public final class SThrow extends AStatement {
         super(location);
 
         this.expression = Objects.requireNonNull(expression);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
     }
 
     @Override

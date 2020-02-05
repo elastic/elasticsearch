@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-async-search'
     description 'A module which allows to track the progress of a search asynchronously.'
-    classname 'org.elasticsearch.xpack.search.AsyncSearch'
+    classname 'org.elasticsearch.xpack.search.AsyncSearchPlugin'
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-async-search'

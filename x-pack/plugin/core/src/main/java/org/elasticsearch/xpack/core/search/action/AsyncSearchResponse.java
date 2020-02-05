@@ -27,16 +27,15 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final String id;
     private final int version;
     private final SearchResponse searchResponse;
-    private final ElasticsearchException failure;
+    private final ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;
 
     private final long startTimeMillis;
-    private long expirationTimeMillis = -1;
+    private final long expirationTimeMillis;
 
     /**
-     * Creates an {@link AsyncSearchResponse} with meta informations that omits
-     * the search response.
+     * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
      */
     public AsyncSearchResponse(String id,
                                int version,
@@ -49,11 +48,12 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     /**
      * Creates a new {@link AsyncSearchResponse}
+     *
      * @param id The id of the search for further retrieval, <code>null</code> if not stored.
      * @param version The version number of this response.
      * @param searchResponse The actual search response.
-     * @param failure The actual failure if the search failed, <code>null</code> if the search is running
-     *                or completed without failure.
+     * @param error The error if the search failed, <code>null</code> if the search is running
+     *                or has completed without failure.
      * @param isPartial Whether the <code>searchResponse</code> contains partial results.
      * @param isRunning Whether the search is running in the cluster.
      * @param startTimeMillis The start date of the search in milliseconds since epoch.
@@ -61,14 +61,14 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     public AsyncSearchResponse(String id,
                                int version,
                                SearchResponse searchResponse,
-                               ElasticsearchException failure,
+                               ElasticsearchException error,
                                boolean isPartial,
                                boolean isRunning,
                                long startTimeMillis,
                                long expirationTimeMillis) {
         this.id = id;
         this.version = version;
-        this.failure = failure;
+        this.error = error;
         this.searchResponse = searchResponse;
         this.isPartial = isPartial;
         this.isRunning = isRunning;
@@ -79,7 +79,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     public AsyncSearchResponse(StreamInput in) throws IOException {
         this.id = in.readOptionalString();
         this.version = in.readVInt();
-        this.failure = in.readOptionalWriteable(ElasticsearchException::new);
+        this.error = in.readOptionalWriteable(ElasticsearchException::new);
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
@@ -91,7 +91,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
         out.writeVInt(version);
-        out.writeOptionalWriteable(failure);
+        out.writeOptionalWriteable(error);
         out.writeOptionalWriteable(searchResponse);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
@@ -100,7 +100,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, version, searchResponse, failure, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
+        return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
     /**
@@ -120,6 +120,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     /**
      * Returns the current {@link SearchResponse} or <code>null</code> if not available.
+     *
      * See {@link #isPartial()} to determine whether the response contains partial or complete
      * results.
      */
@@ -128,10 +129,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * Returns the failure reason or null if the query is running or completed normally.
+     * Returns the failure reason or null if the query is running or has completed normally.
      */
     public ElasticsearchException getFailure() {
-        return failure;
+        return error;
     }
 
     /**
@@ -143,6 +144,18 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
+     * Whether the search is still running in the cluster.
+     *
+     * A value of <code>false</code> indicates that the response is final
+     * even if {@link #isPartial()} returns <code>true</code>. In such case,
+     * the partial response represents the status of the search before a
+     * non-recoverable failure.
+     */
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    /**
      * When this response was created as a timestamp in milliseconds since epoch.
      */
     public long getStartTime() {
@@ -150,16 +163,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * Whether the search is still running in the cluster.
-     * A value of <code>false</code> indicates that the response is final even
-     * if it contains partial results. In such case the failure should indicate
-     * why the request could not finish and the search response represents the
-     * last partial results before the failure.
+     * When this response will expired as a timestamp in milliseconds since epoch.
      */
-    public boolean isRunning() {
-        return isRunning;
-    }
-
     public long getExpirationTime() {
         return expirationTimeMillis;
     }
@@ -170,7 +175,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
             // shard failures are not considered fatal for partial results so
             // we return OK until we get the final response even if we don't have
             // a single successful shard.
-            return failure != null ? failure.status() : OK;
+            return error != null ? error.status() : OK;
         } else {
             return searchResponse.status();
         }
@@ -189,9 +194,9 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.field("expiration_time_in_millis", expirationTimeMillis);
 
         builder.field("response", searchResponse);
-        if (failure != null) {
-            builder.startObject("failure");
-            failure.toXContent(builder, params);
+        if (error != null) {
+            builder.startObject("error");
+            error.toXContent(builder, params);
             builder.endObject();
         }
         builder.endObject();

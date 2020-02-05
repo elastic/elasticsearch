@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -16,8 +17,10 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,9 +46,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWaitForInit() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
-            threadPool, null);
+            new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -61,11 +64,20 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
-            Thread thread = new Thread(() -> task.addCompletionListener(resp -> {
-                assertThat(numShards+numSkippedShards, equalTo(resp.getSearchResponse().getTotalShards()));
-                assertThat(numSkippedShards, equalTo(resp.getSearchResponse().getSkippedShards()));
-                assertThat(0, equalTo(resp.getSearchResponse().getFailedShards()));
-                latch.countDown();
+            Thread thread = new Thread(() -> task.addCompletionListener(new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse resp) {
+                    assertThat(numShards + numSkippedShards, equalTo(resp.getSearchResponse().getTotalShards()));
+                    assertThat(numSkippedShards, equalTo(resp.getSearchResponse().getSkippedShards()));
+                    assertThat(0, equalTo(resp.getSearchResponse().getFailedShards()));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+
+                }
             }, TimeValue.timeValueMillis(1)));
             threads.add(thread);
             thread.start();
@@ -76,9 +88,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWithFailure() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
-            threadPool, null);
+            new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -94,11 +106,19 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
-            Thread thread = new Thread(() -> task.addCompletionListener(resp -> {
-                assertNull(resp.getSearchResponse());
-                assertNotNull(resp.getFailure());
-                assertTrue(resp.isPartial());
-                latch.countDown();
+            Thread thread = new Thread(() -> task.addCompletionListener(new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse resp) {
+                    assertNull(resp.getSearchResponse());
+                    assertNotNull(resp.getFailure());
+                    assertTrue(resp.isPartial());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
             }, TimeValue.timeValueMillis(1)));
             threads.add(thread);
             thread.start();
@@ -109,9 +129,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWaitForCompletion() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
-            threadPool, null);
+            new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -155,12 +175,20 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
-            Thread thread = new Thread(() -> task.addCompletionListener(resp -> {
-                assertThat(resp.getSearchResponse().getTotalShards(), equalTo(expectedTotalShards));
-                assertThat(resp.getSearchResponse().getSkippedShards(), equalTo(expectedSkippedShards));
-                assertThat(resp.getSearchResponse().getFailedShards(), equalTo(expectedShardFailures));
-                assertThat(resp.isPartial(), equalTo(isPartial));
-                latch.countDown();
+            Thread thread = new Thread(() -> task.addCompletionListener(new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse resp) {
+                    assertThat(resp.getSearchResponse().getTotalShards(), equalTo(expectedTotalShards));
+                    assertThat(resp.getSearchResponse().getSkippedShards(), equalTo(expectedSkippedShards));
+                    assertThat(resp.getSearchResponse().getFailedShards(), equalTo(expectedShardFailures));
+                    assertThat(resp.isPartial(), equalTo(isPartial));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
             }, TimeValue.timeValueMillis(1)));
             threads.add(thread);
             thread.start();

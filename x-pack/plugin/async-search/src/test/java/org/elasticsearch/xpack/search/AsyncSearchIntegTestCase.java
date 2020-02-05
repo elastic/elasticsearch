@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.IndexSearcher;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -63,7 +63,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_ALIAS;
+import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -72,7 +72,8 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, IndexLifecycle.class, QueryBlockPlugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearchPlugin.class, IndexLifecycle.class,
+            QueryBlockPlugin.class, ReindexPlugin.class);
     }
 
     /**
@@ -89,7 +90,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-        ensureYellow(ASYNC_SEARCH_ALIAS);
+        ensureYellow(INDEX);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {
@@ -97,8 +98,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     protected AsyncSearchResponse getAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(GetAsyncSearchAction.INSTANCE,
-            new GetAsyncSearchAction.Request(id, TimeValue.MINUS_ONE, -1)).get();
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncSearchAction.Request(id)).get();
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
@@ -112,7 +112,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncSearchId searchId = AsyncSearchId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
-                .setIndex(ASYNC_SEARCH_ALIAS)
+                .setIndex(INDEX)
                 .setId(searchId.getDocId())
                 .get();
             assertFalse(resp.isExists());
@@ -159,7 +159,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
             .sorted(Comparator.comparing(ShardIdLatch::shard))
             .toArray(ShardIdLatch[]::new);
         resetPluginsLatch(shardLatchMap);
-        request.source().query(new BlockQueryBuilder(shardLatchMap));
+        request.getSearchRequest().source().query(new BlockQueryBuilder(shardLatchMap));
 
         final AsyncSearchResponse initial = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
 
@@ -208,8 +208,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 }
                 assertBusy(() -> {
                     AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
-                        new GetAsyncSearchAction.Request(response.getId(), TimeValue.timeValueMillis(10), lastVersion)
-                    ).get();
+                        new GetAsyncSearchAction.Request(response.getId())
+                            .setWaitForCompletion(TimeValue.timeValueMillis(10))
+                            .setLastVersion(lastVersion)).get();
                     atomic.set(newResp);
                     assertNotEquals(lastVersion, newResp.getVersion());
                 });

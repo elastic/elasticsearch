@@ -20,8 +20,17 @@ public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected GetAsyncSearchAction.Request createTestInstance() {
-        return new GetAsyncSearchAction.Request(randomSearchId(), TimeValue.timeValueMillis(randomIntBetween(1, 10000)),
-            randomIntBetween(-1, Integer.MAX_VALUE));
+        GetAsyncSearchAction.Request req = new GetAsyncSearchAction.Request(randomSearchId());
+        if (randomBoolean()) {
+            req.setWaitForCompletion(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
+        }
+        if (randomBoolean()) {
+            req.setLastVersion(randomIntBetween(-1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            req.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
+        }
+        return req;
     }
 
     static String randomSearchId() {

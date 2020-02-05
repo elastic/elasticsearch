@@ -5,15 +5,13 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -29,13 +27,21 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String id = request.param("id");
-        int lastVersion = request.paramAsInt("last_version", -1);
-        TimeValue waitForCompletion = request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1));
-        TimeValue keepAlive = request.paramAsTime("keep_alive", TimeValue.MINUS_ONE);
-        GetAsyncSearchAction.Request get = new GetAsyncSearchAction.Request(id, waitForCompletion, lastVersion);
-        get.setKeepAlive(keepAlive);
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        GetAsyncSearchAction.Request get = new GetAsyncSearchAction.Request(request.param("id"));
+        if (request.hasParam("wait_for_completion")) {
+            get.setWaitForCompletion(request.paramAsTime("wait_for_completion", get.getWaitForCompletion()));
+        }
+        if (request.hasParam("keep_alive")) {
+            get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
+        }
+        if (request.hasParam("last_version")) {
+            get.setLastVersion(request.paramAsInt("last_version", get.getLastVersion()));
+        }
+        ActionRequestValidationException validationException = get.validate();
+        if (validationException != null) {
+            throw validationException;
+        }
         return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestStatusToXContentListener<>(channel));
     }
 }

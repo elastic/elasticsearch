@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -13,7 +16,9 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -38,6 +43,7 @@ import java.util.function.Supplier;
  */
 class AsyncSearchTask extends SearchTask {
     private final AsyncSearchId searchId;
+    private final Client client;
     private final ThreadPool threadPool;
     private final Supplier<ReduceContext> reduceContextSupplier;
     private final Listener progressListener;
@@ -50,7 +56,8 @@ class AsyncSearchTask extends SearchTask {
     private final List<Runnable> initListeners = new ArrayList<>();
     private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
-    private long expirationTimeMillis;
+    private volatile long expirationTimeMillis;
+    private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private AtomicReference<MutableSearchResponse> searchResponse;
 
@@ -71,14 +78,18 @@ class AsyncSearchTask extends SearchTask {
                     String type,
                     String action,
                     TaskId parentTaskId,
+                    TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
                     AsyncSearchId searchId,
+                    Client client,
                     ThreadPool threadPool,
                     Supplier<ReduceContext> reduceContextSupplier) {
         super(id, type, action, "async_search", parentTaskId, taskHeaders);
+        this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
+        this.client = client;
         this.threadPool = threadPool;
         this.reduceContextSupplier = reduceContextSupplier;
         this.progressListener = new Listener();
@@ -105,12 +116,41 @@ class AsyncSearchTask extends SearchTask {
         return progressListener;
     }
 
-    public synchronized void setExpirationTime(long expirationTimeMillis) {
+    /**
+     * Update the expiration time of the (partial) response.
+     */
+    public void setExpirationTime(long expirationTimeMillis) {
         this.expirationTimeMillis = expirationTimeMillis;
     }
 
-    public synchronized long getExpirationTime() {
-        return expirationTimeMillis;
+    /**
+     * Cancels the running task and its children.
+     */
+    public void cancelTask(Runnable runnable) {
+        if (isCancelled() == false && isCancelling.compareAndSet(false, true)) {
+            CancelTasksRequest req = new CancelTasksRequest().setTaskId(searchId.getTaskId());
+            client.admin().cluster().cancelTasks(req, new ActionListener<>() {
+                @Override
+                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                    runnable.run();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // cancelling failed
+                    isCancelling.compareAndSet(true, false);
+                    runnable.run();
+                }
+            });
+        } else {
+            runnable.run();
+        }
+    }
+
+    @Override
+    protected void onCancelled() {
+        super.onCancelled();
+        isCancelling.compareAndSet(true, false);
     }
 
     /**
@@ -118,7 +158,7 @@ class AsyncSearchTask extends SearchTask {
      * consumer when the task is finished or when the provided <code>waitForCompletion</code>
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
-    public void addCompletionListener(Consumer<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -126,16 +166,20 @@ class AsyncSearchTask extends SearchTask {
                 executeImmediately = true;
             } else {
                 addInitListener(() -> {
-                    long elapsedTime = threadPool.relativeTimeInMillis() - startTime;
-                    // subtract the initialization time to the provided waitForCompletion.
-                    TimeValue remainingWaitForCompletion =
-                        TimeValue.timeValueMillis(Math.max(0, waitForCompletion.getMillis() - elapsedTime));
+                    final TimeValue remainingWaitForCompletion;
+                    if (waitForCompletion.getMillis() > 0) {
+                        long elapsedTime = threadPool.relativeTimeInMillis() - startTime;
+                        // subtract the initialization time from the provided waitForCompletion.
+                        remainingWaitForCompletion = TimeValue.timeValueMillis(Math.max(0, waitForCompletion.getMillis() - elapsedTime));
+                    } else {
+                        remainingWaitForCompletion = TimeValue.ZERO;
+                    }
                     internalAddCompletionListener(listener, remainingWaitForCompletion);
                 });
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponse());
+            listener.onResponse(getResponse());
         }
     }
 
@@ -157,7 +201,7 @@ class AsyncSearchTask extends SearchTask {
         }
     }
 
-    private void internalAddCompletionListener(Consumer<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    private void internalAddCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
@@ -166,25 +210,31 @@ class AsyncSearchTask extends SearchTask {
                 // ensure that we consumes the listener only once
                 AtomicBoolean hasRun = new AtomicBoolean(false);
                 long id = completionId++;
-                Cancellable cancellable =
-                    threadPool.schedule(() -> {
+
+                final Cancellable cancellable;
+                try {
+                    cancellable = threadPool.schedule(() -> {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.accept(getResponse());
+                            listener.onResponse(getResponse());
                         }
-                     }, waitForCompletion, "generic");
+                    }, waitForCompletion, "generic");
+                } catch (EsRejectedExecutionException exc) {
+                    listener.onFailure(exc);
+                    return;
+                }
                 completionListeners.put(id, resp -> {
                     if (hasRun.compareAndSet(false, true)) {
                         // completion occurred before timeout
                         cancellable.cancel();
-                        listener.accept(resp);
+                        listener.onResponse(resp);
                     }
                 });
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponse());
+            listener.onResponse(getResponse());
         }
     }
 
@@ -239,24 +289,53 @@ class AsyncSearchTask extends SearchTask {
 
     private AsyncSearchResponse getResponse() {
         assert searchResponse.get() != null;
-        return searchResponse.get().toAsyncSearchResponse(this);
+        return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
+    }
+
+    // cancels the task if it expired
+    private void checkExpiration() {
+        long now = System.currentTimeMillis();
+        if (expirationTimeMillis < now) {
+            cancelTask(() -> {});
+        }
     }
 
     private class Listener extends SearchProgressActionListener {
         @Override
+        public void onQueryResult(int shardIndex) {
+            checkExpiration();
+        }
+
+        @Override
+        public void onFetchResult(int shardIndex) {
+            checkExpiration();
+        }
+
+        @Override
+        public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+            // best effort to cancel expired tasks
+            checkExpiration();
+            searchResponse.get().addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
+        }
+
+        @Override
+        public void onFetchFailure(int shardIndex, Exception exc) {
+            checkExpiration();
+        }
+
+        @Override
         public void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
+            // best effort to cancel expired tasks
+            checkExpiration();
             searchResponse.compareAndSet(null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, reduceContextSupplier));
             executeInitListeners();
         }
 
         @Override
-        public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
-            searchResponse.get().addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
-        }
-
-        @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            // best effort to cancel expired tasks
+            checkExpiration();
             searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), aggs == null);
@@ -264,6 +343,8 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            // best effort to cancel expired tasks
+            checkExpiration();
             searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), true);

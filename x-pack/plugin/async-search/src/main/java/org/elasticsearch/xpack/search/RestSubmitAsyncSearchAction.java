@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,22 +38,28 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest();
-        IntConsumer setSize = size -> submitRequest.getSearchRequest().source().size(size);
+        SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
+        IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(submitRequest.getSearchRequest(), request, parser, setSize));
-        submitRequest.setWaitForCompletion(request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1)));
-        submitRequest.setCleanOnCompletion(request.paramAsBoolean("clean_on_completion", true));
-        submitRequest.setKeepAlive(request.paramAsTime("keep_alive", submitRequest.getKeepAlive()));
+            parseSearchRequest(submit.getSearchRequest(), request, parser, setSize));
 
-        ActionRequestValidationException validationException = submitRequest.validate();
+        if (request.hasParam("wait_for_completion")) {
+            submit.setWaitForCompletion(request.paramAsTime("wait_for_completion", submit.getWaitForCompletion()));
+        }
+        if (request.hasParam("keep_alive")) {
+            submit.setKeepAlive(request.paramAsTime("keep_alive", submit.getKeepAlive()));
+        }
+        if (request.hasParam("clean_on_completion")) {
+            submit.setCleanOnCompletion(request.paramAsBoolean("clean_on_completion", submit.isCleanOnCompletion()));
+        }
+        ActionRequestValidationException validationException = submit.validate();
         if (validationException != null) {
             throw validationException;
         }
         return channel -> {
             RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submitRequest, listener);
+            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, listener);
         };
     }
 }

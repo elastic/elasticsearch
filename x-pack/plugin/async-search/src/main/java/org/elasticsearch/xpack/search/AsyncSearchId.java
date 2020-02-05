@@ -45,7 +45,7 @@ class AsyncSearchId {
     }
 
     /**
-     * Get the encoded string that represents this search.
+     * Gets the encoded string that represents this search.
      */
     String getEncoded() {
         return encoded;
@@ -74,7 +74,7 @@ class AsyncSearchId {
     }
 
     /**
-     * Encode the informations needed to retrieve a async search response
+     * Encodes the informations needed to retrieve a async search response
      * in a base64 encoded string.
      */
     static String encode(String docId, TaskId taskId) {
@@ -88,7 +88,7 @@ class AsyncSearchId {
     }
 
     /**
-     * Decode a base64 encoded string into an {@link AsyncSearchId} that can be used
+     * Decodes a base64 encoded string into an {@link AsyncSearchId} that can be used
      * to retrieve the response of an async search.
      */
     static AsyncSearchId decode(String id) {

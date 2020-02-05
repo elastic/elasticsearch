@@ -26,7 +26,7 @@ import java.io.IOException;
 public class TransportDeleteAsyncSearchAction extends HandledTransportAction<DeleteAsyncSearchAction.Request, AcknowledgedResponse> {
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AsyncSearchStoreService store;
+    private final AsyncSearchIndexService store;
 
     @Inject
     public TransportDeleteAsyncSearchAction(TransportService transportService,
@@ -36,7 +36,7 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
                                             NamedWriteableRegistry registry,
                                             Client client) {
         super(DeleteAsyncSearchAction.NAME, transportService, actionFilters, DeleteAsyncSearchAction.Request::new);
-        this.store = new AsyncSearchStoreService(taskManager, threadPool.getThreadContext(), client, registry);
+        this.store = new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, registry);
         this.clusterService = clusterService;
         this.transportService = transportService;
     }
@@ -59,18 +59,12 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
     }
 
     private void cancelTaskAndDeleteResult(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> listener) throws IOException {
-        AsyncSearchTask task = store.getTask(searchId);
-        if (task != null && task.isCancelled() == false) {
-            store.getClient().admin().cluster().prepareCancelTasks()
-                .setTaskId(searchId.getTaskId())
-                .execute(ActionListener.wrap(() -> store.deleteResult(searchId, listener)));
+        AsyncSearchTask task = store.getTask(taskManager, searchId);
+        if (task != null) {
+            task.cancelTask(() -> store.deleteResponse(searchId, listener));
         } else {
-            if (store.getThreadContext().isSystemContext()) {
-                store.deleteResult(searchId, listener);
-            } else {
-                // check if the response can be retrieved by the user (handle security) and then delete.
-                store.getResponse(searchId, ActionListener.wrap(res -> store.deleteResult(searchId, listener), listener::onFailure));
-            }
+            // check if the response can be retrieved by the user (handle security) and then delete.
+            store.getResponse(searchId, ActionListener.wrap(res -> store.deleteResponse(searchId, listener), listener::onFailure));
         }
     }
 }

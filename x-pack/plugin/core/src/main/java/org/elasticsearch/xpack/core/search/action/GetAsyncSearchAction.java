@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,26 +34,24 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
 
     public static class Request extends ActionRequest {
         private final String id;
-        private final int lastVersion;
-        private final TimeValue waitForCompletion;
+        private int lastVersion = -1;
+        private TimeValue waitForCompletion = TimeValue.MINUS_ONE;
         private TimeValue keepAlive = TimeValue.MINUS_ONE;
 
         /**
-         * Create a new request
+         * Creates a new request
+         *
          * @param id The id of the search progress request.
-         * @param waitForCompletion The minimum time that the request should wait before returning a partial result.
-         * @param lastVersion The last version returned by a previous call.
          */
-        public Request(String id, TimeValue waitForCompletion, int lastVersion) {
+        public Request(String id) {
             this.id = id;
-            this.waitForCompletion = waitForCompletion;
-            this.lastVersion = lastVersion;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
             this.waitForCompletion = TimeValue.timeValueMillis(in.readLong());
+            this.keepAlive = in.readTimeValue();
             this.lastVersion = in.readInt();
         }
 
@@ -63,45 +60,61 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             super.writeTo(out);
             out.writeString(id);
             out.writeLong(waitForCompletion.millis());
+            out.writeTimeValue(keepAlive);
             out.writeInt(lastVersion);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (keepAlive != TimeValue.MINUS_ONE && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            if (keepAlive.getMillis() != -1 && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
                 validationException =
                     addValidationError("keep_alive must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
             }
             return validationException;
         }
 
+        /**
+         * Returns the id of the async search.
+         */
         public String getId() {
             return id;
         }
 
         /**
-         * Return the version of the previously retrieved {@link AsyncSearchResponse}.
-         * Partial hits and aggs are not included in the new response if they match this
-         * version and the request returns {@link RestStatus#NOT_MODIFIED}.
+         * Omits the result from the response if the new version is greater than the provided <code>version</code> (not-modified).
          */
+        public Request setLastVersion(int version) {
+            this.lastVersion = version;
+            return this;
+        }
+
         public int getLastVersion() {
             return lastVersion;
         }
 
         /**
-         * Return the minimum time that the request should wait for completion.
+         * Sets the minimum time that the request should wait before returning a partial result (defaults to no wait).
          */
+        public Request setWaitForCompletion(TimeValue timeValue) {
+            this.waitForCompletion = timeValue;
+            return this;
+        }
+
         public TimeValue getWaitForCompletion() {
             return waitForCompletion;
         }
 
-        public TimeValue getKeepAlive() {
-            return keepAlive;
+        /**
+         * Extends the amount of time after which the result will expire (defaults to no extension).
+         */
+        public Request setKeepAlive(TimeValue timeValue) {
+            this.keepAlive = timeValue;
+            return this;
         }
 
-        public void setKeepAlive(TimeValue keepAlive) {
-            this.keepAlive = keepAlive;
+        public TimeValue getKeepAlive() {
+            return keepAlive;
         }
 
         @Override

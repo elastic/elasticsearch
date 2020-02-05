@@ -50,6 +50,14 @@ class MutableSearchResponse {
 
     private boolean frozen;
 
+    /**
+     * Creates a new mutable search response.
+     *
+     * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
+     * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
+     * @param clusters The remote clusters statistics.
+     * @param reduceContextSupplier A supplier to run final reduce on partial aggregations.
+     */
     MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, Supplier<ReduceContext> reduceContextSupplier) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
@@ -120,12 +128,11 @@ class MutableSearchResponse {
     }
 
     /**
-     * Creates an {@link AsyncSearchResponse} based on the current state
-     * of the mutable response. The final reduction of aggregations is
-     * executed if needed in the synchronized block to ensure that only one
-     * can run concurrently.
+     * Creates an {@link AsyncSearchResponse} based on the current state of the mutable response.
+     * The final reduce of the aggregations is executed if needed (partial response).
+     * This method is synchronized to ensure that we don't perform final reduces concurrently.
      */
-    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task) {
+    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime) {
         final SearchResponse resp;
         if (totalShards != -1) {
             if (sections.aggregations() != null && isFinalReduce == false) {
@@ -142,7 +149,7 @@ class MutableSearchResponse {
             resp = null;
         }
         return new AsyncSearchResponse(task.getSearchId().getEncoded(), version, resp, failure, isPartial,
-            frozen == false, task.getStartTime(), task.getExpirationTime());
+            frozen == false, task.getStartTime(), expirationTime);
     }
 
     private void failIfFrozen() {

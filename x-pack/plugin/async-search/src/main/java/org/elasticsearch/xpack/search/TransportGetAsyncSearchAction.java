@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -16,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -23,12 +26,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
-import static org.elasticsearch.action.ActionListener.wrap;
-
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
+    private final Logger logger = LogManager.getLogger(TransportGetAsyncSearchAction.class);
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AsyncSearchStoreService store;
+    private final AsyncSearchIndexService store;
 
     @Inject
     public TransportGetAsyncSearchAction(TransportService transportService,
@@ -40,21 +42,30 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncSearchAction.Request::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.store = new AsyncSearchStoreService(taskManager, threadPool.getThreadContext(), client, registry);
+        this.store = new AsyncSearchIndexService(clusterService, threadPool.getThreadContext(), client, registry);
     }
 
     @Override
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
         try {
+            long nowInMillis = System.currentTimeMillis();
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
             DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
-                if (request.getKeepAlive() != TimeValue.MINUS_ONE) {
-                    long expirationTime = System.currentTimeMillis() + request.getKeepAlive().getMillis();
-                    store.updateKeepAlive(searchId.getDocId(), expirationTime,
-                        wrap(up -> getSearchResponseFromTask(searchId, request, expirationTime, listener), listener::onFailure));
+                if (request.getKeepAlive().getMillis() > 0) {
+                    long expirationTime = nowInMillis + request.getKeepAlive().getMillis();
+                    store.updateExpirationTime(searchId.getDocId(), expirationTime,
+                        ActionListener.wrap(
+                            p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
+                            exc -> {
+                                if (exc.getCause() instanceof DocumentMissingException == false) {
+                                    logger.error("failed to retrieve " + searchId.getEncoded(), exc);
+                                }
+                                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
+                            }
+                        ));
                 } else {
-                    getSearchResponseFromTask(searchId, request, -1, listener);
+                    getSearchResponseFromTask(searchId, request, nowInMillis, -1, listener);
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
@@ -67,31 +78,35 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-    private void getSearchResponseFromTask(AsyncSearchId searchId, GetAsyncSearchAction.Request request,
+    private void getSearchResponseFromTask(AsyncSearchId searchId,
+                                           GetAsyncSearchAction.Request request,
+                                           long nowInMillis,
                                            long expirationTimeMillis,
                                            ActionListener<AsyncSearchResponse> listener) {
         try {
-            final AsyncSearchTask task = store.getTask(searchId);
+            final AsyncSearchTask task = store.getTask(taskManager, searchId);
             if (task == null) {
-                getSearchResponseFromIndex(searchId, request, listener);
+                getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
             }
 
             if (task.isCancelled()) {
-                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded() + " not found"));
+                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                 return;
             }
 
             if (expirationTimeMillis != -1) {
                 task.setExpirationTime(expirationTimeMillis);
             }
-            task.addCompletionListener(response -> {
-                if (response.getVersion() <= request.getLastVersion()) {
-                    // return a not-modified response
-                    listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),
-                        response.isPartial(), response.isRunning(), response.getStartTime(), response.getExpirationTime()));
-                } else {
-                    listener.onResponse(response);
+            task.addCompletionListener(new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse response) {
+                    sendFinalResponse(request, response, nowInMillis, listener);
+                }
+
+                @Override
+                public void onFailure(Exception exc) {
+                    listener.onFailure(exc);
                 }
             }, request.getWaitForCompletion());
         } catch (Exception exc) {
@@ -99,18 +114,14 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-   private void getSearchResponseFromIndex(AsyncSearchId searchId, GetAsyncSearchAction.Request request,
+   private void getSearchResponseFromIndex(AsyncSearchId searchId,
+                                           GetAsyncSearchAction.Request request,
+                                           long nowInMillis,
                                            ActionListener<AsyncSearchResponse> listener) {
         store.getResponse(searchId, new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse response) {
-                    if (response.getVersion() <= request.getLastVersion()) {
-                        // return a not-modified response
-                        listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),
-                            response.isPartial(), false, response.getStartTime(), response.getExpirationTime()));
-                    } else {
-                        listener.onResponse(response);
-                    }
+                    sendFinalResponse(request, response, nowInMillis, listener);
                 }
 
                 @Override
@@ -118,5 +129,23 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                     listener.onFailure(e);
                 }
             });
+    }
+
+    private void sendFinalResponse(GetAsyncSearchAction.Request request,
+                                   AsyncSearchResponse response,
+                                   long nowInMillis,
+                                   ActionListener<AsyncSearchResponse> listener) {
+        if (response.getExpirationTime() < nowInMillis) {
+            listener.onFailure(new ResourceNotFoundException(request.getId()));
+            return;
+        }
+        if (response.getVersion() <= request.getLastVersion()) {
+            // return a not-modified response
+            listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),
+                response.isPartial(), false, response.getStartTime(), response.getExpirationTime()));
+            return;
+        }
+
+        listener.onResponse(response);
     }
 }

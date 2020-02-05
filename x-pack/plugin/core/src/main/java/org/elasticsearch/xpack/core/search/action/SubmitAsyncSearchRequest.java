@@ -57,38 +57,48 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {
         this.request = new SearchRequest(in);
         this.waitForCompletion = in.readTimeValue();
-        this.cleanOnCompletion = in.readBoolean();
         this.keepAlive = in.readTimeValue();
+        this.cleanOnCompletion = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         request.writeTo(out);
         out.writeTimeValue(waitForCompletion);
-        out.writeBoolean(cleanOnCompletion);
         out.writeTimeValue(keepAlive);
-    }
-
-    public SearchRequest getSearchRequest() {
-        return request;
+        out.writeBoolean(cleanOnCompletion);
     }
 
     /**
-     * Sets the minimum time that the request should wait before returning a partial result.
+     * Sets the number of shard results that should be returned to notify search progress (default to 5).
      */
-    public void setWaitForCompletion(TimeValue waitForCompletion) {
+    public SubmitAsyncSearchRequest setBatchedReduceSize(int size) {
+        request.setBatchedReduceSize(size);
+        return this;
+    }
+
+    public int getBatchReduceSize() {
+        return request.getBatchedReduceSize();
+    }
+
+    /**
+     * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
+     */
+    public SubmitAsyncSearchRequest setWaitForCompletion(TimeValue waitForCompletion) {
         this.waitForCompletion = waitForCompletion;
+        return this;
     }
 
-    /**
-     * Returns the minimum time that the request should wait before returning a partial result.
-     */
     public TimeValue getWaitForCompletion() {
         return waitForCompletion;
     }
 
-    public void setKeepAlive(TimeValue keepAlive) {
+    /**
+     * Sets the amount of time after which the result will expire (defaults to 5 days).
+     */
+    public SubmitAsyncSearchRequest setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+        return this;
     }
 
     public TimeValue getKeepAlive() {
@@ -96,22 +106,22 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     /**
-     * Should the resource be removed on completion or failure.
+     * Returns the underlying {@link SearchRequest}.
      */
+    public SearchRequest getSearchRequest() {
+        return request;
+    }
+
+    /**
+     * Should the resource be removed on completion or failure (defaults to true).
+     */
+    public SubmitAsyncSearchRequest setCleanOnCompletion(boolean value) {
+        this.cleanOnCompletion = value;
+        return this;
+    }
+
     public boolean isCleanOnCompletion() {
         return cleanOnCompletion;
-    }
-
-    public void setCleanOnCompletion(boolean value) {
-        this.cleanOnCompletion = value;
-    }
-
-    public void setBatchedReduceSize(int size) {
-        request.setBatchedReduceSize(size);
-    }
-
-    public SearchSourceBuilder source() {
-        return request.source();
     }
 
     @Override

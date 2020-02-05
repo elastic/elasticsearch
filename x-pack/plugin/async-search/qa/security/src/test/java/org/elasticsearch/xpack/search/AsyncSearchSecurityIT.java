@@ -27,7 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_ALIAS;
+import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -82,7 +82,7 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
             // other and user cannot access the result from direct get calls
            AsyncSearchId searchId = AsyncSearchId.decode(id);
            for (String runAs : new String[] {user, other}) {
-               exc = expectThrows(ResponseException.class, () -> get(ASYNC_SEARCH_ALIAS, searchId.getDocId(), runAs));
+               exc = expectThrows(ResponseException.class, () -> get(INDEX, searchId.getDocId(), runAs));
                assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                assertThat(exc.getMessage(), containsString("unauthorized"));
            }

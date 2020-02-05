@@ -80,6 +80,30 @@ In most cases, the goal of filtering is to reduce the number of documents that h
 Follower indices are the target indices for <<glossary-ccr,{ccr}>>. They exist
 in your local cluster and replicate <<glossary-leader-index,leader indices>>.
 
+[[glossary-force-merge]] force merge ::  
+// tag::force-merge-def[]
+// tag::force-merge-def-short[]
+Manually trigger a merge to reduce the number of segments in each shard of an index 
+and free up the space used by deleted documents.
+// end::force-merge-def-short[]
+You should not force merge indices that are actively being written to.
+Merging is normally performed automatically, but you can use force merge after 
+<<glossary-rollover, rollover>> to reduce the shards in the old index to a single segment. 
+See the {ref}/indices-forcemerge.html[force merge API].
+// end::force-merge-def[]
+
+[[glossary-freeze]] freeze ::  
+// tag::freeze-def[]
+// tag::freeze-def-short[]
+Make an index read-only and minimize its memory footprint. 
+// end::freeze-def-short[]
+Frozen indices can be searched without incurring the overhead of of re-opening a closed index,
+but searches are throttled and might be slower. 
+You can freeze indices to reduce the overhead of keeping older indices searchable 
+before you are ready to archive or delete them.
+See the {ref}/freeze-index-api.html[freeze API].
+// end::freeze-def[]
+
 [[glossary-id]] id ::
 
 The ID of a <<glossary-document,document>> identifies a document. The
@@ -112,6 +136,18 @@ See {ref}/indices-add-alias.html[Add index alias].
 // end::index-alias-def[]
 
 See <<indices-add-alias>>.
+--
+
+[[glossary-index-template]] index template ::
++
+--
+// tag::index-template-def[]
+// tag::index-template-def-short[]
+Defines settings and mappings to apply to new indexes that match a simple naming pattern, such as _logs-*_. 
+// end::index-template-def-short[]
+An index template can also attach a lifecycle policy to the new index.
+Index templates are used to automatically configure indices created during <<glossary-rollover, rollover>>. 
+// end::index-template-def[]
 --
 
 [[glossary-leader-index]] leader index ::  
@@ -206,6 +242,19 @@ By default, each primary shard has one replica, but the number of
 replicas can be changed dynamically on an existing index. A replica
 shard will never be started on the same node as its primary shard.
 
+[[glossary-rollover]] rollover ::
++
+--
+// tag::rollover-def[]
+// tag::rollover-def-short[]
+Redirect an alias to begin writing to a new index when the existing index reaches a certain age, number of docs, or size. 
+// end::rollover-def-short[]
+The new index is automatically configured according to any matching <<glossary-index-template, index templates>>. 
+For example, if you're indexing log data, you might use rollover to create daily or weekly indices. 
+See the {ref}/indices-rollover-index.html[rollover index API].
+// end::rollover-def[]
+--
+
 [[glossary-routing]] routing ::
 
 When you index a document, it is stored on a single
@@ -220,7 +269,9 @@ time, or a <<mapping-routing-field,routing
 field>> in the <<glossary-mapping,mapping>>.
 
 [[glossary-shard]] shard ::
-
++
+--
+// tag::shard-def[]
 A shard is a single Lucene instance. It is a low-level “worker” unit
 which is managed automatically by Elasticsearch. An index is a logical
 namespace which points to <<glossary-primary-shard,primary>> and
@@ -234,6 +285,18 @@ Elasticsearch distributes shards amongst all <<glossary-node,nodes>> in the
 <<glossary-cluster,cluster>>, and can move shards automatically from one
 node to another in the case of node failure, or the addition of new
 nodes.
+// end::shard-def[]
+--
+
+[[glossary-shrink]] shrink ::
+// tag::shrink-def[]
+// tag::shrink-def-short[]
+Reduce the number of primary shards in an index.
+// end::shrink-def-short[]
+You can shrink an index to reduce its overhead when the request volume drops.
+For example, you might opt to shrink an index once it is no longer the write index. 
+See the {ref}/indices-shrink-index.html[shrink index API].
+// end::shrink-def[]
 
 [[glossary-source_field]] source field ::
 

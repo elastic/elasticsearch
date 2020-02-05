@@ -36,6 +36,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * This provides a base class for aggregations that are building percentiles or percentiles-like functionality (e.g. percentile ranks).
+ * It provides a set of common fields/functionality for setting the available algorithms (TDigest and HDRHistogram),
+ * as well as algorithm-specific settings via a {@link PercentilesMethod.Config} object
+ */
 public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSourceAggregationBuilder<ValuesSource, T>>
     extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
 
@@ -132,7 +137,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends ValuesSour
      * Expert: set the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
      *
-     * Deprecated: set numberOfSignificantValueDigits by configuring a {@link PercentilesMethod.Config.TDigest} instead
+     * Deprecated: set numberOfSignificantValueDigits by configuring a {@link PercentilesMethod.Config.Hdr} instead
      * and set via {@link PercentilesAggregationBuilder#setPercentilesConfig(PercentilesMethod.Config)}
      */
     @Deprecated

@@ -26,8 +26,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -126,6 +133,15 @@ public enum PercentilesMethod implements Writeable {
             return method;
         }
 
+        abstract Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                        double[] values, boolean keyed, DocValueFormat formatter,
+                                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+
+        abstract Aggregator createPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context,
+                                                            Aggregator parent, double[] values, boolean keyed,
+                                                            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
+                                                            Map<String, Object> metaData) throws IOException;
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(method);
@@ -164,6 +180,24 @@ public enum PercentilesMethod implements Writeable {
 
             public double getCompression() {
                 return compression;
+            }
+
+            @Override
+            Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                   double[] values, boolean keyed, DocValueFormat formatter,
+                                                   List<PipelineAggregator> pipelineAggregators,
+                                                   Map<String, Object> metaData) throws IOException {
+                return new TDigestPercentilesAggregator(name, valuesSource, context, parent, values, compression, keyed, formatter,
+                    pipelineAggregators, metaData);
+            }
+
+            @Override
+            Aggregator createPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                       double[] values, boolean keyed, DocValueFormat formatter,
+                                                       List<PipelineAggregator> pipelineAggregators,
+                                                       Map<String, Object> metaData) throws IOException {
+                return new TDigestPercentileRanksAggregator(name, valuesSource, context, parent, values, compression, keyed,
+                    formatter, pipelineAggregators, metaData);
             }
 
             @Override
@@ -215,6 +249,24 @@ public enum PercentilesMethod implements Writeable {
 
             public int getNumberOfSignificantValueDigits() {
                 return numberOfSignificantValueDigits;
+            }
+
+            @Override
+            Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                   double[] values, boolean keyed, DocValueFormat formatter,
+                                                   List<PipelineAggregator> pipelineAggregators,
+                                                   Map<String, Object> metaData) throws IOException {
+                return new HDRPercentilesAggregator(name, valuesSource, context, parent, values, numberOfSignificantValueDigits, keyed,
+                    formatter, pipelineAggregators, metaData);
+            }
+
+            @Override
+            Aggregator createPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                       double[] values, boolean keyed, DocValueFormat formatter,
+                                                       List<PipelineAggregator> pipelineAggregators,
+                                                       Map<String, Object> metaData) throws IOException {
+                return new HDRPercentileRanksAggregator(name, valuesSource, context, parent, values, numberOfSignificantValueDigits, keyed,
+                    formatter, pipelineAggregators, metaData);
             }
 
             @Override

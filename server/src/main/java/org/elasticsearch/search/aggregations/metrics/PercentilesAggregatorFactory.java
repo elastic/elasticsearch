@@ -58,18 +58,9 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metaData) throws IOException {
-        if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            double compression = ((PercentilesMethod.Config.TDigest)percentilesConfig).getCompression();
-            return new TDigestPercentilesAggregator(name, null, searchContext, parent, percents, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
-        } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            int numSigFig = ((PercentilesMethod.Config.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
-            return new HDRPercentilesAggregator(name, null, searchContext, parent, percents, numSigFig, keyed,
-                config.format(), pipelineAggregators, metaData);
-        }
 
-        // This should already have thrown but just in case
-        throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+        return percentilesConfig.createPercentilesAggregator(name, null, searchContext, parent, percents, keyed,
+            config.format(), pipelineAggregators, metaData);
     }
 
     @Override
@@ -80,17 +71,7 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
 
-        if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            double compression = ((PercentilesMethod.Config.TDigest) percentilesConfig).getCompression();
-            return new TDigestPercentilesAggregator(name, valuesSource, searchContext, parent, percents, compression, keyed,
+        return percentilesConfig.createPercentilesAggregator(name, valuesSource, searchContext, parent, percents, keyed,
                 config.format(), pipelineAggregators, metaData);
-        } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            int numSigFig = ((PercentilesMethod.Config.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
-            return new HDRPercentilesAggregator(name, valuesSource, searchContext, parent, percents, numSigFig, keyed,
-                config.format(), pipelineAggregators, metaData);
-        }
-
-        // This should already have thrown but just in case
-        throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
     }
 }

@@ -40,14 +40,14 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
     private final boolean keyed;
 
     PercentileRanksAggregatorFactory(String name,
-                                            ValuesSourceConfig<ValuesSource> config,
-                                            double[] percents,
-                                            PercentilesMethod.Config percentilesConfig,
-                                            boolean keyed,
-                                            QueryShardContext queryShardContext,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metaData) throws IOException {
+                                     ValuesSourceConfig<ValuesSource> config,
+                                     double[] percents,
+                                     PercentilesMethod.Config percentilesConfig,
+                                     boolean keyed,
+                                     QueryShardContext queryShardContext,
+                                     AggregatorFactory parent,
+                                     AggregatorFactories.Builder subFactoriesBuilder,
+                                     Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
@@ -59,18 +59,9 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metaData) throws IOException {
-        if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            double compression = ((PercentilesMethod.Config.TDigest)percentilesConfig).getCompression();
-            return new TDigestPercentileRanksAggregator(name, null, searchContext, parent, percents, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
-        } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            int numSigFig = ((PercentilesMethod.Config.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
-            return new HDRPercentileRanksAggregator(name, null, searchContext, parent, percents, numSigFig, keyed,
-                config.format(), pipelineAggregators, metaData);
-        }
 
-        // This should already have thrown but just in case
-        throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+        return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
+                config.format(), pipelineAggregators, metaData);
     }
 
     @Override
@@ -80,17 +71,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            double compression = ((PercentilesMethod.Config.TDigest) percentilesConfig).getCompression();
-            return new TDigestPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, compression, keyed,
-                config.format(), pipelineAggregators, metaData);
-        } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            int numSigFig = ((PercentilesMethod.Config.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
-            return new HDRPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, numSigFig, keyed,
-                config.format(), pipelineAggregators, metaData);
-        }
-
-        // This should already have thrown but just in case
-        throw new IllegalStateException("Unknown percentiles method: [" + percentilesConfig.getMethod().toString() + "]");
+        return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, keyed,
+            config.format(), pipelineAggregators, metaData);
     }
 }

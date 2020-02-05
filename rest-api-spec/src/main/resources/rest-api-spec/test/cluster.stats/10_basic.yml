@@ -88,7 +88,7 @@
 "get cluster stats returns mapping stats":
 
   - skip:
-      version: " - 7.99.99" # TODO: 7.6.99
+      version: " - 7.6.99"
       reason:  "mapping stats are added for v7.7.0"
 
   - do:

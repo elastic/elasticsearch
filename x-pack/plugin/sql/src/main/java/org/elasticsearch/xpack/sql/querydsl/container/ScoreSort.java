@@ -9,7 +9,7 @@ import java.util.Objects;
 
 public class ScoreSort extends Sort {
 
-    final String id;
+    private final String id;
 
     public ScoreSort(String id, Direction direction, Missing missing) {
         super(direction, missing);

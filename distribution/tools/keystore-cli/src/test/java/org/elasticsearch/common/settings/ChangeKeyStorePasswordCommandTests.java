@@ -26,6 +26,7 @@ import org.elasticsearch.env.Environment;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase {
@@ -90,6 +91,16 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         // We'll only be prompted once (for the old password)
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+        if (inFipsJvm()) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
     }
 }

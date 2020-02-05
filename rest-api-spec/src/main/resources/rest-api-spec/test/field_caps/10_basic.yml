@@ -106,6 +106,9 @@ setup:
 
 ---
 "Get simple field caps":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
 
   - do:
       field_caps:
@@ -172,6 +175,9 @@ setup:
 
 ---
 "Get leaves field caps":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
 
   - do:
       field_caps:
@@ -200,7 +206,9 @@ setup:
   - is_false: fields.object\.nested2.keyword.non_searchable_indices
 ---
 "Get object and nested field caps":
-
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
 
   - do:
       field_caps:
@@ -239,6 +247,9 @@ setup:
   - is_false: fields.level1\.level2\.leaf1.text..non_searchable_indices
 ---
 "Get prefix field caps":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
 
   - do:
       field_caps:
@@ -257,6 +268,9 @@ setup:
 
 ---
 "Mix in non-existing field field caps":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
 
   - do:
       field_caps:
@@ -297,8 +311,11 @@ setup:
 ---
 "Field caps with include_unmapped":
   - skip:
-      version: " - 7.1.99"
-      reason: include_unmapped has been added in 7.2.0
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/51896"
+#  - skip:
+#      version: " - 7.1.99"
+#      reason: include_unmapped has been added in 7.2.0
 
   - do:
       field_caps:

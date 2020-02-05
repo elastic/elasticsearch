@@ -28,21 +28,27 @@ import java.util.Objects;
  */
 public class GrammarTests extends ESTestCase {
 
-    public void testGrammar() throws Exception {
+    public void testSupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
-        List<Tuple<String, Integer>> lines = readQueries("/grammar-queries.eql");
+        List<Tuple<String, Integer>> lines = readQueries("/queries-supported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
-            try {
-                parser.createStatement(q);
-            } catch (ParsingException pe) {
-                if (pe.getErrorMessage().startsWith("Does not know how to handle")) {
-                    // ignore for now
-                }
-                else {
-                    throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
-                            pe.getErrorMessage() + " inside statement <{}>", q);
-                }
+            parser.createStatement(q);
+        }
+    }
+    public void testUnsupportedQueries() throws Exception {
+        EqlParser parser = new EqlParser();
+        List<Tuple<String, Integer>> lines = readQueries("/queries-unsupported.eql");
+        for (Tuple<String, Integer> line : lines) {
+            String q = line.v1();
+            ParsingException pe = expectThrows(
+                ParsingException.class,
+                "Query not identified as unsupported: " + q,
+                () -> parser.createStatement(q));
+
+            if (!pe.getErrorMessage().contains("supported")) {
+                throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
+                    pe.getErrorMessage() + " inside statement <{}>", q);
             }
         }
     }
@@ -67,6 +73,8 @@ public class GrammarTests extends ESTestCase {
                         query.setLength(query.length() - 1);
                         queries.add(new Tuple<>(query.toString(), lineNumber));
                         query.setLength(0);
+                    } else {
+                        query.append("\n");
                     }
                 }
                 lineNumber++;

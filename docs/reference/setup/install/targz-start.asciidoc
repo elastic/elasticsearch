@@ -1,18 +1,5 @@
 ==== Running Elasticsearch from the command line
 
-[IMPORTANT]
-.Unidentified developer warnings
-====
-Apple's rollout of stricter notarization requirements affected the notarization
-of the {version} {es} artifacts. If macOS Catalina displays an unidentified
-developer warning when you first run {es}, you will need to add a security
-override.
-
-To add a security override, follow the instructions in
-https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac[Open
-a Mac app from an unidentified developer].
-====
-
 Elasticsearch can be started from the command line as follows:
 
 [source,sh]
@@ -28,3 +15,32 @@ that supports arrays and assume that Bash is available at `/bin/bash`.
 As such, Bash should be available at this path either directly or via a
 symbolic link.
 
+[IMPORTANT]
+.macOS Gatekeeper warnings
+====
+Apple's rollout of stricter notarization requirements affected the notarization
+of the {version} {es} artifacts. If macOS Catalina displays a dialog when you
+first run {es} that interrupts it, you will need to take an action to allow it
+to run.
+
+To prevent Gatekeeper checks on the {es} files, run the following command on the
+downloaded `.tar.gz` archive or the directory to which was extracted:
+
+[source,sh]
+----
+xattr -d -r com.apple.quarantine <archive-or-directory>
+----
+
+For example, if the `.tar.gz` file was extracted to the default
+elasticsearch-{version} directory, the command is:
+
+[source,sh,subs="attributes"]
+----
+xattr -d -r com.apple.quarantine elasticsearch-{version}
+----
+
+Alternatively, you can add a security override for both `jdk.app` and
+`controller.app` by following the instructions in the _How to open an app that
+hasn’t been notarized or is from an unidentified developer_ section of
+https://support.apple.com/en-us/HT202491[Safely open apps on your Mac].
+====

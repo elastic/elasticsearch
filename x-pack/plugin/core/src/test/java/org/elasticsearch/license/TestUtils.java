@@ -283,7 +283,10 @@ public class TestUtils {
             builder.feature(randomAlphaOfLength(10));
         }
         if ("enterprise".equals(licenseType)) {
-            builder.version(License.VERSION_ENTERPRISE).maxResourceUnits(5).maxNodes(-1);
+            builder
+                .version(License.VERSION_ENTERPRISE)
+                .maxResourceUnits(randomIntBetween(5, 500))
+                .maxNodes(-1);
         }
         final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());

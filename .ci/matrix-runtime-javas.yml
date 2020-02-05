@@ -7,7 +7,6 @@
 
 ES_RUNTIME_JAVA:
   - java8
-  - java8fips
   - java11
   - java12
   - openjdk12

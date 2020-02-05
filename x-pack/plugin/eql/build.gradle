@@ -27,6 +27,7 @@ dependencies {
   testCompile project(':test:framework')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')

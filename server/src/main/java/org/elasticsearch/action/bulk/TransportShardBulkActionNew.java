@@ -53,6 +53,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -239,7 +240,24 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         ShardQueue shardQueue = getOrCreateShardQueue(shardId);
         if (shardQueue.attemptEnqueue(shardOp, allowReject)) {
             try {
-                threadPool.executor(ThreadPool.Names.WRITE).execute(() -> performShardOperations(shardOp.indexShard));
+                threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // TODO: Ensure this cannot happen
+                        assert false;
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        performShardOperations(shardOp.indexShard);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return allowReject == false;
+                    }
+                });
             } catch (EsRejectedExecutionException e) {
                 // TODO: Currently if we are on a mapping callback, we need a way to handle this exception the existing implementation may
                 //  FSYNC on this thread!
@@ -303,20 +321,30 @@ public class TransportShardBulkActionNew extends TransportWriteActionNew<BulkSha
         }
         indexShard.afterWriteOperation();
 
+        // TODO: Need to improve resiliency around error handling on failed syncs, refreshes, and listener
+        //  calls
+
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
             if (maxLocation != null) {
-                indexShard.sync(maxLocation, (ex) -> {
-                    if (ex == null) {
-                        for (ShardOp op : completedOps) {
-                            op.listener.onResponse(null);
+                try {
+                    indexShard.sync(maxLocation, (ex) -> {
+                        if (ex == null) {
+                            for (ShardOp op : completedOps) {
+                                op.listener.onResponse(null);
+                            }
+                        } else {
+                            for (ShardOp op : completedOps) {
+                                // TODO: Check if this is okay
+                                op.listener.onFailure(ex);
+                            }
                         }
-                    } else {
-                        for (ShardOp op : completedOps) {
-                            // TODO: Check if this is okay
-                            op.listener.onFailure(ex);
-                        }
+                    });
+                } catch (Exception ex) {
+                    for (ShardOp op : completedOps) {
+                        // TODO: Check if this is okay
+                        op.listener.onFailure(ex);
                     }
-                });
+                }
             } else {
                 for (ShardOp op : completedOps) {
                     op.listener.onResponse(null);

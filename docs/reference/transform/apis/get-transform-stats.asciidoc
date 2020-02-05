@@ -86,28 +86,23 @@ informational; you cannot update their values.
 (integer) The sequence number for the checkpoint.
 `checkpointing`.`last`.`time_upper_bound_millis`::::
 (date) When using time-based synchronization, this timestamp indicates the
-upper bound of data that is included in the checkpoint. Typically, this value
-is equal to the `checkpointing`.`last`.`time_upper_bound_millis` minus the
-`sync`.`time`.`delay`, which is defined when you create the {transform}.
+upper bound of data that is included in the checkpoint.
 `checkpointing`.`last`.`timestamp_millis`::::
 (date) The timestamp of the checkpoint, which indicates when the checkpoint
 was created.
 `checkpointing`.`next`:::
 (object) Contains statistics about the next checkpoint that is currently in
-progress. This object appears only if the {transform} is currently processing
-data and only for the first checkpoint.
+progress. This object appears only when the {transform} `state` is `indexing`.
 `checkpointing`.`next`.`checkpoint`::::
 (integer) The sequence number for the checkpoint.
 `checkpointing`.`next`.`checkpoint_progress`::::
 (object) Contains statistics about the progress of the checkpoint. For example,
 it lists the `total_docs`, `docs_remaining`, `percent_complete`,
 `docs_processed`, and `docs_indexed`. This information is available only for
-batch {transforms} and the first checkpoint of {ctransforms}. 
+batch {transforms} and the first checkpoint of {ctransforms}.
 `checkpointing`.`next`.`time_upper_bound_millis`::::
 (date) When using time-based synchronization, this timestamp indicates the
-upper bound of data that is included in the checkpoint. Typically, this value
-is equal to the `checkpointing`.`next`.`time_upper_bound_millis` minus the
-`sync`.`time`.`delay`, which is defined when you create the {transform}.
+upper bound of data that is included in the checkpoint.
 `checkpointing`.`next`.`timestamp_millis`::::
 (date) The timestamp of the checkpoint, which indicates when the checkpoint was
 created.

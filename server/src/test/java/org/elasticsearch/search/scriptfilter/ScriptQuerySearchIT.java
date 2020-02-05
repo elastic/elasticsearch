@@ -245,6 +245,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         }
         refresh();
 
+        // Execute with search.allow_expensive_queries = null => default value = false => success
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1",
                 Collections.emptyMap());
         SearchResponse resp = client().prepareSearch("test-index")
@@ -256,6 +257,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
+        // Set search.allow_expensive_queries to "false" => assert failure
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> client()
                         .prepareSearch("test-index")
@@ -264,6 +266,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         assertEquals("script queries cannot be executed when 'search.allow_expensive_queries' is set to false",
                 e.getCause().getMessage());
 
+        // Set search.allow_expensive_queries to "true" => success
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());

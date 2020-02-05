@@ -269,6 +269,8 @@ time, or a <<mapping-routing-field,routing
 field>> in the <<glossary-mapping,mapping>>.
 
 [[glossary-shard]] shard ::
++
+--
 // tag::shard-def[]
 A shard is a single Lucene instance. It is a low-level “worker” unit
 which is managed automatically by Elasticsearch. An index is a logical

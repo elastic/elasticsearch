@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.eql.analysis;
+package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.eql.EqlClientException;
@@ -11,9 +11,13 @@ import org.elasticsearch.xpack.eql.common.Failure;
 
 import java.util.Collection;
 
-public class VerificationException extends EqlClientException {
+public class PlanningException extends EqlClientException {
 
-    protected VerificationException(Collection<Failure> sources) {
+    public PlanningException(String message, Object... args) {
+        super(message, args);
+    }
+
+    protected PlanningException(Collection<Failure> sources) {
         super(Failure.failMessage(sources));
     }
 

@@ -150,7 +150,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
                 @Override
                 public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
-                    // TODO: craft metdata ourselves here instead of physically reading it from the store
+                    // TODO: craft metadata ourselves here instead of physically reading it from the store
                     final MetadataSnapshot metadataSnapshot = super.getMetadata(commit);
                     return new MetadataSnapshot(metadataSnapshot.asMap(),
                         metadataSnapshot.getCommitUserData(), metadataSnapshot.getNumDocs());

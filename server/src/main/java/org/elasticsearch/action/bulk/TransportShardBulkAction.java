@@ -179,7 +179,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             e, primary, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
                         context, null);
                 }
-                finishRequest();
+
+                // Force the execution to finish the request
+                executor.execute(new ActionRunnable<>(listener) {
+
+                    @Override
+                    protected void doRun() {
+                        finishRequest();
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+                });
             }
 
             private void finishRequest() {

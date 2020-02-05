@@ -165,22 +165,22 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExists() throws IOException {
-        doTestSourceExists((index, id) -> new GetRequest(index, id));
+        doTestSourceExists((index, id) -> new GetSourceRequest(index, id));
     }
 
     public void testSourceExistsWithType() throws IOException {
         String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
-        doTestSourceExists((index, id) -> new GetRequest(index, type, id));
+        doTestSourceExists((index, id) -> new GetSourceRequest(index, id).type(type));
     }
 
     public void testGetSource() throws IOException {
         doTestGetSource((index, id) -> new GetSourceRequest(index, id));
     }
 
-    private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
+    private static void doTestSourceExists(BiFunction<String, String, GetSourceRequest> requestFunction) throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        final GetRequest getRequest = requestFunction.apply(index, id);
+        final GetSourceRequest getRequest = requestFunction.apply(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -210,7 +210,7 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.sourceExists(getRequest);
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         String type = getRequest.type();
-        if (type.equals(MapperService.SINGLE_MAPPING_NAME)) {
+        if (type == null) {
             assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
         } else {
             assertEquals("/" + index + "/" + type + "/" + id + "/_source", request.getEndpoint());

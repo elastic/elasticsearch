@@ -19,17 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.CyclicBarrier;
 
 /**
  * Makes sure that tasks that attempt to store themselves on completion retry if
@@ -56,22 +52,22 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
     public void testRetry() throws Exception {
         // TODO: Need to fix test for queuing strategy changes
 
-        logger.info("block the write executor");
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        getInstanceFromNode(ThreadPool.class).executor(ThreadPool.Names.WRITE).execute(() -> {
-            try {
-                barrier.await();
-                logger.info("blocking the write executor");
-                barrier.await();
-                logger.info("unblocked the write executor");
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        barrier.await();
-        Task task;
-        PlainListenableActionFuture<TestTaskPlugin.NodesResponse> future =
-                PlainListenableActionFuture.newListenableFuture();
+//        logger.info("block the write executor");
+//        CyclicBarrier barrier = new CyclicBarrier(2);
+//        getInstanceFromNode(ThreadPool.class).executor(ThreadPool.Names.WRITE).execute(() -> {
+//            try {
+//                barrier.await();
+//                logger.info("blocking the write executor");
+//                barrier.await();
+//                logger.info("unblocked the write executor");
+//            } catch (Exception e) {
+//                throw new RuntimeException(e);
+//            }
+//        });
+//        barrier.await();
+//        Task task;
+//        PlainListenableActionFuture<TestTaskPlugin.NodesResponse> future =
+//                PlainListenableActionFuture.newListenableFuture();
 //        try {
 //            logger.info("start a task that will store its results");
 //            TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");

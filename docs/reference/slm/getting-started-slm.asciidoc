@@ -1,62 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[getting-started-snapshot-lifecycle-management]]
-== Getting started with snapshot lifecycle management
+=== Configure snapshot lifecycle policies
 
-Let's get started with snapshot lifecycle management (SLM) by working through a
+Let's get started with {slm} ({slm-init}) by working through a
 hands-on scenario. The goal of this example is to automatically back up {es}
 indices using the <<snapshot-restore,snapshots>> every day at a particular
 time. Once these snapshots have been created, they are kept for a configured
 amount of time and then deleted per a configured retention policy.
 
 [float]
-[[slm-and-security]]
-=== Security and SLM
-Before starting, it's important to understand the privileges that are needed
-when configuring SLM if you are using the security plugin. There are two
-built-in cluster privileges that can be used to assist: `manage_slm` and
-`read_slm`. It's also good to note that the `cluster:admin/snapshot/*`
-permission allows taking and deleting snapshots even for indices the role may
-not have access to.
-
-An example of configuring an administrator role for SLM follows:
-
-[source,console]
------------------------------------
-POST /_security/role/slm-admin
-{
-  "cluster": ["manage_slm", "cluster:admin/snapshot/*"],
-  "indices": [
-    {
-      "names": [".slm-history-*"],
-      "privileges": ["all"]
-    }
-  ]
-}
------------------------------------
-// TEST[skip:security is not enabled here]
-
-Or, for a read-only role that can retrieve policies (but not update, execute, or
-delete them), as well as only view the history index:
-
-[source,console]
------------------------------------
-POST /_security/role/slm-read-only
-{
-  "cluster": ["read_slm"],
-  "indices": [
-    {
-      "names": [".slm-history-*"],
-      "privileges": ["read"]
-    }
-  ]
-}
------------------------------------
-// TEST[skip:security is not enabled here]
-
-[float]
-[[slm-gs-create-policy]]
-=== Setting up a repository
+[[slm-gs-register-repository]]
+==== Register a repository
 
 Before we can set up an SLM policy, we'll need to set up a
 snapshot repository where the snapshots will be
@@ -76,12 +31,13 @@ PUT /_snapshot/my_repository
 -----------------------------------
 
 [float]
-=== Setting up a policy
+[[slm-gs-create-policy]]
+==== Setting up a snapshot policy
 
 Now that we have a repository in place, we can create a policy to automatically
 take snapshots. Policies are written in JSON and will define when to take
 snapshots, what the snapshots should be named, and which indices should be
-included, among other things.  We'll use the <<slm-api-put,Put Policy>> API
+included, among other things.  We'll use the <<slm-api-put-policy>> API
 to create the policy.
 
 When configurating a policy, retention can also optionally be configured. See
@@ -131,13 +87,14 @@ request>>, so you can specify, for example, whether the snapshot should fail in
 special cases, such as if one of the specified indices cannot be found.
 
 [float]
-=== Making sure the policy works
+[[slm-gs-test-policy]]
+==== Test the snapshot policy
 
 While snapshots taken by SLM policies can be viewed through the standard snapshot
 API, SLM also keeps track of policy successes and failures in ways that are a bit
 easier to use to make sure the policy is working.  Once a policy has executed at
-least once, when you view the policy using the <<slm-api-get,Get Policy API>>, 
-some metadata will be returned indicating whether the snapshot was successfully 
+least once, when you view the policy using the <<slm-api-get-policy>>, 
+some metadata will be returned indicating whether the snapshot was sucessfully 
 initiated or not.
 
 Instead of waiting for our policy to run, let's tell SLM to take a snapshot
@@ -219,7 +176,7 @@ field - it's included above only as an example. You should, however, see a
 `last_success` field and a snapshot name. If you do, you've successfully taken
 your first snapshot using SLM!
 
-While only the most recent success and failure are available through the Get Policy 
+While only the most recent sucess and failure are available through the Get Policy 
 API, all policy executions are recorded to a history index, which may be queried
 by searching the index pattern `.slm-history*`.
 

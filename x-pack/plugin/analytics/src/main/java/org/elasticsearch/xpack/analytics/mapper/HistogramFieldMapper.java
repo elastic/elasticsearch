@@ -373,7 +373,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     }
                 }
                 BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
-                Field field = new BinaryDocValuesField(simpleName(), docValue);
+                Field field = new BinaryDocValuesField(name(), docValue);
                 if (context.doc().getByKey(fieldType().name()) != null) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] doesn't not support indexing multiple values for the same field in the same document");

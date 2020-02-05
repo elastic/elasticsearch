@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -77,7 +78,7 @@ public class CacheDirectory extends FilterDirectory {
     }
 
     public Map<String, IndexInputStats> getStats() {
-        return stats;
+        return Collections.unmodifiableMap(stats);
     }
 
     // pkg private for tests

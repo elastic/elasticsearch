@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.script.Script;
@@ -75,7 +76,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         if (vs == null) {
             // The field is unmapped so we use a value source that can parse any type of values.
             // This is needed because the after values are parsed even when there are no values to process.
-            vs = ValuesSource.Bytes.WithOrdinals.EMPTY;
+            vs = new ValuesSource.Bytes.WithOrdinals.Empty(CoreValuesSourceType.BYTES);
         }
         final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
         final DocValueFormat format;

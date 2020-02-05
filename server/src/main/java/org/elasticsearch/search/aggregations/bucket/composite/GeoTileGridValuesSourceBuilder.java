@@ -34,6 +34,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -131,7 +132,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         ValuesSource orig = config.toValuesSource(queryShardContext);
         if (orig == null) {
-            orig = ValuesSource.GeoPoint.EMPTY;
+            orig = new ValuesSource.GeoPoint.Empty(CoreValuesSourceType.GEOPOINT);
         }
         if (orig instanceof ValuesSource.GeoPoint) {
             ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;

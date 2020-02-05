@@ -120,8 +120,11 @@ public abstract class ValuesSource {
                 super(valuesSourceType);
             }
 
-            // TODO: Don't hard-code the VST here?  Not sure the right way to handle empty.
-            public static final WithOrdinals EMPTY = new WithOrdinals(CoreValuesSourceType.BYTES) {
+            public static class Empty extends WithOrdinals {
+
+                public Empty(ValuesSourceType valuesSourceType) {
+                    super(valuesSourceType);
+                }
 
                 @Override
                 public SortedSetDocValues ordinalsValues(LeafReaderContext context) {
@@ -143,7 +146,7 @@ public abstract class ValuesSource {
                     return LongUnaryOperator.identity();
                 }
 
-            };
+            }
 
             @Override
             public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
@@ -338,8 +341,11 @@ public abstract class ValuesSource {
             super(valuesSourceType);
         }
 
-        // TODO: hard coded VST is wrong here - Could be Numeric or Date
-        public static final Numeric EMPTY = new Numeric(CoreValuesSourceType.NUMERIC) {
+        public static class Empty extends  Numeric {
+
+            public Empty(ValuesSourceType valuesSourceType) {
+                super(valuesSourceType);
+            }
 
             @Override
             public boolean isFloatingPoint() {
@@ -361,7 +367,7 @@ public abstract class ValuesSource {
                 return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
-        };
+        }
 
         /** Whether the underlying data is floating-point or not. */
         public abstract boolean isFloatingPoint();
@@ -562,8 +568,11 @@ public abstract class ValuesSource {
             super(valuesSourceType);
         }
 
-        // TODO: don't hard code this here
-        public static final GeoPoint EMPTY = new GeoPoint(CoreValuesSourceType.GEOPOINT) {
+        public static class Empty extends GeoPoint {
+
+            public Empty(ValuesSourceType valuesSourceType) {
+                super(valuesSourceType);
+            }
 
             @Override
             public MultiGeoPointValues geoPointValues(LeafReaderContext context) {

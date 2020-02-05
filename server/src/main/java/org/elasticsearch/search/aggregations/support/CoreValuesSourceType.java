@@ -46,7 +46,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     NUMERIC(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {
-            return ValuesSource.Numeric.EMPTY;
+            return new ValuesSource.Numeric.Empty(NUMERIC);
         }
 
         @Override
@@ -81,7 +81,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     BYTES(EquivalenceType.STRING) {
         @Override
         public ValuesSource getEmpty() {
-            return ValuesSource.Bytes.WithOrdinals.EMPTY;
+            return new ValuesSource.Bytes.WithOrdinals.Empty(BYTES);
         }
 
         @Override
@@ -117,7 +117,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     GEOPOINT(EquivalenceType.GEO) {
         @Override
         public ValuesSource getEmpty() {
-            return ValuesSource.GeoPoint.EMPTY;
+            return new  ValuesSource.GeoPoint.Empty(GEOPOINT);
         }
 
         @Override

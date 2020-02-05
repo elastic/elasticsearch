@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalConsumer;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -254,7 +255,7 @@ public class DateHistogramValuesSourceBuilder
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         ValuesSource orig = config.toValuesSource(queryShardContext);
         if (orig == null) {
-            orig = ValuesSource.Numeric.EMPTY;
+            orig = new ValuesSource.Numeric.Empty(CoreValuesSourceType.DATE);
         }
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;

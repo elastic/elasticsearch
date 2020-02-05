@@ -392,7 +392,7 @@ public class MissingValuesTests extends ESTestCase {
     }
 
     public void testFloatingPointDetection() {
-        assertFalse(MissingValues.replaceMissing(ValuesSource.Numeric.EMPTY, 3).isFloatingPoint());
-        assertTrue(MissingValues.replaceMissing(ValuesSource.Numeric.EMPTY, 3.5).isFloatingPoint());
+        assertFalse(MissingValues.replaceMissing(new ValuesSource.Numeric.Empty(CoreValuesSourceType.NUMERIC), 3).isFloatingPoint());
+        assertTrue(MissingValues.replaceMissing(new ValuesSource.Numeric.Empty(CoreValuesSourceType.NUMERIC), 3.5).isFloatingPoint());
     }
 }

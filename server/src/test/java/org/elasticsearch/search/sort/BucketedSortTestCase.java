@@ -148,7 +148,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
         for (int b = 0; b < buckets.length; b++) {
             buckets[b] = b;
         }
-        Collections.shuffle(Arrays.asList(buckets));
+        Collections.shuffle(Arrays.asList(buckets), random());
 
         double[] maxes = new double[buckets.length];
 

@@ -136,6 +136,7 @@ public class QueryContainer {
         for (Sort s : sort) {
             if (s instanceof AggregateSort) {
                 customSort = Boolean.TRUE;
+                break;
             }
         }
 

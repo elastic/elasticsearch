@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -35,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Numeric> {
+class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                  DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,

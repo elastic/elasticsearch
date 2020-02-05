@@ -195,7 +195,7 @@ public class ValuesSourceConfig {
         return this;
     }
 
-    public ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
+    private ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
         this.scriptValueType = scriptValueType;
         return this;
     }

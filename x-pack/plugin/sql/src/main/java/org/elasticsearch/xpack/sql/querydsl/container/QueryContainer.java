@@ -155,12 +155,12 @@ public class QueryContainer {
                     break;
                 }
             }
-            if (atIndex==-1) {
+            if (atIndex == -1) {
                 throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", s);
             }
             // assemble a comparator for it
-            Comparator comp = s.direction()==Sort.Direction.ASC ? Comparator.naturalOrder():Comparator.reverseOrder();
-            comp = s.missing()==Sort.Missing.FIRST ? Comparator.nullsFirst(comp):Comparator.nullsLast(comp);
+            Comparator comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
+            comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
 
             sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }

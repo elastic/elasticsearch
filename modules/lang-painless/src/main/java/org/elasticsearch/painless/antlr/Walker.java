@@ -106,6 +106,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
@@ -245,13 +246,30 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             functions.add((SFunction)visit(function));
         }
 
+        // handle the code to generate the execute method here
+        // because the statements come loose from the grammar as
+        // part of the overall class
         List<AStatement> statements = new ArrayList<>();
 
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
+        String returnCanonicalTypeName = PainlessLookupUtility.typeToCanonicalTypeName(scriptClassInfo.getExecuteMethodReturnType());
+        List<String> paramTypes = new ArrayList<>();
+        List<String> paramNames = new ArrayList<>();
+
+        for (ScriptClassInfo.MethodArgument argument : scriptClassInfo.getExecuteArguments()) {
+            paramTypes.add(PainlessLookupUtility.typeToCanonicalTypeName(argument.getClazz()));
+            paramNames.add(argument.getName());
+        }
+
+        // generate the execute method from the collected statements and parameters
+        SFunction execute = new SFunction(location(ctx), returnCanonicalTypeName, "execute", paramTypes, paramNames, new SBlock(
+                location(ctx), statements), true, false, false, true);
+        functions.add(execute);
+
+        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions);
     }
 
     @Override
@@ -278,7 +296,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.block().dstatement()));
         }
 
-        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false);
+        return new SFunction(
+                location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false, true, false, false);
     }
 
     @Override

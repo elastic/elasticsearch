@@ -39,4 +39,12 @@ public class RestSqlIT extends RestSqlTestCase {
             containsString("Cannot generate a query DSL for a special SQL command " +
                 "(e.g.: DESCRIBE, SHOW), sql statement: [SHOW FUNCTIONS]"));
     }
+
+    public void testErrorMessageForInvalidParamDataType() throws IOException {
+        expectBadRequest(() -> runTranslateSql(
+            "{\"query\":\"SELECT null WHERE 0 = ? \", \"mode\": \"odbc\", \"params\":[{\"type\":\"invalid\", \"value\":\"irrelevant\"}]}"
+            ),
+            containsString("Invalid parameter data type [invalid]")
+        );
+    }
 }

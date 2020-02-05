@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.function.Function;
@@ -48,6 +50,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isYearMonthInterval;
@@ -156,6 +161,9 @@ public final class SqlDataTypeConverter {
         }
         if (to == TIME) {
             return conversionToTime(from);
+        }
+        if (isInterval(to)) {
+            return conversionToInterval(from, to);
         }
         // extend the default converter with DATE and TIME
         if (from == DATE || from == TIME) {
@@ -320,6 +328,15 @@ public final class SqlDataTypeConverter {
         return null;
     }
 
+    private static Converter conversionToInterval(DataType from, DataType to) {
+        if (isString(from)) {
+            return (to == INTERVAL_YEAR || to == INTERVAL_MONTH || to == INTERVAL_YEAR_TO_MONTH)
+                ? SqlConverter.STRING_ISO8601_PERIOD_TO_TEMPORAL
+                : SqlConverter.STRING_ISO8601_DURATION_TO_TEMPORAL;
+        }
+        return null;
+    }
+
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = SqlDataTypes.fromJava(value);
 
@@ -382,10 +399,13 @@ public final class SqlDataTypeConverter {
         DATE_TO_DATETIME(value -> value),
 
         DATE_TO_BOOLEAN(delegate(DATETIME_TO_BOOLEAN)),
-        TIME_TO_BOOLEAN(fromTime(value -> value != 0));
+        TIME_TO_BOOLEAN(fromTime(value -> value != 0)),
+
+        STRING_ISO8601_PERIOD_TO_TEMPORAL(fromString(Period::parse, "duration")),
+        STRING_ISO8601_DURATION_TO_TEMPORAL(fromString(Duration::parse, "duration"));
 
         public static final String NAME = "dtc-sql";
-        
+
         private final Function<Object, Object> converter;
 
         SqlConverter(Function<Object, Object> converter) {

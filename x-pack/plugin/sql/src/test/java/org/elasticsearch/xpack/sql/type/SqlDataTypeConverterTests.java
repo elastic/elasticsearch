@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Duration;
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
@@ -36,8 +38,15 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_HOUR;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_MINUTE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_SECOND;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR_TO_MINUTE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_HOUR_TO_SECOND;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MINUTE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MINUTE_TO_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
@@ -588,6 +597,25 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());
         }
+    }
+
+    public void testConversionToInterval() {
+        assertNull(converterFor(KEYWORD, INTERVAL_YEAR).convert(null));
+
+        assertEquals(converterFor(KEYWORD, INTERVAL_YEAR).convert("P200Y"), Period.of(200, 0, 0));
+        assertEquals(converterFor(KEYWORD, INTERVAL_MONTH).convert("P11M"), Period.of(0, 11, 0));
+        assertEquals(converterFor(KEYWORD, INTERVAL_YEAR_TO_MONTH).convert("P200Y11M"), Period.of(200, 11, 0));
+
+        assertEquals(converterFor(KEYWORD, INTERVAL_DAY).convert("P20D"), Duration.ofDays(20));
+        assertEquals(converterFor(KEYWORD, INTERVAL_HOUR).convert("PT20H"), Duration.ofHours(20));
+        assertEquals(converterFor(KEYWORD, INTERVAL_MINUTE).convert("PT20M"), Duration.ofMinutes(20));
+        assertEquals(converterFor(KEYWORD, INTERVAL_SECOND).convert("PT20S"), Duration.ofSeconds(20));
+
+        assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_HOUR).convert("P1DT1H"), Duration.ofHours(24 + 1));
+        assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_MINUTE).convert("P1DT1H1M"), Duration.ofMinutes((24 + 1) * 60 + 1));
+        assertEquals(converterFor(KEYWORD, INTERVAL_DAY_TO_SECOND).convert("P1DT1.1S"), Duration.ofSeconds(24 * 3600 + 1, 100_000_000  ));
+
+        assertEquals(converterFor(KEYWORD, INTERVAL_MINUTE_TO_SECOND).convert("PT1M1S"), Duration.ofSeconds(60 + 1));
     }
 
     public void testConversionToNull() {

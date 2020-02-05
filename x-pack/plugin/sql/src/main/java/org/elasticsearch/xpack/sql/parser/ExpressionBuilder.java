@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.Duration;
@@ -129,7 +130,6 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
@@ -700,6 +700,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         SqlTypedParamValue param = param(ctx.PARAM());
         DataType dataType = SqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
+        if (dataType == null) {
+            throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
+        }
         if (param.value == null) {
             // no conversion is required for null values
             return new Literal(source, null, dataType);
@@ -717,7 +720,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-            return new Literal(source, converterFor(sourceType, dataType).convert(param.value), dataType);
+            if (SqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
+                throw new ParsingException(source, "Can not cast value [{}] as [{}]", param.value, dataType);
+            }
+            return new Literal(source, SqlDataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }

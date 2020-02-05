@@ -73,9 +73,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @After
     public void resetSettings() {
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
     }
 
     public void testPercolatorQuery() throws Exception {
@@ -888,48 +886,54 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testDisallowExpensiveQueries() throws IOException {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
-        );
+        try {
+            assertAcked(client().admin().indices().prepareCreate("test")
+                    .setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
+            );
 
-        client().prepareIndex("test").setId("1")
-                .setSource(jsonBuilder().startObject()
-                        .field("id", "1")
-                        .field("query", matchQuery("field1", "value")).endObject())
-                .get();
-        refresh();
+            client().prepareIndex("test").setId("1")
+                    .setSource(jsonBuilder().startObject()
+                            .field("id", "1")
+                            .field("query", matchQuery("field1", "value")).endObject())
+                    .get();
+            refresh();
 
-        // Execute with search.allow_expensive_queries = null => default value = false => success
-        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
-        SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            // Execute with search.allow_expensive_queries = null => default value = false => success
+            BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
+            SearchResponse response = client().prepareSearch()
+                    .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+                    .get();
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
 
-        // Set search.allow_expensive_queries to "false" => assert failure
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            // Set search.allow_expensive_queries to "false" => assert failure
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> client().prepareSearch()
-                        .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                        .get());
-        assertEquals("percolate queries cannot be executed when 'search.allow_expensive_queries' is set to false",
-                e.getCause().getMessage());
+            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                    () -> client().prepareSearch()
+                            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+                            .get());
+            assertEquals("percolate queries cannot be executed when 'search.allow_expensive_queries' is set to false",
+                    e.getCause().getMessage());
 
-        // Set search.allow_expensive_queries setting to "true" ==> success
-        updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            // Set search.allow_expensive_queries setting to "true" ==> success
+            updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            response = client().prepareSearch()
+                    .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+                    .get();
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+        } finally {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
 }

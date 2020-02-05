@@ -173,8 +173,8 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.isAllowExpensiveQueries() == false) {
-            throw new ElasticsearchException("script score queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() +
-                    "' is set to false");
+            throw new ElasticsearchException("script score queries cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());

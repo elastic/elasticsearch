@@ -26,6 +26,7 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
@@ -59,6 +60,8 @@ import org.locationtech.spatial4j.shape.Shape;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+
 public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
 
     private AbstractGeometryFieldMapper.AbstractGeometryFieldType ft;
@@ -74,6 +77,11 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
     @Override
     public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
+        if (context.isAllowExpensiveQueries() == false) {
+            throw new ElasticsearchException("geo shape queries on PrefixTree geo shapes cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false");
+        }
+
         LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
         SpatialStrategy spatialStrategy = shapeFieldType.strategy();
         if (strategy != null) {

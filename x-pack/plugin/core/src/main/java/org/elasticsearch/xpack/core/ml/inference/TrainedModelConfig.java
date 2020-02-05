@@ -243,7 +243,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         // The model license does not matter, this is the highest licensed level
-        if (licenseState.isActive() && XPackLicenseState.isPlatinumOrTrialOperationMode(licenseState.getOperationMode())) {
+        if (licenseState.isActive() && XPackLicenseState.isPlatinumPlusOrTrialOperationMode(licenseState.getOperationMode())) {
             return true;
         }
 

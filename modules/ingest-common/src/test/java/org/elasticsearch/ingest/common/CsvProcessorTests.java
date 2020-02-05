@@ -257,9 +257,9 @@ public class CsvProcessorTests extends ESTestCase {
         if (ingestDocument.hasField(fieldName)) {
             ingestDocument.removeField(fieldName);
         }
-        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', true);
+        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', true, null);
         processor.execute(ingestDocument);
-        CsvProcessor processor2 = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', false);
+        CsvProcessor processor2 = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', false, null);
         expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument));
     }
 

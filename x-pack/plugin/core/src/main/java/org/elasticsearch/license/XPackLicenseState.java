@@ -613,8 +613,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if Upgrade API should be enabled.
-     * <p>
-     *  Upgrade API is not available in for all license types except {@link OperationMode#MISSING}
      *
      * @return {@code true} as long as the license is valid. Otherwise
      *         {@code false}.
@@ -625,9 +623,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if Index Lifecycle API should be enabled.
-     * <p>
-     * Index Lifecycle API is available in for all license types except
-     * {@link OperationMode#MISSING}
      *
      * @return {@code true} as long as the license is valid. Otherwise
      *         {@code false}.
@@ -641,9 +636,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if the enrich processor and related APIs are allowed to be used.
-     * <p>
-     * This is available in for all license types except
-     * {@link OperationMode#MISSING}
      *
      * @return {@code true} as long as the license is valid. Otherwise
      *         {@code false}.
@@ -657,8 +649,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if SQL support should be enabled.
-     * <p>
-     *  SQL is available for all license types except {@link OperationMode#MISSING}
      */
     public boolean isSqlAllowed() {
         return isActive();
@@ -675,8 +665,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if support for flattened object fields should be enabled.
-     * <p>
-     * Flattened fields are available for all license types except {@link OperationMode#MISSING}.
      */
     public boolean isFlattenedAllowed() {
         return isActive();
@@ -684,8 +672,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if Vectors support should be enabled.
-     * <p>
-     *  Vectors is available for all license types except {@link OperationMode#MISSING}
      */
     public boolean isVectorsAllowed() {
         return isActive();
@@ -702,9 +688,6 @@ public class XPackLicenseState {
 
     /**
      * Determine if Spatial features should be enabled.
-     * <p>
-     * Spatial features are available in for all license types except
-     * {@link OperationMode#MISSING}
      *
      * @return {@code true} as long as the license is valid. Otherwise
      *         {@code false}.

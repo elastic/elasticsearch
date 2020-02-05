@@ -170,21 +170,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             public void onRejection(Exception e) {
-                // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
-                while (context.hasMoreOperationsToExecute()) {
-                    context.setRequestToExecute(context.getCurrent());
-                    final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
-                    onComplete(
-                        exceptionToResult(
-                            e, primary, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
-                        context, null);
-                }
-
                 // Force the execution to finish the request
                 executor.execute(new ActionRunnable<>(listener) {
 
                     @Override
                     protected void doRun() {
+                        // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
+                        while (context.hasMoreOperationsToExecute()) {
+                            context.setRequestToExecute(context.getCurrent());
+                            final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
+                            onComplete(
+                                exceptionToResult(
+                                    e, primary, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
+                                context, null);
+                        }
                         finishRequest();
                     }
 

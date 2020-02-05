@@ -217,10 +217,16 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         String block = randomFrom(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE);
         try {
             enableIndexBlock("test", block);
+            if (block.equals(SETTING_READ_ONLY_ALLOW_DELETE)) {
+                setDiskAllocationDeciderEnabled(false);
+            }
             assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
                     matcher().deleted(0).failures(docs));
         } finally {
             disableIndexBlock("test", block);
+            if (block.equals(SETTING_READ_ONLY_ALLOW_DELETE)) {
+                setDiskAllocationDeciderEnabled(true);
+            }
         }
 
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);

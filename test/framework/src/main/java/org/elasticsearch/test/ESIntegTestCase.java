@@ -1378,6 +1378,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
+    /** Enables or disables the cluster disk allocation decider **/
+    public static void setDiskAllocationDeciderEnabled(boolean value) {
+        Settings settings = value ? Settings.builder().putNull(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
+            Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+    }
+
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
         Settings settings = value ? Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), value).build() :

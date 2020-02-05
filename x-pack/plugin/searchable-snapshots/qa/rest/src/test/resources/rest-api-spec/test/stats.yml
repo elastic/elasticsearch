@@ -3,22 +3,26 @@ setup:
 
   - do:
       indices.create:
-        index: index
+        index: docs
         body:
           settings:
             number_of_shards:   1
+            number_of_replicas: 0
 
   - do:
       bulk:
         body:
           - index:
-              _index: index
+              _index: docs
+              _id:    1
           - field: foo
           - index:
-              _index: index
+              _index: docs
+              _id:    2
           - field: bar
           - index:
-              _index: index
+              _index: docs
+              _id:    3
           - field: baz
 
   - do:
@@ -41,7 +45,7 @@ setup:
 
   - do:
       indices.delete:
-        index: index
+        index: docs
 
 ---
 "Tests searchable snapshots stats":
@@ -83,7 +87,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: index
+        index: docs
         body:
           query:
             match_all: {}
@@ -97,62 +101,62 @@ setup:
 
   - do:
       searchable_snapshots.stats:
-        index: "ind*"
+        index: "d*"
 
   - length:  { indices: 1 }
-  - length:  { indices.index.shards: 1 }
-  - length:  { indices.index.shards.0: 1 }
-  - is_true: indices.index.shards.0.0.snapshot_uuid
-  - is_true: indices.index.shards.0.0.index_uuid
-  - match:   { indices.index.shards.0.0.shard.state: STARTED }
-  - match:   { indices.index.shards.0.0.shard.primary: true }
-  - match:   { indices.index.shards.0.0.shard.node: $node_id }
+  - length:  { indices.docs.shards: 1 }
+  - length:  { indices.docs.shards.0: 1 }
+  - is_true: indices.docs.shards.0.0.snapshot_uuid
+  - is_true: indices.docs.shards.0.0.index_uuid
+  - match:   { indices.docs.shards.0.0.shard.state: STARTED }
+  - match:   { indices.docs.shards.0.0.shard.primary: true }
+  - match:   { indices.docs.shards.0.0.shard.node: $node_id }
 
-  - is_true: indices.index.shards.0.0.files.0.name
-  - gt:      { indices.index.shards.0.0.files.0.length: 0 }
-  - gt:      { indices.index.shards.0.0.files.0.open_count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.inner_count: 0 }
-  - gt:      { indices.index.shards.0.0.files.0.close_count: 0 }
+  - is_true: indices.docs.shards.0.0.files.0.name
+  - gt:      { indices.docs.shards.0.0.files.0.length: 0 }
+  - gt:      { indices.docs.shards.0.0.files.0.open_count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.inner_count: 0 }
+  - gt:      { indices.docs.shards.0.0.files.0.close_count: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.contiguous_bytes_read.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.max: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.non_contiguous_bytes_read.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.non_contiguous_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.non_contiguous_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.non_contiguous_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.non_contiguous_bytes_read.max: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_read.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_read.max: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.cached_bytes_written.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.max: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.direct_bytes_read.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.max: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.small.max: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.forward_seeks.large.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.large.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.large.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.large.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.large.max: 0 }
 
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.small.max: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.count: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.sum: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.min: 0 }
-  - gte:     { indices.index.shards.0.0.files.0.backward_seeks.large.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.small.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.small.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.small.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.small.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.max: 0 }

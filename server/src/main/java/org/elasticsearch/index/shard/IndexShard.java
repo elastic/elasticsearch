@@ -1026,11 +1026,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public CompletionStats completionStats(String... fields) {
         readAllowed();
-        try {
-            return getEngine().completionStats(fields);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return getEngine().completionStats(fields);
     }
 
     /**

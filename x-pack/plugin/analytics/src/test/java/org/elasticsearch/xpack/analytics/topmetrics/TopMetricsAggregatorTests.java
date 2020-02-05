@@ -26,13 +26,19 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -41,12 +47,16 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -64,8 +74,12 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 
 public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
@@ -269,7 +283,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
 
-    public void testBuckets() throws IOException {
+    public void testInsideTerms() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
         TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.DOUBLE).field("c").subAggregation(builder);
         Terms result = (Terms) collect(terms, new MatchAllDocsQuery(), writer -> {
@@ -290,6 +304,69 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(top2.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(top2.getSortValue(), equalTo(SortValue.from(4.0)));
         assertThat(top2.getMetricValue(), equalTo(9.0d));
+    }
+
+    public void testTonsOfBucketsTriggersBreaker() throws IOException {
+        // Build a "simple" circuit breaker that trips at 20k
+        CircuitBreakerService breaker = mock(CircuitBreakerService.class);
+        ByteSizeValue max = new ByteSizeValue(20, ByteSizeUnit.KB);
+        when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            private long total = 0;
+
+            @Override
+            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                System.err.println("Used " + total + " grabbing " + bytes + " for " + label);
+                total += bytes;
+                if (total > max.getBytes()) {
+                    throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
+                }
+                return total;
+            }
+
+            @Override
+            public long addWithoutBreaking(long bytes) {
+                System.err.println("Used " + total + " grabbing " + bytes);
+                total += bytes;
+                return total;
+            }
+        });
+
+        // Collect some buckets with it
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+                writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
+                SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), new MatchAllDocsQuery(),
+                        new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)), breaker, doubleFields());
+                TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
+                Aggregator aggregator = builder.build(searchContext.getQueryShardContext(), null)
+                    .create(searchContext, null, true);
+                aggregator.preCollection();
+                assertThat(indexReader.leaves(), hasSize(1));
+                LeafBucketCollector leaf = aggregator.getLeafCollector(indexReader.leaves().get(0));
+
+                /*
+                 * Collect some number of buckets that we *know* fit in the
+                 * breaker. The number of buckets feels fairly arbitrary but
+                 * it comes from:
+                 * budget = 15k = 20k - 5k for the "default weight" of ever agg
+                 * The 922th bucket causes a resize which requests puts the total
+                 * just over 15k.O
+                 */
+                int bucketThatBreaks = 922; 
+                for (int b = 0; b < bucketThatBreaks; b++) {
+                    try {
+                        leaf.collect(0, b);
+                    } catch (Exception e) {
+                        throw new RuntimeException("ADFADFS " + b, e);
+                    }
+                }
+                leaf.collect(0, bucketThatBreaks);
+            }
+        }
     }
 
     private TopMetricsAggregationBuilder simpleBuilder(SortBuilder<?> sort) {

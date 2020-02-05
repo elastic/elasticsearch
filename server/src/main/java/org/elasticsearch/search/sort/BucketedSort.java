@@ -150,7 +150,7 @@ public abstract class BucketedSort implements Releasable {
      * Superclass for implementations of {@linkplain BucketedSort} for {@code double} keys.
      */
     public abstract static class ForDoubles extends BucketedSort {
-        private DoubleArray buckets = bigArrays.newDoubleArray(1);
+        private DoubleArray buckets = bigArrays.newDoubleArray(1, false);
 
         public ForDoubles(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
             super(bigArrays, sortOrder, format);
@@ -214,7 +214,7 @@ public abstract class BucketedSort implements Releasable {
      * Superclass for implementations of {@linkplain BucketedSort} for {@code float} keys.
      */
     public abstract static class ForFloats extends BucketedSort {
-        private FloatArray buckets = bigArrays.newFloatArray(1);
+        private FloatArray buckets = bigArrays.newFloatArray(1, false);
 
         public ForFloats(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
             super(bigArrays, sortOrder, format);
@@ -283,7 +283,7 @@ public abstract class BucketedSort implements Releasable {
         /**
          * The actual values.
          */
-        private LongArray buckets = bigArrays.newLongArray(1);
+        private LongArray buckets = bigArrays.newLongArray(1, false);
         private long maxBucket = -1;
 
         public ForLongs(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {

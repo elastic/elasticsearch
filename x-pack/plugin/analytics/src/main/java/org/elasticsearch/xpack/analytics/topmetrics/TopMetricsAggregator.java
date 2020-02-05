@@ -28,12 +28,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Collects the {@code top_metrics} aggregation.
+ * Collects the {@code top_metrics} aggregation, which functions like a memory
+ * efficient but limited version of the {@code top_hits} aggregation. Amortized,
+ * each bucket should take something like 16 bytes. Because of this, unlike
+ * {@code top_hits}, you can sort by the buckets of this metric.
  *
  * This extends {@linkplain NumericMetricsAggregator.MultiValue} as a compromise
  * to allow sorting on the metric. Right now it only collects a single metric
  * but we expect it to collect a list of them in the future. Also in the future
- * we expect it to allow collecting non-string metrics which'll change how we
+ * we expect it to allow collecting non-numeric metrics which'll change how we
  * do the inheritance. Finally, we also expect it to allow collecting more than
  * one document worth of metrics. Once that happens we'll need to come up with
  * some way to pick which document's metrics to use for the sort.
@@ -52,7 +55,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         this.metricName = metricName;
         this.metricValueSource = metricValueSource;
         if (metricValueSource != null) {
-            values = context.bigArrays().newDoubleArray(2, false);
+            values = context.bigArrays().newDoubleArray(1, false);
             values.fill(0, values.size(), Double.NaN);
         }
     }

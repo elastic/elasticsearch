@@ -45,8 +45,8 @@ Which returns:
 // TESTRESPONSE
 
 `top_metrics` is fairly similar to <<search-aggregations-metrics-top-hits-aggregation, `top_hits`>>
-in spirit but it should be faster in most cases because it can do its job entirely with <<doc-values>>
-which are **much** faster to access than the `_source` which `top_hits` needs. 
+in spirit but because it is more limited it is able to do its job using less memory and is often
+faster.
 
 ==== `sort`
 
@@ -136,6 +136,63 @@ Which returns:
           "doc_count": 1,
           "tm": {
             "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 3.0 } } ]
+          }
+        }
+      ],
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0
+    }
+  }
+}
+----
+// TESTRESPONSE
+
+Unlike `top_hits`, you can sort buckets by the results of this metric:
+
+[source,console]
+----
+POST /node/_search?filter_path=aggregations
+{
+  "aggs": {
+    "ip": {
+      "terms": {
+        "field": "ip",
+        "order": {"tm.v": "desc"}
+      },
+      "aggs": {
+        "tm": {
+          "top_metrics": {
+            "metric": {"field": "v"},
+            "sort": {"date": "desc"}
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+Which returns:
+
+[source,js]
+----
+{
+  "aggregations": {
+    "ip": {
+      "buckets": [
+        {
+          "key": "192.168.0.2",
+          "doc_count": 1,
+          "tm": {
+            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 3.0 } } ]
+          }
+        },
+        {
+          "key": "192.168.0.1",
+          "doc_count": 2,
+          "tm": {
+            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 2.0 } } ]
           }
         }
       ],

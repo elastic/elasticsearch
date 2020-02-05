@@ -2,7 +2,11 @@
   "indices.flush_synced":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush-api.html",
-      "description":"Performs a synced flush operation on one or more indices. Synced flush is deprecated and will be removed in 8.0. Use flush instead"
+      "description":"Performs a synced flush operation on one or more indices."
+    },
+    "deprecated" : {
+      "version" : "7.6.0",
+      "description" : "Synced flush is deprecated and will be removed in 8.0. Use flush instead"
     },
     "stability":"stable",
     "url":{

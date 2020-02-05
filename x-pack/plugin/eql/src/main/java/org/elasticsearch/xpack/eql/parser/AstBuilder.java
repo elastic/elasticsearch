@@ -11,6 +11,10 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 public class AstBuilder extends LogicalPlanBuilder {
 
+    AstBuilder(ParserParams params) {
+        super(params);
+    }
+
     @Override
     public LogicalPlan visitSingleStatement(SingleStatementContext ctx) {
         return plan(ctx.statement());

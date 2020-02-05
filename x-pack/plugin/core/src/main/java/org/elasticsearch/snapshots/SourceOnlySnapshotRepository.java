@@ -135,7 +135,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        final List<Closeable> toClose = new ArrayList<>(4);
+        final List<Closeable> toClose = new ArrayList<>(3);
         toClose.add(() -> IOUtils.rm(snapPath));
         try {
             final List<SegmentInfos> segmentInfosInRepo = segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation());
@@ -150,6 +150,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
                 @Override
                 public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
+                    // TODO: craft metdata ourselves here instead of physically reading it from the store
                     final MetadataSnapshot metadataSnapshot = super.getMetadata(commit);
                     return new MetadataSnapshot(metadataSnapshot.asMap(),
                         metadataSnapshot.getCommitUserData(), metadataSnapshot.getNumDocs());
@@ -161,19 +162,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 () -> segmentInfosInRepo);
             SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
-            if (segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation()).contains(newFiles) == false) {
+            if (segmentInfosInRepo.contains(newFiles) == false) {
                 final long maxDoc = newFiles.totalMaxDoc();
                 tempStore.bootstrapNewHistory(maxDoc, maxDoc);
                 newFiles = tempStore.readLastCommittedSegmentsInfo();
             }
             store.incRef();
             toClose.add(1, store::decRef);
-            // TODO: need fake directory that properly answers for segments
-            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
-                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
-            toClose.add(2, reader);
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
-                new SourceOnlyIndexCommit(newFiles, reader), snapshotStatus, writeShardGens, userMetadata,
+                new SourceOnlyIndexCommit(newFiles, tempStore.directory()), snapshotStatus, writeShardGens, userMetadata,
                 ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
@@ -225,11 +222,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
     private static final class SourceOnlyIndexCommit extends IndexCommit {
         private final SegmentInfos newFiles;
-        private final DirectoryReader reader;
+        private final Directory directory;
 
-        SourceOnlyIndexCommit(SegmentInfos newFiles, DirectoryReader reader) {
+        SourceOnlyIndexCommit(SegmentInfos newFiles, Directory directory) {
             this.newFiles = newFiles;
-            this.reader = reader;
+            this.directory = directory;
         }
 
         @Override
@@ -244,7 +241,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
         @Override
         public Directory getDirectory() {
-            return reader.directory(); // Maybe not
+            return directory;
         }
 
         @Override

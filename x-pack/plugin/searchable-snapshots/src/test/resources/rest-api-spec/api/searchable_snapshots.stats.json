@@ -1,7 +1,7 @@
 {
   "searchable_snapshots.stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-get-stats.html //NORELEASE"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-get-stats.html //NORELEASE This API should be documented. We expect this API to be stable at the time it is merged in master, but in case it is not its stability should be documented appropriately."
     },
     "stability": "experimental",
     "url": {

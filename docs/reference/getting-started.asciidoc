@@ -196,10 +196,11 @@ command and submit the request to your local {es} instance from the command line
 
 A request to Elasticsearch consists of the same parts as any HTTP request:
 
-[source,js]
+[source,sh]
 --------------------------------------------------
 curl -X<VERB> '<PROTOCOL>://<HOST>:<PORT>/<PATH>?<QUERY_STRING>' -d '<BODY>'
 --------------------------------------------------
+// NOTCONSOLE
 
 This example uses the following variables:
 `<VERB>`:: The appropriate HTTP method or verb. For example, `GET`, `POST`,

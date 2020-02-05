@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -70,6 +71,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -341,6 +343,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
+
+                    //if all we're selecting are functions or literals, even if we're giving them aliases.
+                    if(a.aggregates().stream().filter(s -> s.children().size()>0
+                        && (s.children().get(0) instanceof Literal) == false
+                        && (s.children().get(0) instanceof Function) == false)
+                        .collect(toSet()).isEmpty()){
+                        var allFields = plan.inputSet().stream().map(NamedExpression.class::cast)
+                            .collect(toList());
+                        allFields.addAll(a.aggregates());
+                        resolved = Expressions.asAttributeMap(allFields);
+                    }
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
@@ -618,7 +631,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (Order or : o.order()) {
                     maybeResolved.add(or.resolved() ? or : tryResolveExpression(or, child));
                 }
-                
+
                 Stream<Order> referencesStream = maybeResolved.stream()
                         .filter(Expression::resolved);
 
@@ -629,7 +642,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // a + 1 in SELECT is actually Alias("a + 1", a + 1) and translates to ReferenceAttribute
                 // in the output. However it won't match the unnamed a + 1 despite being the same expression
                 // so explicitly compare the source
-                
+
                 // if there's a match, remove the item from the reference stream
                 if (Expressions.hasReferenceAttribute(child.outputSet())) {
                     final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();

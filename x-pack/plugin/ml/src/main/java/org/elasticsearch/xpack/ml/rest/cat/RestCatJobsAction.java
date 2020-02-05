@@ -343,7 +343,6 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(dataCounts.getLatestEmptyBucketTimeStamp());
             table.addCell(dataCounts.getLatestSparseBucketTimeStamp());
 
-
             ModelSizeStats modelSizeStats = job.getModelSizeStats();
             table.addCell(modelSizeStats == null ? null : new ByteSizeValue(modelSizeStats.getModelBytes()));
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getMemoryStatus().toString());
@@ -357,6 +356,12 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalOverFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getRareCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getDeadCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getLogTime());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 

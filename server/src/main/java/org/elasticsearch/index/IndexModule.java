@@ -382,23 +382,21 @@ public final class IndexModule {
         }
     }
 
-    public IndexService newIndexService(
-        IndexService.IndexCreationContext indexCreationContext,
-        NodeEnvironment environment,
-        NamedXContentRegistry xContentRegistry,
-        IndexService.ShardStoreDeleter shardStoreDeleter,
-        CircuitBreakerService circuitBreakerService,
-        BigArrays bigArrays,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        ClusterService clusterService,
-        Client client,
-        IndicesQueryCache indicesQueryCache,
-        MapperRegistry mapperRegistry,
-        IndicesFieldDataCache indicesFieldDataCache,
-        NamedWriteableRegistry namedWriteableRegistry,
-        BooleanSupplier idFieldDataEnabled, ValuesSourceRegistry valuesSourceRegistry)
-        throws IOException {
+    public IndexService newIndexService(IndexService.IndexCreationContext indexCreationContext,
+                                        NodeEnvironment environment,
+                                        NamedXContentRegistry xContentRegistry,
+                                        IndexService.ShardStoreDeleter shardStoreDeleter,
+                                        CircuitBreakerService circuitBreakerService,
+                                        BigArrays bigArrays,
+                                        ThreadPool threadPool,
+                                        ScriptService scriptService,
+                                        ClusterService clusterService,
+                                        Client client,
+                                        IndicesQueryCache indicesQueryCache,
+                                        MapperRegistry mapperRegistry,
+                                        IndicesFieldDataCache indicesFieldDataCache,
+                                        NamedWriteableRegistry namedWriteableRegistry,
+                                        BooleanSupplier idFieldDataEnabled, ValuesSourceRegistry valuesSourceRegistry) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
             indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();

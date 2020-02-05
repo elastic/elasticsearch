@@ -299,7 +299,6 @@ public class SearchModule {
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
         this.settings = settings;
-        //TODO: constructor call goes here
         this.valuesSourceRegistry = new ValuesSourceRegistry();
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);

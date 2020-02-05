@@ -539,13 +539,9 @@ public class JobConfigProvider {
                                     groupsIds.addAll(groups.stream().map(Object::toString).collect(Collectors.toList()));
                                 }
                             }
-                            logger.warn("found jobs {}", jobIds);
-
-                            logger.warn("opened jobs {}", openMatchingJobs);
                             if (allowMissingConfigs) {
                                 jobIds.addAll(openMatchingJobs);
                             }
-                            logger.warn("total jobs found {}", jobIds);
                             groupsIds.addAll(jobIds);
                             requiredMatches.filterMatchedIds(groupsIds);
                             if (requiredMatches.hasUnmatchedIds()) {

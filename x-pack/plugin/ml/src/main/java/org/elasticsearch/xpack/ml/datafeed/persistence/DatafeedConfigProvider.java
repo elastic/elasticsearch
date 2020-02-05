@@ -375,7 +375,7 @@ public class DatafeedConfigProvider {
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
-        Collection<String> matchingStartedDatafeedIds = matchingStartedDatafeedIds(tokens, tasks);
+        Collection<String> matchingStartedDatafeedIds = matchingDatafeedIdsWithTasks(tokens, tasks);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -491,22 +491,22 @@ public class DatafeedConfigProvider {
         return boolQueryBuilder;
     }
 
-    static Collection<String> matchingStartedDatafeedIds(String[] datafeedIds, PersistentTasksCustomMetaData tasksMetaData) {
+    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetaData tasksMetaData) {
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(tasksMetaData);
         if (startedDatafeedIds.isEmpty()) {
             return Collections.emptyList()  ;
         }
-        if (Strings.isAllOrWildcard(datafeedIds)) {
+        if (Strings.isAllOrWildcard(datafeedIdPatterns)) {
             return startedDatafeedIds;
         }
 
         List<String> matchingDatafeedIds = new ArrayList<>();
-        for (String datafeedId : datafeedIds) {
-            if (startedDatafeedIds.contains(datafeedId))  {
-                matchingDatafeedIds.add(datafeedId);
-            } else if (Regex.isSimpleMatchPattern(datafeedId)) {
+        for (String datafeedIdPattern : datafeedIdPatterns) {
+            if (startedDatafeedIds.contains(datafeedIdPattern))  {
+                matchingDatafeedIds.add(datafeedIdPattern);
+            } else if (Regex.isSimpleMatchPattern(datafeedIdPattern)) {
                 for (String startedDatafeedId : startedDatafeedIds) {
-                    if (Regex.simpleMatch(datafeedId, startedDatafeedId)) {
+                    if (Regex.simpleMatch(datafeedIdPattern, startedDatafeedId)) {
                         matchingDatafeedIds.add(startedDatafeedId);
                     }
                 }

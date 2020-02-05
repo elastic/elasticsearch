@@ -138,6 +138,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final List<Closeable> toClose = new ArrayList<>(4);
         toClose.add(() -> IOUtils.rm(snapPath));
         try {
+            final List<SegmentInfos> segmentInfosInRepo = segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation());
             FSDirectory directory = new SimpleFSDirectory(snapPath);
             toClose.add(0, directory);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
@@ -145,21 +146,25 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
+            }, Store.OnClose.EMPTY) {
+
+                @Override
+                public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
+                    final MetadataSnapshot metadataSnapshot = super.getMetadata(commit);
+                    return new MetadataSnapshot(metadataSnapshot.asMap(),
+                        metadataSnapshot.getCommitUserData(), metadataSnapshot.getNumDocs());
+                }
+            };
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier,
-                () -> segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation()));
-            final SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
-            final boolean changed;
+                () -> segmentInfosInRepo);
+            SegmentInfos newFiles = snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             if (segmentsInShard(indexId, store.shardId().id(), snapshotStatus.generation()).contains(newFiles) == false) {
-                SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
-                final long maxDoc = segmentInfos.totalMaxDoc();
+                final long maxDoc = newFiles.totalMaxDoc();
                 tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-                changed = true;
-            } else {
-                changed = false;
+                newFiles = tempStore.readLastCommittedSegmentsInfo();
             }
             store.incRef();
             toClose.add(1, store::decRef);
@@ -168,47 +173,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
             toClose.add(2, reader);
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId,
-                new IndexCommit() {
-                    @Override
-                    public String getSegmentsFileName() {
-                        return "segments_" + getGeneration(); // TODO: gotta implement crafting a segments info into the store
-                    }
-
-                    @Override
-                    public Collection<String> getFileNames() throws IOException {
-                        return new HashSet<>(newFiles.files(true));
-                    }
-
-                    @Override
-                    public Directory getDirectory() {
-                        return reader.directory(); // Maybe not
-                    }
-
-                    @Override
-                    public void delete() {
-                        throw new UnsupportedOperationException("not supported");
-                    }
-
-                    @Override
-                    public boolean isDeleted() {
-                        return false;
-                    }
-
-                    @Override
-                    public int getSegmentCount() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getGeneration() {
-                        return newFiles.getLastGeneration() + (changed ? 1 : 0);
-                    }
-
-                    @Override
-                    public Map<String, String> getUserData() throws IOException {
-                        throw new UnsupportedOperationException("not supported");
-                    }
-                }, snapshotStatus, writeShardGens, userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+                new SourceOnlyIndexCommit(newFiles, reader), snapshotStatus, writeShardGens, userMetadata,
+                ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);
@@ -255,5 +221,55 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     delegateType, metaData.settings()), typeLookup));
             }
         };
+    }
+
+    private static final class SourceOnlyIndexCommit extends IndexCommit {
+        private final SegmentInfos newFiles;
+        private final DirectoryReader reader;
+
+        SourceOnlyIndexCommit(SegmentInfos newFiles, DirectoryReader reader) {
+            this.newFiles = newFiles;
+            this.reader = reader;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return "segments_" + getGeneration(); // TODO: gotta implement crafting a segments info into the store
+        }
+
+        @Override
+        public Collection<String> getFileNames() throws IOException {
+            return new HashSet<>(newFiles.files(true));
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return reader.directory(); // Maybe not
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("not supported");
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return 0;
+        }
+
+        @Override
+        public long getGeneration() {
+            return newFiles.getLastGeneration();
+        }
+
+        @Override
+        public Map<String, String> getUserData() {
+            throw new UnsupportedOperationException("not supported");
+        }
     }
 }

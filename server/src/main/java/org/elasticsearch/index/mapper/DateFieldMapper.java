@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
@@ -371,7 +372,7 @@ public final class DateFieldMapper extends FieldMapper {
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;
             } else {
-                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, context);
+                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, context::nowInMillis);
                 if (includeLower == false) {
                     ++l;
                 }
@@ -379,7 +380,7 @@ public final class DateFieldMapper extends FieldMapper {
             if (upperTerm == null) {
                 u = Long.MAX_VALUE;
             } else {
-                u = parseToLong(upperTerm, includeUpper, timeZone, parser, context);
+                u = parseToLong(upperTerm, includeUpper, timeZone, parser, context::nowInMillis);
                 if (includeUpper == false) {
                     --u;
                 }
@@ -393,7 +394,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToLong(Object value, boolean roundUp,
-                                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+                                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, LongSupplier now) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -405,7 +406,7 @@ public final class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            Instant instant = dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
+            Instant instant = dateParser.parse(strValue, now, roundUp, zone);
             return resolution.convert(instant);
         }
 
@@ -419,7 +420,7 @@ public final class DateFieldMapper extends FieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context);
+                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -430,7 +431,7 @@ public final class DateFieldMapper extends FieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context);
+                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;

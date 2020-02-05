@@ -126,10 +126,10 @@ public class BaseClassTests extends ScriptTestCase {
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [doc] is not defined.", e.getMessage());
+        assertEquals("variable [doc] is not defined", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [_score] is not defined.", e.getMessage());
+        assertEquals("variable [_score] is not defined", e.getMessage());
 
         String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
         assertThat(debug, containsString("ACONST_NULL"));

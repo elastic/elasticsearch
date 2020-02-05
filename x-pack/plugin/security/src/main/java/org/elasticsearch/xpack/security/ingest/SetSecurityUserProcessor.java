@@ -53,7 +53,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             throw new IllegalStateException("No user for authentication");
         }
 
-        Map<String, Object> userObject = new HashMap<>();
+        Object fieldValue = ingestDocument.getFieldValue(field, Object.class, true);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
+
         for (Property property : properties) {
             switch (property) {
                 case USERNAME:

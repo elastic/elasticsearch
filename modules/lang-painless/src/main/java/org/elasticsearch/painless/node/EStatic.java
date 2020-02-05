@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a static type target.
@@ -41,12 +41,7 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
         if (actual == null) {
@@ -55,7 +50,7 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    StaticNode write() {
+    StaticNode write(ClassNode classNode) {
         StaticNode staticNode = new StaticNode();
 
         staticNode.setLocation(location);

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.LinkedHashSet;
@@ -195,7 +196,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 // dedicated count optimization
                 if (uf.name.toUpperCase(Locale.ROOT).equals("COUNT")) {
                     return new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionType,
-                            singletonList(new Literal(uf.arguments().get(0).source(), Integer.valueOf(1), DataType.INTEGER)));
+                            singletonList(new Literal(uf.arguments().get(0).source(), Integer.valueOf(1), DataTypes.INTEGER)));
                 }
                 return uf;
             }

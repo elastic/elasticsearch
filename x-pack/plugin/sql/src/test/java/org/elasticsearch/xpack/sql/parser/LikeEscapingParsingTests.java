@@ -9,11 +9,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -32,7 +32,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         Expression exp = null;
         boolean parameterized = randomBoolean();
         if (parameterized) {
-            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.typeName(), pattern)));
+            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(KEYWORD.typeName(), pattern)));
         } else {
             exp = parser.createExpression(format(null, "exp LIKE '{}'", pattern));
         }

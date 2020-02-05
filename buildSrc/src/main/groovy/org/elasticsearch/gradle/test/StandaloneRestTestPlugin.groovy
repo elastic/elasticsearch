@@ -74,6 +74,8 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)
         SourceSet testSourceSet = sourceSets.create('test')
+        // need to apply plugin after test source sets are created
+        project.pluginManager.apply(RestApiSpecForTestingPlugin)
 
         project.tasks.withType(Test) { Test test ->
             test.testClassesDirs = testSourceSet.output.classesDirs

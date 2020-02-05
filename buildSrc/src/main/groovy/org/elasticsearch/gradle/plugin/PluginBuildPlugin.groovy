@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.test.RestApiSpecForTestingPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
@@ -51,6 +52,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
         project.pluginManager.apply(TestClustersPlugin)
+        project.pluginManager.apply(RestApiSpecForTestingPlugin)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)

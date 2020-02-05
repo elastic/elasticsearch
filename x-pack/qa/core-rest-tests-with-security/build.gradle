@@ -6,8 +6,11 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
+restApiSpec {
+  copyCoreTests true
+}
+
 integTest {
-  includePackaged = true
   runner {
     systemProperty 'tests.rest.blacklist',
       [

@@ -41,6 +41,10 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
+restApiSpec {
+  alwaysCopySpec true
+}
+
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'

@@ -9,15 +9,12 @@ dependencies {
 }
 
 // bring in machine learning rest test suite
-task copyMlRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/ml/**'
+restApiSpec {
+  copyXpackTests true
+  includeXpackSpec "ml"
+  includeXpackTests "ml"
 }
 
-integTest.runner {
-  dependsOn copyMlRestTests
-}
 integTest.runner {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want

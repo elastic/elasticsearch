@@ -4,3 +4,13 @@ apply plugin: 'nebula.maven-scm'
 
 test.enabled = false
 jarHell.enabled = false
+
+configurations {
+  restSpecCore
+  restSpecCoreTests
+}
+
+artifacts {
+  restSpecCore(new File(projectDir, "src/main/resources/rest-api-spec/api"))
+  restSpecCoreTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+}

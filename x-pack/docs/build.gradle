@@ -1,5 +1,3 @@
-import java.nio.charset.StandardCharsets
-
 apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that probably should be converted to
@@ -19,12 +17,6 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
-}
-
-// copy xpack rest api
-File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
-project.copyRestSpec.from(xpackResources) {
-  include 'rest-api-spec/api/**'
 }
 
 testClusters.integTest {

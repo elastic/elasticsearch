@@ -23,12 +23,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture()
 
-configurations {
-  restSpec
-}
-
 dependencies {
-  restSpec project(':rest-api-spec')
   testCompile project(':client:rest-high-level')
 }
 
@@ -88,12 +83,8 @@ def createAndSetWritable(Object... locations) {
 }
 
 processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  dependsOn configurations.restSpec
 }
 
 task integTest(type: Test) {

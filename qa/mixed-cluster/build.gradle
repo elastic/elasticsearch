@@ -30,17 +30,8 @@ tasks.register("bwcTest") {
   group = 'verification'
 }
 
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) })
-  dependsOn configurations.restSpec
+restApiSpec {
+  copyCoreTests true
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {

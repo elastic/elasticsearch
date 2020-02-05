@@ -8,6 +8,11 @@ dependencies {
   testCompile project(path: xpackModule('ilm'), configuration: 'runtime')
 }
 
+restApiSpec {
+  includeXpackSpec "ilm"
+  includeXpackSpec "slm"
+}
+
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 

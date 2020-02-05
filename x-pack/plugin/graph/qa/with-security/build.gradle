@@ -6,6 +6,10 @@ dependencies {
   testCompile project(":x-pack:plugin:core")
 }
 
+restApiSpec {
+  includeXpackSpec "qa"
+}
+
 // bring in graph rest test suite
 task copyGraphRestTests(type: Copy) {
   into project.sourceSets.test.output.resourcesDir

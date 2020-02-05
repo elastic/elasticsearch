@@ -24,6 +24,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'elasticsearch.rest-api-spec-for-testing'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
@@ -36,16 +37,9 @@ publishing {
   }
 }
 
-configurations {
-  restSpec
-}
-
-idea {
-  module {
-    if (scopes.TEST != null) {
-      scopes.TEST.plus.add(project.configurations.restSpec)
-    }
-  }
+restApiSpec {
+  //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
+  alwaysCopySpec true
 }
 
 dependencies {
@@ -70,16 +64,9 @@ dependencies {
   testCompile(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
-
-  restSpec project(':rest-api-spec')
 }
 
-//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  dependsOn configurations.restSpec // so that configurations resolve
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
   from(project(':client:rest-high-level').file('src/test/resources'))
 }
 

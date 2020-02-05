@@ -18,12 +18,12 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsAction;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsResponse;
@@ -44,7 +44,7 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                                    Settings settings, XPackLicenseState licenseState, Client client) {
         super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.enabled = XPackSettings.EQL_ENABLED.get(settings);
+        this.enabled = EqlPlugin.isEnabled(settings);
         this.licenseState = licenseState;
         this.client = client;
     }

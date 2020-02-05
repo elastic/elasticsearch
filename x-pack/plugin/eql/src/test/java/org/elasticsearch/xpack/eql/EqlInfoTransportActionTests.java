@@ -66,13 +66,8 @@ public class EqlInfoTransportActionTests extends ESTestCase {
     public void testEnabled() {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.eql.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.eql.enabled", enabled);
-        }
+        settings.put("xpack.eql.enabled", enabled);
+        
         EqlInfoTransportAction featureSet = new EqlInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
@@ -110,7 +105,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new EqlUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+            mock(ActionFilters.class), null, Settings.builder().put("xpack.eql.enabled", true).build(), licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get().getUsage();

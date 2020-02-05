@@ -11,9 +11,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
+import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
@@ -24,7 +24,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
     public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
                                   Settings settings, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.EQL.name(), transportService, actionFilters);
-        this.enabled = XPackSettings.EQL_ENABLED.get(settings);
+        this.enabled = EqlPlugin.isEnabled(settings);
         this.licenseState = licenseState;
     }
     

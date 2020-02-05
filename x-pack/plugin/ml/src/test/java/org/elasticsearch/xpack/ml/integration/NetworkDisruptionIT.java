@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -39,8 +38,6 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         return plugins;
     }
 
-    @TestLogging(value = "org.elasticsearch.persistent.PersistentTasksClusterService:trace",
-            reason = "https://github.com/elastic/elasticsearch/issues/49908")
     public void testJobRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(5);
         ensureStableCluster(5);

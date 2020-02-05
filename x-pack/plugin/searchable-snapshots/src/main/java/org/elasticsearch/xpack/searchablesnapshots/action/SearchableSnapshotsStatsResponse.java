@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -23,20 +23,20 @@ import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
-    private List<SearchableSnapshotStats> stats;
+    private List<SearchableSnapshotShardStats> stats;
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
-        this.stats = in.readList(SearchableSnapshotStats::new);
+        this.stats = in.readList(SearchableSnapshotShardStats::new);
     }
 
-    SearchableSnapshotsStatsResponse(List<SearchableSnapshotStats> stats, int totalShards, int successfulShards, int failedShards,
+    SearchableSnapshotsStatsResponse(List<SearchableSnapshotShardStats> stats, int totalShards, int successfulShards, int failedShards,
                                      List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.stats = Objects.requireNonNull(stats);
     }
 
-    public List<SearchableSnapshotStats> getStats() {
+    public List<SearchableSnapshotShardStats> getStats() {
         return stats;
     }
 
@@ -44,7 +44,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         final List<Index> indices = getStats().stream()
             .filter(stats -> stats.getStats().isEmpty() == false)
-            .map(SearchableSnapshotStats::getShardRouting)
+            .map(SearchableSnapshotShardStats::getShardRouting)
             .map(ShardRouting::index)
             .sorted(Comparator.comparing(Index::getName))
             .collect(toList());
@@ -55,7 +55,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
             {
                 builder.startObject("shards");
                 {
-                    List<SearchableSnapshotStats> listOfStats = getStats().stream()
+                    List<SearchableSnapshotShardStats> listOfStats = getStats().stream()
                         .filter(dirStats -> dirStats.getShardRouting().index().equals(index))
                         .sorted(Comparator.comparingInt(dir -> dir.getShardRouting().getId()))
                         .collect(Collectors.toList());
@@ -65,7 +65,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
                     for (int i = minShard; i <= maxShard; i++) {
                         builder.startArray(Integer.toString(i));
-                        for (SearchableSnapshotStats stat : listOfStats) {
+                        for (SearchableSnapshotShardStats stat : listOfStats) {
                             if (stat.getShardRouting().getId() == i) {
                                 stat.toXContent(builder, params);
                             }

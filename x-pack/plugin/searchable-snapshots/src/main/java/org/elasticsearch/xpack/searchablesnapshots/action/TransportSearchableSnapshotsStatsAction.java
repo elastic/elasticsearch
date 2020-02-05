@@ -26,9 +26,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheIndexInputStats;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.Counter;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
 import org.elasticsearch.xpack.searchablesnapshots.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepo
 
 public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastByNodeAction<SearchableSnapshotsStatsRequest,
                                                                                             SearchableSnapshotsStatsResponse,
-                                                                                            SearchableSnapshotStats> {
+    SearchableSnapshotShardStats> {
     private final IndicesService indicesService;
 
     @Inject
@@ -66,17 +66,17 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
     }
 
     @Override
-    protected SearchableSnapshotStats readShardResult(StreamInput in) throws IOException {
-        return new SearchableSnapshotStats(in);
+    protected SearchableSnapshotShardStats readShardResult(StreamInput in) throws IOException {
+        return new SearchableSnapshotShardStats(in);
     }
 
     @Override
     protected SearchableSnapshotsStatsResponse newResponse(SearchableSnapshotsStatsRequest request,
                                                            int totalShards, int successfulShards, int failedShards,
-                                                           List<SearchableSnapshotStats> searchableSnapshotStats,
+                                                           List<SearchableSnapshotShardStats> shardsStats,
                                                            List<DefaultShardOperationFailedException> shardFailures,
                                                            ClusterState clusterState) {
-        return new SearchableSnapshotsStatsResponse(searchableSnapshotStats, totalShards, successfulShards, failedShards, shardFailures);
+        return new SearchableSnapshotsStatsResponse(shardsStats, totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override
@@ -100,13 +100,13 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
     }
 
     @Override
-    protected SearchableSnapshotStats shardOperation(SearchableSnapshotsStatsRequest request, ShardRouting shardRouting) {
+    protected SearchableSnapshotShardStats shardOperation(SearchableSnapshotsStatsRequest request, ShardRouting shardRouting) {
         final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
         final CacheDirectory cacheDirectory = unwrap(indexShard.store().directory());
         assert cacheDirectory != null;
         assert cacheDirectory.getShardId().equals(shardRouting.shardId());
 
-        return new SearchableSnapshotStats(shardRouting, cacheDirectory.getSnapshotId(), cacheDirectory.getIndexId(),
+        return new SearchableSnapshotShardStats(shardRouting, cacheDirectory.getSnapshotId(), cacheDirectory.getIndexId(),
             cacheDirectory.getStats().entrySet().stream()
                 .map(entry -> toCacheIndexInputStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList()));

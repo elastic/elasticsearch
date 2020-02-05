@@ -22,21 +22,22 @@ import java.util.Objects;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
-public class SearchableSnapshotStats implements Writeable, ToXContentObject {
+public class SearchableSnapshotShardStats implements Writeable, ToXContentObject {
 
     private final List<CacheIndexInputStats> inputStats;
     private final ShardRouting shardRouting;
     private final SnapshotId snapshotId;
     private final IndexId indexId;
 
-    public SearchableSnapshotStats(ShardRouting shardRouting, SnapshotId snapshotId, IndexId indexId, List<CacheIndexInputStats> stats) {
+    public SearchableSnapshotShardStats(ShardRouting shardRouting, SnapshotId snapshotId, IndexId indexId,
+                                        List<CacheIndexInputStats> stats) {
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.inputStats = unmodifiableList(Objects.requireNonNull(stats));
     }
 
-    public SearchableSnapshotStats(StreamInput in) throws IOException {
+    public SearchableSnapshotShardStats(StreamInput in) throws IOException {
         this.shardRouting = new ShardRouting(in);
         this.snapshotId = new SnapshotId(in);
         this.indexId = new IndexId(in);
@@ -104,7 +105,7 @@ public class SearchableSnapshotStats implements Writeable, ToXContentObject {
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        SearchableSnapshotStats that = (SearchableSnapshotStats) other;
+        SearchableSnapshotShardStats that = (SearchableSnapshotShardStats) other;
         return Objects.equals(shardRouting, that.shardRouting)
             && Objects.equals(snapshotId, that.snapshotId)
             && Objects.equals(indexId, that.indexId)

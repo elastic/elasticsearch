@@ -12,23 +12,23 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.CacheIndexInputStats;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotStats.Counter;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
 
 import java.util.ArrayList;
 import java.util.List;
 
 ;
 
-public class SearchableSnapshotStatsTests extends AbstractWireSerializingTestCase<SearchableSnapshotStats> {
+public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTestCase<SearchableSnapshotShardStats> {
 
     @Override
-    protected Writeable.Reader<SearchableSnapshotStats> instanceReader() {
-        return SearchableSnapshotStats::new;
+    protected Writeable.Reader<SearchableSnapshotShardStats> instanceReader() {
+        return SearchableSnapshotShardStats::new;
     }
 
     @Override
-    protected SearchableSnapshotStats createTestInstance() {
+    protected SearchableSnapshotShardStats createTestInstance() {
         SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5));
         IndexId indexId = new IndexId(randomAlphaOfLength(5), randomAlphaOfLength(5));
         ShardRouting shardRouting = TestShardRouting.newShardRouting(randomAlphaOfLength(5), randomInt(10), randomAlphaOfLength(5),
@@ -38,7 +38,7 @@ public class SearchableSnapshotStatsTests extends AbstractWireSerializingTestCas
         for (int j = 0; j < randomInt(20); j++) {
             inputStats.add(randomCacheIndexInputStats());
         }
-        return new SearchableSnapshotStats(shardRouting, snapshotId, indexId, inputStats);
+        return new SearchableSnapshotShardStats(shardRouting, snapshotId, indexId, inputStats);
     }
 
     private CacheIndexInputStats randomCacheIndexInputStats() {

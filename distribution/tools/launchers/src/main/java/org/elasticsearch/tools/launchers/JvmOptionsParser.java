@@ -63,10 +63,14 @@ final class JvmOptionsParser {
         }
 
         final Stream<Path> jvmOptionsFiles;
-        {
+        final Path rootJvmOptions = Paths.get(args[0], "jvm.options");
+        final Path jvmOptionsDirectory = Paths.get(args[0], "jvm.options.d");
+        if (Files.isDirectory(jvmOptionsDirectory)) {
             final Stream<Path> jvmOptionsDirectoryFiles = Files.list(Paths.get(args[0], "jvm.options.d"));
-            jvmOptionsFiles = Stream.concat(Stream.of(Paths.get(args[0], "jvm.options")), jvmOptionsDirectoryFiles.sorted())
+            jvmOptionsFiles = Stream.concat(Stream.of(rootJvmOptions), jvmOptionsDirectoryFiles.sorted())
                 .onClose(jvmOptionsDirectoryFiles::close);
+        } else {
+            jvmOptionsFiles = Stream.of(rootJvmOptions);
         }
 
         final List<String> jvmOptions = new ArrayList<>();

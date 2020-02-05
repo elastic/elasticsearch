@@ -57,7 +57,7 @@ setup:
   - do:
       catch:   missing
       searchable_snapshots.stats:
-        index: "unkown"
+        index: "unknown"
 
   - do:
       snapshot.create_repository:

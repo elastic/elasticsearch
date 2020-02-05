@@ -184,7 +184,7 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .setAliases("mbaf", "modelBucketAllocationFailures")
                 .build());
         table.addCell("model.categorization_status",
-            TableColumnAttributeBuilder.builder("current categorization status")
+            TableColumnAttributeBuilder.builder("current categorization status", false)
                 .setAliases("mcs", "modelCategorizationStatus")
                 .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
                 .build());

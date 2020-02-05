@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[set-up-lifecycle-policy]]
-== Set up {ilm} policy
+== Create lifecycle policy
 
 In order for an index to use an {ilm} policy to manage its lifecycle we must
 first define a lifecycle policy for it to use. The following request creates a

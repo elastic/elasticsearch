@@ -281,28 +281,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request sourceExists(GetRequest getRequest) {
-        Params parameters = new Params();
-        parameters.withPreference(getRequest.preference());
-        parameters.withRouting(getRequest.routing());
-        parameters.withRefresh(getRequest.refresh());
-        parameters.withRealtime(getRequest.realtime());
-        parameters.withFetchSourceContext(getRequest.fetchSourceContext());
-        // Version params are not currently supported by the _source API so are not passed
-
-        String optionalType = getRequest.type();
-        String endpoint;
-        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        } else {
-            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
-        }
-        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-        request.addParameters(parameters.asMap());
-        return request;
+    static Request sourceExists(GetSourceRequest getSourceRequest) {
+        return sourceRequest(getSourceRequest, HttpHead.METHOD_NAME);
     }
 
     static Request getSource(GetSourceRequest getSourceRequest) {
+        return sourceRequest(getSourceRequest, HttpGet.METHOD_NAME);
+    }
+
+    private static Request sourceRequest(GetSourceRequest getSourceRequest, String httpMethodName) {
         Params parameters = new Params();
         parameters.withPreference(getSourceRequest.preference());
         parameters.withRouting(getSourceRequest.routing());
@@ -310,8 +297,14 @@ final class RequestConverters {
         parameters.withRealtime(getSourceRequest.realtime());
         parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
 
-        String endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        String optionalType = getSourceRequest.type();
+        String endpoint;
+        if (optionalType == null) {
+            endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
+        } else {
+            endpoint = endpoint(getSourceRequest.index(), optionalType, getSourceRequest.id(), "_source");
+        }
+        Request request = new Request(httpMethodName, endpoint);
         request.addParameters(parameters.asMap());
         return request;
     }

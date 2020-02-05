@@ -33,6 +33,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -193,12 +194,18 @@ public class NioHttpServerTransportTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            Settings settings = Settings.builder()
+                .put("http.port", remoteAddress.getPort())
+                .put("network.host", remoteAddress.getAddress())
+                .build();
             try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
                 threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
-                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
+                assertEquals(
+                    "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),
+                    bindHttpException.getMessage()
+                );
             }
         }
     }

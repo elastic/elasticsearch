@@ -23,8 +23,8 @@ Retrieves information for one or more API keys.
 The information for the API keys created by
 <<security-api-create-api-key,create API Key>> can be retrieved using this API.
 
-[[security-api-get-api-key-request-body]]
-==== {api-request-body-title}
+[[security-api-get-api-key-path-params]]
+==== {api-path-parms-title}
 
 The following parameters can be specified in the query parameters of a GET request and
 pertain to retrieving api keys:

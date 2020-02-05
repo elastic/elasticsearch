@@ -409,6 +409,7 @@ public class XPackLicenseState {
         if (isSecurityCurrentlyEnabled) {
             switch (status.mode) {
                 case PLATINUM:
+                case ENTERPRISE:
                 case TRIAL:
                     return AllowedRealmType.ALL;
                 case GOLD:

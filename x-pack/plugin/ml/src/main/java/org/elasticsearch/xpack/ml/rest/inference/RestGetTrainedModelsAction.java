@@ -35,7 +35,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     public Map<String, List<Method>> handledMethodsAndPaths() {
         return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
             .put(MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", singletonList(GET))
-            .put(MachineLearning.BASE_PATH + MachineLearning.BASE_PATH + "inference", singletonList(GET))
+            .put(MachineLearning.BASE_PATH + "inference", singletonList(GET))
             .map());
     }
 

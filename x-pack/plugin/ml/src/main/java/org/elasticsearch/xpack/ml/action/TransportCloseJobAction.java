@@ -107,7 +107,6 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
              */
 
             PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            logger.warn("Stop job [{}] allownojobs [{}] is force [{}]", request.getJobId(), request.allowNoJobs(), request.isForce());
             jobConfigProvider.expandJobsIds(request.getJobId(),
                 request.allowNoJobs(),
                 true,

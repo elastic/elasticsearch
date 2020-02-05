@@ -24,18 +24,28 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestCloseIndexAction extends BaseRestHandler {
 
-    public RestCloseIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/_close", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_close", singletonList(POST))
+            .put("/{index}/_close", singletonList(POST))
+            .map());
     }
 
     @Override

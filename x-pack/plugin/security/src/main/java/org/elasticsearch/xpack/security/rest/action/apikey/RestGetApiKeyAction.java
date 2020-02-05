@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -22,15 +22,25 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Rest action to get one or more API keys information.
  */
 public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
 
-    public RestGetApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestGetApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.GET, "/_security/api_key", this);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_security/api_key", singletonList(GET));
     }
 
     @Override

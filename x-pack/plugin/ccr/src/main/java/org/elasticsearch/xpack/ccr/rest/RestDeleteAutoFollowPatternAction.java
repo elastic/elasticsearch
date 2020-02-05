@@ -7,17 +7,24 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Request;
 
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.INSTANCE;
 
 public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
-    public RestDeleteAutoFollowPatternAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE, "/_ccr/auto_follow/{name}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_ccr/auto_follow/{name}", singletonList(DELETE));
     }
 
     @Override

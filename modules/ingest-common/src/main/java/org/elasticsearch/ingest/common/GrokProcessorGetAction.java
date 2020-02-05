@@ -32,15 +32,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -116,8 +119,10 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     }
 
     public static class RestAction extends BaseRestHandler {
-        RestAction(RestController controller) {
-            controller.registerHandler(GET, "/_ingest/processor/grok", this);
+
+        @Override
+        public Map<String, List<Method>> handledMethodsAndPaths() {
+            return singletonMap("/_ingest/processor/grok", singletonList(GET));
         }
 
         @Override

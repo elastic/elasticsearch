@@ -14,8 +14,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,18 +41,25 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetPrivilegesAction.class));
 
-    public RestGetPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestGetPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/privilege/", this,
-            GET, "/_xpack/security/privilege/", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/privilege/{application}", this,
-            GET, "/_xpack/security/privilege/{application}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/privilege/{application}/{privilege}", this,
-            GET, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRestApi(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/", deprecationLogger),
+            new ReplacedRestApi(GET, "/_security/privilege/{application}",
+                GET, "/_xpack/security/privilege/{application}", deprecationLogger),
+            new ReplacedRestApi(GET, "/_security/privilege/{application}/{privilege}",
+                GET, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger)
+        ));
     }
 
     @Override

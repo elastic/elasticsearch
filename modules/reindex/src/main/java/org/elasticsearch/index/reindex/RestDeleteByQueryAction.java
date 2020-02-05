@@ -20,21 +20,28 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
 
-    public RestDeleteByQueryAction(RestController controller) {
+    public RestDeleteByQueryAction() {
         super(DeleteByQueryAction.INSTANCE);
-        controller.registerHandler(POST, "/{index}/_delete_by_query", this);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/{index}/_delete_by_query", singletonList(POST));
     }
 
     @Override

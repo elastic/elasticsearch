@@ -26,12 +26,18 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpgradeActionDeprecated extends BaseRestHandler {
@@ -42,11 +48,16 @@ public class RestUpgradeActionDeprecated extends BaseRestHandler {
     public static final String UPGRADE_API_DEPRECATION_MESSAGE =
         "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API.";
 
-    public RestUpgradeActionDeprecated(RestController controller) {
-        controller.registerAsDeprecatedHandler(POST, "/_upgrade", this,
-            UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger);
-        controller.registerAsDeprecatedHandler(POST, "/{index}/_upgrade", this,
-            UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger);
+    @Override
+    public List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
+        return unmodifiableList(asList(
+            new DeprecatedRestApi("/_upgrade", singletonList(POST), UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger),
+            new DeprecatedRestApi("/{index}/_upgrade", singletonList(POST), UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger)));
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
     }
 
     @Override

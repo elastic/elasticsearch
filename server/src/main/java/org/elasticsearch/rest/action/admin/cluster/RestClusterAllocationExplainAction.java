@@ -22,27 +22,38 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Class handling cluster allocation explanation at the REST level
  */
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
-    public RestClusterAllocationExplainAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/allocation/explain", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/allocation/explain", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_cluster/allocation/explain", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

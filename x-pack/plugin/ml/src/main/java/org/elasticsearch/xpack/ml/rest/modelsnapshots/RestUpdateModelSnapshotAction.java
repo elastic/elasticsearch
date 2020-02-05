@@ -10,8 +10,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -19,6 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -27,13 +30,21 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestUpdateModelSnapshotAction.class));
 
-    public RestUpdateModelSnapshotAction(RestController controller) {
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRestApi(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update",
+                deprecationLogger)
+        );
     }
 
     @Override

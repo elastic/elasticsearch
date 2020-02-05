@@ -22,16 +22,21 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -42,15 +47,21 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    public RestGetRepositoriesAction(RestController controller, SettingsFilter settingsFilter) {
-        controller.registerHandler(GET, "/_snapshot", this);
-        controller.registerHandler(GET, "/_snapshot/{repository}", this);
+    public RestGetRepositoriesAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
     }
 
     @Override
     public String getName() {
         return "get_repositories_action";
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_snapshot", singletonList(GET))
+            .put("/_snapshot/{repository}", singletonList(GET))
+            .map());
     }
 
     @Override

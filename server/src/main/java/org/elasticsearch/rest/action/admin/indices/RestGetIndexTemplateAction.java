@@ -23,16 +23,23 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -43,10 +50,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
-    public RestGetIndexTemplateAction(final RestController controller) {
-        controller.registerHandler(GET, "/_template", this);
-        controller.registerHandler(GET, "/_template/{name}", this);
-        controller.registerHandler(HEAD, "/_template/{name}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_template", singletonList(GET))
+            .put("/_template/{name}", unmodifiableList(asList(GET, HEAD)))
+            .map());
     }
 
     @Override

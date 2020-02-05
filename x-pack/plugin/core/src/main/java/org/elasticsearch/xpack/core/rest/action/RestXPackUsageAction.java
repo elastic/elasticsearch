@@ -11,8 +11,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -20,14 +20,19 @@ import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackUsageAction extends BaseRestHandler {
 
-    public RestXPackUsageAction(RestController controller) {
-        controller.registerHandler(GET, "/_xpack/usage", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_xpack/usage", singletonList(GET));
     }
 
     @Override

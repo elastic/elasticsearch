@@ -25,17 +25,24 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 
 public class RestPutPipelineAction extends BaseRestHandler {
 
-    public RestPutPipelineAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, "/_ingest/pipeline/{id}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_ingest/pipeline/{id}", singletonList(PUT));
     }
 
     @Override

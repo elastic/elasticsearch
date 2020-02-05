@@ -7,18 +7,26 @@ package org.elasticsearch.xpack.enrich.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
 
-    public RestExecuteEnrichPolicyAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, "/_enrich/policy/{name}/_execute", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_enrich/policy/{name}/_execute", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_enrich/policy/{name}/_execute", unmodifiableList(asList(POST, PUT)));
     }
 
     @Override

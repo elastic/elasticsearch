@@ -24,19 +24,25 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
@@ -44,11 +50,12 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 
 public class RestCountAction extends BaseRestHandler {
 
-    public RestCountAction(RestController controller) {
-        controller.registerHandler(POST, "/_count", this);
-        controller.registerHandler(GET, "/_count", this);
-        controller.registerHandler(POST, "/{index}/_count", this);
-        controller.registerHandler(GET, "/{index}/_count", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_count", unmodifiableList(asList(GET, POST)))
+            .put("/{index}/_count", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

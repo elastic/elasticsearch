@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -32,14 +33,20 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
@@ -47,14 +54,18 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
 
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, ClusterSettings clusterSettings,
-            SettingsFilter settingsFilter) {
+    public RestClusterGetSettingsAction(Settings settings, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;
     }
 
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_cluster/settings", singletonList(GET))
+            .map());
+    }
     @Override
     public String getName() {
         return "cluster_get_settings_action";

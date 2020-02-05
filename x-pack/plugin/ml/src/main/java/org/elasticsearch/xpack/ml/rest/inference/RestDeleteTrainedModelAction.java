@@ -7,22 +7,27 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
-    public RestDeleteTrainedModelAction(RestController controller) {
-        controller.registerHandler(
-            DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap(MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
+            singletonList(DELETE));
     }
 
     @Override

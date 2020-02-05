@@ -10,8 +10,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -19,14 +19,20 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetWatchAction extends BaseRestHandler {
 
-    public RestGetWatchAction(RestController controller) {
-        controller.registerHandler(GET, "/_watcher/watch/{id}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_watcher/watch/{id}", singletonList(GET));
     }
 
     @Override

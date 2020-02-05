@@ -23,19 +23,24 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetTaskAction extends BaseRestHandler {
 
-    public RestGetTaskAction(RestController controller) {
-        controller.registerHandler(GET, "/_tasks/{task_id}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_tasks/{task_id}", singletonList(GET));
     }
 
     @Override

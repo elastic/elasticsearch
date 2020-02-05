@@ -23,25 +23,35 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
 
-    public RestAddVotingConfigExclusionAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this);
-    }
-
     @Override
     public String getName() {
         return "add_voting_config_exclusions_action";
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_cluster/voting_config_exclusions/{node_name}", singletonList(POST))
+            .map());
     }
 
     @Override

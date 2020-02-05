@@ -13,8 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -28,7 +28,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -40,24 +43,30 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
     private final SecurityContext securityContext;
     private final Hasher passwordHasher;
 
-    public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext,
-                                    XPackLicenseState licenseState) {
+    public RestChangePasswordAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
         passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/{username}/_password", this,
-            POST, "/_xpack/security/user/{username}/_password", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_security/user/{username}/_password", this,
-            PUT, "/_xpack/security/user/{username}/_password", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/_password", this,
-            POST, "/_xpack/security/user/_password", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_security/user/_password", this,
-            PUT, "/_xpack/security/user/_password", deprecationLogger);
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRestApi(PUT, "/_security/user/{username}/_password",
+                PUT, "/_xpack/security/user/{username}/_password", deprecationLogger),
+            new ReplacedRestApi(POST, "/_security/user/{username}/_password",
+                POST, "/_xpack/security/user/{username}/_password", deprecationLogger),
+            new ReplacedRestApi(PUT, "/_security/user/_password",
+                PUT, "/_xpack/security/user/_password", deprecationLogger),
+            new ReplacedRestApi(POST, "/_security/user/_password",
+                POST, "/_xpack/security/user/_password", deprecationLogger)
+        ));
     }
 
     @Override

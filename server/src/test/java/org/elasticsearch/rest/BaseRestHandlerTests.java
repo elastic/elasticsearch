@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -33,6 +34,8 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -54,6 +57,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_one_unconsumed_response_action";
+            }
+
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
             }
         };
 
@@ -80,6 +88,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_multiple_unconsumed_response_action";
+            }
+
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
             }
         };
 
@@ -116,6 +129,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_unconsumed_did_you_mean_response_action";
+            }
+
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
             }
         };
 
@@ -160,6 +178,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             public String getName() {
                 return "test_unconsumed_response_action";
             }
+
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
+            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -182,6 +205,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_default_response_action";
+            }
+
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
             }
         };
 
@@ -218,6 +246,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             public String getName() {
                 return "test_cat_response_action";
             }
+
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
+            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -249,6 +282,10 @@ public class BaseRestHandlerTests extends ESTestCase {
                 return "test_consumed_body";
             }
 
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
+            }
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
@@ -274,6 +311,10 @@ public class BaseRestHandlerTests extends ESTestCase {
                 return "test_unconsumed_body";
             }
 
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
+            }
         };
 
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
@@ -295,6 +336,10 @@ public class BaseRestHandlerTests extends ESTestCase {
                 return "test_unconsumed_body";
             }
 
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.emptyMap();
+            }
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {

@@ -23,14 +23,19 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
@@ -38,15 +43,21 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 public class RestCancelTasksAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestCancelTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
+    public RestCancelTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(POST, "/_tasks/_cancel", this);
-        controller.registerHandler(POST, "/_tasks/{task_id}/_cancel", this);
     }
 
     @Override
     public String getName() {
         return "cancel_tasks_action";
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_tasks/_cancel", singletonList(POST))
+            .put("/_tasks/{task_id}/_cancel", singletonList(POST))
+            .map());
     }
 
     @Override

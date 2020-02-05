@@ -28,25 +28,31 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -55,15 +61,15 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    public RestGetAliasesAction(final RestController controller) {
-        controller.registerHandler(GET, "/_alias", this);
-        controller.registerHandler(GET, "/_aliases", this);
-        controller.registerHandler(GET, "/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/_alias/{name}", this);
-        controller.registerHandler(GET, "/{index}/_alias", this);
-        controller.registerHandler(HEAD, "/{index}/_alias", this);
-        controller.registerHandler(GET, "/{index}/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_alias", singletonList(GET))
+            .put("/_aliases", singletonList(GET))
+            .put("/_alias/{name}", unmodifiableList(asList(GET, HEAD)))
+            .put("/{index}/_alias", unmodifiableList(asList(GET, HEAD)))
+            .put("/{index}/_alias/{name}", unmodifiableList(asList(GET, HEAD)))
+            .map());
     }
 
     @Override

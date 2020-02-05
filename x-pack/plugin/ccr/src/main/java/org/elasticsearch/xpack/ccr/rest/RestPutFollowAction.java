@@ -9,19 +9,25 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 
 public class RestPutFollowAction extends BaseRestHandler {
 
-    public RestPutFollowAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_ccr/follow", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/{index}/_ccr/follow", singletonList(PUT));
     }
 
     @Override

@@ -10,8 +10,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -19,7 +19,11 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteForecastAction extends BaseRestHandler {
@@ -27,16 +31,21 @@ public class RestDeleteForecastAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestDeleteForecastAction.class));
 
-    public RestDeleteForecastAction(RestController controller) {
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap(MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/",
+            singletonList(DELETE));
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", this,
-            DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", deprecationLogger);
-        controller.registerHandler(
-                DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                        "}/_forecast/", this);
+        return singletonList(
+            new ReplacedRestApi(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
+                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
+                DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
+                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}", deprecationLogger)
+        );
     }
 
     @Override

@@ -10,26 +10,33 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestWatcherStatsAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    public RestWatcherStatsAction(RestController controller) {
-        controller.registerHandler(GET, "/_watcher/stats", this);
-        controller.registerHandler(GET, "/_watcher/stats/{metric}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_watcher/stats", singletonList(GET))
+            .put("/_watcher/stats/{metric}", singletonList(GET))
+            .map());
     }
 
     @Override

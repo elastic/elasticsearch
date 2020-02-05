@@ -21,24 +21,35 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 public class RestRethrottleAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestRethrottleAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
+    public RestRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_update_by_query/{taskId}/_rethrottle", singletonList(POST))
+            .put("/_delete_by_query/{taskId}/_rethrottle", singletonList(POST))
+            .put("/_reindex/{taskId}/_rethrottle", singletonList(POST))
+            .map());
     }
 
     @Override

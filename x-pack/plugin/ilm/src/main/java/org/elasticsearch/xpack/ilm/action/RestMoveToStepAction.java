@@ -10,17 +10,24 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMoveToStepAction extends BaseRestHandler {
 
-    public RestMoveToStepAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST,"/_ilm/move/{name}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_ilm/move/{name}", singletonList(POST));
     }
 
     @Override

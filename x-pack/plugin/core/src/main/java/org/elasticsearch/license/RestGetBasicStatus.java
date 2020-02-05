@@ -8,16 +8,24 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetBasicStatus extends BaseRestHandler {
 
-    RestGetBasicStatus(RestController controller) {
-        controller.registerHandler(GET, "/_license/basic_status", this);
+    RestGetBasicStatus() {}
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_license/basic_status", singletonList(GET));
     }
 
     @Override

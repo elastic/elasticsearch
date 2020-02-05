@@ -23,17 +23,23 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -41,14 +47,16 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
 
-    public RestGetAction(final RestController controller) {
-        controller.registerHandler(GET, "/{index}/_doc/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
-    }
-
     @Override
     public String getName() {
         return "document_get_action";
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/{index}/_doc/{id}", unmodifiableList(asList(GET, HEAD)))
+            .map());
     }
 
     @Override

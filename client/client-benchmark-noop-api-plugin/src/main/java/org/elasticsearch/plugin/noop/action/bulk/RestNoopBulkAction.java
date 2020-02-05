@@ -27,29 +27,36 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
 
-    public RestNoopBulkAction(RestController controller) {
-        controller.registerHandler(POST, "/_noop_bulk", this);
-        controller.registerHandler(PUT, "/_noop_bulk", this);
-        controller.registerHandler(POST, "/{index}/_noop_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_noop_bulk", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_noop_bulk", unmodifiableList(asList(POST, PUT)))
+            .put("/{index}/_noop_bulk", unmodifiableList(asList(POST, PUT)))
+            .map());
     }
 
     @Override

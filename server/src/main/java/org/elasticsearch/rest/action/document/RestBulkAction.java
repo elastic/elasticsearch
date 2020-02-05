@@ -24,15 +24,21 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -49,13 +55,16 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestBulkAction(Settings settings, RestController controller) {
-        controller.registerHandler(POST, "/_bulk", this);
-        controller.registerHandler(PUT, "/_bulk", this);
-        controller.registerHandler(POST, "/{index}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_bulk", this);
-
+    public RestBulkAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_bulk", unmodifiableList(asList(POST, PUT)))
+            .put("/{index}/_bulk", unmodifiableList(asList(POST, PUT)))
+            .map());
     }
 
     @Override

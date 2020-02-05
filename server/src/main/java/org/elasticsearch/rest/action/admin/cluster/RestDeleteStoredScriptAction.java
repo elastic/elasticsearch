@@ -20,19 +20,27 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
-    public RestDeleteStoredScriptAction(RestController controller) {
-        controller.registerHandler(DELETE, "/_scripts/{id}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_scripts/{id}", singletonList(DELETE))
+            .map());
     }
 
     @Override

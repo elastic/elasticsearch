@@ -24,35 +24,38 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonList;
 import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
 
-    public RestNodesStatsAction(RestController controller) {
-        controller.registerHandler(GET, "/_nodes/stats", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
-
-        controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
-
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{index_metric}", this);
-
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_nodes/stats", singletonList(GET))
+            .put("/_nodes/{nodeId}/stats", singletonList(GET))
+            .put("/_nodes/stats/{metric}", singletonList(GET))
+            .put("/_nodes/{nodeId}/stats/{metric}", singletonList(GET))
+            .put("/_nodes/stats/{metric}/{index_metric}", singletonList(GET))
+            .put("/_nodes/{nodeId}/stats/{metric}/{index_metric}", singletonList(GET))
+            .map());
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(

@@ -26,22 +26,31 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCountAction extends AbstractCatAction {
-    public RestCountAction(RestController restController) {
-        restController.registerHandler(GET, "/_cat/count", this);
-        restController.registerHandler(GET, "/_cat/count/{index}", this);
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_cat/count", singletonList(GET))
+            .put("/_cat/count/{index}", singletonList(GET))
+            .map());
     }
 
     @Override

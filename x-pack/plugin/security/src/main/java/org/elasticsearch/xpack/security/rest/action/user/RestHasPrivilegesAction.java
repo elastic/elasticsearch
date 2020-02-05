@@ -17,8 +17,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -30,6 +30,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -43,23 +47,29 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     private final SecurityContext securityContext;
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestHasPrivilegesAction.class));
 
-    public RestHasPrivilegesAction(Settings settings, RestController controller, SecurityContext securityContext,
-                                   XPackLicenseState licenseState) {
+    public RestHasPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/{username}/_has_privileges", this,
-            GET, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/{username}/_has_privileges", this,
-            POST, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/_has_privileges", this,
-            GET, "/_xpack/security/user/_has_privileges", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/_has_privileges", this,
-            POST, "/_xpack/security/user/_has_privileges", deprecationLogger);
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRestApi(GET, "/_security/user/{username}/_has_privileges",
+                GET, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger),
+            new ReplacedRestApi(POST, "/_security/user/{username}/_has_privileges",
+                POST, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger),
+            new ReplacedRestApi(GET, "/_security/user/_has_privileges",
+                GET, "/_xpack/security/user/_has_privileges", deprecationLogger),
+            new ReplacedRestApi(POST, "/_security/user/_has_privileges",
+                POST, "/_xpack/security/user/_has_privileges", deprecationLogger)
+        ));
     }
 
     @Override

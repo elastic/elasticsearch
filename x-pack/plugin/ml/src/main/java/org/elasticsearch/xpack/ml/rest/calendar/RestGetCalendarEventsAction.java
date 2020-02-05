@@ -10,8 +10,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -28,11 +31,18 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestGetCalendarEventsAction.class));
 
-    public RestGetCalendarEventsAction(RestController controller) {
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRestApi(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events", deprecationLogger)
+        );
     }
 
     @Override

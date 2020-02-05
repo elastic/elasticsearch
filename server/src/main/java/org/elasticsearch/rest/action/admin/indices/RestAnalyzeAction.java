@@ -21,14 +21,20 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -46,11 +52,12 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField NORMALIZER = new ParseField("normalizer");
     }
 
-    public RestAnalyzeAction(RestController controller) {
-        controller.registerHandler(GET, "/_analyze", this);
-        controller.registerHandler(GET, "/{index}/_analyze", this);
-        controller.registerHandler(POST, "/_analyze", this);
-        controller.registerHandler(POST, "/{index}/_analyze", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_analyze", unmodifiableList(asList(GET, POST)))
+            .put("/{index}/_analyze", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

@@ -96,7 +96,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param deprecationMessage The message to log and send as a header in the response
      * @param logger The existing deprecation logger to use
      */
-    public void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
+    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
                                             String deprecationMessage, DeprecationLogger logger) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
@@ -128,7 +128,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
      * @param logger The existing deprecation logger to use
      */
-    public void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
+    protected void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
                                               RestRequest.Method deprecatedMethod, String deprecatedPath,
                                               DeprecationLogger logger) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
@@ -146,13 +146,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param method GET, POST, etc.
      */
-    public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+    protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
         final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
+    }
+
+    /**
+     * Registers a REST handler with the controller. The REST handler declares the {@code method}
+     * and {@code path} combinations.
+     */
+    public void registerHandler(RestHandler restHandler) {
+        restHandler.handledMethodsAndPaths().forEach((path, methods) ->
+            methods.forEach(method -> registerHandler(method, path, restHandler)));
+        restHandler.deprecatedHandledMethodsAndPaths().forEach(api -> api.getMethods().forEach(method ->
+            registerAsDeprecatedHandler(method, api.getPath(), restHandler, api.getDeprecationMessage(), api.getLogger())));
+        restHandler.replacedMethodsAndPaths().forEach(api -> registerWithDeprecatedHandler(api.getMethod(), api.getPath(), restHandler,
+            api.getDeprecatedMethod(), api.getDeprecatedPath(), api.getLogger()));
     }
 
     @Override

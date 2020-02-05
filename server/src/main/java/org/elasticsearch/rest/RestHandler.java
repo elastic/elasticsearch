@@ -20,7 +20,13 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.rest.RestRequest.Method;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Handler for REST requests
@@ -58,5 +64,105 @@ public interface RestHandler {
      */
     default boolean allowsUnsafeBuffers() {
         return false;
+    }
+
+    /**
+     * The map of {@code path} to {@code methods} that this RestHandler is responsible for handling.
+     */
+    default Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * A list of APIs handled by this RestHandler that are deprecated and do not have a direct
+     * replacement. If changing the {@code path} or {@code method} of the API,
+     * use {@link #replacedMethodsAndPaths()}.
+     */
+    default List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * A list of APIs handled by this RestHandler that have had their {@code path} and/or
+     * {@code method} changed. The pre-existing {@code path} and {@code method} will be registered
+     * as deprecated alongside the updated {@code path} and {@code method}.
+     */
+    default List<ReplacedRestApi> replacedMethodsAndPaths() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Represents an API that has been deprecated and is slated for removal.
+     */
+    class DeprecatedRestApi {
+
+        private final String path;
+        private final String deprecationMessage;
+        private final List<Method> methods;
+        private final DeprecationLogger logger;
+
+        public DeprecatedRestApi(String path, List<Method> methods, String deprecationMessage, DeprecationLogger logger) {
+            this.path = path;
+            this.methods = methods;
+            this.deprecationMessage = deprecationMessage;
+            this.logger = logger;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public String getDeprecationMessage() {
+            return deprecationMessage;
+        }
+
+        public List<Method> getMethods() {
+            return methods;
+        }
+
+        public DeprecationLogger getLogger() {
+            return logger;
+        }
+    }
+
+    /**
+     * Represents an API that has had its {@code path} or {@code method} changed. Holds both the
+     * new and previous {@code path} and {@code method} combination.
+     */
+    class ReplacedRestApi {
+
+        private final String path;
+        private final String deprecatedPath;
+        private final Method method;
+        private final Method deprecatedMethod;
+        private final DeprecationLogger logger;
+
+        public ReplacedRestApi(Method method, String path, Method deprecatedMethod, String deprecatedPath, DeprecationLogger logger) {
+            this.method = method;
+            this.path = path;
+            this.deprecatedMethod = deprecatedMethod;
+            this.deprecatedPath = deprecatedPath;
+            this.logger = logger;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public String getDeprecatedPath() {
+            return deprecatedPath;
+        }
+
+        public Method getMethod() {
+            return method;
+        }
+
+        public Method getDeprecatedMethod() {
+            return deprecatedMethod;
+        }
+
+        public DeprecationLogger getLogger() {
+            return logger;
+        }
     }
 }

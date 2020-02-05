@@ -23,29 +23,33 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
 
-    public RestPutMappingAction(RestController controller) {
-        controller.registerHandler(PUT, "/{index}/_mapping/", this);
-        controller.registerHandler(POST, "/{index}/_mapping/", this);
-
-        //register the same paths, but with plural form _mappings
-        controller.registerHandler(PUT, "/{index}/_mappings/", this);
-        controller.registerHandler(POST, "/{index}/_mappings/", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/{index}/_mapping/", unmodifiableList(asList(POST, PUT)))
+            .put("/{index}/_mappings/", unmodifiableList(asList(POST, PUT)))
+            .map());
     }
 
     @Override

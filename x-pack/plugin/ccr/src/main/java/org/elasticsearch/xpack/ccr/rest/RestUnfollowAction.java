@@ -8,17 +8,24 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.UnfollowAction.INSTANCE;
 
 public class RestUnfollowAction extends BaseRestHandler {
 
-    public RestUnfollowAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/unfollow", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/{index}/_ccr/unfollow", singletonList(POST));
     }
 
     @Override

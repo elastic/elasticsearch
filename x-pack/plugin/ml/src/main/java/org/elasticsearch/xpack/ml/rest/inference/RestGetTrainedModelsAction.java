@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -21,17 +22,21 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
-    public RestGetTrainedModelsAction(RestController controller) {
-        controller.registerHandler(
-            GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, MachineLearning.BASE_PATH + "inference", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put(MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", singletonList(GET))
+            .put(MachineLearning.BASE_PATH + MachineLearning.BASE_PATH + "inference", singletonList(GET))
+            .map());
     }
 
     @Override

@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -89,6 +91,21 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public boolean allowsUnsafeBuffers() {
         return restHandler.allowsUnsafeBuffers();
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return restHandler.handledMethodsAndPaths();
+    }
+
+    @Override
+    public List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
+        return restHandler.deprecatedHandledMethodsAndPaths();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
+        return restHandler.replacedMethodsAndPaths();
     }
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {

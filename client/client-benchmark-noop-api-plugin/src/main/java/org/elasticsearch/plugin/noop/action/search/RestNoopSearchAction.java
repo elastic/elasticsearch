@@ -20,21 +20,29 @@ package org.elasticsearch.plugin.noop.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestNoopSearchAction extends BaseRestHandler {
 
-    public RestNoopSearchAction(RestController controller) {
-        controller.registerHandler(GET, "/_noop_search", this);
-        controller.registerHandler(POST, "/_noop_search", this);
-        controller.registerHandler(GET, "/{index}/_noop_search", this);
-        controller.registerHandler(POST, "/{index}/_noop_search", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_noop_search", unmodifiableList(asList(GET, POST)))
+            .put("/{index}/_noop_search", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

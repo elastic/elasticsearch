@@ -5,25 +5,32 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Request;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestDeprecationInfoAction.class);
 
-    public RestDeprecationInfoAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_migration/deprecations", this);
-        controller.registerHandler(RestRequest.Method.GET, "/{index}/_migration/deprecations", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_migration/deprecations", singletonList(GET))
+            .put("/{index}/_migration/deprecations", singletonList(GET))
+            .map());
     }
 
     @Override
@@ -33,7 +40,7 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.method().equals(RestRequest.Method.GET)) {
+        if (request.method().equals(GET)) {
             return handleGet(request, client);
         } else {
             throw new IllegalArgumentException("illegal method [" + request.method() + "] for request [" + request.path() + "]");

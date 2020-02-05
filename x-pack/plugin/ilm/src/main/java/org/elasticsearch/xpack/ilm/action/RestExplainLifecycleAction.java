@@ -10,16 +10,24 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestExplainLifecycleAction extends BaseRestHandler {
 
-    public RestExplainLifecycleAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/{index}/_ilm/explain", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/{index}/_ilm/explain", singletonList(GET));
     }
 
     @Override

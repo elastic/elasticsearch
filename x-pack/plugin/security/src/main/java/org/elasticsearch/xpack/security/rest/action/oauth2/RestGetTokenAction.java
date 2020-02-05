@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -23,8 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationTok
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -65,12 +67,21 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
     }
 
-    public RestGetTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+    public RestGetTokenAction(Settings settings, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/oauth2/token", this,
-            POST, "/_xpack/security/oauth2/token", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRestApi(POST, "/_security/oauth2/token", POST, "/_xpack/security/oauth2/token", deprecationLogger)
+        );
     }
 
     @Override

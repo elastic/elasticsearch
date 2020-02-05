@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -19,6 +19,14 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
@@ -26,12 +34,18 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestGetTransformStatsActionDeprecated.class));
 
-    public RestGetTransformStatsActionDeprecated(RestController controller) {
-        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_stats",
-                this, TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger);
-        controller.registerAsDeprecatedHandler(RestRequest.Method.GET,
-                TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stats", this,
-                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<DeprecatedRestApi> deprecatedHandledMethodsAndPaths() {
+        return unmodifiableList(asList(
+            new DeprecatedRestApi(TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_stats", singletonList(GET),
+                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger),
+            new DeprecatedRestApi(TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stats", singletonList(GET),
+                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger)));
     }
 
     @Override

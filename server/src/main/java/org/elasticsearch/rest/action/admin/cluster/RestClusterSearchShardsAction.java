@@ -24,23 +24,30 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterSearchShardsAction extends BaseRestHandler {
 
-    public RestClusterSearchShardsAction(RestController controller) {
-        controller.registerHandler(GET, "/_search_shards", this);
-        controller.registerHandler(POST, "/_search_shards", this);
-        controller.registerHandler(GET, "/{index}/_search_shards", this);
-        controller.registerHandler(POST, "/{index}/_search_shards", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_search_shards", unmodifiableList(asList(GET, POST)))
+            .put("/{index}/_search_shards", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

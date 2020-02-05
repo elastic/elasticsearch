@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
-import java.io.IOException;
-
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
@@ -17,14 +15,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -47,12 +50,22 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
         PARSER.declareString(SamlPrepareAuthenticationRequest::setRelayState, new ParseField("relay_state"));
     }
 
-    public RestSamlPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestSamlPrepareAuthenticationAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/saml/prepare", this,
-            POST, "/_xpack/security/saml/prepare", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRestApi(POST, "/_security/saml/prepare",
+                POST, "/_xpack/security/saml/prepare", deprecationLogger)
+        );
     }
 
     @Override

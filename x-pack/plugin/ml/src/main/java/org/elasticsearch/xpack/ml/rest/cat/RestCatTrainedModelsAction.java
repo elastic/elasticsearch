@@ -12,10 +12,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -38,14 +39,20 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
 public class RestCatTrainedModelsAction extends AbstractCatAction {
 
-    public RestCatTrainedModelsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, "_cat/ml/trained_models", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(
+            MapBuilder.<String, List<Method>>newMapBuilder()
+                .put("_cat/ml/trained_models", singletonList(GET))
+                .put("_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}", singletonList(GET))
+                .map()
+        );
     }
 
     @Override

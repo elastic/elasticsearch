@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -32,12 +35,20 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteRoleAction.class));
 
-    public RestDeleteRoleAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestDeleteRoleAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/role/{name}", this,
-            DELETE, "/_xpack/security/role/{name}", deprecationLogger);
+        return Collections.singletonList(new ReplacedRestApi(DELETE, "/_security/role/{name}", DELETE,
+            "/_xpack/security/role/{name}", deprecationLogger));
     }
 
     @Override

@@ -11,8 +11,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -33,11 +35,19 @@ public class RestFindFileStructureAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestFindFileStructureAction.class));
 
-    public RestFindFileStructureAction(RestController controller) {
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public List<ReplacedRestApi> replacedMethodsAndPaths() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "find_file_structure", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "find_file_structure", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRestApi(POST, MachineLearning.BASE_PATH + "find_file_structure",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "find_file_structure",
+                deprecationLogger)
+        );
     }
 
     @Override

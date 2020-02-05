@@ -26,19 +26,25 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -47,12 +53,12 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestSyncedFlushAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
-    public RestSyncedFlushAction(RestController controller) {
-        controller.registerHandler(POST, "/_flush/synced", this);
-        controller.registerHandler(POST, "/{index}/_flush/synced", this);
-
-        controller.registerHandler(GET, "/_flush/synced", this);
-        controller.registerHandler(GET, "/{index}/_flush/synced", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_flush/synced", unmodifiableList(asList(GET, POST)))
+            .put("/{index}/_flush/synced", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

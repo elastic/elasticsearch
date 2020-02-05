@@ -30,8 +30,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -39,8 +39,12 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
@@ -48,9 +52,13 @@ public class RestListTasksAction extends BaseRestHandler {
 
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestListTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
+    public RestListTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(GET, "/_tasks", this);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_tasks", singletonList(GET));
     }
 
     @Override

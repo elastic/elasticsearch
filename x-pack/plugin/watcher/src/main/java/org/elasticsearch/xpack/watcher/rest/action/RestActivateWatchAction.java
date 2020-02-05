@@ -10,8 +10,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -21,6 +21,12 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -29,13 +35,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestActivateWatchAction extends BaseRestHandler {
 
-    public RestActivateWatchAction(RestController controller) {
-        controller.registerHandler(POST, "/_watcher/watch/{id}/_activate", this);
-        controller.registerHandler(PUT, "/_watcher/watch/{id}/_activate", this);
-
-        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler();
-        controller.registerHandler(POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler);
-        controller.registerHandler(PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_watcher/watch/{id}/_activate", unmodifiableList(asList(POST, PUT)));
     }
 
     @Override
@@ -58,9 +60,11 @@ public class RestActivateWatchAction extends BaseRestHandler {
                     });
     }
 
-    private static class DeactivateRestHandler extends BaseRestHandler {
+    public static class DeactivateRestHandler extends BaseRestHandler {
 
-        DeactivateRestHandler() {
+        @Override
+        public Map<String, List<Method>> handledMethodsAndPaths() {
+            return singletonMap("/_watcher/watch/{id}/_deactivate", unmodifiableList(asList(POST, PUT)));
         }
 
         @Override

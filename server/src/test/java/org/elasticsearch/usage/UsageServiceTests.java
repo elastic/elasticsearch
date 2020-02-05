@@ -26,10 +26,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.net.InetAddress;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -98,6 +101,11 @@ public class UsageServiceTests extends ESTestCase {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public Map<String, List<Method>> handledMethodsAndPaths() {
+            return Collections.emptyMap();
         }
 
         @Override

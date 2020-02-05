@@ -30,15 +30,20 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -48,9 +53,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetSourceAction extends BaseRestHandler {
 
-    public RestGetSourceAction(final RestController controller) {
-        controller.registerHandler(GET, "/{index}/_source/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/_source/{id}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/{index}/_source/{id}", unmodifiableList(asList(GET, HEAD)));
     }
 
     @Override

@@ -47,7 +47,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -113,7 +115,16 @@ public class ActionModuleTests extends ESTestCase {
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
-            actionModule.getRestController().registerHandler(Method.GET, "/", null));
+            actionModule.getRestController().registerHandler(new RestHandler() {
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                }
+
+                @Override
+                public Map<String, List<Method>> handledMethodsAndPaths() {
+                    return Collections.singletonMap("/", singletonList(Method.GET));
+                }
+            }));
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
     }
 
@@ -123,7 +134,7 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new RestMainAction(restController));
+                return singletonList(new RestMainAction());
             }
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
@@ -142,9 +153,11 @@ public class ActionModuleTests extends ESTestCase {
 
     public void testPluginCanRegisterRestHandler() {
         class FakeHandler implements RestHandler {
-            FakeHandler(RestController restController) {
-                restController.registerHandler(Method.GET, "/_dummy", this);
+            @Override
+            public Map<String, List<Method>> handledMethodsAndPaths() {
+                return Collections.singletonMap("/_dummy", singletonList(Method.GET));
             }
+
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             }
@@ -154,7 +167,7 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new FakeHandler(restController));
+                return singletonList(new FakeHandler());
             }
         };
 
@@ -168,7 +181,16 @@ public class ActionModuleTests extends ESTestCase {
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->
-                actionModule.getRestController().registerHandler(Method.GET, "/_dummy", null));
+                actionModule.getRestController().registerHandler(new RestHandler() {
+                    @Override
+                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                    }
+
+                    @Override
+                    public Map<String, List<Method>> handledMethodsAndPaths() {
+                        return Collections.singletonMap("/_dummy", singletonList(Method.GET));
+                    }
+                }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
         } finally {
             threadPool.shutdown();

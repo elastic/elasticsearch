@@ -18,6 +18,7 @@
  */
 
 package org.elasticsearch.rest;
+
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -66,6 +69,12 @@ public abstract class BaseRestHandler implements RestHandler {
      *         {@link RestNodesUsageAction}.
      */
     public abstract String getName();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public abstract Map<String, List<Method>> handledMethodsAndPaths();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

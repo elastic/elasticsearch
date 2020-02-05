@@ -26,28 +26,35 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
 
-    public RestValidateQueryAction(RestController controller) {
-        controller.registerHandler(GET, "/_validate/query", this);
-        controller.registerHandler(POST, "/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/_validate/query", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_validate/query", unmodifiableList(asList(GET, POST)))
+            .put("/{index}/_validate/query", unmodifiableList(asList(GET, POST)))
+            .map());
     }
 
     @Override

@@ -24,30 +24,39 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
-    public RestNodesHotThreadsAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hot_threads", this);
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/hot_threads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hot_threads", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_cluster/nodes/hotthreads", singletonList(GET))
+            .put("/_cluster/nodes/hot_threads", singletonList(GET))
+            .put("/_cluster/nodes/{nodeId}/hotthreads", singletonList(GET))
+            .put("/_cluster/nodes/{nodeId}/hot_threads", singletonList(GET))
+            .put("/_nodes/hotthreads", singletonList(GET))
+            .put("/_nodes/hot_threads", singletonList(GET))
+            .put("/_nodes/{nodeId}/hotthreads", singletonList(GET))
+            .put("/_nodes/{nodeId}/hot_threads", singletonList(GET))
+            .map());
     }
 
     @Override

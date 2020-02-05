@@ -21,18 +21,23 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
-    public RestGetStoredScriptAction(RestController controller) {
-        controller.registerHandler(GET, "/_scripts/{id}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_scripts/{id}", singletonList(GET));
     }
 
     @Override

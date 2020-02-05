@@ -23,12 +23,16 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -37,8 +41,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
-    public RestGetSnapshotsAction(RestController controller) {
-        controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_snapshot/{repository}/{snapshot}", singletonList(GET));
     }
 
     @Override

@@ -18,15 +18,19 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -56,9 +60,9 @@ public class RestGraphAction extends BaseRestHandler {
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     public static final ParseField TERM_FIELD = new ParseField("term");
 
-    public RestGraphAction(RestController controller) {
-        controller.registerHandler(GET, "/{index}/_graph/explore", this);
-        controller.registerHandler(POST, "/{index}/_graph/explore", this);
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/{index}/_graph/explore", unmodifiableList(asList(GET, POST)));
     }
 
     @Override

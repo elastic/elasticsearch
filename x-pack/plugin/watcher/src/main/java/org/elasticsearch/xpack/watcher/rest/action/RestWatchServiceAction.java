@@ -8,19 +8,24 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestWatchServiceAction extends BaseRestHandler {
 
-    public RestWatchServiceAction(RestController controller) {
-        controller.registerHandler(POST, "/_watcher/_start", this);
-        controller.registerHandler(POST, "/_watcher/_stop", new StopRestHandler());
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.singletonMap("/_watcher/_start", singletonList(POST));
     }
 
     @Override
@@ -34,9 +39,11 @@ public class RestWatchServiceAction extends BaseRestHandler {
             client.execute(WatcherServiceAction.INSTANCE, new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
     }
 
-    private static class StopRestHandler extends BaseRestHandler {
+    public static class StopRestHandler extends BaseRestHandler {
 
-        StopRestHandler() {
+        @Override
+        public Map<String, List<Method>> handledMethodsAndPaths() {
+            return Collections.singletonMap("/_watcher/_stop", singletonList(POST));
         }
 
         @Override

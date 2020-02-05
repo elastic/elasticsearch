@@ -10,13 +10,21 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest action to create an API key
@@ -28,10 +36,13 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
      * @param licenseState the license state that will be used to determine if
      * security is licensed
      */
-    public RestCreateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestCreateApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.POST, "/_security/api_key", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_security/api_key", this);
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_security/api_key", unmodifiableList(asList(POST, PUT)));
     }
 
     @Override

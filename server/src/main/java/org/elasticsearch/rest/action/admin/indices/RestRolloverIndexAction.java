@@ -22,18 +22,28 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRolloverIndexAction extends BaseRestHandler {
-    
-    public RestRolloverIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/{index}/_rollover", singletonList(POST))
+            .put("/{index}/_rollover/{new_index}", singletonList(POST))
+            .map());
     }
 
     @Override

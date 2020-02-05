@@ -21,13 +21,23 @@ package org.elasticsearch;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
+
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDieWithDignityAction extends BaseRestHandler {
 
-    RestDieWithDignityAction(final RestController restController) {
-        restController.registerHandler(RestRequest.Method.GET, "/_die_with_dignity", this);
+    RestDieWithDignityAction() {}
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return singletonMap("/_die_with_dignity", singletonList(GET));
     }
 
     @Override

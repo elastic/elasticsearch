@@ -25,20 +25,25 @@ import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSetti
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler {
@@ -51,14 +56,17 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
             new ParseField("secure_settings_password"));
     }
 
-    public RestReloadSecureSettingsAction(RestController controller) {
-        controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
-        controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
-    }
-
     @Override
     public String getName() {
         return "nodes_reload_action";
+    }
+
+    @Override
+    public Map<String, List<Method>> handledMethodsAndPaths() {
+        return Collections.unmodifiableMap(MapBuilder.<String, List<Method>>newMapBuilder()
+            .put("/_nodes/reload_secure_settings", singletonList(POST))
+            .put("/_nodes/{nodeId}/reload_secure_settings", singletonList(POST))
+            .map());
     }
 
     @Override

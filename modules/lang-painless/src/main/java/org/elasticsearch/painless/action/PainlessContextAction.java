@@ -37,8 +37,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.tasks.Task;
@@ -52,6 +52,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -194,8 +196,9 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(RestController controller) {
-            controller.registerHandler(GET, "/_scripts/painless/_context", this);
+        @Override
+        public Map<String, List<Method>> handledMethodsAndPaths() {
+            return singletonMap("/_scripts/painless/_context", singletonList(GET));
         }
 
         @Override

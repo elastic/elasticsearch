@@ -28,7 +28,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -44,10 +43,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -90,10 +87,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final Logger tracerLog = Loggers.getLogger(logger, ".tracer");
-
-    private volatile String[] tracerLogInclude;
-    private volatile String[] tracerLogExclude;
+    private final HttpTracer tracer;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -118,24 +112,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-
-        setTracerLogInclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.get(settings));
-        setTracerLogExclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.get(settings));
-
-        clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE, this::setTracerLogInclude);
-        clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
-    }
-
-    private boolean shouldTraceRequest(String uri) {
-        return TransportService.shouldTraceAction(uri, tracerLogInclude, tracerLogExclude);
-    }
-
-    private void setTracerLogInclude(List<String> tracerLogInclude) {
-        this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
-    }
-
-    private void setTracerLogExclude(List<String> tracerLogExclude) {
-        this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
+        this.tracer = new HttpTracer(settings, clusterSettings);
     }
 
     @Override
@@ -379,14 +356,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             restRequest = innerRestRequest;
         }
 
-        final Logger trace;
-        if (tracerLog.isTraceEnabled() && shouldTraceRequest(httpRequest.uri())) {
-            tracerLog.trace(new ParameterizedMessage("[{}][{}][{}][{}] received request from [{}]", restRequest.getRequestId(),
-                restRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel), exception);
-            trace = tracerLog;
-        } else {
-            trace = null;
-        }
+        final HttpTracer trace = tracer.maybeTraceRequest(restRequest, exception);
 
         /*
          * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid

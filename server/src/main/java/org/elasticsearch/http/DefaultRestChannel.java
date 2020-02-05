@@ -19,8 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -64,10 +62,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final HttpChannel httpChannel;
 
     @Nullable
-    private final Logger tracerLog;
+    private final HttpTracer tracerLog;
 
     DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext, @Nullable Logger tracerLog) {
+                       HttpHandlingSettings settings, ThreadContext threadContext, @Nullable HttpTracer tracerLog) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
@@ -144,10 +142,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 Releasables.close(toClose);
             }
             if (tracerLog != null) {
-                tracerLog.trace(new ParameterizedMessage("[{}][{}][{}][{}][{}] sent response to [{}] success [{}]", request.getRequestId(),
-                    opaque, restResponse.status(), restResponse.contentType(), contentLength, httpChannel, success));
+                tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
             }
-
         }
     }
 

@@ -174,7 +174,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.http.AbstractHttpServerTransport.tracer:trace",
+        value = "org.elasticsearch.http.HttpTracer:trace",
         reason = "to ensure we log REST requests on TRACE level")
     public void testTracerLog() throws Exception {
         final String includeSettings;
@@ -225,7 +225,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                 .build());
             MockLogAppender appender = new MockLogAppender();
-            final String traceLoggerName = "org.elasticsearch.http.AbstractHttpServerTransport.tracer";
+            final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
             try {
                 appender.start();
                 Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);

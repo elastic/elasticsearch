@@ -63,15 +63,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         // todo: remove system property escape hatch in 8.0
         // todo: fix version constant on backport to 7.x
         if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
-                || System.getProperty("es.reindex.resilience", "true").equals("false")) {
+                || System.getProperty("es.reindex.persistent", "true").equals("false")) {
             return doPrepareRequest(request, client, true, true);
         }
 
+        boolean resilient = System.getProperty("es.reindex.persistent.resilient", "true").equals("false") == false;
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request
         StartReindexTaskAction.Request internal = new StartReindexTaskAction.Request(setCommonOptions(request, buildRequest(request)),
-            waitForCompletion);
+            waitForCompletion, resilient);
         /*
          * Let's try and validate before forking so the user gets some error. The
          * task can't totally validate until it starts but this is better than

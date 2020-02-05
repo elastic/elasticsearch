@@ -40,13 +40,24 @@ public abstract class ReindexRunAsPersistentAndEphemeralTaskTestCase extends Rei
 
     private static final Map<String, ReindexRequestBuilderFactory> requestBuilderFactories = new LinkedHashMap<>();
     static {
-        requestBuilderFactories.put("task", client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE));
-        requestBuilderFactories.put("job",
+        requestBuilderFactories.put("ephemeral task", client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE));
+        requestBuilderFactories.put("non-resilient persistent task",
             client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE) {
                 @Override
                 public ActionFuture<BulkByScrollResponse> execute() {
                     PlainActionFuture<BulkByScrollResponse> futureResult = new PlainActionFuture<>();
-                    client.execute(StartReindexTaskAction.INSTANCE, new StartReindexTaskAction.Request(request(), true),
+                    client.execute(StartReindexTaskAction.INSTANCE, new StartReindexTaskAction.Request(request(), true, false),
+                        ActionListener.delegateFailure(futureResult, (future, result) -> future.onResponse(result.getReindexResponse())));
+
+                    return futureResult;
+                }
+            });
+        requestBuilderFactories.put("resilient persistent task",
+            client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE) {
+                @Override
+                public ActionFuture<BulkByScrollResponse> execute() {
+                    PlainActionFuture<BulkByScrollResponse> futureResult = new PlainActionFuture<>();
+                    client.execute(StartReindexTaskAction.INSTANCE, new StartReindexTaskAction.Request(request(), true, true),
                         ActionListener.delegateFailure(futureResult, (future, result) -> future.onResponse(result.getReindexResponse())));
 
                     return futureResult;

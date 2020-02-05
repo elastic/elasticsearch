@@ -79,7 +79,10 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 ReindexTaskStateDoc oldDoc = taskState.getStateDoc();
 
                 assert oldDoc.getAllocationId() == null || allocationId != oldDoc.getAllocationId();
-                if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
+
+                ElasticsearchException assignmentFailureReason = assignmentFailureReason(oldDoc);
+
+                if (assignmentFailureReason == null) {
                     ReindexTaskStateDoc newDoc = oldDoc.withNewAllocation(allocationId, ephemeralTaskId);
                     reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
                         @Override
@@ -111,8 +114,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                         }
                     });
                 } else {
-                    logger.info(new ParameterizedMessage("Failed to write ASSIGNMENT due to newer allocation, will not retry"));
-                    listener.onFailure(new ElasticsearchException("A newer task has already been allocated"));
+                    logger.info(new ParameterizedMessage("Failed to write ASSIGNMENT, will not retry"), assignmentFailureReason);
+                    listener.onFailure(assignmentFailureReason);
                 }
             }
 
@@ -124,6 +127,24 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 threadPool.schedule(() -> assign(listener, nextDelay), nextDelay, ThreadPool.Names.SAME);
             }
         });
+    }
+
+    private ElasticsearchException assignmentFailureReason(ReindexTaskStateDoc oldDoc) {
+        if (oldDoc.isResilient()) {
+            if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
+                return null;
+            } else {
+                return new ElasticsearchException("A newer task has already been allocated");
+            }
+        } else {
+            if (oldDoc.getAllocationId() == null) {
+                return null;
+            } else {
+                return new ElasticsearchException("A prior task has already been allocated and reindexing is configured to be " +
+                    "non-resilient");
+            }
+
+        }
     }
 
     @Override

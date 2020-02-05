@@ -13,13 +13,13 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 public class AuthenticationTests extends ESTestCase {
 
-    public void testWillGetLookupByWhenItExists() {
+    public void testWillGetLookedUpByWhenItExists() {
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
         final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("lookup_by", "lookup_by_type", "node");
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, lookedUpBy);
 
-        assertEquals(lookedUpBy, authentication.getNominalRealm());
+        assertEquals(lookedUpBy, authentication.getSourceRealm());
     }
 
     public void testWillGetAuthenticateByWhenLookupIsNull() {
@@ -27,7 +27,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, null);
 
-        assertEquals(authenticatedBy, authentication.getNominalRealm());
+        assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
 
 }

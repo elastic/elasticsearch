@@ -61,5 +61,9 @@ public class AggregationsTests extends ESTestCase {
         // weighted_avg
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", "double"));
+
+        // percentile
+        assertEquals("double", Aggregations.resolveTargetMapping("percentiles", null));
+        assertEquals("double", Aggregations.resolveTargetMapping("percentiles", "int"));
     }
 }

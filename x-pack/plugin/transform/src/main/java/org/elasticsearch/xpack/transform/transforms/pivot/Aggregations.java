@@ -6,7 +6,14 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
+
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -17,6 +24,7 @@ public final class Aggregations {
     private static final String DYNAMIC = "_dynamic";
     // the field mapping should be determined explicitly from the source field mapping if possible.
     private static final String SOURCE = "_source";
+
     private Aggregations() {}
 
     /**
@@ -40,7 +48,8 @@ public final class Aggregations {
         SCRIPTED_METRIC("scripted_metric", DYNAMIC),
         WEIGHTED_AVG("weighted_avg", DYNAMIC),
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
-        BUCKET_SCRIPT("bucket_script", DYNAMIC);
+        BUCKET_SCRIPT("bucket_script", DYNAMIC),
+        PERCENTILES("percentiles", "double");
 
         private final String aggregationType;
         private final String targetMapping;
@@ -59,8 +68,9 @@ public final class Aggregations {
         }
     }
 
-    private static Set<String> aggregationSupported = Stream.of(AggregationType.values()).map(AggregationType::name)
-            .collect(Collectors.toSet());
+    private static Set<String> aggregationSupported = Stream.of(AggregationType.values())
+        .map(AggregationType::name)
+        .collect(Collectors.toSet());
 
     public static boolean isSupportedByTransform(String aggregationType) {
         return aggregationSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
@@ -74,4 +84,19 @@ public final class Aggregations {
         AggregationType agg = AggregationType.valueOf(aggregationType.toUpperCase(Locale.ROOT));
         return agg.getTargetMapping().equals(SOURCE) ? sourceType : agg.getTargetMapping();
     }
+
+    public static Map<String, String> getAggregationOutputTypes(AggregationBuilder agg) {
+        if (agg instanceof PercentilesAggregationBuilder) {
+            PercentilesAggregationBuilder percentilesAgg = (PercentilesAggregationBuilder) agg;
+
+            // note: eclipse does not like p -> agg.getType()
+            // the merge function (p1, p2) -> p1 ignores duplicates
+            return Arrays.stream(percentilesAgg.percentiles())
+                .mapToObj(OutputFieldNameConverter::fromDouble)
+                .collect(Collectors.toMap(p -> agg.getName() + "." + p, p -> { return agg.getType(); }, (p1, p2) -> p1));
+        }
+        // catch all
+        return Collections.singletonMap(agg.getName(), agg.getType());
+    }
+
 }
